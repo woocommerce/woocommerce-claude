@@ -1,14 +1,17 @@
 <?php
 /**
- * Hey Woo setup page template.
+ * Hey Woo setup view, rendered inside WC Settings → Hey Woo (default
+ * section). Outputs HTML directly inside WC's outer <form id="mainform">
+ * wrapper, so this view contains *no* nested <form> elements: every
+ * state-changing action is a `wp_nonce_url`-protected GET link.
  *
- * Rendered by HeyWoo\Setup\SetupPage::render(). Expects the following
- * variables in scope:
+ * Expects the following variables in scope (prepared by
+ * SetupPage::render_setup_view()):
  *
  * @var bool                                                                $mcp_enabled    Whether the Woo MCP feature flag is on.
  * @var bool                                                                $site_https     Whether home_url() is https.
  * @var string                                                              $endpoint_url   Full Woo MCP endpoint URL.
- * @var string                                                              $current_client Selected client tab ('claude-code', 'claude-desktop-manual', 'cursor', 'generic').
+ * @var string                                                              $current_client Selected client tab.
  * @var string                                                              $notice_code    Status flash from query string.
  * @var array{credential:string,key_id:int,permissions:string}|null         $key_state      Provisioned key, or null if not yet created.
  * @package HeyWoo
@@ -18,8 +21,6 @@ defined( 'ABSPATH' ) || exit;
 
 use HeyWoo\Setup\SetupPage;
 
-$store_host     = wp_parse_url( home_url(), PHP_URL_HOST );
-$store_host     = is_string( $store_host ) ? $store_host : '';
 $credential     = $key_state['credential'] ?? '';
 $permissions    = $key_state['permissions'] ?? 'read';
 $is_read_write  = 'read_write' === $permissions;
@@ -68,19 +69,24 @@ $notices = array(
 	'key_failed'          => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
 	'permissions_updated' => array( 'success', __( 'API key scope updated.', 'hey-woo' ) ),
 );
+
+$enable_url           = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
+$download_url         = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
+$regen_url            = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
+$scope_read_url       = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read' ) );
+$scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read_write' ) );
 ?>
-<div class="wrap hey-woo-setup">
-	<h1><?php esc_html_e( 'Connect Hey Woo to Claude', 'hey-woo' ); ?></h1>
+<div class="hey-woo-setup">
+
+	<p class="hey-woo-setup__intro">
+		<?php esc_html_e( "Pick the easy path if you use Claude Desktop — one click and you're done. If you use a different MCP client, copy the configuration from the manual section.", 'hey-woo' ); ?>
+	</p>
 
 	<?php if ( isset( $notices[ $notice_code ] ) ) : ?>
 		<div class="notice notice-<?php echo esc_attr( $notices[ $notice_code ][0] ); ?> is-dismissible">
 			<p><?php echo esc_html( $notices[ $notice_code ][1] ); ?></p>
 		</div>
 	<?php endif; ?>
-
-	<p class="hey-woo-setup__intro">
-		<?php esc_html_e( "Pick the easy path if you use Claude Desktop — one click and you're done. If you use a different MCP client, copy the configuration from the manual section below.", 'hey-woo' ); ?>
-	</p>
 
 	<div class="hey-woo-setup__status">
 		<h2><?php esc_html_e( 'Status', 'hey-woo' ); ?></h2>
@@ -100,13 +106,9 @@ $notices = array(
 					<span class="hey-woo-setup__ok"><?php esc_html_e( 'Enabled', 'hey-woo' ); ?></span>
 				<?php else : ?>
 					<span class="hey-woo-setup__warn"><?php esc_html_e( 'Disabled', 'hey-woo' ); ?></span>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="hey-woo-setup__inline-form">
-						<?php wp_nonce_field( SetupPage::ACTION_ENABLE_MCP ); ?>
-						<input type="hidden" name="action" value="<?php echo esc_attr( SetupPage::ACTION_ENABLE_MCP ); ?>" />
-						<button type="submit" class="button button-secondary">
-							<?php esc_html_e( 'Enable WooCommerce MCP integration', 'hey-woo' ); ?>
-						</button>
-					</form>
+					<a class="button button-secondary hey-woo-setup__inline-action" href="<?php echo esc_url( $enable_url ); ?>">
+						<?php esc_html_e( 'Enable WooCommerce MCP integration', 'hey-woo' ); ?>
+					</a>
 				<?php endif; ?>
 			</li>
 			<li>
@@ -116,13 +118,13 @@ $notices = array(
 				<?php else : ?>
 					<code>Hey Woo MCP — Claude Desktop</code>
 					(<?php echo esc_html( $is_read_write ? __( 'Read + Write', 'hey-woo' ) : __( 'Read', 'hey-woo' ) ); ?>)
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="hey-woo-setup__inline-form">
-						<?php wp_nonce_field( SetupPage::ACTION_REGEN_KEY ); ?>
-						<input type="hidden" name="action" value="<?php echo esc_attr( SetupPage::ACTION_REGEN_KEY ); ?>" />
-						<button type="submit" class="button-link" onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'hey-woo' ) ); ?>');">
-							<?php esc_html_e( 'Regenerate', 'hey-woo' ); ?>
-						</button>
-					</form>
+					<a
+						class="hey-woo-setup__inline-link"
+						href="<?php echo esc_url( $regen_url ); ?>"
+						onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'hey-woo' ) ); ?>');"
+					>
+						<?php esc_html_e( 'Regenerate', 'hey-woo' ); ?>
+					</a>
 				<?php endif; ?>
 			</li>
 		</ul>
@@ -130,8 +132,40 @@ $notices = array(
 
 	<div class="hey-woo-setup__cards">
 
+		<?php /* 1. Access level — decide first, deliver second. */ ?>
+		<div class="hey-woo-setup__card hey-woo-setup__card--scope">
+			<h2><?php esc_html_e( '1. Access level', 'hey-woo' ); ?></h2>
+			<p class="hey-woo-setup__card-lede">
+				<?php esc_html_e( 'What can the AI do? Default is Read — enough for analytics, readiness, and product look-ups. Switch later from this same page.', 'hey-woo' ); ?>
+			</p>
+			<div class="hey-woo-setup__toggle" role="group" aria-label="<?php esc_attr_e( 'API key access level', 'hey-woo' ); ?>">
+				<a
+					class="hey-woo-setup__toggle-option<?php echo $is_read_write ? '' : ' is-active'; ?>"
+					href="<?php echo esc_url( $scope_read_url ); ?>"
+					aria-pressed="<?php echo $is_read_write ? 'false' : 'true'; ?>"
+				>
+					<strong><?php esc_html_e( 'Read', 'hey-woo' ); ?></strong>
+					<span><?php esc_html_e( '"How is my store doing?" workflows.', 'hey-woo' ); ?></span>
+				</a>
+				<a
+					class="hey-woo-setup__toggle-option<?php echo $is_read_write ? ' is-active' : ''; ?>"
+					href="<?php echo esc_url( $scope_read_write_url ); ?>"
+					aria-pressed="<?php echo $is_read_write ? 'true' : 'false'; ?>"
+				>
+					<strong><?php esc_html_e( 'Read + Write', 'hey-woo' ); ?></strong>
+					<span><?php esc_html_e( 'Also lets Claude create / edit products and orders.', 'hey-woo' ); ?></span>
+				</a>
+			</div>
+			<?php if ( null !== $key_state ) : ?>
+				<p class="hey-woo-setup__hint">
+					<?php esc_html_e( 'Switching scope updates the existing key — already-installed bundles keep working with the new permission set.', 'hey-woo' ); ?>
+				</p>
+			<?php endif; ?>
+		</div>
+
+		<?php /* 2. Claude Desktop — one-click bundle. */ ?>
 		<div class="hey-woo-setup__card hey-woo-setup__card--quick">
-			<h2><?php esc_html_e( '1. Quick Setup — Claude Desktop', 'hey-woo' ); ?></h2>
+			<h2><?php esc_html_e( '2. Quick Setup — Claude Desktop', 'hey-woo' ); ?></h2>
 			<p><?php esc_html_e( 'Download a one-click bundle. Double-click the file and Claude Desktop registers Hey Woo for you.', 'hey-woo' ); ?></p>
 			<p class="hey-woo-setup__prereq">
 				<strong><?php esc_html_e( 'Prerequisite:', 'hey-woo' ); ?></strong>
@@ -145,13 +179,9 @@ $notices = array(
 			</p>
 
 			<?php if ( $mcp_enabled ) : ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<?php wp_nonce_field( SetupPage::ACTION_DOWNLOAD ); ?>
-					<input type="hidden" name="action" value="<?php echo esc_attr( SetupPage::ACTION_DOWNLOAD ); ?>" />
-					<button type="submit" class="button button-primary button-hero">
-						<?php esc_html_e( 'Download Hey Woo for Claude Desktop', 'hey-woo' ); ?>
-					</button>
-				</form>
+				<a class="button button-primary button-hero" href="<?php echo esc_url( $download_url ); ?>">
+					<?php esc_html_e( 'Download Hey Woo for Claude Desktop', 'hey-woo' ); ?>
+				</a>
 				<p class="hey-woo-setup__warn-block">
 					<?php esc_html_e( 'The bundle contains an API key for this store. Don\'t share the file. If it leaks, click Regenerate above to revoke it.', 'hey-woo' ); ?>
 				</p>
@@ -162,24 +192,25 @@ $notices = array(
 			<?php endif; ?>
 		</div>
 
+		<?php /* 3. Other clients — manual JSON / claude mcp add. */ ?>
 		<div class="hey-woo-setup__card hey-woo-setup__card--manual">
-			<h2><?php esc_html_e( '2. Manual Setup — other MCP clients', 'hey-woo' ); ?></h2>
+			<h2><?php esc_html_e( '3. Manual Setup — other MCP clients', 'hey-woo' ); ?></h2>
 			<p><?php esc_html_e( 'Pick your client and copy the configuration into its MCP settings.', 'hey-woo' ); ?></p>
 
-			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="hey-woo-setup__client-picker">
-				<input type="hidden" name="page" value="<?php echo esc_attr( SetupPage::PAGE_SLUG ); ?>" />
+			<div class="hey-woo-setup__client-picker">
 				<label for="hey-woo-client-select"><?php esc_html_e( 'MCP client:', 'hey-woo' ); ?></label>
-				<select id="hey-woo-client-select" name="client" data-hey-woo-client>
+				<select id="hey-woo-client-select" data-hey-woo-client>
 					<?php foreach ( $client_options as $value => $label ) : ?>
-						<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $current_client, $value ); ?>>
+						<option
+							value="<?php echo esc_attr( $value ); ?>"
+							data-hey-woo-client-url="<?php echo esc_attr( SetupPage::url( array( 'client' => $value ) ) ); ?>"
+							<?php selected( $current_client, $value ); ?>
+						>
 							<?php echo esc_html( $label ); ?>
 						</option>
 					<?php endforeach; ?>
 				</select>
-				<noscript>
-					<button type="submit" class="button"><?php esc_html_e( 'Update', 'hey-woo' ); ?></button>
-				</noscript>
-			</form>
+			</div>
 
 			<?php if ( null === $key_state ) : ?>
 				<p class="hey-woo-setup__blocked">
@@ -233,28 +264,9 @@ $notices = array(
 			<?php endif; ?>
 		</div>
 
-		<div class="hey-woo-setup__card hey-woo-setup__card--scope">
-			<h2><?php esc_html_e( 'API key scope', 'hey-woo' ); ?></h2>
-			<p>
-				<?php esc_html_e( 'Hey Woo defaults to a Read-only key, which is enough for the analytics, readiness, and product-search tools. Switch to Read + Write if you also want Claude to be able to create or edit products and orders.', 'hey-woo' ); ?>
-			</p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="hey-woo-setup__scope-form">
-				<?php wp_nonce_field( SetupPage::ACTION_SET_PERMS ); ?>
-				<input type="hidden" name="action" value="<?php echo esc_attr( SetupPage::ACTION_SET_PERMS ); ?>" />
-				<label>
-					<input type="radio" name="permissions" value="read" <?php checked( ! $is_read_write ); ?> />
-					<?php esc_html_e( 'Read (recommended)', 'hey-woo' ); ?>
-				</label>
-				<label>
-					<input type="radio" name="permissions" value="read_write" <?php checked( $is_read_write ); ?> />
-					<?php esc_html_e( 'Read + Write — let Claude create and edit products / orders', 'hey-woo' ); ?>
-				</label>
-				<button type="submit" class="button"><?php esc_html_e( 'Update scope', 'hey-woo' ); ?></button>
-			</form>
-		</div>
-
+		<?php /* 4. Success state — what to ask once it's hooked up. */ ?>
 		<div class="hey-woo-setup__card hey-woo-setup__card--after">
-			<h2><?php esc_html_e( 'After setup, ask Claude', 'hey-woo' ); ?></h2>
+			<h2><?php esc_html_e( '4. After setup, ask Claude', 'hey-woo' ); ?></h2>
 			<ul>
 				<li><?php esc_html_e( '"How did my store do this week?"', 'hey-woo' ); ?></li>
 				<li><?php esc_html_e( '"What\'s my AI readiness score and top recommendations?"', 'hey-woo' ); ?></li>

@@ -1,6 +1,6 @@
 <?php
 /**
- * Hey Woo "Connect to Claude" setup page.
+ * Hey Woo "Connect to Claude" setup view.
  *
  * @package HeyWoo
  */
@@ -10,22 +10,22 @@ namespace HeyWoo\Setup;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Admin setup page that walks a store owner through connecting Hey Woo
- * to Claude Desktop (one-click .mcpb download with the API key embedded)
- * or to other MCP clients via a copy-paste JSON snippet.
+ * Setup view rendered inside the WooCommerce Settings → Hey Woo tab
+ * (default section). Walks a store owner through connecting Hey Woo
+ * to Claude Desktop (one-click .mcpb download with the API key
+ * embedded) or to other MCP clients via a copy-paste JSON snippet.
+ *
+ * State-changing actions are exposed as `wp_nonce_url`-protected GET
+ * links rather than POST forms because the view is rendered inside
+ * WC's outer <form id="mainform"> wrapper, and HTML disallows nested
+ * forms.
  */
 class SetupPage {
 
 	/**
-	 * Admin page slug.
-	 */
-	const PAGE_SLUG = 'hey-woo-setup';
-
-	/**
 	 * Capability required to view or use the setup page.
 	 *
-	 * Matches the capability used by the existing WC Settings tab
-	 * (see HeyWoo\Settings\SettingsPage).
+	 * Matches the capability used by the WC Settings tab itself.
 	 */
 	const CAPABILITY = 'manage_woocommerce';
 
@@ -39,6 +39,11 @@ class SetupPage {
 	 */
 	const FEATURE_FLAG_OPTION = 'woocommerce_feature_mcp_integration_enabled';
 
+	/**
+	 * WC settings tab id this page lives under.
+	 */
+	const SETTINGS_TAB = 'hey-woo';
+
 	const ACTION_DOWNLOAD       = 'hey_woo_download_mcpb';
 	const ACTION_REGEN_KEY      = 'hey_woo_regenerate_key';
 	const ACTION_ENABLE_MCP     = 'hey_woo_enable_mcp_feature';
@@ -49,7 +54,6 @@ class SetupPage {
 	 * Wire all hooks. Called once during plugin bootstrap.
 	 */
 	public static function init() {
-		add_action( 'admin_menu', array( __CLASS__, 'register_menu' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'maybe_render_activation_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 
@@ -66,30 +70,38 @@ class SetupPage {
 	}
 
 	/**
-	 * Register the WooCommerce → Hey Woo submenu entry.
-	 */
-	public static function register_menu() {
-		add_submenu_page(
-			'woocommerce',
-			__( 'Hey Woo Setup', 'hey-woo' ),
-			__( 'Hey Woo', 'hey-woo' ),
-			self::CAPABILITY,
-			self::PAGE_SLUG,
-			array( __CLASS__, 'render' )
-		);
-	}
-
-	/**
-	 * Build a URL pointing at the setup page, optionally with extra query args.
+	 * Build the URL of the setup page (WC Settings → Hey Woo, default
+	 * section).
 	 *
 	 * @param array<string,string|int> $args Extra query args.
 	 * @return string
 	 */
 	public static function url( $args = array() ) {
 		return add_query_arg(
-			array_merge( array( 'page' => self::PAGE_SLUG ), $args ),
+			array_merge(
+				array(
+					'page' => 'wc-settings',
+					'tab'  => self::SETTINGS_TAB,
+				),
+				$args
+			),
 			admin_url( 'admin.php' )
 		);
+	}
+
+	/**
+	 * Build a nonce-protected URL for one of the admin-post actions.
+	 *
+	 * @param string                   $action The action name (also the nonce action).
+	 * @param array<string,string|int> $extra  Extra query args to append.
+	 * @return string
+	 */
+	public static function action_url( $action, $extra = array() ) {
+		$base = add_query_arg(
+			array_merge( array( 'action' => $action ), $extra ),
+			admin_url( 'admin-post.php' )
+		);
+		return wp_nonce_url( $base, $action );
 	}
 
 	/**
@@ -121,12 +133,12 @@ class SetupPage {
 	}
 
 	/**
-	 * Render the setup page. Loads the view template, which expects
-	 * the variables prepared here.
+	 * Render the setup view. Called by SettingsPage::output() when the
+	 * default section is active. Outputs HTML directly.
 	 */
-	public static function render() {
+	public static function render_setup_view() {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
-			wp_die( esc_html__( 'You do not have permission to access this page.', 'hey-woo' ) );
+			return;
 		}
 
 		$key_helper     = new RestApiKey();
@@ -147,8 +159,7 @@ class SetupPage {
 			}
 		}
 
-		$view_path = HEY_WOO_PLUGIN_DIR . 'includes/setup/views/page.php';
-		require $view_path;
+		require HEY_WOO_PLUGIN_DIR . 'includes/setup/views/page.php';
 	}
 
 	/**
@@ -190,8 +201,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Flip the Woo core MCP feature flag to "yes" (the page only fires
-	 * this action after a confirm step).
+	 * Flip the Woo core MCP feature flag to "yes".
 	 */
 	public static function handle_enable_mcp() {
 		self::guard( self::ACTION_ENABLE_MCP );
@@ -202,12 +212,14 @@ class SetupPage {
 
 	/**
 	 * Toggle between read and read_write scope on the existing key.
+	 * Reads the new scope from the `permissions` query arg (the action
+	 * is GET-based; nonce verified by self::guard()).
 	 */
 	public static function handle_set_permissions() {
 		self::guard( self::ACTION_SET_PERMS );
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce verified by self::guard() above.
-		$requested = isset( $_POST['permissions'] ) ? sanitize_key( wp_unslash( $_POST['permissions'] ) ) : 'read';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
+		$requested = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( $_GET['permissions'] ) ) : 'read';
 		$allowed   = array( 'read', 'read_write' );
 		if ( ! in_array( $requested, $allowed, true ) ) {
 			$requested = 'read';
@@ -242,8 +254,7 @@ class SetupPage {
 
 	/**
 	 * Render the post-activation "Connect to Claude" admin notice on
-	 * every screen except the setup page itself. Suppressed once the
-	 * user has both enabled the MCP feature and provisioned a key.
+	 * every screen except the setup page itself.
 	 */
 	public static function maybe_render_activation_notice() {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
@@ -252,16 +263,15 @@ class SetupPage {
 		if ( ! get_transient( self::NOTICE_TRANSIENT ) ) {
 			return;
 		}
-		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-		if ( $screen && false !== strpos( (string) $screen->id, self::PAGE_SLUG ) ) {
+
+		// Don't nag on the setup page itself (WC settings → Hey Woo,
+		// default section).
+		if ( self::is_setup_page_request() ) {
 			return;
 		}
 
 		$setup_url   = self::url();
-		$dismiss_url = wp_nonce_url(
-			add_query_arg( 'action', self::ACTION_DISMISS_NOTICE, admin_url( 'admin-post.php' ) ),
-			self::ACTION_DISMISS_NOTICE
-		);
+		$dismiss_url = self::action_url( self::ACTION_DISMISS_NOTICE );
 		?>
 		<div class="notice notice-info is-dismissible hey-woo-activation-notice">
 			<p>
@@ -298,17 +308,50 @@ class SetupPage {
 	}
 
 	/**
-	 * Enqueue the page's CSS and JS, only on the setup screen.
+	 * Enqueue the page's CSS and JS, only on the WC Settings → Hey
+	 * Woo Setup section.
 	 *
 	 * @param string $hook_suffix Current admin hook suffix.
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
-		if ( ! is_string( $hook_suffix ) || false === strpos( $hook_suffix, self::PAGE_SLUG ) ) {
+		if ( ! self::is_setup_page_request( $hook_suffix ) ) {
 			return;
 		}
+
 		$base_url = plugins_url( 'includes/setup/assets/', HEY_WOO_PLUGIN_FILE );
 		wp_enqueue_style( 'hey-woo-setup', $base_url . 'setup.css', array(), HEY_WOO_VERSION );
 		wp_enqueue_script( 'hey-woo-setup', $base_url . 'setup.js', array(), HEY_WOO_VERSION, true );
+
+		// Hide WC's outer Save Changes button on this section — the
+		// setup view has its own actioned controls and nothing to
+		// "save". Scoped to #mainform > .submit so it only suppresses
+		// the WC-emitted save row, not anything inside our cards.
+		wp_add_inline_style(
+			'hey-woo-setup',
+			'#mainform > p.submit { display: none; }'
+		);
+	}
+
+	/**
+	 * Whether the current request is the setup page (WC Settings →
+	 * Hey Woo, default section). Caller may pass the admin hook suffix
+	 * if it has it; falls back to the request's GET vars otherwise.
+	 *
+	 * @param string|null $hook_suffix Optional admin hook suffix.
+	 * @return bool
+	 */
+	private static function is_setup_page_request( $hook_suffix = null ) {
+		if ( null !== $hook_suffix && 'woocommerce_page_wc-settings' !== $hook_suffix ) {
+			return false;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only request inspection.
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+		$tab  = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+		$sec  = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && '' === $sec;
 	}
 
 	/**

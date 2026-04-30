@@ -8,11 +8,20 @@
 namespace HeyWoo\Settings;
 
 use HeyWoo\Abilities\AbilitiesBootstrap;
+use HeyWoo\Setup\SetupPage;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers the "Hey Woo" tab in WooCommerce > Settings.
+ *
+ * The tab has two sections:
+ *
+ * - "" (default) — the Connect-to-Claude setup view, rendered by
+ *   SetupPage::render_setup_view(). Setup is the first thing a new
+ *   user wants, so it sits at the default URL.
+ * - "preferences" — the telemetry and customer-PII checkboxes,
+ *   rendered through WC's standard settings field API.
  */
 class SettingsPage extends \WC_Settings_Page {
 
@@ -31,11 +40,62 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Return the settings fields for the default (only) section.
+	 * Sub-section navigation. Default ("") shows Setup; "preferences"
+	 * shows the standard WC settings form for telemetry + privacy.
 	 *
-	 * @return array WC settings field definitions.
+	 * @return array<string,string>
 	 */
-	protected function get_settings_for_default_section() {
+	public function get_sections() {
+		return array(
+			''            => __( 'Setup', 'hey-woo' ),
+			'preferences' => __( 'Preferences', 'hey-woo' ),
+		);
+	}
+
+	/**
+	 * Settings fields per section. The setup section returns an empty
+	 * array because it's rendered via SetupPage::render_setup_view()
+	 * in output() below; only the preferences section uses WC's
+	 * settings field API.
+	 *
+	 * @param string $current_section Section ID.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function get_settings_for_section( $current_section ) {
+		if ( 'preferences' === $current_section ) {
+			return $this->get_preferences_settings();
+		}
+		return array();
+	}
+
+	/**
+	 * Render the active section. Setup is rendered as a custom view
+	 * (it has download buttons + nonced links rather than a settings
+	 * form), so we bypass the parent's standard field renderer for
+	 * that section.
+	 */
+	public function output() {
+		global $current_section;
+
+		if ( 'preferences' === $current_section ) {
+			parent::output();
+			return;
+		}
+
+		// Setup view — rendered inside WC's outer <form id="mainform">.
+		// SetupPage uses nonced GET links rather than nested <form>s
+		// to keep the HTML valid.
+		SetupPage::render_setup_view();
+	}
+
+	/**
+	 * The preferences section's setting definitions — telemetry +
+	 * customer-PII toggle, preserved unchanged from the previous
+	 * single-section layout.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function get_preferences_settings() {
 		return array(
 			array(
 				'type'  => 'title',

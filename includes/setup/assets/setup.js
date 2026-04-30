@@ -1,5 +1,9 @@
 /**
- * Hey Woo setup page — copy-to-clipboard + auto-submit on client picker.
+ * Hey Woo setup page — copy-to-clipboard + navigate-on-pick for the
+ * client picker. The picker can't be a nested <form> (we render
+ * inside WC's outer settings form), so on change we read the
+ * destination URL from the selected option's data attribute and
+ * navigate via location.href.
  */
 (function () {
 	'use strict';
@@ -65,9 +69,10 @@
 		var picker = document.querySelector('[data-hey-woo-client]');
 		if (picker) {
 			picker.addEventListener('change', function () {
-				var form = picker.closest('form');
-				if (form) {
-					form.submit();
+				var option = picker.options[picker.selectedIndex];
+				var url = option && option.getAttribute('data-hey-woo-client-url');
+				if (url) {
+					window.location.href = url;
 				}
 			});
 		}

@@ -28,7 +28,7 @@ For a typical WooCommerce store, the plugin's load is lighter than loading the W
 ### Claude Desktop — one click
 
 1. Install and activate Hey Woo. For local dev: `npx wp-env start`.
-2. Open **WooCommerce → Hey Woo** in WP admin (or click **Set up Claude** in the post-activation notice).
+2. Open **WooCommerce → Settings → Hey Woo** in WP admin (or click **Set up Claude** in the post-activation notice).
 3. If WooCommerce MCP integration isn't on yet, click **Enable WooCommerce MCP integration**.
 4. Click **Download Hey Woo for Claude Desktop**, then double-click the downloaded `.mcpb` file. Claude Desktop registers Hey Woo automatically — no copy-paste, no JSON, no API key wrangling.
 
