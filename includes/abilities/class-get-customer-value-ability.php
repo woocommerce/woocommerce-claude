@@ -20,10 +20,9 @@
  * difference in narration rather than guess.
  *
  * Privacy: `top_customers` always returns `id` as a pseudonymised
- * `Customer #{customer_id}` handle. When the merchant has opted in via
- * `hey_woo_allow_customer_pii`, real `name` / `email` are also
- * included so the list can be piped to a CRM/email MCP. Claude is
- * instructed to always narrate with the pseudonymised id.
+ * `Customer #{customer_id}` handle. Real names and emails are never
+ * surfaced — the merchant looks up the real identity in WP Admin >
+ * WooCommerce > Customers when they need it.
  *
  * @package HeyWoo
  */
@@ -68,9 +67,8 @@ Different questions map to different blocks. Lead with whichever block directly 
 NO THREE-VIEW PATTERN (unlike revenue/orders/products/attribution/customer_overview): lifetime spend is inherently longitudinal — on-hold orders shouldn't count as "value delivered" and refund netting happens over years. Pipeline-scoped questions belong to get_customer_overview. If a merchant asks "why doesn't this match my admin Customers report?", explain that this skill is lifetime-shaped and the admin report is period-shaped; they answer different questions.
 
 CRITICAL PRIVACY RULES — read before every response:
-- top_customers always carries a pseudonymised `id` field ("Customer #1247"). ALWAYS refer to customers by this id in narration, even when name/email are present.
-- privacy_mode === "pseudonymised" (default): name/email are NOT returned. DO NOT invent them. If the merchant asks "who is Customer #1247?", point at WP Admin > WooCommerce > Customers and mention that switching on "Allow customer-level data in AI responses" in plugin settings will include names/emails on this tool's responses.
-- privacy_mode === "full" (merchant has opted in): name and email are present on each top_customers entry. These can be passed to a CRM/email MCP (Klaviyo, Mailchimp, etc.) when the merchant asks to action the list ("email my top 10 a 20% discount", "add these to my VIP segment"). Even then, narrate back to the merchant using the pseudonymised id — the name/email are for machine-to-machine handoff, not for read-aloud.
+- top_customers always carries a pseudonymised `id` field ("Customer #1247") and never includes real names or emails. ALWAYS refer to customers by this id in narration. If the merchant asks "who is Customer #1247?", point at WP Admin > WooCommerce > Customers — that's the only place the real identity lives.
+- DO NOT invent names or emails. If you don't see them in the payload, they're not available — full stop.
 - Never list all customers (the tool returns top-N by design) — "show me everyone who spent over £500" needs a different approach and isn't available here.
 - Guest-checkout customers (customer_id = 0) are not tracked in lifetime stats — WooCommerce can't attach orders to a persistent guest identity. Mention this honestly if the merchant's store leans heavily on guest checkout.
 
@@ -91,7 +89,7 @@ NARRATIVE GUIDANCE — COMPARISON: comparison.changes carries pre-computed perce
 NARRATIVE GUIDANCE — OPPORTUNITY FRAMING: when the one_to_repeat_conversion block is present and uplift_per_conversion is positive, frame scenarios as "if you converted N% of your one-time buyers to repeaters, you'd unlock £X over their lifetimes." Always read conversions and estimated_uplift from the scenarios array — never derive them narratively. Do NOT show the intermediate multiplication ("£2,264 per conversion × 18 = £40,756") — the scenario row already presents both figures side by side; the merchant doesn't need to see the working. Report the estimated_uplift as the answer; reach for the other fields only if the merchant asks "where does that number come from?"
 
 WHAT THIS CAN'T ANSWER:
-- Individual customer names/emails unless the merchant has enabled the PII setting (see privacy rules above). Default is pseudonymised.
+- Individual customer names or emails. The skill is pseudonymised by design — point at WP Admin > WooCommerce > Customers when the merchant needs the real identity behind a `Customer #N`.
 - Churn prediction or at-risk customer identification. We show past behaviour, not forecasts. For churn, cohort retention curves (cohorts block) show historic drop-off — the merchant interprets.
 - LTV forecasting ("what will Customer #1247 be worth next year?"). We only report actuals.
 - Why a specific customer stopped ordering. No engagement / email / session data.
@@ -106,7 +104,6 @@ GOOD FOLLOW-UP SUGGESTIONS (only ones we can deliver today):
 - "Who's buying right now (period-scoped, new vs returning)?" → get_customer_overview
 - "What channels acquired these customers?" → get_attribution (already splits new-vs-returning per channel)
 - "Compare to a different period" → re-run with custom date_start / date_end or different period
-- "Email my top customers" → only if privacy_mode === "full" and a CRM/email MCP (Klaviyo, Mailchimp) is connected. Narrate by id, pass name/email to the other MCP.
 
 DO NOT SUGGEST:
 - Unmasking a specific Customer #N — point at WP Admin instead
@@ -232,7 +229,7 @@ DESCRIPTION,
 				'currency'            => array( 'type' => 'string' ),
 				'privacy_mode'        => array(
 					'type' => 'string',
-					'enum' => array( 'pseudonymised', 'full' ),
+					'enum' => array( 'pseudonymised' ),
 				),
 				'metrics'             => array( 'type' => 'object' ),
 				'segments'            => array( 'type' => 'object' ),
@@ -298,14 +295,12 @@ DESCRIPTION,
 		);
 
 		$dates = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
-		$pii   = AbilitiesBootstrap::is_pii_allowed();
 
 		$cache_key = 'hey_woo_customer_value_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
 			. '_' . ( $include_cohorts ? '1' : '0' )
-			. '_' . ( $pii ? '1' : '0' )
 			. '_' . AnalyticsController::get_date_column()
 			. '_' . implode( ',', AnalyticsController::get_paid_statuses() )
 		);
@@ -345,7 +340,7 @@ DESCRIPTION,
 			},
 			$rows
 		);
-		$top_customers = self::build_top_customers( $rows, $limit, $pii );
+		$top_customers = self::build_top_customers( $rows, $limit );
 		$time_between  = self::query_time_between_orders( $customer_ids );
 
 		$cohorts = null;
@@ -360,7 +355,7 @@ DESCRIPTION,
 				'label' => $dates['label'],
 			),
 			'currency'            => get_woocommerce_currency(),
-			'privacy_mode'        => $pii ? 'full' : 'pseudonymised',
+			'privacy_mode'        => 'pseudonymised',
 			'metrics'             => $metrics,
 			'segments'            => $segments,
 			'opportunities'       => $opportunities,
@@ -370,9 +365,7 @@ DESCRIPTION,
 			'time_between_orders' => $time_between,
 			'comparison'          => null,
 			'note'                => null,
-			'privacy_note'        => $pii
-				? 'Top customers include name and email because the merchant has enabled customer PII in AI responses. Use these only when piping the list to an email/CRM MCP (e.g. Klaviyo) the merchant is driving. Always refer to customers in narration by the pseudonymised id (Customer #N).'
-				: 'Top customers are pseudonymised (Customer #N). Switch on "Allow customer-level data in AI responses" in plugin settings to include real names and emails — needed when chaining to email or CRM MCPs that must action the list.',
+			'privacy_note'        => 'Top customers are pseudonymised (Customer #N). Real names and emails are never returned — the merchant looks up the identity behind a `Customer #N` in WP Admin > WooCommerce > Customers.',
 		);
 
 		if ( 0 === $metrics['active_customers'] ) {
@@ -640,15 +633,13 @@ DESCRIPTION,
 
 	/**
 	 * Build the top_customers list. Sorted by lifetime_spend desc. Always
-	 * includes pseudonymised id; hydrates name/email when the merchant has
-	 * opted in.
+	 * pseudonymised — real names / emails are never surfaced.
 	 *
-	 * @param array $rows        Per-customer lifetime rows from the active-base query.
-	 * @param int   $limit       Number of rows to return.
-	 * @param bool  $include_pii Whether the merchant has opted into PII (real names/emails).
+	 * @param array $rows  Per-customer lifetime rows from the active-base query.
+	 * @param int   $limit Number of rows to return.
 	 * @return array
 	 */
-	private static function build_top_customers( $rows, $limit, $include_pii ) {
+	private static function build_top_customers( $rows, $limit ) {
 		if ( empty( $rows ) ) {
 			return array();
 		}
@@ -663,14 +654,14 @@ DESCRIPTION,
 
 		$top = array_slice( $rows, 0, $limit );
 
-		// Hydrate country (always safe — not PII) + optionally name/email.
+		// Hydrate country (not PII — country is fine for analytics narratives).
 		$customer_ids = array_map(
 			function ( $row ) {
 				return (int) $row['customer_id'];
 			},
 			$top
 		);
-		$lookups      = self::fetch_customer_lookup( $customer_ids, $include_pii );
+		$lookups      = self::fetch_customer_lookup( $customer_ids );
 
 		$result = array();
 		foreach ( $top as $row ) {
@@ -680,7 +671,7 @@ DESCRIPTION,
 			$aov      = $orders > 0 ? round( $lifetime / $orders, 2 ) : 0.00;
 			$lookup   = $lookups[ $cid ] ?? array();
 
-			$entry = array(
+			$result[] = array(
 				'id'              => 'Customer #' . $cid,
 				'lifetime_orders' => $orders,
 				'lifetime_spend'  => round( $lifetime, 2 ),
@@ -689,39 +680,30 @@ DESCRIPTION,
 				'last_order'      => self::format_date( $row['last_order'] ),
 				'country'         => $lookup['country'] ?? null,
 			);
-
-			if ( $include_pii ) {
-				$name           = trim( ( $lookup['first_name'] ?? '' ) . ' ' . ( $lookup['last_name'] ?? '' ) );
-				$entry['name']  = '' !== $name ? $name : null;
-				$entry['email'] = $lookup['email'] ?? null;
-			}
-
-			$result[] = $entry;
 		}
 
 		return $result;
 	}
 
 	/**
-	 * Fetch country (and optionally name/email) from wc_customer_lookup
-	 * for a set of customer ids. Returns a map keyed by customer_id.
+	 * Fetch country from wc_customer_lookup for a set of customer ids.
+	 * Returns a map keyed by customer_id. PII columns (first_name,
+	 * last_name, email) are never selected.
 	 *
 	 * @param int[] $customer_ids Customer IDs to hydrate.
-	 * @param bool  $include_pii  Whether the merchant has opted into PII (real names/emails).
 	 * @return array
 	 */
-	private static function fetch_customer_lookup( $customer_ids, $include_pii ) {
+	private static function fetch_customer_lookup( $customer_ids ) {
 		if ( empty( $customer_ids ) ) {
 			return array();
 		}
 
 		global $wpdb;
-		$table       = $wpdb->prefix . 'wc_customer_lookup';
-		$ids_ph      = implode( ', ', array_fill( 0, count( $customer_ids ), '%d' ) );
-		$pii_columns = $include_pii ? ', first_name, last_name, email' : '';
+		$table  = $wpdb->prefix . 'wc_customer_lookup';
+		$ids_ph = implode( ', ', array_fill( 0, count( $customer_ids ), '%d' ) );
 
 		$sql = $wpdb->prepare(
-			"SELECT customer_id, country{$pii_columns}
+			"SELECT customer_id, country
 			FROM {$table}
 			WHERE customer_id IN ({$ids_ph})",
 			$customer_ids

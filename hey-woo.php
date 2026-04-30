@@ -70,7 +70,6 @@ function hey_woo_migrate_legacy_options() {
 	}
 	$map = array(
 		'woo_ai_connect_telemetry_enabled' => 'hey_woo_telemetry_enabled',
-		'wc_ai_connect_allow_customer_pii' => 'hey_woo_allow_customer_pii',
 	);
 	foreach ( $map as $old_key => $new_key ) {
 		$old_value = get_option( $old_key, null );

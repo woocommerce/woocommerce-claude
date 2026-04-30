@@ -7062,7 +7062,6 @@ class AnalyticsController {
 			. '|' . $limit
 			. '|' . (string) $orderby
 			. '|' . $order
-			. '|' . ( \HeyWoo\Abilities\AbilitiesBootstrap::is_pii_allowed() ? '1' : '0' )
 			. '|' . self::get_date_column()
 			. '|' . implode( ',', self::get_paid_statuses() )
 		);
@@ -7255,8 +7254,7 @@ class AnalyticsController {
 		$rows         = null;
 		$privacy_mode = null;
 		if ( 'rows' === $mode ) {
-			$pii_on       = \HeyWoo\Abilities\AbilitiesBootstrap::is_pii_allowed();
-			$privacy_mode = $pii_on ? 'full' : 'pseudonymised';
+			$privacy_mode = 'pseudonymised';
 			$rows         = self::qa_orders_fetch_rows(
 				$from,
 				$joins,
@@ -7470,8 +7468,8 @@ class AnalyticsController {
 	}
 
 	/**
-	 * Fetch rows-mode result. Pseudonymised customer id unless the PII
-	 * gate is on.
+	 * Fetch rows-mode result. Customer id is always pseudonymised
+	 * (`Customer #N` / `Guest`) — real names / emails are never selected.
 	 *
 	 * @param string      $from             FROM clause.
 	 * @param array       $joins            JOIN clauses.
@@ -8722,8 +8720,8 @@ class AnalyticsController {
 	// period. Matches the active-base frame in get_customer_value.
 	//
 	// PII shape: names/emails NEVER appear in the filter registry (leak
-	// surface). Rows-mode hydrates them only when the plugin-level PII
-	// gate is on, matching get_customer_value's behaviour.
+	// surface) and are NEVER returned in rows-mode. Customer rows always
+	// carry the pseudonymised `Customer #N` identifier.
 	// ─────────────────────────────────────────────────────────────────────
 
 	/**
@@ -8812,11 +8810,10 @@ class AnalyticsController {
 			'definition'                      => 'Denominator is customers with ≥1 paid order in the period (active base). share_of_lifetime_spend_percent compares matched customers lifetime spend against the full active base lifetime spend — an LTV-weighted share, not order-count-weighted.',
 		);
 
-		$pii_on       = \HeyWoo\Abilities\AbilitiesBootstrap::is_pii_allowed();
 		$privacy_mode = null;
 		$rows         = null;
 		if ( 'rows' === $mode ) {
-			$privacy_mode = $pii_on ? 'full' : 'pseudonymised';
+			$privacy_mode = 'pseudonymised';
 			$rows         = self::qa_customers_fetch_rows(
 				$from,
 				$joins,
@@ -8826,8 +8823,7 @@ class AnalyticsController {
 				$limit,
 				$orderby,
 				$order,
-				$registry,
-				$pii_on
+				$registry
 			);
 		}
 
@@ -8978,8 +8974,8 @@ class AnalyticsController {
 
 	/**
 	 * Customers-entity rows mode. Always returns pseudonymised customer id
-	 * ("Customer #N"). Hydrates first_name/last_name/email only when the
-	 * plugin-level PII gate is on (per get_customer_value's behaviour).
+	 * ("Customer #N"); first_name / last_name / email are never selected
+	 * or returned.
 	 *
 	 * @param string      $from          FROM clause.
 	 * @param array       $joins         JOINs.
@@ -8990,10 +8986,9 @@ class AnalyticsController {
 	 * @param string|null $orderby       Sort field.
 	 * @param string      $order         ASC | DESC.
 	 * @param array       $registry      Field registry.
-	 * @param bool        $include_pii   Whether to hydrate PII fields.
 	 * @return array
 	 */
-	private static function qa_customers_fetch_rows( $from, $joins, $subquery_vals, $filter_sql, $filter_vals, $limit, $orderby, $order, $registry, $include_pii ) {
+	private static function qa_customers_fetch_rows( $from, $joins, $subquery_vals, $filter_sql, $filter_vals, $limit, $orderby, $order, $registry ) {
 		global $wpdb;
 
 		$where = array();
@@ -9009,9 +9004,6 @@ class AnalyticsController {
 			$order_col = $registry[ $orderby ]['column'];
 		}
 
-		// Hydrate PII columns only when the gate is on.
-		$pii_cols = $include_pii ? ', cl.first_name, cl.last_name, cl.email' : '';
-
 		$sql = "SELECT
 			cl.customer_id,
 			cl.country,
@@ -9024,7 +9016,6 @@ class AnalyticsController {
 			COALESCE(ltv.lifetime_spend, 0) AS lifetime_spend,
 			ltv.first_order_date,
 			ltv.last_order_date
-			{$pii_cols}
 		FROM {$from} {$joins_sql} {$where_sql}
 		ORDER BY {$order_col} {$order}
 		LIMIT %d";
@@ -9040,7 +9031,7 @@ class AnalyticsController {
 
 		$rows = array();
 		foreach ( $raw as $r ) {
-			$row = array(
+			$rows[] = array(
 				'customer_id_pseudo'    => 'Customer #' . (int) $r['customer_id'],
 				'country'               => (string) $r['country'],
 				'state'                 => (string) $r['state'],
@@ -9053,12 +9044,6 @@ class AnalyticsController {
 				'first_order_date'      => null === $r['first_order_date'] ? null : substr( (string) $r['first_order_date'], 0, 10 ),
 				'last_order_date'       => null === $r['last_order_date'] ? null : substr( (string) $r['last_order_date'], 0, 10 ),
 			);
-			if ( $include_pii ) {
-				$row['first_name'] = (string) ( $r['first_name'] ?? '' );
-				$row['last_name']  = (string) ( $r['last_name'] ?? '' );
-				$row['email']      = (string) ( $r['email'] ?? '' );
-			}
-			$rows[] = $row;
 		}
 
 		return $rows;
@@ -9066,9 +9051,9 @@ class AnalyticsController {
 
 	/**
 	 * Customers-entity field registry. Identity + geography + lifetime
-	 * aggregates. PII fields (first_name/last_name/email) NOT in the
-	 * filter registry — leak surface. Rows-mode handles their hydration
-	 * separately behind the PII gate.
+	 * aggregates. PII fields (first_name/last_name/email) are deliberately
+	 * NOT in the filter registry — they are a leak surface and the
+	 * customers entity never returns them.
 	 *
 	 * @return array
 	 */
