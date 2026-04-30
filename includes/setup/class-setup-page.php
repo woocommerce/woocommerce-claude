@@ -306,7 +306,7 @@ class SetupPage {
 		if ( ! is_string( $hook_suffix ) || false === strpos( $hook_suffix, self::PAGE_SLUG ) ) {
 			return;
 		}
-		$base_url = plugins_url( 'assets/setup/', HEY_WOO_PLUGIN_FILE );
+		$base_url = plugins_url( 'includes/setup/assets/', HEY_WOO_PLUGIN_FILE );
 		wp_enqueue_style( 'hey-woo-setup', $base_url . 'setup.css', array(), HEY_WOO_VERSION );
 		wp_enqueue_script( 'hey-woo-setup', $base_url . 'setup.js', array(), HEY_WOO_VERSION, true );
 	}
