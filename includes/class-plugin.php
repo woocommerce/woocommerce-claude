@@ -121,6 +121,11 @@ class Plugin {
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
+
+		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
+		// the download handler since it's only used on that one path.
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
 	}
 
 	/**
@@ -132,6 +137,7 @@ class Plugin {
 		add_filter( 'hey_woo_telemetry_handlers', array( $this, 'maybe_add_tracks_handler' ) );
 
 		Telemetry\SkillTelemetry::init();
+		Setup\SetupPage::init();
 
 		add_action( 'rest_api_init', array( API\StoreController::class, 'register_routes' ) );
 		add_action( 'rest_api_init', array( API\CatalogController::class, 'register_routes' ) );

@@ -1,0 +1,163 @@
+/* Hey Woo setup page — minimal admin styling. */
+
+.hey-woo-setup {
+	max-width: 880px;
+}
+
+.hey-woo-setup__intro {
+	font-size: 14px;
+	color: #50575e;
+	margin: 8px 0 24px;
+}
+
+.hey-woo-setup__status {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 20px;
+	margin: 0 0 24px;
+}
+
+.hey-woo-setup__status h2 {
+	margin-top: 0;
+}
+
+.hey-woo-setup__status ul {
+	margin: 0;
+}
+
+.hey-woo-setup__status li {
+	margin: 6px 0;
+}
+
+.hey-woo-setup__ok {
+	color: #00713c;
+	font-weight: 600;
+}
+
+.hey-woo-setup__warn {
+	color: #b35900;
+	font-weight: 600;
+}
+
+.hey-woo-setup__inline-form {
+	display: inline-block;
+	margin-left: 8px;
+}
+
+.hey-woo-setup__cards {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 16px;
+}
+
+.hey-woo-setup__card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 20px 24px;
+}
+
+.hey-woo-setup__card h2 {
+	margin-top: 0;
+}
+
+.hey-woo-setup__card--quick {
+	border-left: 4px solid #2271b1;
+}
+
+.hey-woo-setup__prereq {
+	font-size: 13px;
+	color: #50575e;
+}
+
+.hey-woo-setup__warn-block {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	padding: 10px 14px;
+	margin-top: 16px;
+	font-size: 13px;
+}
+
+.hey-woo-setup__blocked {
+	background: #f6f7f7;
+	border-left: 4px solid #c3c4c7;
+	padding: 10px 14px;
+	margin-top: 12px;
+	color: #50575e;
+}
+
+.hey-woo-setup__client-picker {
+	margin: 12px 0 18px;
+}
+
+.hey-woo-setup__client-picker label {
+	margin-right: 8px;
+}
+
+.hey-woo-setup__credential {
+	margin: 12px 0 18px;
+}
+
+.hey-woo-setup__credential label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+
+.hey-woo-setup__copy-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.hey-woo-setup__copy-row code {
+	flex: 1;
+	background: #f6f7f7;
+	padding: 6px 10px;
+	border-radius: 3px;
+	font-size: 13px;
+	overflow-x: auto;
+	white-space: nowrap;
+}
+
+.hey-woo-setup__copy-row--block {
+	align-items: flex-start;
+}
+
+.hey-woo-setup__copy-row--block pre {
+	flex: 1;
+	background: #1d2327;
+	color: #f0f0f1;
+	padding: 12px 14px;
+	border-radius: 4px;
+	margin: 0;
+	overflow-x: auto;
+	white-space: pre;
+	font-size: 12.5px;
+	line-height: 1.5;
+}
+
+.hey-woo-setup__copy-row--block pre code {
+	background: transparent;
+	color: inherit;
+	padding: 0;
+}
+
+.hey-woo-setup__scope-form label {
+	display: block;
+	margin: 6px 0;
+}
+
+.hey-woo-setup__scope-form button {
+	margin-top: 10px;
+}
+
+.hey-woo-setup__card--after ul {
+	list-style: disc;
+	padding-left: 22px;
+}
+
+.hey-woo-setup__card--after li {
+	margin: 4px 0;
+}

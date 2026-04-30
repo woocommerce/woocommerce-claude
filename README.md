@@ -17,27 +17,32 @@ For a typical WooCommerce store, the plugin's load is lighter than loading the W
 
 ---
 
-## Connect your Woo store to an AI client in 5 minutes
+## Connect your Woo store to an AI client
 
 ### Prerequisites
 
 - A self-hosted WooCommerce store (version 8.0+)
-- Node.js 18+
+- Node.js 18+ on the machine running your MCP client
 - An MCP-capable client (Claude Desktop, Claude Code, or any other MCP client)
 
-### 1. Install the plugin (30 seconds)
+### Claude Desktop — one click
 
-Upload the `plugin/` folder to `wp-content/plugins/hey-woo/` and activate it in WordPress admin. Or if using wp-env for local development:
+1. Install and activate Hey Woo. For local dev: `npx wp-env start`.
+2. Open **WooCommerce → Hey Woo** in WP admin (or click **Set up Claude** in the post-activation notice).
+3. If WooCommerce MCP integration isn't on yet, click **Enable WooCommerce MCP integration**.
+4. Click **Download Hey Woo for Claude Desktop**, then double-click the downloaded `.mcpb` file. Claude Desktop registers Hey Woo automatically — no copy-paste, no JSON, no API key wrangling.
 
-```bash
-npx wp-env start
-```
+The setup page auto-creates a Read-only WooCommerce REST API key (named "Hey Woo MCP — Claude Desktop") and embeds it in the bundle. Switch to Read + Write on the same page if you want Claude to be able to create or edit products and orders. The bundle contains a credential — if it leaks, click **Regenerate** on the same page to revoke it instantly.
 
-No configuration needed — the plugin adds REST API endpoints automatically. No admin pages, no settings screens. The API is the product.
+### Other MCP clients (Claude Code, Cursor, …)
 
-### 2. Enable WooCommerce core MCP (30 seconds)
+Same setup page, **Manual Setup** card. Pick your client from the dropdown — Hey Woo renders a copy-pasteable JSON snippet (or a `claude mcp add …` one-liner for Claude Code) with this store's URL and the auto-generated API key already filled in.
 
-WooCommerce ships MCP support behind a feature flag. Turn it on:
+### Manual / scripted setup
+
+If you'd rather configure everything yourself — for example to drop the admin page from your workflow, ship via WP-CLI, or wire a CI deploy — the manual flow is unchanged:
+
+#### 1. Enable WooCommerce core MCP
 
 ```bash
 wp option update woocommerce_feature_mcp_integration_enabled yes
@@ -45,34 +50,29 @@ wp option update woocommerce_feature_mcp_integration_enabled yes
 
 (Or via the admin: **WooCommerce > Settings > Advanced > Features > MCP integration**.)
 
-The plugin registers its abilities — analytics skills, resources, prompts — and opts them into the core server via the `woocommerce_mcp_include_ability` filter, so they show up at `/wp-json/woocommerce/mcp` alongside the built-in product/order CRUD tools.
+#### 2. Create an API key
 
-### 3. Create an API key (1 minute)
+In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required by default. For local HTTP dev see the mu-plugin snippet in the [Local development](#local-development) section.
 
-In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required by default. For local HTTP dev see the mu-plugin snippet in the [Local development](#local-development) section.
-
-### 4. Point your MCP client at the endpoint
-
-#### Recommended: via `mcp-wordpress-remote` proxy
+#### 3. Point your MCP client at the endpoint
 
 The WooCommerce MCP docs recommend connecting through [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote) — a lightweight local proxy that translates stdio-based MCP (what most clients speak) into HTTP requests to WordPress. This works across Claude Desktop, Claude Code, and any other MCP client.
 
 **Claude Code** — one command:
 
 ```bash
-claude mcp add woocommerce_mcp \
+claude mcp add hey-woo \
   --env WP_API_URL=https://yourstore.com/wp-json/woocommerce/mcp \
   --env CUSTOM_HEADERS='{"X-MCP-API-Key": "ck_xxx:cs_xxx"}' \
   -- npx -y @automattic/mcp-wordpress-remote@latest
 ```
 
-**Claude Desktop** (or any other client) — add to your MCP config manually:
+**Claude Desktop / Cursor / generic** — add to your MCP config manually:
 
 ```json
 {
   "mcpServers": {
-    "woocommerce_mcp": {
-      "type": "stdio",
+    "hey-woo": {
       "command": "npx",
       "args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
       "env": {
@@ -86,14 +86,12 @@ claude mcp add woocommerce_mcp \
 
 Having trouble? See the [mcp-wordpress-remote troubleshooting guide](https://github.com/Automattic/mcp-wordpress-remote/blob/trunk/Docs/troubleshooting.md).
 
-#### Alternative: direct HTTP transport
-
 If your MCP client supports HTTP transport natively (some do, many don't), you can point it straight at the endpoint without the proxy:
 
 ```json
 {
   "mcpServers": {
-    "woocommerce": {
+    "hey-woo": {
       "type": "http",
       "url": "https://yourstore.com/wp-json/woocommerce/mcp",
       "headers": {
@@ -104,7 +102,7 @@ If your MCP client supports HTTP transport natively (some do, many don't), you c
 }
 ```
 
-### 5. Restart your client and talk to your store
+### Restart your client and talk to your store
 
 You now have these tools available (plus the nine built-in `woocommerce-*` CRUD tools from WC core):
 
