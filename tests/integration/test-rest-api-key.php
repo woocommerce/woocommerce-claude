@@ -189,6 +189,64 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Stale-lock TOCTOU regression test. The dangerous interleaving:
+	 *
+	 *   1. Lock row A is stale.
+	 *   2. Contenders X and Y both `get_option()` and read A's value.
+	 *   3. X reclaims (deletes) A and acquires a fresh lock B with
+	 *      its own token.
+	 *   4. Y, still acting on its stale read of A, attempts to
+	 *      reclaim — this MUST NOT delete B.
+	 *
+	 * The fix is a compare-and-delete: reclaim_stale_lock() only
+	 * deletes the row when option_value still matches the serialized
+	 * value the caller observed. Test the contract directly via
+	 * Reflection so a refactor that switches back to an unconditional
+	 * delete_option breaks loudly.
+	 */
+	public function test_reclaim_stale_lock_compare_and_delete_protects_fresh_lock() {
+		$stale_value = array(
+			'token'   => 'crashed-predecessor',
+			'expires' => time() - 60,
+		);
+		add_option( RestApiKey::PROVISIONING_LOCK, $stale_value, '', 'no' );
+
+		$helper  = new RestApiKey();
+		$reclaim = new ReflectionMethod( $helper, 'reclaim_stale_lock' );
+		$reclaim->setAccessible( true );
+
+		// Contender X reclaims — value matches → 1 row deleted.
+		$x_deleted = $reclaim->invoke( $helper, $stale_value );
+		$this->assertSame( 1, $x_deleted, 'X successfully reclaimed the stale lock.' );
+		$this->assertFalse( get_option( RestApiKey::PROVISIONING_LOCK ), 'Lock row gone after X reclaims.' );
+
+		// Contender X acquires a fresh lock with its own token.
+		$x_fresh = array(
+			'token'   => 'contender-X',
+			'expires' => time() + 30,
+		);
+		$this->assertTrue(
+			add_option( RestApiKey::PROVISIONING_LOCK, $x_fresh, '', 'no' ),
+			'X acquires fresh lock after reclamation.'
+		);
+
+		// Contender Y, still holding its stale read of the lock,
+		// attempts the same reclamation. Compare-and-delete must NOT
+		// match X's fresh value — 0 rows deleted, X's lock untouched.
+		$y_deleted = $reclaim->invoke( $helper, $stale_value );
+		$this->assertSame(
+			0,
+			$y_deleted,
+			'Y did not delete X\'s fresh lock — TOCTOU closed.'
+		);
+
+		// X's fresh lock is intact and still owned by X.
+		$current = get_option( RestApiKey::PROVISIONING_LOCK );
+		$this->assertIsArray( $current );
+		$this->assertSame( 'contender-X', $current['token'] );
+	}
+
+	/**
 	 * A stale lock (one whose expires timestamp is in the past — the
 	 * predecessor crashed without releasing) must not deadlock new
 	 * provisioning requests forever. The acquire helper detects the

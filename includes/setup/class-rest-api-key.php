@@ -295,9 +295,16 @@ class RestApiKey {
 			}
 
 			// Existing lock — check if it's stale and reclaim it.
+			//
+			// CRUCIAL: the reclamation must be a compare-and-delete,
+			// not an unconditional delete_option(). Two contenders
+			// reading the same stale value would each call delete and
+			// each acquire — the second's delete would clobber the
+			// first's freshly-acquired lock. See reclaim_stale_lock()
+			// for the conditional DELETE that closes that TOCTOU.
 			$existing = get_option( self::PROVISIONING_LOCK );
 			if ( is_array( $existing ) && (int) ( $existing['expires'] ?? 0 ) < time() ) {
-				delete_option( self::PROVISIONING_LOCK );
+				$this->reclaim_stale_lock( $existing );
 				// Fall through to the next iteration's add_option().
 			}
 
@@ -319,6 +326,44 @@ class RestApiKey {
 		if ( is_array( $existing ) && ( $existing['token'] ?? '' ) === $token ) {
 			delete_option( self::PROVISIONING_LOCK );
 		}
+	}
+
+	/**
+	 * Compare-and-delete the provisioning lock row.
+	 *
+	 * Atomic stale-lock reclamation: deletes the lock row only if its
+	 * `option_value` column still matches `maybe_serialize( $observed_value )`
+	 * — the exact serialized value we read a moment ago. If another
+	 * contender raced ahead and replaced the lock between our
+	 * `get_option()` and this call, the value column won't match and
+	 * the DELETE affects 0 rows; we leave their fresh lock alone.
+	 *
+	 * Without this guarantee, two contenders observing the same stale
+	 * lock would each call `delete_option()` unconditionally, and one
+	 * could clobber the other's freshly-acquired lock — re-introducing
+	 * the orphan-credential race the lock is meant to prevent.
+	 *
+	 * @param array $observed_value The lock value as just read via get_option().
+	 * @return int Number of rows deleted (0 = lost the race; 1 = reclaimed).
+	 */
+	private function reclaim_stale_lock( $observed_value ) {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- compare-and-delete on the wp_options unique key; no caching surface for this lock row.
+		$rows = $wpdb->delete(
+			$wpdb->options,
+			array(
+				'option_name'  => self::PROVISIONING_LOCK,
+				'option_value' => maybe_serialize( $observed_value ),
+			),
+			array( '%s', '%s' )
+		);
+		if ( $rows > 0 ) {
+			// Mirror what delete_option() does so the next loop's
+			// add_option()/get_option() sees the row's actually gone.
+			wp_cache_delete( self::PROVISIONING_LOCK, 'options' );
+			wp_cache_delete( 'notoptions', 'options' );
+		}
+		return (int) $rows;
 	}
 
 	/**
