@@ -318,9 +318,20 @@ class SetupPage {
 			return;
 		}
 
-		$base_url = plugins_url( 'includes/setup/assets/', HEY_WOO_PLUGIN_FILE );
-		wp_enqueue_style( 'hey-woo-setup', $base_url . 'setup.css', array(), HEY_WOO_VERSION );
-		wp_enqueue_script( 'hey-woo-setup', $base_url . 'setup.js', array(), HEY_WOO_VERSION, true );
+		$base_url  = plugins_url( 'includes/setup/assets/', HEY_WOO_PLUGIN_FILE );
+		$base_path = HEY_WOO_PLUGIN_DIR . 'includes/setup/assets/';
+
+		// Use filemtime() so any edit to the asset auto-busts the
+		// browser cache. Plugin version doesn't change between iterations
+		// during pre-release development, so a static version cached the
+		// old CSS even after the file was rewritten.
+		$css_path = $base_path . 'setup.css';
+		$js_path  = $base_path . 'setup.js';
+		$css_ver  = file_exists( $css_path ) ? (string) filemtime( $css_path ) : HEY_WOO_VERSION;
+		$js_ver   = file_exists( $js_path ) ? (string) filemtime( $js_path ) : HEY_WOO_VERSION;
+
+		wp_enqueue_style( 'hey-woo-setup', $base_url . 'setup.css', array(), $css_ver );
+		wp_enqueue_script( 'hey-woo-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
 		// Hide WC's outer Save Changes button on this section — the
 		// setup view has its own actioned controls and nothing to
