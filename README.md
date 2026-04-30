@@ -326,4 +326,4 @@ Contributions welcome — file an issue or open a pull request. See `skills/buil
 
 ## License
 
-GPL-2.0-or-later (matching WooCommerce core).
+GPL-3.0-or-later. See [LICENSE](LICENSE).
