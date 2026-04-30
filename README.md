@@ -49,7 +49,7 @@ The plugin registers its abilities — analytics skills, resources, prompts — 
 
 ### 3. Create an API key (1 minute)
 
-In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required by default (see `woocommerce_mcp_allow_insecure_transport` for local-dev opt-in).
+In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required by default. For local HTTP dev see the mu-plugin snippet in the [Local development](#local-development) section.
 
 ### 4. Point your MCP client at the endpoint
 
@@ -263,8 +263,11 @@ curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/store/profile
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/readiness/score
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/products
 
-# Or hit MCP directly (requires HTTPS in production; local dev uses
-# the woocommerce_mcp_allow_insecure_transport filter via a mu-plugin):
+# MCP requires HTTPS by default. For local HTTP, add a mu-plugin:
+echo '<?php add_filter( "woocommerce_mcp_allow_insecure_transport", "__return_true" );' \
+  | npx @wordpress/env run cli -- bash -c "cat > /var/www/html/wp-content/mu-plugins/allow-http-mcp.php"
+
+# Then test the endpoint:
 curl -X POST http://localhost:8888/wp-json/woocommerce/mcp \
   -H 'Content-Type: application/json' \
   -H 'X-MCP-API-Key: ck_xxx:cs_xxx' \
