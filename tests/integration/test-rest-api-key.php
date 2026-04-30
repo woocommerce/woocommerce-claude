@@ -34,7 +34,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->wipe_owned_rows();
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
-		delete_transient( RestApiKey::PROVISIONING_LOCK );
+		delete_option( RestApiKey::PROVISIONING_LOCK );
 	}
 
 	/**
@@ -44,7 +44,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->wipe_owned_rows();
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
-		delete_transient( RestApiKey::PROVISIONING_LOCK );
+		delete_option( RestApiKey::PROVISIONING_LOCK );
 		parent::tear_down();
 	}
 
@@ -122,6 +122,96 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 		$this->assertSame( 0, $this->count_owned_rows(), 'Orphan was deleted along with the tracked row.' );
 		$this->assertFalse( get_option( RestApiKey::OPTION_KEY_ID ) );
+	}
+
+	/**
+	 * Direct test of the atomic semantic the new lock relies on:
+	 * `add_option()` returns false when the option already exists.
+	 * Without that guarantee, two concurrent first-run requests could
+	 * both pass through `create()` and produce duplicate rows.
+	 *
+	 * This test pins the WP-core contract so a regression in WP (or
+	 * a bad refactor of the lock helper that switches to e.g.
+	 * `update_option`) breaks loudly.
+	 */
+	public function test_provisioning_lock_uses_atomic_add_option() {
+		$first  = add_option(
+			RestApiKey::PROVISIONING_LOCK,
+			array(
+				'token'   => 'A',
+				'expires' => time() + 30,
+			),
+			'',
+			'no'
+		);
+		$second = add_option(
+			RestApiKey::PROVISIONING_LOCK,
+			array(
+				'token'   => 'B',
+				'expires' => time() + 30,
+			),
+			'',
+			'no'
+		);
+
+		$this->assertTrue( $first, 'First add_option() acquires the lock.' );
+		$this->assertFalse( $second, 'Second add_option() must fail — option already exists.' );
+
+		$stored = get_option( RestApiKey::PROVISIONING_LOCK );
+		$this->assertSame( 'A', $stored['token'], 'Lock retains the first acquirer\'s token.' );
+	}
+
+	/**
+	 * If a request finds the provisioning lock already held by another
+	 * request that has *not* yet finished, get_or_create() must not
+	 * insert a second row. Simulate "another request holds the lock"
+	 * by pre-acquiring it manually with a long expiry, then call
+	 * get_or_create() and assert the call times out with WP_Error
+	 * rather than racing past the lock and inserting.
+	 */
+	public function test_get_or_create_aborts_when_lock_is_held_by_another_request() {
+		add_option(
+			RestApiKey::PROVISIONING_LOCK,
+			array(
+				'token'   => 'other-request',
+				'expires' => time() + 60,
+			),
+			'',
+			'no'
+		);
+
+		$helper = new RestApiKey();
+		$result = $helper->get_or_create( 'read' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'hey_woo_provisioning_busy', $result->get_error_code() );
+		$this->assertSame( 0, $this->count_owned_rows(), 'No row was inserted while the lock was held.' );
+	}
+
+	/**
+	 * A stale lock (one whose expires timestamp is in the past — the
+	 * predecessor crashed without releasing) must not deadlock new
+	 * provisioning requests forever. The acquire helper detects the
+	 * stale lock, deletes it, and the next iteration acquires.
+	 */
+	public function test_stale_lock_is_reclaimed() {
+		add_option(
+			RestApiKey::PROVISIONING_LOCK,
+			array(
+				'token'   => 'crashed-request',
+				'expires' => time() - 60,
+			),
+			'',
+			'no'
+		);
+
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create( 'read' );
+
+		$this->assertIsArray( $state );
+		$this->assertSame( 1, $this->count_owned_rows() );
+		// Lock should have been released after our successful provision.
+		$this->assertFalse( get_option( RestApiKey::PROVISIONING_LOCK ) );
 	}
 
 	/**

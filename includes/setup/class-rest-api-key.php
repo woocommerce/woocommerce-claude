@@ -41,18 +41,31 @@ class RestApiKey {
 	const KEY_DESCRIPTION = 'Hey Woo MCP — Claude Desktop';
 
 	/**
-	 * Transient name used as a short-lived mutex around create() so
-	 * two concurrent requests can't each insert a key row and have
-	 * one of them lost in the option-write race.
+	 * Option name used as the provisioning mutex around create().
+	 *
+	 * `add_option()` is the WP-canonical atomic test-and-set: it
+	 * relies on the unique constraint on `wp_options.option_name` and
+	 * returns false if the option already exists. Two concurrent
+	 * `add_option()` calls — one wins, one fails — so the lock is
+	 * acquired (or denied) atomically without a check-then-set race.
 	 */
-	const PROVISIONING_LOCK = 'hey_woo_setup_provisioning';
+	const PROVISIONING_LOCK = 'hey_woo_setup_provisioning_lock';
 
 	/**
-	 * Maximum mutex hold time, in seconds. Long enough to cover one
-	 * slow DB insert + option write; short enough that a crashed
-	 * request can't deadlock future provisioning indefinitely.
+	 * Maximum lock hold time, in seconds. The lock value carries an
+	 * `expires` timestamp; a request that finds an expired lock from
+	 * a crashed predecessor will delete and re-acquire it. Long
+	 * enough to cover a slow DB insert + option writes, short enough
+	 * that a crash can't deadlock future provisioning indefinitely.
 	 */
 	const PROVISIONING_LOCK_TTL = 30;
+
+	/**
+	 * Maximum total time a single create() call will wait for an
+	 * existing provisioning lock to clear, in seconds. Caps how long
+	 * a queued admin double-click sits before timing out.
+	 */
+	const PROVISIONING_WAIT_LIMIT = 5;
 
 	/**
 	 * Return the stored credential (creating one if none exists).
@@ -162,8 +175,13 @@ class RestApiKey {
 			);
 		}
 
-		$this->wait_for_provisioning_lock();
-		set_transient( self::PROVISIONING_LOCK, 1, self::PROVISIONING_LOCK_TTL );
+		$lock_token = $this->acquire_provisioning_lock();
+		if ( null === $lock_token ) {
+			return new \WP_Error(
+				'hey_woo_provisioning_busy',
+				__( 'Another setup request is in progress. Please try again in a moment.', 'hey-woo' )
+			);
+		}
 
 		try {
 			// Re-read state inside the mutex — another request may
@@ -242,24 +260,64 @@ class RestApiKey {
 				'permissions' => $permissions,
 			);
 		} finally {
-			delete_transient( self::PROVISIONING_LOCK );
+			$this->release_provisioning_lock( $lock_token );
 		}
 	}
 
 	/**
-	 * Busy-wait briefly while another request holds the provisioning
-	 * mutex. Caps at PROVISIONING_LOCK_TTL × 10 iterations so a stuck
-	 * lock never wedges this request indefinitely.
+	 * Atomically acquire the provisioning lock. Returns a token to
+	 * pass back to release_provisioning_lock(), or null if the lock
+	 * couldn't be acquired within PROVISIONING_WAIT_LIMIT seconds.
+	 *
+	 * Uses `add_option()` which is atomic at the database level
+	 * (unique constraint on option_name): two concurrent calls — one
+	 * succeeds, one returns false. The return value of add_option()
+	 * is the only race-safe signal.
+	 *
+	 * Stale locks (whose `expires` is in the past) are deleted and
+	 * the loop re-tries on the next iteration. The token guards
+	 * against deleting a fresh lock that was acquired after our
+	 * stale-cleanup deletion.
+	 *
+	 * @return string|null Token, or null on timeout.
 	 */
-	private function wait_for_provisioning_lock() {
-		// 100ms × 30 ≈ 3 seconds. The lock TTL is the real ceiling —
-		// transients self-expire — so this is just to avoid spinning
-		// past the natural timeout.
-		$max_iterations = self::PROVISIONING_LOCK_TTL * 10;
-		$i              = 0;
-		while ( get_transient( self::PROVISIONING_LOCK ) && $i < $max_iterations ) {
-			usleep( 100000 );
-			++$i;
+	private function acquire_provisioning_lock() {
+		$token    = wp_generate_password( 24, false );
+		$deadline = time() + self::PROVISIONING_WAIT_LIMIT;
+
+		while ( time() < $deadline ) {
+			$value = array(
+				'token'   => $token,
+				'expires' => time() + self::PROVISIONING_LOCK_TTL,
+			);
+			if ( add_option( self::PROVISIONING_LOCK, $value, '', 'no' ) ) {
+				return $token;
+			}
+
+			// Existing lock — check if it's stale and reclaim it.
+			$existing = get_option( self::PROVISIONING_LOCK );
+			if ( is_array( $existing ) && (int) ( $existing['expires'] ?? 0 ) < time() ) {
+				delete_option( self::PROVISIONING_LOCK );
+				// Fall through to the next iteration's add_option().
+			}
+
+			usleep( 100000 ); // 100ms.
+		}
+		return null;
+	}
+
+	/**
+	 * Release the provisioning lock. Only deletes the option if its
+	 * stored token matches ours, so a slow request that times out
+	 * (and whose lock another request reclaimed) can't accidentally
+	 * release the new owner's lock.
+	 *
+	 * @param string $token The token returned by acquire_provisioning_lock().
+	 */
+	private function release_provisioning_lock( $token ) {
+		$existing = get_option( self::PROVISIONING_LOCK );
+		if ( is_array( $existing ) && ( $existing['token'] ?? '' ) === $token ) {
+			delete_option( self::PROVISIONING_LOCK );
 		}
 	}
 

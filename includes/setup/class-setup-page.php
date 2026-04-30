@@ -117,20 +117,54 @@ class SetupPage {
 	/**
 	 * A stable per-store identifier suitable for use as the MCPB
 	 * manifest name, the manual `mcpServers` key, the `claude mcp add`
-	 * server name, and the bundle filename. Derived from the site
-	 * hostname so two stores managed by the same user don't collide
-	 * inside Claude Desktop.
+	 * server name, and the bundle filename.
 	 *
-	 * Example: `hey-woo-example-com`,
-	 *          `hey-woo-staging-shop-mystagingwebsite-com`.
+	 * Derives from the *full* MCP endpoint URL (host + port + path),
+	 * not just the host, so subdirectory multisite installs and
+	 * same-host different-port dev stores get distinct slugs:
+	 *
+	 *   https://example.com/wp-json/woocommerce/mcp
+	 *     → `hey-woo-example-com-1a2b3c4d`
+	 *   https://example.com/shop-a/wp-json/woocommerce/mcp
+	 *     → `hey-woo-example-com-5e6f7a8b` (path differs ⇒ hash differs)
+	 *   http://localhost:8888/wp-json/woocommerce/mcp
+	 *     → `hey-woo-localhost-9c0d1e2f`
+	 *   http://localhost:8889/wp-json/woocommerce/mcp
+	 *     → `hey-woo-localhost-3a4b5c6d` (port differs ⇒ hash differs)
 	 *
 	 * @return string
 	 */
 	public static function server_slug() {
-		$host = wp_parse_url( home_url(), PHP_URL_HOST );
-		$host = is_string( $host ) ? $host : '';
-		$slug = sanitize_title( $host );
-		return '' === $slug ? 'hey-woo' : 'hey-woo-' . $slug;
+		return self::derive_server_slug( self::endpoint_url() );
+	}
+
+	/**
+	 * Pure slug derivation: takes a full URL, returns a slug.
+	 * Exposed as a separate static so tests can pass arbitrary URLs
+	 * without touching the WP environment.
+	 *
+	 * @param string $url Full URL including scheme, host, optional port and path.
+	 * @return string
+	 */
+	public static function derive_server_slug( $url ) {
+		$url  = is_string( $url ) ? $url : '';
+		$host = wp_parse_url( $url, PHP_URL_HOST );
+		$host = is_string( $host ) ? sanitize_title( $host ) : '';
+		// Hash the full URL so any difference in host, port, or path
+		// produces a distinct slug — even when the visible host part
+		// is identical between two stores.
+		$digest = '' === $url ? '' : substr( hash( 'sha256', $url ), 0, 8 );
+
+		if ( '' === $host && '' === $digest ) {
+			return 'hey-woo';
+		}
+		if ( '' === $host ) {
+			return 'hey-woo-' . $digest;
+		}
+		if ( '' === $digest ) {
+			return 'hey-woo-' . $host;
+		}
+		return 'hey-woo-' . $host . '-' . $digest;
 	}
 
 	/**
