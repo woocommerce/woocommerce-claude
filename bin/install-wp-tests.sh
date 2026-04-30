@@ -73,8 +73,13 @@ fi
 
 # ── Test database ──────────────────────────────────────────────────────────────
 if [ "$SKIP_DB_CREATE" = "false" ]; then
+    # DB_HOST may be "host:port"; split so mysqladmin gets separate flags.
+    MYSQL_HOST="${DB_HOST%%:*}"
+    MYSQL_PORT="${DB_HOST##*:}"
+    [ "$MYSQL_PORT" = "$MYSQL_HOST" ] && MYSQL_PORT="3306"
     mysqladmin create "$DB_NAME" \
-        --user="$DB_USER" --password="$DB_PASS" --host="$DB_HOST" 2>/dev/null || true
+        --user="$DB_USER" --password="$DB_PASS" \
+        --host="$MYSQL_HOST" --port="$MYSQL_PORT" 2>/dev/null || true
 fi
 
 # ── WooCommerce ────────────────────────────────────────────────────────────────
