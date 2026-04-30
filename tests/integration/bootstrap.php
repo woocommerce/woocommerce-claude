@@ -2,10 +2,15 @@
 /**
  * PHPUnit bootstrap.
  *
- * Designed to run inside the wp-env `tests-cli` container, where the
- * WordPress test suite is mounted at `/wordpress-phpunit` and the repo
- * is mounted (via the `mappings` entry in .wp-env.json) at
- * `/var/www/html/wp-content/plugins/hey-woo-tests`.
+ * Supports two environments:
+ *
+ * 1. Local wp-env — run via `bin/check`. The tests-cli container mounts the
+ *    WP test suite at `/wordpress-phpunit` and the repo at
+ *    `wp-content/plugins/hey-woo-tests` (the --env-cwd target).
+ *
+ * 2. CI / bare PHP — run after `bin/install-wp-tests.sh`. Set WP_TESTS_DIR to
+ *    the path where the WP PHPUnit suite was installed; WooCommerce and the
+ *    plugin are installed into WP_PLUGIN_DIR by the install script.
  *
  * @package HeyWoo\Tests
  */
@@ -45,48 +50,48 @@ function hey_woo_tests_load_plugins() {
 	require_once $wc_candidates[0];
 
 	require_once $plugin_dir . '/hey-woo/hey-woo.php';
+
+	// Prevent WooCommerce's own check_version() hook (plugins_loaded) from
+	// running WC_Install::install() before we have a chance to set the HPOS
+	// options below.  We do the controlled install ourselves in the init hook.
+	update_option( 'woocommerce_db_version', WC()->version );
 }
 tests_add_filter( 'muplugins_loaded', 'hey_woo_tests_load_plugins' );
 
 /**
- * Activate WooCommerce explicitly so its install routine runs and the
- * HPOS tables (wc_orders / wc_orders_meta / wc_order_addresses /
- * wc_order_operational_data) exist before the first test query.
+ * Run the WooCommerce install routine with the correct options set.
  *
- * HPOS is enabled by setting `woocommerce_custom_orders_table_enabled`
- * BEFORE `WC_Install::create_tables()` runs — the installer gates the
- * HPOS `dbDelta` on FeaturesController::feature_is_enabled(), which
- * reads that option. Data sync is disabled so orders land straight in
- * the HPOS tables without a parallel wp_postmeta write. Suppressing
- * the incompatible-plugin notice keeps the option update quiet.
+ * Hooked to `init` (priority 0) so WordPress is fully bootstrapped before we
+ * touch the database.  Three things matter here:
  *
- * WC_Install::install() is invoked explicitly after activate_plugin()
- * because activate_plugin()'s activation-hook path runs asynchronously
- * in some WP paths; calling install() directly guarantees create_tables
- * fires once the option is in place.
+ * 1. HPOS options must be set before WC_Install::create_tables() runs, otherwise
+ *    the HPOS order tables are not created.
+ * 2. woocommerce_db_version must be deleted first so WC_Install::install() does
+ *    not bail out early thinking WC is already up-to-date.
+ * 3. $wp_roles must be reset after create_roles() writes new capabilities to the
+ *    database.  WP_Roles is a singleton that was already initialized before
+ *    create_roles() ran; without the reset, current_user_can() checks in tests
+ *    see the stale pre-install snapshot.
+ *    See https://core.trac.wordpress.org/ticket/28374
  */
-function hey_woo_tests_activate_woocommerce() {
-	if ( ! function_exists( 'activate_plugin' ) ) {
-		return;
-	}
-
+function hey_woo_tests_install_woocommerce() {
 	update_option( 'woocommerce_custom_orders_table_enabled', 'yes' );
 	update_option( 'woocommerce_custom_orders_table_data_sync_enabled', 'no' );
 	update_option( 'woocommerce_show_feature_enable_notice_custom_order_tables', 'no' );
 
-	$plugin_dir    = defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins';
-	$wc_candidates = glob( $plugin_dir . '/woocommerce*/woocommerce.php' );
-	if ( empty( $wc_candidates ) ) {
-		return;
-	}
-	$relative = ltrim( str_replace( $plugin_dir, '', $wc_candidates[0] ), '/' );
-	activate_plugin( $relative );
+	// Allow install() to run by removing the version we pinned in muplugins_loaded.
+	delete_option( 'woocommerce_db_version' );
 
 	if ( class_exists( 'WC_Install' ) ) {
 		WC_Install::install();
 	}
+
+	// Reload the WP_Roles singleton from the database so the capabilities added
+	// by create_roles() (e.g. manage_woocommerce) are visible to tests.
+	$GLOBALS['wp_roles'] = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+	wp_roles();
 }
-tests_add_filter( 'setup_theme', 'hey_woo_tests_activate_woocommerce' );
+tests_add_filter( 'init', 'hey_woo_tests_install_woocommerce', 0 );
 
 require $_tests_dir . '/includes/bootstrap.php';
 
