@@ -18,8 +18,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registers the query-analytics ability. Flexible filter engine across
  * three entities (orders, products, customers) with aggregated-default +
- * rows-on-request response shapes. PII fields respect the plugin-level
- * customer-PII gate owned by AbilitiesBootstrap.
+ * rows-on-request response shapes. Customer rows always carry the
+ * pseudonymised `Customer #N` identifier — real names / emails are never
+ * surfaced.
  */
 class QueryAnalyticsAbility {
 
@@ -73,7 +74,7 @@ CUSTOMERS — filter customers in the ACTIVE-BASE frame (customers with ≥1 pai
   String fields: country, state, city, postcode
   Date fields: date_registered, date_last_active, first_order_date, last_order_date
 
-  PII fields (first_name, last_name, email) are INTENTIONALLY not in the filter registry — never filterable, regardless of the PII gate. Filtering on email would let you probe whether a specific email is in the customer base via equality; that's a leak surface. Names and emails only appear in rows-mode output when the plugin-level PII gate is on (same gate get_customer_value uses for its top_customers hydration).
+  PII fields (first_name, last_name, email) are INTENTIONALLY not in the filter registry — never filterable. Filtering on email would let you probe whether a specific email is in the customer base via equality; that's a leak surface. Names and emails are ALSO never returned in rows-mode output — customer rows always carry the pseudonymised `Customer #N` identifier only.
 
 OPERATORS (Claude-facing names — the engine maps to SQL):
 - Numeric / date: is, is_not, greater_than, greater_than_or_equal, less_than, less_than_or_equal, between (value is [min, max]), is_in (value is array), is_not_in
@@ -100,7 +101,7 @@ When the first call returns zero rows, diagnose by explaining what the filters w
 
 MODE — AGGREGATE vs ROWS:
 - aggregate (default): summary + universe + share_of_universe + (orders only) pipeline + admin_equivalent sibling blocks. Use for any headline question — "how many", "how much", "what share". This honours the aggregated-only privacy rule.
-- rows: top-N list (limit 1-50, default 25) with per-entity row shape. Use when the merchant explicitly asks to see the specifics ("show me the actual orders", "give me the top 10 customers"). Rows mode on customers entity returns pseudonymised ids ("Customer #N") by default; real name + email only appear when the plugin's customer-PII setting is on.
+- rows: top-N list (limit 1-50, default 25) with per-entity row shape. Use when the merchant explicitly asks to see the specifics ("show me the actual orders", "give me the top 10 customers"). Rows mode on customers entity always returns pseudonymised ids ("Customer #N") — real names and emails are never returned. Direct the merchant to WP Admin > WooCommerce > Customers when they need the identity behind a pseudonymised id.
 
 READ — DON'T DERIVE:
 - share_of_universe.share_of_orders_percent, share_of_revenue_percent, share_of_products_percent, share_of_customers_percent, share_of_lifetime_spend_percent are ALL pre-computed. Read them directly. Never divide matched_count / universe yourself — the rounding will disagree with what the tool returned.
@@ -130,7 +131,7 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 - Line-item-level row results — the orders entity returns one row per order; a filter on product_id matches orders that INCLUDE that product, not individual line items.
 - Filter by free-text fields — refund reason (unstructured), product description (not indexed), billing_company (not in MVP). Point at WP Admin > WooCommerce > Orders / Products list filters for those.
 - Filter by historical pricing / historical stock — product attributes are as-of-now. "What was the price of Premium Speaker in October?" isn't answerable; direct the merchant to product revision history in WP Admin.
-- Real-name / email filtering — intentionally off even when the PII gate is on. Ask the merchant to confirm the customer via WP Admin > WooCommerce > Customers first.
+- Real-name / email filtering or output — intentionally off. Ask the merchant to confirm the customer via WP Admin > WooCommerce > Customers first.
 - Creating or mutating records — this is a read-only analytics tool.
 - Arbitrary SQL — the filter engine is field-registry-bound. Unknown fields return an error listing what IS available.
 
@@ -260,7 +261,7 @@ DESCRIPTION,
 					'type'        => 'string',
 					'enum'        => array( 'aggregate', 'rows' ),
 					'default'     => 'aggregate',
-					'description' => 'aggregate = summary counts / sums (default); rows = top-N row list (pseudonymised identities unless the PII gate is on).',
+					'description' => 'aggregate = summary counts / sums (default); rows = top-N row list (customer identities are always pseudonymised — real names / emails are never returned).',
 				),
 				'limit'      => array(
 					'type'        => 'integer',

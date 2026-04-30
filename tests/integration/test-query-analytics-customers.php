@@ -116,10 +116,6 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 
 		// C6: 4 prior qty=2 (£100 each) → £400 lifetime. NO in-period order.
 		$this->seed_customer_history( $this->customers['c6'], 4, 2, 'GB', '2025-06' );
-
-		// PII gate starts off between tests (WP_UnitTestCase rolls back
-		// options, but belt-and-braces — explicitly reset here too).
-		update_option( 'hey_woo_allow_customer_pii', false );
 	}
 
 	/**
@@ -378,9 +374,10 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Rows mode — pseudonymised by default. No PII fields in response.
+	 * Rows mode — always pseudonymised. No name / email / first_name
+	 * fields ever appear in the response.
 	 */
-	public function test_rows_mode_pseudonymisation_by_default() {
+	public function test_rows_mode_pseudonymisation() {
 		$result = $this->run_ability(
 			array(
 				'mode'  => 'rows',
@@ -409,9 +406,13 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Rows mode with PII gate on — name/email hydrated.
+	 * Privacy invariant — even if a leftover `hey_woo_allow_customer_pii`
+	 * option exists from a previous version of the plugin (truthy or
+	 * otherwise), it must not revive PII surfacing. Defends against a
+	 * future refactor that accidentally restores the gate by reading the
+	 * stale option.
 	 */
-	public function test_rows_mode_pii_gate_on_hydrates_name_email() {
+	public function test_legacy_truthy_option_does_not_leak_pii() {
 		update_option( 'hey_woo_allow_customer_pii', true );
 
 		$result = $this->run_ability(
@@ -421,31 +422,26 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( 'full', $result['privacy_mode'] );
+		$this->assertSame( 'pseudonymised', $result['privacy_mode'] );
 		$this->assertIsArray( $result['rows'] );
 
 		foreach ( $result['rows'] as $row ) {
 			$this->assertArrayHasKey( 'customer_id_pseudo', $row );
-			$this->assertArrayHasKey( 'email', $row );
-			$this->assertArrayHasKey( 'first_name', $row );
-			$this->assertArrayHasKey( 'last_name', $row );
-			// customer_id_pseudo still present — narration stays pseudonymous
-			// even when PII is available for machine-to-machine handoff.
+			$this->assertArrayNotHasKey( 'email', $row );
+			$this->assertArrayNotHasKey( 'first_name', $row );
+			$this->assertArrayNotHasKey( 'last_name', $row );
 			$this->assertMatchesRegularExpression( '/^Customer #\d+$/', $row['customer_id_pseudo'] );
 		}
 
-		update_option( 'hey_woo_allow_customer_pii', false );
+		delete_option( 'hey_woo_allow_customer_pii' );
 	}
 
 	/**
 	 * Email / first_name / last_name are NOT in the filter registry —
-	 * filtering on them should return an unknown_field WP_Error even
-	 * when the PII gate is on. PII is a rows-mode hydration concern,
-	 * never a filter surface (leak prevention).
+	 * filtering on them returns an unknown_field WP_Error. They are a
+	 * leak surface (equality probe) and intentionally never filterable.
 	 */
-	public function test_email_not_filterable_even_with_pii_gate_on() {
-		update_option( 'hey_woo_allow_customer_pii', true );
-
+	public function test_email_not_filterable() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
 		$result  = $ability->execute(
@@ -463,8 +459,6 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'unknown_field', $result->get_error_code() );
-
-		update_option( 'hey_woo_allow_customer_pii', false );
 	}
 
 	/**

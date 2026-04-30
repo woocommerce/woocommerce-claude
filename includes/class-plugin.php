@@ -149,8 +149,6 @@ class Plugin {
 		// hooks.
 		add_action( 'wp_abilities_api_categories_init', array( Abilities\AbilitiesBootstrap::class, 'register_category' ) );
 		add_action( 'wp_abilities_api_init', array( Abilities\AbilitiesBootstrap::class, 'register_abilities' ) );
-		add_action( 'admin_init', array( Abilities\AbilitiesBootstrap::class, 'register_option' ) );
-		add_action( 'rest_api_init', array( Abilities\AbilitiesBootstrap::class, 'register_option' ) );
 
 		// WooCommerce Settings tab.
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
