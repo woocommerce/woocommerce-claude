@@ -232,6 +232,40 @@ class RestApiKey {
 	}
 
 	/**
+	 * Read-only snapshot of the current key state.
+	 *
+	 * Returns the same shape as get_or_create() if a Hey-Woo-owned
+	 * key exists, or null otherwise. Crucially, this lookup is
+	 * **independent of the WC MCP feature flag**: even when MCP is
+	 * disabled, an active credential still authenticates against
+	 * the standard WC REST API surface (not just /wp-json/woocommerce/mcp),
+	 * so the page must be able to surface and revoke an existing key
+	 * regardless of MCP being on. Toggling MCP off doesn't disconnect
+	 * the credential — only revoke()/Disconnect/uninstall does.
+	 *
+	 * Side-effect-free: never provisions, never clears options.
+	 * Caller (get_or_create or render_setup_view) decides whether to
+	 * recover from any stale option state.
+	 *
+	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|null
+	 */
+	public function existing_state() {
+		$credential = get_option( self::OPTION_CREDENTIAL, '' );
+		$key_id     = (int) get_option( self::OPTION_KEY_ID, 0 );
+
+		if ( '' === $credential || $key_id <= 0 || ! $this->key_exists( $key_id ) ) {
+			return null;
+		}
+
+		return array(
+			'credential'    => $credential,
+			'key_id'        => $key_id,
+			'permissions'   => $this->get_stored_permissions( $key_id ),
+			'owner_user_id' => $this->get_owner_user_id( $key_id ),
+		);
+	}
+
+	/**
 	 * Read-only lookup of the WP user_id the current key is bound to.
 	 * Returns 0 when no key is provisioned. Side-effect-free, so safe
 	 * to call from ownership-check paths that must not provision.

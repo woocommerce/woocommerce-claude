@@ -63,11 +63,14 @@ $notices = array(
 	'key_failed'          => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
 	'permissions_updated' => array( 'success', __( 'Access level narrowed. Existing Claude Desktop installs continue to work with the new permissions.', 'hey-woo' ) ),
 	'permissions_rotated' => array( 'success', __( 'Access level upgraded — the API key was rotated. Re-download the MCPB file for Claude Desktop and re-paste any manual configurations so the new credential takes effect.', 'hey-woo' ) ),
+	'disconnected'        => array( 'success', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'hey-woo' ) ),
+	'ownership_changed'   => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'hey-woo' ) ),
 );
 
 $enable_url           = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
 $download_url         = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
 $regen_url            = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
+$disconnect_url       = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
 $scope_read_url       = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read' ) );
 $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read_write' ) );
 ?>
@@ -79,7 +82,35 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 		</div>
 	<?php endif; ?>
 
-	<?php if ( ! $mcp_enabled ) : ?>
+	<?php if ( ! $mcp_enabled && null !== $key_state ) : ?>
+		<?php
+		/*
+		 * MCP-off + key-alive — the dangerous middle state. The
+		 * merchant likely turned the WC MCP feature off thinking
+		 * that disconnects Claude, but the auto-created REST key is
+		 * still in `woocommerce_api_keys` and authenticates against
+		 * /wc/v3/* and the standard WC REST surface generally — not
+		 * just /wp-json/woocommerce/mcp. Surface this loudly with
+		 * both recovery paths.
+		 */
+		?>
+		<div class="hey-woo-setup__topbar hey-woo-setup__topbar--warn">
+			<div>
+				<strong><?php esc_html_e( 'WooCommerce MCP is off, but the Hey Woo API key is still active.', 'hey-woo' ); ?></strong>
+				<span><?php esc_html_e( 'Claude Desktop bundles can no longer call MCP tools, but the credential still authenticates against the standard WooCommerce REST API. Either re-enable MCP, or disconnect to revoke the key entirely.', 'hey-woo' ); ?></span>
+			</div>
+			<a class="button button-primary" href="<?php echo esc_url( $enable_url ); ?>">
+				<?php esc_html_e( 'Re-enable MCP', 'hey-woo' ); ?>
+			</a>
+			<a
+				class="button"
+				href="<?php echo esc_url( $disconnect_url ); ?>"
+				onclick="return confirm('<?php echo esc_js( __( 'Disconnect Hey Woo and revoke the API key? Any installed Claude Desktop bundle and pasted configuration will stop authenticating immediately.', 'hey-woo' ) ); ?>');"
+			>
+				<?php esc_html_e( 'Disconnect', 'hey-woo' ); ?>
+			</a>
+		</div>
+	<?php elseif ( ! $mcp_enabled ) : ?>
 		<div class="hey-woo-setup__topbar hey-woo-setup__topbar--warn">
 			<div>
 				<strong><?php esc_html_e( 'WooCommerce MCP integration is off.', 'hey-woo' ); ?></strong>
@@ -213,6 +244,13 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 							onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'hey-woo' ) ); ?>');"
 						>
 							<?php esc_html_e( 'Regenerate', 'hey-woo' ); ?>
+						</a>
+						<span aria-hidden="true">·</span>
+						<a
+							href="<?php echo esc_url( $disconnect_url ); ?>"
+							onclick="return confirm('<?php echo esc_js( __( 'Disconnect Hey Woo and revoke the API key? Any installed bundle stops authenticating immediately and the credential is removed from WooCommerce.', 'hey-woo' ) ); ?>');"
+						>
+							<?php esc_html_e( 'Disconnect', 'hey-woo' ); ?>
 						</a>
 					</p>
 				<?php else : ?>

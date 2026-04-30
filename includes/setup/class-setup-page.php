@@ -52,6 +52,7 @@ class SetupPage {
 	const ACTION_REGEN_KEY  = 'hey_woo_regenerate_key';
 	const ACTION_ENABLE_MCP = 'hey_woo_enable_mcp_feature';
 	const ACTION_SET_PERMS  = 'hey_woo_set_permissions';
+	const ACTION_DISCONNECT = 'hey_woo_disconnect';
 
 	/**
 	 * Wire all hooks. Called once during plugin bootstrap.
@@ -63,6 +64,7 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_REGEN_KEY, array( __CLASS__, 'handle_regenerate_key' ) );
 		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
 		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
+		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 
 		add_filter(
 			'plugin_action_links_' . plugin_basename( HEY_WOO_PLUGIN_FILE ),
@@ -211,14 +213,20 @@ class SetupPage {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash message.
 		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
-		// Provision the credential lazily once the feature flag is on so
-		// the manual JSON snippet has something concrete to show. Before
-		// the flag is on, generating a key would be wasted state.
-		$key_state = null;
-		if ( $mcp_enabled ) {
-			$key_state = $key_helper->get_or_create( 'read' );
-			if ( is_wp_error( $key_state ) ) {
-				$key_state = null;
+		/*
+		 * Lookup is independent of the MCP flag. An existing Hey Woo
+		 * REST key authenticates against the WC REST surface generally,
+		 * not just /wp-json/woocommerce/mcp — so the page must surface
+		 * (and offer to disconnect) an existing key even when MCP is
+		 * off. Lazy provisioning still only happens when MCP is on,
+		 * since there's no reason to mint a credential for a flag that
+		 * gates the only thing it'd be embedded into.
+		 */
+		$key_state = $key_helper->existing_state();
+		if ( null === $key_state && $mcp_enabled ) {
+			$created = $key_helper->get_or_create( 'read' );
+			if ( ! is_wp_error( $created ) ) {
+				$key_state = $created;
 			}
 		}
 
@@ -247,20 +255,63 @@ class SetupPage {
 		self::guard( self::ACTION_DOWNLOAD );
 		self::require_key_owner();
 
-		if ( ! self::mcp_feature_enabled() ) {
-			self::redirect( 'mcp_required' );
-		}
-
-		$key_helper = new RestApiKey();
-		$state      = $key_helper->get_or_create( 'read' );
+		$state = self::prepare_download_state( get_current_user_id() );
 		if ( is_wp_error( $state ) ) {
-			self::redirect( 'key_failed' );
+			self::redirect( $state->get_error_code() );
 		}
 
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-mcpb-bundle.php';
 		$bundle = new McpbBundle( self::endpoint_url(), $state['credential'], HEY_WOO_VERSION );
 		$bundle->stream( self::server_slug() . '.mcpb' );
 		// stream() exits.
+	}
+
+	/**
+	 * Resolve the key state we'll bake into a download bundle, or
+	 * return a WP_Error whose code maps to a flash-redirect notice.
+	 *
+	 * Extracted from handle_download() so the precondition logic —
+	 * including the post-provision ownership re-check — is testable
+	 * without fighting wp_safe_redirect/exit. Validates, in order:
+	 *
+	 *   1. MCP feature flag is on (else `mcp_required`).
+	 *   2. Provisioning succeeded (else `key_failed`).
+	 *   3. The provisioned key is *still* owned by $expected_user_id —
+	 *      this closes the download TOCTOU where a concurrent
+	 *      regenerate could transfer ownership between the initial
+	 *      `require_key_owner()` gate and this method's get_or_create
+	 *      call. Without the re-check, the current user could
+	 *      exfiltrate a credential that was just rotated to authenticate
+	 *      as a different admin.
+	 *
+	 * @param int $expected_user_id The user_id whose download was approved.
+	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
+	 */
+	public static function prepare_download_state( $expected_user_id ) {
+		if ( ! self::mcp_feature_enabled() ) {
+			return new \WP_Error(
+				'mcp_required',
+				__( 'Enable WooCommerce MCP integration first.', 'hey-woo' )
+			);
+		}
+
+		$key_helper = new RestApiKey();
+		$state      = $key_helper->get_or_create( 'read' );
+		if ( is_wp_error( $state ) ) {
+			return new \WP_Error(
+				'key_failed',
+				__( 'Could not provision the API key.', 'hey-woo' )
+			);
+		}
+
+		if ( (int) ( $state['owner_user_id'] ?? 0 ) !== (int) $expected_user_id ) {
+			return new \WP_Error(
+				'ownership_changed',
+				__( 'The API key was rotated by another admin while your download was being prepared. Refresh the page and try again.', 'hey-woo' )
+			);
+		}
+
+		return $state;
 	}
 
 	/**
@@ -302,6 +353,17 @@ class SetupPage {
 		self::guard( self::ACTION_SET_PERMS );
 		self::require_key_owner();
 
+		// Scope changes are meaningless while the MCP endpoint is off
+		// — and worse, an unsuspecting merchant could escalate to
+		// Read+Write thinking the integration is dormant when in fact
+		// the rotated credential remains usable against the standard
+		// WC REST surface. Refuse the action until MCP is back on.
+		if ( ! self::mcp_feature_enabled() ) {
+			self::redirect( 'mcp_required' );
+		}
+
+		$expected_user_id = get_current_user_id();
+
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
 		$requested = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( $_GET['permissions'] ) ) : 'read';
 		$allowed   = array( 'read', 'read_write' );
@@ -316,11 +378,38 @@ class SetupPage {
 			self::redirect( 'key_failed' );
 		}
 
+		// TOCTOU re-check: a concurrent regenerate could have rotated
+		// the key out from under us between the initial gate and the
+		// scope change. Confirm the post-state is still ours.
+		$post = $key_helper->existing_state();
+		if ( null !== $post && (int) $post['owner_user_id'] !== $expected_user_id ) {
+			self::redirect( 'ownership_changed' );
+		}
+
 		// Distinguish in-place downgrade from credential rotation,
 		// because rotation invalidates already-distributed bundles
 		// and the merchant needs to know to re-download.
 		$flash = RestApiKey::SCOPE_ROTATED === $result ? 'permissions_rotated' : 'permissions_updated';
 		self::redirect( $flash );
+	}
+
+	/**
+	 * Explicitly disconnect: revoke the WC API key and clear the
+	 * stored credential. Mirrors the deactivation hook but exposed
+	 * as a UI action so a merchant can tear down the connection
+	 * without deactivating the plugin (e.g. they want to keep the
+	 * settings tab around but stop Claude's access today).
+	 *
+	 * Available to any user with `manage_woocommerce`, including
+	 * non-owners — disconnect is a destructive cleanup that the
+	 * setup-page admin should always be able to perform regardless
+	 * of who provisioned the key.
+	 */
+	public static function handle_disconnect() {
+		self::guard( self::ACTION_DISCONNECT );
+
+		( new RestApiKey() )->revoke();
+		self::redirect( 'disconnected' );
 	}
 
 	/**

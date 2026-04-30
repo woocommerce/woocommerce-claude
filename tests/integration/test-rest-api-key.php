@@ -20,6 +20,7 @@
  */
 
 use HeyWoo\Setup\RestApiKey;
+use HeyWoo\Setup\SetupPage;
 
 /**
  * Integration tests for HeyWoo\Setup\RestApiKey.
@@ -35,6 +36,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
+		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 	}
 
 	/**
@@ -45,6 +47,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
+		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 		parent::tear_down();
 	}
 
@@ -377,6 +380,113 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	public function test_owner_user_id_returns_zero_when_no_key() {
 		$helper = new RestApiKey();
 		$this->assertSame( 0, $helper->owner_user_id() );
+	}
+
+	/**
+	 * Read-only snapshot via existing_state() — never provisions
+	 * and never clears option state. Pin both directions: returns
+	 * the row when a key is provisioned, returns null when not.
+	 *
+	 * The setup view depends on this method to surface a key that
+	 * remains active even after the WC MCP feature flag is turned
+	 * off (the dangerous middle state where the credential can still
+	 * authenticate against the standard WC REST surface).
+	 */
+	public function test_existing_state_returns_state_or_null_without_side_effects() {
+		$helper = new RestApiKey();
+
+		$this->assertNull( $helper->existing_state(), 'No key → null.' );
+		$this->assertSame( 0, $this->count_owned_rows(), 'No row was provisioned by the lookup.' );
+
+		$helper->get_or_create( 'read' );
+		$state = $helper->existing_state();
+
+		$this->assertIsArray( $state );
+		$this->assertArrayHasKey( 'credential', $state );
+		$this->assertArrayHasKey( 'key_id', $state );
+		$this->assertArrayHasKey( 'permissions', $state );
+		$this->assertArrayHasKey( 'owner_user_id', $state );
+		$this->assertSame( 'read', $state['permissions'] );
+	}
+
+	/**
+	 * SetupPage::prepare_download_state() — extracted from
+	 * handle_download() — must reject when the post-provision owner
+	 * differs from the user who passed the initial gate. Closes the
+	 * concurrent-regenerate TOCTOU: contender X passes
+	 * require_key_owner, contender Y rotates the credential, X's
+	 * get_or_create returns Y's credential. Without this re-check,
+	 * X would receive a bundle bound to Y's user_id.
+	 *
+	 * Simulate the race by mutating the row's user_id between the
+	 * provision and the precondition check, then calling the
+	 * extracted helper with the original user as the expected owner.
+	 */
+	public function test_prepare_download_state_refuses_when_ownership_changed_mid_request() {
+		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
+
+		$x_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$y_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
+
+		wp_set_current_user( $x_user );
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read' );
+		$state = $helper->existing_state();
+		$this->assertSame( $x_user, $state['owner_user_id'] );
+
+		// Simulate a concurrent regenerate by mutating the row's
+		// user_id directly — the actual race would call regenerate()
+		// from another request, but the resulting row state is the same.
+		global $wpdb;
+		$wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$wpdb->prefix . 'woocommerce_api_keys',
+			array( 'user_id' => $y_user ),
+			array( 'key_id' => $state['key_id'] ),
+			array( '%d' ),
+			array( '%d' )
+		);
+
+		// X is still the current user, but the key now belongs to Y.
+		$result = SetupPage::prepare_download_state( $x_user );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'ownership_changed', $result->get_error_code() );
+	}
+
+	/**
+	 * Refuses with `mcp_required` when the WC MCP feature flag is
+	 * off, even if a key already exists.
+	 * The bundle would point at an endpoint that returns 404, so
+	 * downloading it would just hand out a credential with no
+	 * working delivery path — the merchant should re-enable first.
+	 */
+	public function test_prepare_download_state_refuses_when_mcp_disabled() {
+		update_option( 'woocommerce_feature_mcp_integration_enabled', 'no' );
+
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $user_id );
+
+		$result = SetupPage::prepare_download_state( $user_id );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'mcp_required', $result->get_error_code() );
+	}
+
+	/**
+	 * Returns the full key state on the happy path, with
+	 * owner_user_id matching the caller.
+	 */
+	public function test_prepare_download_state_returns_state_on_happy_path() {
+		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
+
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $user_id );
+
+		$result = SetupPage::prepare_download_state( $user_id );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( $user_id, $result['owner_user_id'] );
+		$this->assertNotEmpty( $result['credential'] );
 	}
 
 	/**
