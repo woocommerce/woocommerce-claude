@@ -239,19 +239,23 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 						</div>
 
 						<h5><?php esc_html_e( 'Claude Code — one command:', 'hey-woo' ); ?></h5>
-						<div class="hey-woo-setup__copy-row hey-woo-setup__copy-row--block">
+						<div class="hey-woo-setup__codeblock">
 							<pre data-hey-woo-cli><code><?php echo esc_html( $claude_code_command ); ?></code></pre>
-							<button type="button" class="button hey-woo-setup__copy" data-hey-woo-copy-target="cli">
-								<?php esc_html_e( 'Copy', 'hey-woo' ); ?>
-							</button>
+							<div class="hey-woo-setup__codeblock-actions">
+								<button type="button" class="hey-woo-setup__copy" data-hey-woo-copy-target="cli">
+									<?php esc_html_e( 'Copy', 'hey-woo' ); ?>
+								</button>
+							</div>
 						</div>
 
 						<h5><?php esc_html_e( 'Claude Desktop — claude_desktop_config.json:', 'hey-woo' ); ?></h5>
-						<div class="hey-woo-setup__copy-row hey-woo-setup__copy-row--block">
+						<div class="hey-woo-setup__codeblock">
 							<pre data-hey-woo-json><code><?php echo esc_html( $json_snippet ); ?></code></pre>
-							<button type="button" class="button hey-woo-setup__copy" data-hey-woo-copy-target="json">
-								<?php esc_html_e( 'Copy', 'hey-woo' ); ?>
-							</button>
+							<div class="hey-woo-setup__codeblock-actions">
+								<button type="button" class="hey-woo-setup__copy" data-hey-woo-copy-target="json">
+									<?php esc_html_e( 'Copy', 'hey-woo' ); ?>
+								</button>
+							</div>
 						</div>
 
 					<?php endif; ?>

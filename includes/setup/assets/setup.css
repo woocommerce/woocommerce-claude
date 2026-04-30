@@ -49,13 +49,11 @@
 	display: grid;
 	grid-template-columns: 240px 1fr;
 	gap: 36px;
-	padding: 32px 0;
-	border-top: 1px solid #dcdcde;
+	padding: 24px 0;
 }
 
 .hey-woo-setup__row:first-of-type {
-	border-top: none;
-	padding-top: 8px;
+	padding-top: 12px;
 }
 
 @media (max-width: 880px) {
@@ -65,16 +63,34 @@
 	}
 }
 
+/*
+ * The left-column heading top-aligns with the card's <h3> by sharing
+ * the card's internal top padding (20px) — the row label gets the
+ * same top inset so the two titles share a baseline. Font size and
+ * weight match the card heading too.
+ */
+.hey-woo-setup__row-label {
+	padding-top: 20px;
+}
+
 .hey-woo-setup__row-label h2 {
 	margin: 0 0 8px;
-	font-size: 1.4em;
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 1.4;
 }
 
 .hey-woo-setup__row-label p {
 	margin: 0;
 	color: #50575e;
-	font-size: 13.5px;
+	font-size: 13px;
 	line-height: 1.55;
+}
+
+@media (max-width: 880px) {
+	.hey-woo-setup__row-label {
+		padding-top: 0;
+	}
 }
 
 .hey-woo-setup__row-content {
@@ -318,55 +334,64 @@
 }
 
 /*
- * Copy rows are flex containers with code/pre children. Without
- * `min-width: 0` on the flex children, their default `min-width:auto`
- * grows them to content size and pushes the card past its parent
- * width. With min-width:0 + overflow-x:auto, the inner element scrolls
- * within its allotted width instead.
+ * Dark code panel that holds both the snippet and the Copy button
+ * (button sits inside the panel, separated from the code by a thin
+ * top border, right-aligned). Reuses the WC convention of self-
+ * contained code samples.
  */
-.hey-woo-setup__copy-row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	min-width: 0;
-}
-
-.hey-woo-setup__copy-row > code {
-	flex: 1 1 auto;
-	min-width: 0;
-	background: #f6f7f7;
-	padding: 6px 10px;
-	border-radius: 3px;
-	font-size: 13px;
-	overflow-x: auto;
-	white-space: nowrap;
-}
-
-.hey-woo-setup__copy-row--block {
-	align-items: flex-start;
-}
-
-.hey-woo-setup__copy-row--block > pre {
-	flex: 1 1 auto;
-	min-width: 0;
-	max-width: 100%;
+.hey-woo-setup__codeblock {
 	background: #1d2327;
 	color: #f0f0f1;
-	padding: 12px 14px;
 	border-radius: 4px;
+	overflow: hidden;
+	margin: 0 0 16px;
+	min-width: 0;
+}
+
+.hey-woo-setup__codeblock pre {
+	background: transparent;
+	color: inherit;
+	padding: 14px 16px;
 	margin: 0;
 	overflow-x: auto;
 	white-space: pre;
 	font-size: 12.5px;
-	line-height: 1.5;
+	line-height: 1.55;
 }
 
-.hey-woo-setup__copy-row--block > pre code {
+.hey-woo-setup__codeblock pre code {
 	background: transparent;
 	color: inherit;
 	padding: 0;
+	font-size: inherit;
+	line-height: inherit;
 }
 
-.hey-woo-setup__copy {
-	flex-shrink: 0;
+.hey-woo-setup__codeblock-actions {
+	border-top: 1px solid rgba( 240, 240, 241, .12 );
+	padding: 8px 12px;
+	display: flex;
+	justify-content: flex-end;
+}
+
+.hey-woo-setup__codeblock-actions .hey-woo-setup__copy {
+	background: transparent;
+	border: 1px solid rgba( 240, 240, 241, .35 );
+	color: #f0f0f1;
+	padding: 4px 14px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+	line-height: 1.6;
+	transition: border-color .15s, background-color .15s;
+}
+
+.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:hover,
+.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:focus-visible {
+	border-color: #f0f0f1;
+	outline: none;
+}
+
+.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:disabled {
+	opacity: .8;
 }
