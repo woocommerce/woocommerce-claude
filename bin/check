@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#
+# Local CI mirror — runs the same checks the GitHub Actions workflow
+# (.github/workflows/ci.yml) would run. Use this to confirm a branch
+# is shippable before pushing.
+#
+# Usage (from anywhere in the repo):
+#   ./bin/check
+#
+# First run installs composer dependencies; subsequent runs skip that.
+# PHPUnit needs the wp-env tests-cli container running:
+#   npx @wordpress/env start
+#
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+step() {
+	printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$1"
+}
+
+fail() {
+	printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
+	exit 1
+}
+
+# 1. PHP deps.
+if [ ! -d vendor ]; then
+	step "Installing PHP dev dependencies (composer install)"
+	composer install --no-progress --prefer-dist
+fi
+
+# 2. PHPCS.
+step "PHPCS (WordPress-Extra + Docs + WooCommerce)"
+composer run phpcs
+
+# 3. Composer dependency audit. Respects config.audit.ignore in composer.json —
+#    PHPUnit advisories are test-only and pre-justified there. --no-dev would
+#    skip the audit entirely since there are no production PHP deps, so run
+#    the full audit and trust the ignore list.
+step "Composer: dependency audit"
+composer audit || fail "composer audit reported new vulnerabilities — fix or add a justified ignore to composer.json's config.audit.ignore."
+
+# 4. PHPUnit smoke test inside the wp-env tests-cli container.
+if ! docker ps --format '{{.Names}}' | grep -q 'tests-cli'; then
+	fail "wp-env tests environment is not running.
+  Start it with:  npx @wordpress/env start
+  Then re-run:    ./bin/check"
+fi
+
+step "PHPUnit (integration, inside tests-cli container)"
+npx @wordpress/env run tests-cli \
+	--env-cwd=wp-content/plugins/hey-woo-tests \
+	-- php vendor/bin/phpunit --colors=always
+
+# 5. WCA Data Consistency Checker. Runs against the dev cli container (where
+#    demo-store data lives) and fails on genuine local-vs-db drift across
+#    orders_count / net_revenue / gross_revenue / refunds. Auto-skips when
+#    the plugin isn't dropped into vendor-plugins/ or the dev store is
+#    empty — see bin/check-dcc for the full gating logic.
+step "DCC (local-vs-db analytics drift, via wp wca-data-consistency run)"
+"$REPO_ROOT/bin/check-dcc"
+
+step "All checks passed."

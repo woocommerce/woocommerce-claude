@@ -1,0 +1,17 @@
+{
+  "core": "WordPress/WordPress#6.9",
+  "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip"],
+  "mappings": {
+    "wp-content/plugins/hey-woo-tests": ".",
+    "wp-content/plugins/hey-woo": ".",
+    "wp-content/mu-plugins": "./tools/mu-plugins"
+  },
+  "config": {
+    "WP_DEBUG": true,
+    "WP_DEBUG_LOG": true,
+    "SCRIPT_DEBUG": true
+  },
+  "lifecycleScripts": {
+    "afterStart": "wp-env run cli -- wp option update woocommerce_feature_mcp_integration_enabled yes && wp-env run cli -- wp plugin activate woocommerce hey-woo && wp-env run cli -- wp wc tool run install_pages --user=admin && wp-env run cli -- wp option update woocommerce_store_address '123 Main Street' && wp-env run cli -- wp option update woocommerce_store_city 'London' && wp-env run cli -- wp option update woocommerce_store_postcode 'EC1A 1BB' && wp-env run cli -- wp option update woocommerce_default_country 'GB' && wp-env run cli -- wp option update woocommerce_currency 'GBP'"
+  }
+}

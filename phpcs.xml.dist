@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<ruleset name="HeyWoo">
+    <description>WordPress-Extra + WordPress-Docs + WooCommerce coding standards for Hey Woo.</description>
+
+    <!-- Files to scan. -->
+    <file>hey-woo.php</file>
+    <file>includes</file>
+    <file>tools</file>
+    <file>tests</file>
+
+    <!-- Excluded paths. -->
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>vendor/*</exclude-pattern>
+    <exclude-pattern>dist/*</exclude-pattern>
+
+    <!-- Only PHP files. -->
+    <arg name="extensions" value="php"/>
+
+    <!-- Show progress, sniff codes, and use colours. -->
+    <arg name="colors"/>
+    <arg value="sp"/>
+    <arg name="parallel" value="8"/>
+
+    <!-- WordPress-Extra supersets Core (adds escaped-output, assignment-in-condition,
+         empty-statement, etc.). WordPress-Docs adds docblock sniffs. WooCommerce
+         adds WC-specific sniffs (from woocommerce/woocommerce-sniffs). -->
+    <rule ref="WordPress-Extra"/>
+    <rule ref="WordPress-Docs"/>
+    <rule ref="WooCommerce"/>
+
+    <!-- Teach the capability sniff about WC's custom caps so it stops
+         flagging current_user_can('manage_woocommerce') in ability / REST
+         permission callbacks. -->
+    <rule ref="WordPress.WP.Capabilities">
+        <properties>
+            <property name="custom_capabilities" type="array">
+                <element value="manage_woocommerce"/>
+            </property>
+        </properties>
+    </rule>
+
+    <!-- Project-wide configuration. -->
+    <config name="text_domain" value="hey-woo"/>
+    <config name="minimum_supported_wp_version" value="6.9"/>
+
+    <!-- PHP compatibility floor matches the plugin header (PHP 7.4+). -->
+    <config name="testVersion" value="7.4-"/>
+    <rule ref="PHPCompatibilityWP"/>
+
+    <!-- Tests file naming follows WP test conventions (test-foo.php), not class-foo.php. -->
+    <rule ref="WordPress.Files.FileName">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+
+    <!--
+        Allow the kebab-cased `class-analytics-controller.php` form for the
+        CamelCased class `AnalyticsController`. The strict sniff would demand
+        `class-analyticscontroller.php` (no hyphens). WordPress core itself
+        uses the hyphenated form (e.g. `class-wp-http.php` for `WP_HTTP`),
+        and it's significantly more readable for multi-word class names.
+    -->
+    <rule ref="WordPress.Files.FileName.InvalidClassFileName">
+        <severity>0</severity>
+    </rule>
+
+    <!-- Dev tooling scripts run via wp eval-file and don't need full file headers. -->
+    <rule ref="Squiz.Commenting.FileComment.Missing">
+        <exclude-pattern>tools/*</exclude-pattern>
+    </rule>
+</ruleset>

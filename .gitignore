@@ -1,0 +1,25 @@
+node_modules/
+.wp-env/
+.wp-env.override.json
+*.log
+.DS_Store
+
+# Composer dependencies and PHPUnit cache.
+vendor/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Local credentials and Claude config.
+.mcp.json
+.claude/
+
+# P2 / communication drafts — working documents, not part of the codebase.
+# Keep a README here so the folder itself (and its purpose) is discoverable.
+docs/drafts/*
+!docs/drafts/README.md
+
+# Local-only dev plugins that aren't ours to redistribute (e.g. the WCA
+# Data Consistency Checker plugin). bin/check-dcc auto-detects the
+# presence of this dir and wires the check when it's here; skips cleanly
+# when it's not.
+vendor-plugins/

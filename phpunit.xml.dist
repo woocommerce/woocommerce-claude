@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<phpunit
+    bootstrap="tests/integration/bootstrap.php"
+    backupGlobals="false"
+    colors="true"
+    convertErrorsToExceptions="true"
+    convertWarningsToExceptions="true"
+    convertNoticesToExceptions="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    cacheResultFile=".phpunit.cache/test-results"
+>
+    <testsuites>
+        <testsuite name="integration">
+            <directory suffix=".php">tests/integration</directory>
+            <exclude>tests/integration/bootstrap.php</exclude>
+        </testsuite>
+    </testsuites>
+    <php>
+        <const name="WP_TESTS_FORCE_KNOWN_BUGS" value="false"/>
+    </php>
+</phpunit>

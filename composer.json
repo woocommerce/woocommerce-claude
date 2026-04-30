@@ -1,0 +1,34 @@
+{
+    "name": "woocommerce/hey-woo",
+    "description": "Make any WooCommerce store AI-operable.",
+    "type": "wordpress-plugin",
+    "license": "GPL-3.0-or-later",
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "phpunit/phpunit": "^9.6",
+        "woocommerce/woocommerce-sniffs": "^1.0",
+        "wp-coding-standards/wpcs": "^3.1",
+        "yoast/phpunit-polyfills": "^2.0"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "audit": {
+            "ignore": {
+                "PKSA-5jz8-6tcw-pbk4": "PHPUnit is a test-only dev dependency; advisory does not affect production code paths.",
+                "PKSA-z3gr-8qht-p93v": "PHPUnit is a test-only dev dependency; advisory does not affect production code paths."
+            }
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "phpcs": "phpcs",
+        "phpcbf": "phpcbf",
+        "phpunit": "phpunit"
+    }
+}

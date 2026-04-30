@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+#
+# Data Consistency Checker (DCC) CI step.
+#
+# Runs the WCA Data Consistency Checker plugin against the wp-env dev
+# container and fails when the plugin's Local API source disagrees with its
+# direct-SQL source. We use that disagreement as a regression signal: new
+# abilities get more aggressive about direct SQL as they ship, and every new
+# direct-SQL path is a place where our query logic can drift away from what
+# WooCommerce's own Analytics REST API returns. This check catches that
+# drift at PR time instead of at demo time.
+#
+# The plugin itself lives at vendor-plugins/wca-data-consistency/ (gitignored
+# — the upstream repo is private for now; download the zip and extract it
+# there to enable the check). If the directory is missing, the step skips
+# cleanly with a "(no vendor-plugins/... — skipping)" log. If the dev store
+# has no order data, the step also skips — DCC over an empty store compares
+# zeros across sources, which is CI theatre.
+#
+# WP.com / Jetpack: the DCC's "external" source needs a Jetpack connection
+# to query WP.com Analytics. wp-env isn't connected, so external is always
+# null. The ComparisonEngine treats (null external, local=db) as PARTIAL —
+# we treat PARTIAL as pass. The signal we care about is Local ≠ DB, which
+# surfaces as MISMATCH regardless of whether external is available.
+#
+# Usage:
+#   ./bin/check-dcc
+#
+# Called from bin/check after PHPUnit. Safe to run standalone.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+PLUGIN_DIR="vendor-plugins/wca-data-consistency"
+PLUGIN_SLUG="wca-data-consistency"
+
+# Path inside the wp-env container where the repo is mounted
+# (via the `mappings` entry in .wp-env.json).
+CONTAINER_REPO_PATH="wp-content/plugins/hey-woo-tests"
+
+log() {
+	printf '  %s\n' "$1"
+}
+
+skip() {
+	log "(skipping — $1)"
+	exit 0
+}
+
+# 1. Plugin present locally?
+if [ ! -d "$PLUGIN_DIR" ]; then
+	skip "no $PLUGIN_DIR/ — download the WCA Data Consistency Checker plugin and extract it there to enable"
+fi
+
+if [ ! -f "$PLUGIN_DIR/wca-sanity-check.php" ]; then
+	skip "$PLUGIN_DIR/ exists but doesn't contain wca-sanity-check.php — expected the extracted plugin here"
+fi
+
+# 2. Dev env running?
+if ! docker ps --format '{{.Names}}' | grep -q 'cli'; then
+	skip "wp-env cli container is not running (start with: npx @wordpress/env start)"
+fi
+
+# 3. Any order data in the dev store?
+# DCC over an empty store is CI theatre — zero-vs-zero compares always match.
+# `wp db query` emits result rows to stdout; `--skip-column-names` trims the header.
+order_count_raw="$(
+	npx @wordpress/env run cli -- \
+		wp db query "SELECT COUNT(*) FROM wp_wc_order_stats WHERE parent_id = 0" \
+		--skip-column-names 2>/dev/null | tr -d ' \t\r\n' || echo "0"
+)"
+# Trim any wp-env wrapper lines that leaked into stdout (rare but seen in CI).
+order_count="$(printf '%s\n' "$order_count_raw" | grep -oE '[0-9]+' | tail -n1 || true)"
+if [ -z "$order_count" ] || [ "$order_count" = "0" ]; then
+	skip "wp_wc_order_stats is empty — run 'npx @wordpress/env run cli -- wp eval-file wp-content/plugins/hey-woo-tests/tools/seed-demo-store.php' to populate"
+fi
+
+log "Dev store has $order_count order-stats rows — running DCC."
+
+# 4. Copy the plugin into wp-content/plugins/ so WordPress picks it up.
+# The repo is mounted inside the container at $CONTAINER_REPO_PATH; DCC lives
+# under there at $CONTAINER_REPO_PATH/vendor-plugins/wca-data-consistency/.
+# We copy (not symlink) so activation resolves a normal plugin path and
+# wp-cli's autoloader doesn't trip over a nested plugin-in-a-plugin layout.
+npx @wordpress/env run cli -- bash -c "
+	set -e
+	TARGET=wp-content/plugins/$PLUGIN_SLUG
+	SOURCE=$CONTAINER_REPO_PATH/$PLUGIN_DIR
+	if [ ! -f \"\$TARGET/wca-sanity-check.php\" ]; then
+		rm -rf \"\$TARGET\"
+		cp -r \"\$SOURCE\" \"\$TARGET\"
+	fi
+" >/dev/null
+
+# 5. Activate (idempotent — wp-cli prints 'plugin is already active' and exits 0).
+npx @wordpress/env run cli -- wp plugin activate "$PLUGIN_SLUG" --quiet >/dev/null 2>&1 \
+	|| {
+		printf '\n\033[1;31m✖ Could not activate %s — check plugin compatibility.\033[0m\n' "$PLUGIN_SLUG" >&2
+		exit 1
+	}
+
+# 6. Run. --format=json is machine-parseable (--format=ai is designed for LLM
+# consumption, not regex). --ranges=30 keeps runtime under ~5s vs ~4× slower
+# for all five ranges (1/7/30/90/365).
+#
+# --metrics filter: DCC covers 13 metrics, but on a wp-env store (no Jetpack),
+# several are structurally noisy:
+#   - new_customers / returning_customers / attribution: WC's local REST
+#     doesn't populate these (local_api=null), so DCC flags mismatch even
+#     when the DB value is correct.
+#   - total_customers: DCC's own README documents that WC's
+#     CustomersDataStore counts refund sub-orders without a parent_id=0
+#     filter, so local_api is always slightly higher than db on stores with
+#     refunds.
+#   - taxes_collected / coupon_discount: covered once get_tax_summary /
+#     get_coupon_performance ship (ANALYTICS-SKILLS-MAP.md skills 8 + 10).
+# So today the gate runs on the four metrics where local AND db are both
+# reliable and we have a corresponding ability to regress: orders_count,
+# net_revenue, gross_revenue, refunds. Add to the list as new skills land.
+DCC_OUTPUT="$(
+	npx @wordpress/env run cli -- \
+		wp wca-data-consistency run \
+		--format=json \
+		--ranges=30 \
+		--metrics=orders_count,net_revenue,gross_revenue,refunds 2>&1
+)"
+
+# 7. Parse. Fail on mismatch OR error. Partial / match / external_only pass.
+# Use python3 for a real JSON parse — safer than jq (not guaranteed present)
+# and safer than shell regex on floating-point values. `raw_decode` pulls the
+# first valid JSON object out of the stream, which strips wp-env's wrapper
+# lines ("ℹ Starting...", "✔ Ran...") without needing a fragile sed. Passing
+# the script via -c leaves stdin free for the DCC output pipe — a heredoc on
+# `python3 -` would steal stdin from the pipe.
+read -r -d '' DCC_PARSER <<'PY' || true
+import json
+import sys
+
+raw = sys.stdin.read()
+start = raw.find('{')
+if start < 0:
+    print("\n\033[1;31m✖ DCC produced no JSON output — plugin may have errored.\033[0m", file=sys.stderr)
+    print(raw, file=sys.stderr)
+    sys.exit(1)
+
+try:
+    data, _ = json.JSONDecoder().raw_decode(raw[start:])
+except json.JSONDecodeError as e:
+    print(f"\n\033[1;31m\u2716 DCC JSON parse failed: {e}\033[0m", file=sys.stderr)
+    print(raw, file=sys.stderr)
+    sys.exit(1)
+
+fail = []
+for r in data.get("ranges", []):
+    label = r.get("label", r.get("id", "?"))
+    for m in r.get("metrics", []):
+        status = m.get("status", "")
+        if status == "error":
+            fail.append((label, m.get("label", m.get("id", "?")), status,
+                         m.get("external"), m.get("local_api"),
+                         m.get("database"), m.get("error")))
+        elif status == "mismatch":
+            # DCC's ComparisonEngine reports mismatch when any pair of sources
+            # disagrees, including null-vs-value pairs. We only treat it as a
+            # real regression when local AND db both returned values and they
+            # disagree — that's the "our direct SQL drifted from WC's REST"
+            # signal. If either is null (WC REST coverage gap, schema change
+            # in a WC version bump), it's a coverage issue, not our drift.
+            local = m.get("local_api")
+            db = m.get("database")
+            if local is not None and db is not None and local != db:
+                fail.append((label, m.get("label", m.get("id", "?")), status,
+                             m.get("external"), local, db, m.get("error")))
+
+if fail:
+    print("")
+    print(f"\033[1;31m\u2716 DCC found {len(fail)} disagreeing metric(s):\033[0m", file=sys.stderr)
+    for label, metric, status, ext, local, db, err in fail:
+        print(f"  [{label}] {metric} ({status}): external={ext}, local_api={local}, database={db}",
+              file=sys.stderr)
+        if err:
+            print(f"    error: {err}", file=sys.stderr)
+    print("")
+    print("  Typical causes: a new direct-SQL ability drifted from what WC Analytics' REST returns,",
+          file=sys.stderr)
+    print("  or the three-source schemas diverged after a WC / WC Analytics upgrade. Re-run locally",
+          file=sys.stderr)
+    print("  with: npx @wordpress/env run cli -- wp wca-data-consistency run --format=ai", file=sys.stderr)
+    sys.exit(1)
+
+total = sum(len(r.get("metrics", [])) for r in data.get("ranges", []))
+print(f"  DCC: {total} metric(s) clean (mismatches=0, errors=0; partial/match/external_only treated as pass)")
+PY
+
+printf '%s' "$DCC_OUTPUT" | python3 -c "$DCC_PARSER"

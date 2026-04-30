@@ -1,0 +1,50 @@
+# Files and directories excluded from the production plugin zip.
+# Used by build scripts that ship installable releases.
+
+# Source control
+.git
+.gitignore
+.gitattributes
+
+# Development tooling
+.github
+.wp-env.json
+.wp-env.override.json
+.wp-env
+.phpunit.cache
+.phpunit.result.cache
+.distignore
+.editorconfig
+.DS_Store
+
+# Tests and dev scripts
+tests
+bin
+scripts
+
+# Composer dev dependencies (run `composer install --no-dev` before zipping
+# to remove vendor/ dev-only packages, or strip vendor/ entirely if it's
+# not needed in the published zip)
+composer.json
+composer.lock
+
+# Linting / standards configs
+phpcs.xml.dist
+phpunit.xml.dist
+
+# Local-only dev plugins
+vendor-plugins
+
+# Documentation that lives in-repo for contributors but isn't needed
+# at runtime
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+.migration
+
+# Editor / OS metadata
+*.log
+*.swp
+.idea
+.vscode
+node_modules
