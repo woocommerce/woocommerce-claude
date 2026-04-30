@@ -322,7 +322,7 @@ npx @wordpress/env run cli -- wp eval-file /tmp/seed.php
 
 ## Contributing
 
-Contributions welcome — file an issue or open a pull request. See `skills/build-skill/SKILL.md` for the workflow used to add a new analytics skill.
+Contributions welcome — file an issue or open a pull request.
 
 ## License
 
