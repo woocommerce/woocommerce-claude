@@ -1,143 +1,269 @@
 /* Hey Woo setup view — rendered inside WC Settings → Hey Woo. */
 
 .hey-woo-setup {
-	max-width: 880px;
-	margin-top: 12px;
+	max-width: 1100px;
+	margin-top: 8px;
 }
 
-.hey-woo-setup__intro {
-	font-size: 14px;
+/* ---- Top status banner (MCP-off + HTTP warnings) ---- */
+
+.hey-woo-setup__topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 14px 18px;
+	margin: 0 0 24px;
+	border-radius: 6px;
+	flex-wrap: wrap;
+}
+
+.hey-woo-setup__topbar > div {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.hey-woo-setup__topbar strong {
+	display: block;
+	margin-bottom: 2px;
+}
+
+.hey-woo-setup__topbar span {
 	color: #50575e;
-	margin: 0 0 16px;
-}
-
-.hey-woo-setup__status {
-	background: #fff;
-	border: 1px solid #c3c4c7;
-	border-radius: 4px;
-	padding: 16px 20px;
-	margin: 0 0 16px;
-	max-width: 100%;
-	box-sizing: border-box;
-	overflow: hidden;
-}
-
-.hey-woo-setup__status h2 {
-	margin-top: 0;
-}
-
-.hey-woo-setup__status ul {
-	margin: 0;
-}
-
-.hey-woo-setup__status li {
-	margin: 6px 0;
-	word-break: break-word;
-}
-
-.hey-woo-setup__ok {
-	color: #00713c;
-	font-weight: 600;
-}
-
-.hey-woo-setup__warn {
-	color: #b35900;
-	font-weight: 600;
-}
-
-.hey-woo-setup__inline-action {
-	margin-left: 8px;
-}
-
-.hey-woo-setup__inline-link {
-	margin-left: 8px;
 	font-size: 13px;
 }
 
-.hey-woo-setup__cards {
-	display: grid;
-	grid-template-columns: 1fr;
-	gap: 16px;
+.hey-woo-setup__topbar--warn {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
 }
+
+.hey-woo-setup__topbar--info {
+	background: #f0f6fc;
+	border-left: 4px solid #2271b1;
+}
+
+/* ---- Section row: label/lede on left, card on right ---- */
+
+.hey-woo-setup__row {
+	display: grid;
+	grid-template-columns: 280px 1fr;
+	gap: 32px;
+	padding: 28px 0;
+	border-top: 1px solid #dcdcde;
+}
+
+.hey-woo-setup__row:first-of-type {
+	border-top: none;
+	padding-top: 4px;
+}
+
+@media (max-width: 880px) {
+	.hey-woo-setup__row {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+}
+
+.hey-woo-setup__row-label h2 {
+	margin: 0 0 8px;
+	font-size: 1.4em;
+}
+
+.hey-woo-setup__row-label p {
+	margin: 0;
+	color: #50575e;
+	font-size: 13.5px;
+	line-height: 1.55;
+}
+
+.hey-woo-setup__row-content {
+	min-width: 0;
+}
+
+/* ---- Cards (right column) ---- */
 
 .hey-woo-setup__card {
 	background: #fff;
 	border: 1px solid #c3c4c7;
-	border-radius: 4px;
-	padding: 20px 24px;
-	max-width: 100%;
-	box-sizing: border-box;
+	border-radius: 8px;
+	padding: 22px 24px;
 	min-width: 0;
+	box-sizing: border-box;
 }
 
-.hey-woo-setup__card h2 {
-	margin-top: 0;
+.hey-woo-setup__card h3 {
+	margin: 0 0 16px;
+	font-size: 15px;
 }
 
-.hey-woo-setup__card-lede {
-	color: #50575e;
-	margin: 0 0 12px;
-}
+/* ---- Scope radio cards ---- */
 
-.hey-woo-setup__hint {
-	color: #50575e;
-	font-size: 13px;
-	margin: 12px 0 0;
-}
-
-.hey-woo-setup__card--quick {
-	border-left: 4px solid #2271b1;
-}
-
-/* Scope toggle — compact two-pill switch. */
-.hey-woo-setup__toggle {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 8px;
-	margin: 8px 0 0;
-}
-
-.hey-woo-setup__toggle-option {
+.hey-woo-setup__radio-card {
 	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	padding: 12px 14px;
-	border: 1px solid #c3c4c7;
-	border-radius: 4px;
+	align-items: flex-start;
+	gap: 14px;
+	padding: 16px;
+	border: 1.5px solid #c3c4c7;
+	border-radius: 6px;
 	background: #fff;
 	color: #1d2327;
 	text-decoration: none;
+	margin-bottom: 10px;
 	transition: border-color .15s, background-color .15s;
 }
 
-.hey-woo-setup__toggle-option:hover {
+.hey-woo-setup__radio-card:hover {
 	border-color: #2271b1;
 }
 
-.hey-woo-setup__toggle-option.is-active {
+.hey-woo-setup__radio-card.is-active {
 	border-color: #2271b1;
-	background: #f0f6fc;
-	box-shadow: inset 0 0 0 1px #2271b1;
+	background: #f6fbff;
+	box-shadow: 0 0 0 1px #2271b1;
 }
 
-.hey-woo-setup__toggle-option strong {
+.hey-woo-setup__radio-card:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+.hey-woo-setup__radio-indicator {
+	flex: 0 0 auto;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	border: 1.5px solid #8c8f94;
+	margin-top: 2px;
+	position: relative;
+}
+
+.hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator {
+	border-color: #2271b1;
+}
+
+.hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: #2271b1;
+}
+
+.hey-woo-setup__radio-body {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.hey-woo-setup__radio-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.hey-woo-setup__radio-title strong {
 	font-size: 14px;
 }
 
-.hey-woo-setup__toggle-option span {
-	font-size: 12.5px;
-	color: #50575e;
+.hey-woo-setup__badge {
+	font-size: 11px;
+	font-weight: 600;
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: #d8edd8;
+	color: #044e15;
 }
 
-@media (max-width: 600px) {
-	.hey-woo-setup__toggle {
-		grid-template-columns: 1fr;
-	}
+.hey-woo-setup__badge--alt {
+	background: #e0e8f4;
+	color: #14385c;
+}
+
+.hey-woo-setup__radio-desc {
+	display: block;
+	color: #50575e;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.hey-woo-setup__radio-check {
+	flex: 0 0 auto;
+	color: #2271b1;
+	font-size: 18px;
+	margin-top: -2px;
+}
+
+.hey-woo-setup__keymeta {
+	margin: 14px 0 0;
+	padding-top: 14px;
+	border-top: 1px solid #f0f0f1;
+	color: #50575e;
+	font-size: 13px;
+}
+
+.hey-woo-setup__keymeta code {
+	background: transparent;
+	padding: 0;
+	font-size: 13px;
+}
+
+/* ---- Setup card with Quick / OR / Manual panels ---- */
+
+.hey-woo-setup__panel {
+	padding: 4px 0;
+}
+
+.hey-woo-setup__panel h4 {
+	margin: 0 0 12px;
+	font-size: 14px;
+}
+
+.hey-woo-setup__panel h5 {
+	margin: 18px 0 8px;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.hey-woo-setup__steps {
+	margin: 0 0 16px 18px;
+	padding: 0;
+}
+
+.hey-woo-setup__steps li {
+	margin: 6px 0;
+}
+
+.hey-woo-setup__divider {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 22px 0;
+	color: #50575e;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: .08em;
+}
+
+.hey-woo-setup__divider::before,
+.hey-woo-setup__divider::after {
+	content: "";
+	flex: 1 1 auto;
+	height: 1px;
+	background: #dcdcde;
+}
+
+.hey-woo-setup__divider span {
+	flex: 0 0 auto;
 }
 
 .hey-woo-setup__prereq {
 	font-size: 13px;
 	color: #50575e;
+	margin-top: 12px;
 }
 
 .hey-woo-setup__warn-block {
@@ -146,26 +272,21 @@
 	padding: 10px 14px;
 	margin-top: 16px;
 	font-size: 13px;
+	color: #1d2327;
 }
 
 .hey-woo-setup__blocked {
 	background: #f6f7f7;
 	border-left: 4px solid #c3c4c7;
 	padding: 10px 14px;
-	margin-top: 12px;
+	margin: 12px 0;
 	color: #50575e;
 }
 
-.hey-woo-setup__client-picker {
-	margin: 12px 0 18px;
-}
-
-.hey-woo-setup__client-picker label {
-	margin-right: 8px;
-}
+/* ---- Credential + copy rows ---- */
 
 .hey-woo-setup__credential {
-	margin: 12px 0 18px;
+	margin: 0 0 18px;
 	min-width: 0;
 }
 
@@ -173,12 +294,13 @@
 	display: block;
 	font-weight: 600;
 	margin-bottom: 6px;
+	font-size: 13px;
 }
 
 /*
  * Copy rows are flex containers with code/pre children. Without
  * `min-width: 0` on the flex children, their default `min-width:auto`
- * makes them grow to content size, pushing the card past its parent
+ * grows them to content size and pushes the card past its parent
  * width. With min-width:0 + overflow-x:auto, the inner element scrolls
  * within its allotted width instead.
  */
@@ -227,13 +349,4 @@
 
 .hey-woo-setup__copy {
 	flex-shrink: 0;
-}
-
-.hey-woo-setup__card--after ul {
-	list-style: disc;
-	padding-left: 22px;
-}
-
-.hey-woo-setup__card--after li {
-	margin: 4px 0;
 }

@@ -141,12 +141,12 @@ class SetupPage {
 			return;
 		}
 
-		$key_helper     = new RestApiKey();
-		$mcp_enabled    = self::mcp_feature_enabled();
-		$site_https     = self::site_is_https();
-		$endpoint_url   = self::endpoint_url();
-		$current_client = isset( $_GET['client'] ) ? sanitize_key( wp_unslash( $_GET['client'] ) ) : 'claude-code'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only client picker.
-		$notice_code    = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash message.
+		$key_helper   = new RestApiKey();
+		$mcp_enabled  = self::mcp_feature_enabled();
+		$site_https   = self::site_is_https();
+		$endpoint_url = self::endpoint_url();
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash message.
+		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		// Provision the credential lazily once the feature flag is on so
 		// the manual JSON snippet has something concrete to show. Before

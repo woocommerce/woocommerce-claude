@@ -1,9 +1,6 @@
 /**
- * Hey Woo setup page — copy-to-clipboard + navigate-on-pick for the
- * client picker. The picker can't be a nested <form> (we render
- * inside WC's outer settings form), so on change we read the
- * destination URL from the selected option's data attribute and
- * navigate via location.href.
+ * Hey Woo setup page — copy-to-clipboard for the credential, the
+ * Claude Code command, and the Claude Desktop JSON snippet.
  */
 (function () {
 	'use strict';
@@ -65,17 +62,6 @@
 				}
 			});
 		});
-
-		var picker = document.querySelector('[data-hey-woo-client]');
-		if (picker) {
-			picker.addEventListener('change', function () {
-				var option = picker.options[picker.selectedIndex];
-				var url = option && option.getAttribute('data-hey-woo-client-url');
-				if (url) {
-					window.location.href = url;
-				}
-			});
-		}
 	}
 
 	if (document.readyState === 'loading') {
