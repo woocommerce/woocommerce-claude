@@ -1,0 +1,18 @@
+{
+  "name": "hey-woo",
+  "version": "0.1.0",
+  "description": "Makes any WooCommerce store AI-operable",
+  "private": true,
+  "files": [
+    "hey-woo.php",
+    "includes/**",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "plugin-zip": "wp-scripts plugin-zip"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^30.0.0"
+  }
+}

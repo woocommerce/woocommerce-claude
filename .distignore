@@ -21,12 +21,18 @@
 tests
 bin
 scripts
+tools
 
-# Composer dev dependencies (run `composer install --no-dev` before zipping
-# to remove vendor/ dev-only packages, or strip vendor/ entirely if it's
-# not needed in the published zip)
+# Composer dev dependencies — all vendor/ packages are dev-only (phpcs,
+# phpunit, etc.); there are no production PHP dependencies.
 composer.json
 composer.lock
+vendor
+
+# Node / npm build tooling
+package.json
+package-lock.json
+node_modules
 
 # Linting / standards configs
 phpcs.xml.dist
@@ -41,10 +47,11 @@ CONTRIBUTING.md
 CODE_OF_CONDUCT.md
 SECURITY.md
 .migration
+docs
+skills
 
 # Editor / OS metadata
 *.log
 *.swp
 .idea
 .vscode
-node_modules
