@@ -18,6 +18,9 @@
         "allow-plugins": {
             "dealerdirect/phpcodesniffer-composer-installer": true
         },
+        "platform": {
+            "php": "7.4.0"
+        },
         "audit": {
             "ignore": {
                 "PKSA-5jz8-6tcw-pbk4": "PHPUnit is a test-only dev dependency; advisory does not affect production code paths.",
