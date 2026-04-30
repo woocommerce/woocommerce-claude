@@ -61,7 +61,8 @@ $notices = array(
 	'mcp_required'        => array( 'error', __( 'Enable WooCommerce MCP integration first.', 'hey-woo' ) ),
 	'key_regenerated'     => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'hey-woo' ) ),
 	'key_failed'          => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
-	'permissions_updated' => array( 'success', __( 'API key access level updated.', 'hey-woo' ) ),
+	'permissions_updated' => array( 'success', __( 'Access level narrowed. Existing Claude Desktop installs continue to work with the new permissions.', 'hey-woo' ) ),
+	'permissions_rotated' => array( 'success', __( 'Access level upgraded — the API key was rotated. Re-download the MCPB file for Claude Desktop and re-paste any manual configurations so the new credential takes effect.', 'hey-woo' ) ),
 );
 
 $enable_url           = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
@@ -99,7 +100,58 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 		</div>
 	<?php endif; ?>
 
-	<?php /* Section 1 — Grant access (scope). */ ?>
+	<?php if ( null !== $key_state && ! $is_owner ) : ?>
+		<?php /* Non-owner view — set up by another admin. */ ?>
+		<section class="hey-woo-setup__row">
+			<header class="hey-woo-setup__row-label">
+				<h2><?php esc_html_e( 'Provisioned by another admin', 'hey-woo' ); ?></h2>
+				<p>
+					<?php esc_html_e( "WooCommerce REST API keys authenticate as the user who created them, so the credential isn't shown to anyone else — that prevents extracting another admin's bound credential and impersonating them remotely.", 'hey-woo' ); ?>
+				</p>
+			</header>
+			<div class="hey-woo-setup__row-content">
+				<div class="hey-woo-setup__card">
+					<h3>
+						<?php
+						printf(
+							/* translators: %s: display name of the admin who provisioned the key. */
+							esc_html__( 'Set up by %s', 'hey-woo' ),
+							'<strong>' . esc_html( $owner_display ) . '</strong>'
+						);
+						?>
+					</h3>
+					<p>
+						<?php esc_html_e( 'You have two options:', 'hey-woo' ); ?>
+					</p>
+					<ol class="hey-woo-setup__steps">
+						<li>
+							<?php
+							printf(
+								/* translators: %s: display name of the admin who provisioned the key. */
+								esc_html__( 'Sign in as %s — the existing Claude Desktop bundle and configurations they distributed continue to work without change.', 'hey-woo' ),
+								esc_html( $owner_display )
+							);
+							?>
+						</li>
+						<li>
+							<?php esc_html_e( "Click Regenerate below — this revokes the existing key, issues a fresh one bound to your user, and invalidates every bundle / configuration that's already been distributed. They'll need to re-download from this page.", 'hey-woo' ); ?>
+						</li>
+					</ol>
+					<p>
+						<a
+							class="button button-secondary"
+							href="<?php echo esc_url( $regen_url ); ?>"
+							onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key and re-bind it to your user? Any installed Claude Desktop bundle and pasted configuration will stop working until re-downloaded / re-pasted.', 'hey-woo' ) ); ?>');"
+						>
+							<?php esc_html_e( 'Regenerate and re-bind to me', 'hey-woo' ); ?>
+						</a>
+					</p>
+				</div>
+			</div>
+		</section>
+	<?php else : ?>
+
+		<?php /* Section 1 — Grant access (scope). */ ?>
 	<section class="hey-woo-setup__row">
 		<header class="hey-woo-setup__row-label">
 			<h2><?php esc_html_e( 'Grant access', 'hey-woo' ); ?></h2>
@@ -172,7 +224,7 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 		</div>
 	</section>
 
-	<?php /* Section 2 — Setup (Claude only for v1). */ ?>
+		<?php /* Section 2 — Setup (Claude only for v1). */ ?>
 	<section class="hey-woo-setup__row">
 		<header class="hey-woo-setup__row-label">
 			<h2><?php esc_html_e( 'Setup', 'hey-woo' ); ?></h2>
@@ -267,5 +319,7 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 			</div>
 		</div>
 	</section>
+
+	<?php endif; /* end non-owner gate */ ?>
 
 </div>

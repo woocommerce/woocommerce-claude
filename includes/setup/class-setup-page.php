@@ -189,6 +189,15 @@ class SetupPage {
 	/**
 	 * Render the setup view. Called by SettingsPage::output() when the
 	 * default section is active. Outputs HTML directly.
+	 *
+	 * Computes `$is_owner` — whether the current user is the WP user
+	 * the WC API key is bound to. WC API keys authenticate as their
+	 * `user_id`, so showing the credential to a different admin (or
+	 * to a shop manager with `manage_woocommerce`) would let them
+	 * exfiltrate it and impersonate the original owner remotely. Only
+	 * the owner sees the credential, the bundle download, the manual
+	 * snippets, and the scope toggle. Non-owners get a "Regenerate
+	 * to re-bind to you" panel.
 	 */
 	public static function render_setup_view() {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
@@ -213,15 +222,30 @@ class SetupPage {
 			}
 		}
 
+		$current_user_id = get_current_user_id();
+		$owner_user_id   = is_array( $key_state ) ? (int) ( $key_state['owner_user_id'] ?? 0 ) : 0;
+		$is_owner        = $owner_user_id > 0 && $owner_user_id === $current_user_id;
+		$owner_display   = '';
+		if ( $owner_user_id > 0 && ! $is_owner ) {
+			$owner_user    = get_userdata( $owner_user_id );
+			$owner_display = $owner_user ? $owner_user->display_name : __( 'another administrator', 'hey-woo' );
+		}
+
 		require HEY_WOO_PLUGIN_DIR . 'includes/setup/views/page.php';
 	}
 
 	/**
-	 * Handle the .mcpb download. Verifies cap + nonce + state, then
-	 * streams the bundle and exits.
+	 * Handle the .mcpb download. Verifies cap + nonce + ownership +
+	 * state, then streams the bundle and exits.
+	 *
+	 * Ownership gate: the bundle embeds the WC API credential, which
+	 * authenticates as the user the key was provisioned under. Only
+	 * that user can download — otherwise a different admin could
+	 * exfiltrate a credential bound to someone else's user_id.
 	 */
 	public static function handle_download() {
 		self::guard( self::ACTION_DOWNLOAD );
+		self::require_key_owner();
 
 		if ( ! self::mcp_feature_enabled() ) {
 			self::redirect( 'mcp_required' );
@@ -268,9 +292,15 @@ class SetupPage {
 	 * Toggle between read and read_write scope on the existing key.
 	 * Reads the new scope from the `permissions` query arg (the action
 	 * is GET-based; nonce verified by self::guard()).
+	 *
+	 * Ownership gate: scope changes affect what the credential can
+	 * do, and a non-owner shouldn't be able to escalate someone
+	 * else's key. Only the owner can call this; non-owners must
+	 * Regenerate first to re-bind the key to themselves.
 	 */
 	public static function handle_set_permissions() {
 		self::guard( self::ACTION_SET_PERMS );
+		self::require_key_owner();
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
 		$requested = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( $_GET['permissions'] ) ) : 'read';
@@ -280,15 +310,17 @@ class SetupPage {
 		}
 
 		$key_helper = new RestApiKey();
-		if ( $key_helper->exists() ) {
-			$key_helper->set_permissions( $requested );
-		} else {
-			$state = $key_helper->get_or_create( $requested );
-			if ( is_wp_error( $state ) ) {
-				self::redirect( 'key_failed' );
-			}
+		$result     = $key_helper->set_permissions( $requested );
+
+		if ( is_wp_error( $result ) ) {
+			self::redirect( 'key_failed' );
 		}
-		self::redirect( 'permissions_updated' );
+
+		// Distinguish in-place downgrade from credential rotation,
+		// because rotation invalidates already-distributed bundles
+		// and the merchant needs to know to re-download.
+		$flash = RestApiKey::SCOPE_ROTATED === $result ? 'permissions_rotated' : 'permissions_updated';
+		self::redirect( $flash );
 	}
 
 	/**
@@ -366,6 +398,26 @@ class SetupPage {
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && '' === $sec;
+	}
+
+	/**
+	 * Refuse the request if a key exists and the current user isn't
+	 * the WP user it's bound to. Used to gate credential-disclosing
+	 * and scope-changing actions; Regenerate is *not* gated, since
+	 * that's the explicit re-bind path for non-owners.
+	 *
+	 * No-op when no key is provisioned yet (current user becomes
+	 * owner on creation).
+	 */
+	private static function require_key_owner() {
+		$owner = ( new RestApiKey() )->owner_user_id();
+		if ( 0 < $owner && get_current_user_id() !== $owner ) {
+			wp_die(
+				esc_html__( 'This action is restricted to the admin who provisioned the Hey Woo API key. Use Regenerate on the setup page to re-bind the key to your user, then try again.', 'hey-woo' ),
+				'',
+				array( 'response' => 403 )
+			);
+		}
 	}
 
 	/**

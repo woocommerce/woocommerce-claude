@@ -70,8 +70,14 @@ class RestApiKey {
 	/**
 	 * Return the stored credential (creating one if none exists).
 	 *
+	 * The `owner_user_id` field is the WP user the underlying WC API
+	 * key is bound to (i.e., the user the key authenticates *as*).
+	 * It's surfaced so the setup page can gate the credential UI on
+	 * `current_user_id() === owner_user_id` — preventing a different
+	 * admin from extracting another admin's bound credential.
+	 *
 	 * @param string $permissions WC permissions value: 'read' | 'write' | 'read_write'.
-	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
+	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
 	 */
 	public function get_or_create( $permissions = 'read' ) {
 		$credential = get_option( self::OPTION_CREDENTIAL, '' );
@@ -79,9 +85,10 @@ class RestApiKey {
 
 		if ( '' !== $credential && $key_id > 0 && $this->key_exists( $key_id ) ) {
 			return array(
-				'credential'  => $credential,
-				'key_id'      => $key_id,
-				'permissions' => $this->get_stored_permissions( $key_id ),
+				'credential'    => $credential,
+				'key_id'        => $key_id,
+				'permissions'   => $this->get_stored_permissions( $key_id ),
+				'owner_user_id' => $this->get_owner_user_id( $key_id ),
 			);
 		}
 
@@ -106,27 +113,99 @@ class RestApiKey {
 	}
 
 	/**
-	 * Update the permissions on the existing key without rotating it.
-	 * Used by the Read ↔ Read/Write toggle on the setup page.
+	 * Result code returned by set_permissions().
 	 *
-	 * @param string $permissions WC permissions value.
-	 * @return bool True if the row was updated, false if there's no key yet.
+	 * - SCOPE_NOOP: requested scope already in effect.
+	 * - SCOPE_DOWNGRADED: in-place permission narrowing (e.g. read_write → read).
+	 * - SCOPE_ROTATED: privilege escalation triggered credential rotation.
+	 *   The credential changed; previously distributed bundles or snippets
+	 *   are now invalid and must be re-downloaded / re-pasted.
+	 */
+	const SCOPE_NOOP       = 'noop';
+	const SCOPE_DOWNGRADED = 'downgraded';
+	const SCOPE_ROTATED    = 'rotated';
+
+	/**
+	 * Change the permissions on the provisioned key.
+	 *
+	 * Asymmetric on purpose:
+	 *
+	 *  - **Downgrade** (e.g. read_write → read): in-place UPDATE on
+	 *    the existing row. Strictly narrows what the credential can
+	 *    do; no surprise privilege grant. Existing bundles continue
+	 *    to authenticate with the same credential — they just lose
+	 *    the write tools.
+	 *
+	 *  - **Escalation** (read → read_write): rotates the credential
+	 *    via regenerate(). Necessary because the Read-only `.mcpb`
+	 *    bundles or pasted snippets the merchant has already handed
+	 *    out are now stale, instead of silently gaining write access.
+	 *    The merchant must re-download / re-paste to grant the
+	 *    elevated scope to specific installs.
+	 *
+	 * @param string $permissions WC permissions value: 'read' | 'write' | 'read_write'.
+	 * @return string|\WP_Error One of the SCOPE_* constants on success, WP_Error on failure.
 	 */
 	public function set_permissions( $permissions ) {
 		$key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
 		if ( $key_id <= 0 ) {
-			return false;
+			// No existing key — provision one with the requested scope.
+			$state = $this->get_or_create( $permissions );
+			return is_wp_error( $state ) ? $state : self::SCOPE_ROTATED;
 		}
+
+		$current = $this->get_stored_permissions( $key_id );
+		$next    = $this->normalise_permissions( $permissions );
+
+		if ( $current === $next ) {
+			return self::SCOPE_NOOP;
+		}
+
+		if ( $this->is_escalation( $current, $next ) ) {
+			$state = $this->regenerate( $next );
+			if ( is_wp_error( $state ) ) {
+				return $state;
+			}
+			return self::SCOPE_ROTATED;
+		}
+
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- WC has no public helper for updating an API key row.
 		$updated = $wpdb->update(
 			$wpdb->prefix . 'woocommerce_api_keys',
-			array( 'permissions' => $this->normalise_permissions( $permissions ) ),
+			array( 'permissions' => $next ),
 			array( 'key_id' => $key_id ),
 			array( '%s' ),
 			array( '%d' )
 		);
-		return false !== $updated;
+		if ( false === $updated ) {
+			return new \WP_Error(
+				'hey_woo_scope_update_failed',
+				__( 'Could not update the API key permissions.', 'hey-woo' )
+			);
+		}
+		return self::SCOPE_DOWNGRADED;
+	}
+
+	/**
+	 * Whether $next grants strictly more capability than $current.
+	 *
+	 * Capability ranking, from least to most privileged:
+	 *   read  <  write  <  read_write
+	 *
+	 * @param string $current Existing permission.
+	 * @param string $next    Requested permission.
+	 * @return bool
+	 */
+	private function is_escalation( $current, $next ) {
+		$rank = array(
+			'read'       => 1,
+			'write'      => 2,
+			'read_write' => 3,
+		);
+		$cur  = $rank[ $current ] ?? 0;
+		$new  = $rank[ $next ] ?? 0;
+		return $new > $cur;
 	}
 
 	/**
@@ -150,6 +229,21 @@ class RestApiKey {
 	public function exists() {
 		$key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
 		return $key_id > 0 && $this->key_exists( $key_id );
+	}
+
+	/**
+	 * Read-only lookup of the WP user_id the current key is bound to.
+	 * Returns 0 when no key is provisioned. Side-effect-free, so safe
+	 * to call from ownership-check paths that must not provision.
+	 *
+	 * @return int
+	 */
+	public function owner_user_id() {
+		$key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
+		if ( $key_id <= 0 || ! $this->key_exists( $key_id ) ) {
+			return 0;
+		}
+		return $this->get_owner_user_id( $key_id );
 	}
 
 	/**
@@ -255,9 +349,10 @@ class RestApiKey {
 			}
 
 			return array(
-				'credential'  => $credential,
-				'key_id'      => $key_id,
-				'permissions' => $permissions,
+				'credential'    => $credential,
+				'key_id'        => $key_id,
+				'permissions'   => $permissions,
+				'owner_user_id' => (int) $user_id,
 			);
 		} finally {
 			$this->release_provisioning_lock( $lock_token );
@@ -379,6 +474,26 @@ class RestApiKey {
 			array( 'description' => self::KEY_DESCRIPTION ),
 			array( '%s' )
 		);
+	}
+
+	/**
+	 * Look up the WP user_id the WC API key is bound to. Returns 0
+	 * if the row doesn't exist (the caller should treat that as
+	 * "no key").
+	 *
+	 * @param int $key_id woocommerce_api_keys.key_id.
+	 * @return int
+	 */
+	private function get_owner_user_id( $key_id ) {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- key_id cast to int; no caching surface for ad-hoc admin lookup.
+		$value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT user_id FROM {$wpdb->prefix}woocommerce_api_keys WHERE key_id = %d",
+				$key_id
+			)
+		);
+		return null === $value ? 0 : (int) $value;
 	}
 
 	/**

@@ -293,6 +293,116 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The security-critical scope-change contract:
+	 *
+	 *   Read → Read+Write must rotate the credential.
+	 *
+	 * Otherwise an already-distributed Read-only `.mcpb` (or pasted
+	 * snippet) silently gains write access when the merchant flips
+	 * the toggle, which is the explicit attack model — a contractor
+	 * who was given a read-only bundle should not be granted
+	 * product/order mutation by a UI click on the merchant's side.
+	 */
+	public function test_scope_escalation_rotates_credential() {
+		$helper     = new RestApiKey();
+		$initial    = $helper->get_or_create( 'read' );
+		$old_creds  = $initial['credential'];
+		$old_key_id = $initial['key_id'];
+
+		$result = $helper->set_permissions( 'read_write' );
+
+		$this->assertSame( RestApiKey::SCOPE_ROTATED, $result, 'Escalation reports SCOPE_ROTATED.' );
+
+		$post = $helper->get_or_create( 'read' ); // returns current state, not 'read'.
+		$this->assertNotSame( $old_creds, $post['credential'], 'Credential rotated on escalation.' );
+		$this->assertNotSame( $old_key_id, $post['key_id'], 'Key row replaced on escalation.' );
+		$this->assertSame( 'read_write', $post['permissions'] );
+		$this->assertSame( 1, $this->count_owned_rows(), 'Exactly one row after rotation.' );
+	}
+
+	/**
+	 * Read+Write → Read should NOT rotate — narrowing scope is safe
+	 * to apply in place. Existing bundles continue to authenticate
+	 * with the same credential, just losing write tools.
+	 */
+	public function test_scope_downgrade_is_in_place() {
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read_write' );
+		$initial    = $helper->get_or_create( 'read' ); // returns the existing read_write key state.
+		$old_creds  = $initial['credential'];
+		$old_key_id = $initial['key_id'];
+
+		$result = $helper->set_permissions( 'read' );
+
+		$this->assertSame( RestApiKey::SCOPE_DOWNGRADED, $result, 'Downgrade reports SCOPE_DOWNGRADED.' );
+
+		$post = $helper->get_or_create( 'read' );
+		$this->assertSame( $old_creds, $post['credential'], 'Credential preserved on downgrade.' );
+		$this->assertSame( $old_key_id, $post['key_id'], 'Same row, narrowed permissions.' );
+		$this->assertSame( 'read', $post['permissions'] );
+	}
+
+	/**
+	 * Setting the scope to its current value is a noop — no rotation,
+	 * no UPDATE, distinct return code so the UI flash can be
+	 * suppressed if desired.
+	 */
+	public function test_scope_noop_when_already_at_requested_value() {
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read' );
+
+		$this->assertSame( RestApiKey::SCOPE_NOOP, $helper->set_permissions( 'read' ) );
+	}
+
+	/**
+	 * `owner_user_id()` returns the WP user the WC key row is bound
+	 * to. The setup-page view uses this to gate credential disclosure
+	 * to other admins; a regression here would let a shop manager
+	 * see / use a credential bound to an admin's user_id.
+	 */
+	public function test_owner_user_id_returns_the_bound_wp_user() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $user_id );
+
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read' );
+
+		$this->assertSame( $user_id, $helper->owner_user_id() );
+	}
+
+	/**
+	 * No key → owner_user_id() returns 0. Callers must treat that as
+	 * "no current owner" rather than "owned by user 0".
+	 */
+	public function test_owner_user_id_returns_zero_when_no_key() {
+		$helper = new RestApiKey();
+		$this->assertSame( 0, $helper->owner_user_id() );
+	}
+
+	/**
+	 * Deactivating the plugin must revoke the auto-created WC API
+	 * key. Without that, a merchant who deactivates Hey Woo to
+	 * disconnect Claude leaves the credential alive — the WC core
+	 * MCP server (and WC REST surfaces generally) keep
+	 * authenticating it because they don't depend on Hey Woo. A
+	 * regression here means deactivation appears to disconnect but
+	 * doesn't actually close the access path.
+	 */
+	public function test_deactivation_revokes_the_api_key() {
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read' );
+		$this->assertSame( 1, $this->count_owned_rows() );
+
+		// phpcs:disable WooCommerce.Commenting.CommentHooks -- this isn't a hook definition, it's a synthetic firing of the deactivation hook to test the behavior the plugin's register_deactivation_hook() registers.
+		do_action( 'deactivate_' . plugin_basename( HEY_WOO_PLUGIN_FILE ) );
+		// phpcs:enable WooCommerce.Commenting.CommentHooks
+
+		$this->assertSame( 0, $this->count_owned_rows(), 'Deactivation revokes the WC API key row.' );
+		$this->assertFalse( get_option( RestApiKey::OPTION_CREDENTIAL ) );
+		$this->assertFalse( get_option( RestApiKey::OPTION_KEY_ID ) );
+	}
+
+	/**
 	 * Count rows in WC's API key table whose description matches the
 	 * Hey Woo label. Used by every assertion above.
 	 *
