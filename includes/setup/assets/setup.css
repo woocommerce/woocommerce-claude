@@ -47,15 +47,15 @@
 
 .hey-woo-setup__row {
 	display: grid;
-	grid-template-columns: 280px 1fr;
-	gap: 32px;
-	padding: 28px 0;
+	grid-template-columns: 240px 1fr;
+	gap: 36px;
+	padding: 32px 0;
 	border-top: 1px solid #dcdcde;
 }
 
 .hey-woo-setup__row:first-of-type {
 	border-top: none;
-	padding-top: 4px;
+	padding-top: 8px;
 }
 
 @media (max-width: 880px) {
@@ -86,31 +86,42 @@
 .hey-woo-setup__card {
 	background: #fff;
 	border: 1px solid #c3c4c7;
-	border-radius: 8px;
-	padding: 22px 24px;
+	border-radius: 4px;
+	padding: 20px 22px;
 	min-width: 0;
 	box-sizing: border-box;
 }
 
 .hey-woo-setup__card h3 {
-	margin: 0 0 16px;
-	font-size: 15px;
+	margin: 0 0 14px;
+	font-size: 14px;
 }
 
 /* ---- Scope radio cards ---- */
 
+/*
+ * Layout uses CSS grid so the description in the second row aligns
+ * exactly under the title (indented past the indicator), matching the
+ * WC settings convention where helper text shares the label's column.
+ */
 .hey-woo-setup__radio-card {
-	display: flex;
-	align-items: flex-start;
-	gap: 14px;
-	padding: 16px;
-	border: 1.5px solid #c3c4c7;
-	border-radius: 6px;
+	display: grid;
+	grid-template-columns: 18px 1fr;
+	column-gap: 12px;
+	row-gap: 4px;
+	align-items: center;
+	padding: 14px 16px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
 	background: #fff;
 	color: #1d2327;
 	text-decoration: none;
-	margin-bottom: 10px;
+	margin-bottom: 8px;
 	transition: border-color .15s, background-color .15s;
+}
+
+.hey-woo-setup__radio-card:last-child {
+	margin-bottom: 0;
 }
 
 .hey-woo-setup__radio-card:hover {
@@ -120,22 +131,23 @@
 .hey-woo-setup__radio-card.is-active {
 	border-color: #2271b1;
 	background: #f6fbff;
-	box-shadow: 0 0 0 1px #2271b1;
 }
 
 .hey-woo-setup__radio-card:focus-visible {
 	outline: 2px solid #2271b1;
-	outline-offset: 2px;
+	outline-offset: 1px;
 }
 
 .hey-woo-setup__radio-indicator {
-	flex: 0 0 auto;
-	width: 20px;
-	height: 20px;
+	grid-column: 1;
+	grid-row: 1;
+	width: 18px;
+	height: 18px;
 	border-radius: 50%;
 	border: 1.5px solid #8c8f94;
-	margin-top: 2px;
+	box-sizing: border-box;
 	position: relative;
+	justify-self: center;
 }
 
 .hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator {
@@ -145,24 +157,26 @@
 .hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator::after {
 	content: "";
 	position: absolute;
-	top: 3px;
-	left: 3px;
-	width: 10px;
-	height: 10px;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 8px;
+	height: 8px;
 	border-radius: 50%;
 	background: #2271b1;
 }
 
 .hey-woo-setup__radio-body {
-	flex: 1 1 auto;
-	min-width: 0;
+	display: contents;
 }
 
 .hey-woo-setup__radio-title {
+	grid-column: 2;
+	grid-row: 1;
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	margin-bottom: 4px;
+	min-width: 0;
 }
 
 .hey-woo-setup__radio-title strong {
@@ -184,22 +198,16 @@
 }
 
 .hey-woo-setup__radio-desc {
-	display: block;
+	grid-column: 2;
+	grid-row: 2;
 	color: #50575e;
 	font-size: 13px;
 	line-height: 1.5;
 }
 
-.hey-woo-setup__radio-check {
-	flex: 0 0 auto;
-	color: #2271b1;
-	font-size: 18px;
-	margin-top: -2px;
-}
-
 .hey-woo-setup__keymeta {
 	margin: 14px 0 0;
-	padding-top: 14px;
+	padding-top: 12px;
 	border-top: 1px solid #f0f0f1;
 	color: #50575e;
 	font-size: 13px;

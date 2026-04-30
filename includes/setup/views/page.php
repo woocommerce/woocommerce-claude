@@ -122,9 +122,6 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 							<?php esc_html_e( "View store data, run analytics, and get readiness recommendations. Claude can answer questions but can't change anything in your store.", 'hey-woo' ); ?>
 						</span>
 					</span>
-					<?php if ( ! $is_read_write ) : ?>
-						<span class="hey-woo-setup__radio-check" aria-hidden="true">✓</span>
-					<?php endif; ?>
 				</a>
 
 				<a
@@ -142,9 +139,6 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 							<?php esc_html_e( 'Everything in Read, plus letting Claude create or edit products and orders.', 'hey-woo' ); ?>
 						</span>
 					</span>
-					<?php if ( $is_read_write ) : ?>
-						<span class="hey-woo-setup__radio-check" aria-hidden="true">✓</span>
-					<?php endif; ?>
 				</a>
 
 				<?php if ( null !== $key_state ) : ?>
