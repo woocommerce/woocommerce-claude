@@ -29,4 +29,8 @@ if ( $key_id > 0 ) {
 
 delete_option( 'hey_woo_setup_api_credential' );
 delete_option( 'hey_woo_setup_api_key_id' );
+
+// Legacy: earlier versions of the plugin set this transient on
+// activation to drive a post-activation admin notice. The notice has
+// been removed but the transient may still be present from upgrades.
 delete_transient( 'hey_woo_show_setup_notice' );

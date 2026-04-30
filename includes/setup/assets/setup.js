@@ -1,6 +1,6 @@
 /**
- * Hey Woo setup page — copy-to-clipboard for the credential, the
- * Claude Code command, and the Claude Desktop JSON snippet.
+ * Hey Woo setup page — copy-to-clipboard for the Claude Code command
+ * and the Claude Desktop JSON snippet.
  */
 (function () {
 	'use strict';
@@ -50,9 +50,7 @@
 			button.addEventListener('click', function () {
 				var key = button.getAttribute('data-hey-woo-copy-target');
 				var source;
-				if (key === 'credential') {
-					source = document.querySelector('[data-hey-woo-credential]');
-				} else if (key === 'cli') {
+				if (key === 'cli') {
 					source = document.querySelector('[data-hey-woo-cli]');
 				} else if (key === 'json') {
 					source = document.querySelector('[data-hey-woo-json]');

@@ -96,14 +96,3 @@ add_action(
 	}
 );
 
-/**
- * On activation, set a transient that drives the post-activation
- * "Connect Hey Woo to Claude" admin notice. The notice is dismissable
- * and clears itself once the user dismisses or finishes setup.
- */
-register_activation_hook(
-	__FILE__,
-	function () {
-		set_transient( 'hey_woo_show_setup_notice', 1, MONTH_IN_SECONDS );
-	}
-);

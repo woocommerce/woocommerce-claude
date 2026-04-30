@@ -234,13 +234,8 @@ $scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, arra
 					<?php else : ?>
 
 						<div class="hey-woo-setup__credential">
-							<label><?php esc_html_e( 'Your API key (used in the configurations below):', 'hey-woo' ); ?></label>
-							<div class="hey-woo-setup__copy-row">
-								<code data-hey-woo-credential><?php echo esc_html( $credential ); ?></code>
-								<button type="button" class="button hey-woo-setup__copy" data-hey-woo-copy-target="credential">
-									<?php esc_html_e( 'Copy', 'hey-woo' ); ?>
-								</button>
-							</div>
+							<label><?php esc_html_e( 'Your API key (already embedded in the configurations below):', 'hey-woo' ); ?></label>
+							<code class="hey-woo-setup__credential-value"><?php echo esc_html( $credential ); ?></code>
 						</div>
 
 						<h5><?php esc_html_e( 'Claude Code — one command:', 'hey-woo' ); ?></h5>

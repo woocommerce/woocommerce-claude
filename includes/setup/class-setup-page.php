@@ -30,11 +30,6 @@ class SetupPage {
 	const CAPABILITY = 'manage_woocommerce';
 
 	/**
-	 * Transient that drives the post-activation admin notice.
-	 */
-	const NOTICE_TRANSIENT = 'hey_woo_show_setup_notice';
-
-	/**
 	 * Woo core option that gates the MCP endpoint.
 	 */
 	const FEATURE_FLAG_OPTION = 'woocommerce_feature_mcp_integration_enabled';
@@ -44,24 +39,21 @@ class SetupPage {
 	 */
 	const SETTINGS_TAB = 'hey-woo';
 
-	const ACTION_DOWNLOAD       = 'hey_woo_download_mcpb';
-	const ACTION_REGEN_KEY      = 'hey_woo_regenerate_key';
-	const ACTION_ENABLE_MCP     = 'hey_woo_enable_mcp_feature';
-	const ACTION_SET_PERMS      = 'hey_woo_set_permissions';
-	const ACTION_DISMISS_NOTICE = 'hey_woo_dismiss_setup_notice';
+	const ACTION_DOWNLOAD   = 'hey_woo_download_mcpb';
+	const ACTION_REGEN_KEY  = 'hey_woo_regenerate_key';
+	const ACTION_ENABLE_MCP = 'hey_woo_enable_mcp_feature';
+	const ACTION_SET_PERMS  = 'hey_woo_set_permissions';
 
 	/**
 	 * Wire all hooks. Called once during plugin bootstrap.
 	 */
 	public static function init() {
-		add_action( 'admin_notices', array( __CLASS__, 'maybe_render_activation_notice' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 
 		add_action( 'admin_post_' . self::ACTION_DOWNLOAD, array( __CLASS__, 'handle_download' ) );
 		add_action( 'admin_post_' . self::ACTION_REGEN_KEY, array( __CLASS__, 'handle_regenerate_key' ) );
 		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
 		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
-		add_action( 'admin_post_' . self::ACTION_DISMISS_NOTICE, array( __CLASS__, 'handle_dismiss_notice' ) );
 
 		add_filter(
 			'plugin_action_links_' . plugin_basename( HEY_WOO_PLUGIN_FILE ),
@@ -235,57 +227,6 @@ class SetupPage {
 			}
 		}
 		self::redirect( 'permissions_updated' );
-	}
-
-	/**
-	 * Hide the post-activation admin notice.
-	 */
-	public static function handle_dismiss_notice() {
-		self::guard( self::ACTION_DISMISS_NOTICE );
-		delete_transient( self::NOTICE_TRANSIENT );
-
-		$redirect = wp_get_referer();
-		if ( ! $redirect ) {
-			$redirect = admin_url();
-		}
-		wp_safe_redirect( $redirect );
-		exit;
-	}
-
-	/**
-	 * Render the post-activation "Connect to Claude" admin notice on
-	 * every screen except the setup page itself.
-	 */
-	public static function maybe_render_activation_notice() {
-		if ( ! current_user_can( self::CAPABILITY ) ) {
-			return;
-		}
-		if ( ! get_transient( self::NOTICE_TRANSIENT ) ) {
-			return;
-		}
-
-		// Don't nag on the setup page itself (WC settings → Hey Woo,
-		// default section).
-		if ( self::is_setup_page_request() ) {
-			return;
-		}
-
-		$setup_url   = self::url();
-		$dismiss_url = self::action_url( self::ACTION_DISMISS_NOTICE );
-		?>
-		<div class="notice notice-info is-dismissible hey-woo-activation-notice">
-			<p>
-				<strong><?php esc_html_e( 'Hey Woo is active.', 'hey-woo' ); ?></strong>
-				<?php esc_html_e( 'Connect this store to Claude in under a minute.', 'hey-woo' ); ?>
-				<a class="button button-primary" style="margin-left:8px;" href="<?php echo esc_url( $setup_url ); ?>">
-					<?php esc_html_e( 'Set up Claude', 'hey-woo' ); ?>
-				</a>
-				<a style="margin-left:12px;" href="<?php echo esc_url( $dismiss_url ); ?>">
-					<?php esc_html_e( 'Dismiss', 'hey-woo' ); ?>
-				</a>
-			</p>
-		</div>
-		<?php
 	}
 
 	/**
