@@ -85,7 +85,11 @@ class McpbBundle {
 
 		return array(
 			'manifest_version' => self::MANIFEST_VERSION,
-			'name'             => 'hey-woo',
+			// Per-store identity so two Hey Woo stores installed in the
+			// same Claude Desktop don't overwrite one another's
+			// extension entries. SetupPage::server_slug() derives this
+			// from the host (e.g. `hey-woo-example-com`).
+			'name'             => SetupPage::server_slug(),
 			'version'          => $this->plugin_version,
 			'description'      => sprintf(
 				/* translators: %s: store hostname. */
@@ -103,7 +107,8 @@ class McpbBundle {
 					'command' => 'npx',
 					'args'    => array(
 						'-y',
-						'@automattic/mcp-wordpress-remote@latest',
+						// Pinned version — see SetupPage::REMOTE_PACKAGE.
+						SetupPage::REMOTE_PACKAGE,
 					),
 					'env'     => array(
 						'WP_API_URL'     => $this->endpoint_url,

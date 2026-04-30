@@ -35,6 +35,15 @@ class SetupPage {
 	const FEATURE_FLAG_OPTION = 'woocommerce_feature_mcp_integration_enabled';
 
 	/**
+	 * Pinned npm spec for the stdio→HTTP MCP proxy. Embedded into both
+	 * the .mcpb bundle's mcp_config.args and the manual JSON / CLI
+	 * snippets so a merchant who installed today still runs the same
+	 * proxy in 12 months. Bump on each plugin release after vetting
+	 * the upstream changelog.
+	 */
+	const REMOTE_PACKAGE = '@automattic/mcp-wordpress-remote@0.3.0';
+
+	/**
 	 * WC settings tab id this page lives under.
 	 */
 	const SETTINGS_TAB = 'hey-woo';
@@ -106,6 +115,25 @@ class SetupPage {
 	}
 
 	/**
+	 * A stable per-store identifier suitable for use as the MCPB
+	 * manifest name, the manual `mcpServers` key, the `claude mcp add`
+	 * server name, and the bundle filename. Derived from the site
+	 * hostname so two stores managed by the same user don't collide
+	 * inside Claude Desktop.
+	 *
+	 * Example: `hey-woo-example-com`,
+	 *          `hey-woo-staging-shop-mystagingwebsite-com`.
+	 *
+	 * @return string
+	 */
+	public static function server_slug() {
+		$host = wp_parse_url( home_url(), PHP_URL_HOST );
+		$host = is_string( $host ) ? $host : '';
+		$slug = sanitize_title( $host );
+		return '' === $slug ? 'hey-woo' : 'hey-woo-' . $slug;
+	}
+
+	/**
 	 * Whether the Woo core MCP feature flag is currently on.
 	 *
 	 * @return bool
@@ -173,7 +201,7 @@ class SetupPage {
 
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-mcpb-bundle.php';
 		$bundle = new McpbBundle( self::endpoint_url(), $state['credential'], HEY_WOO_VERSION );
-		$bundle->stream( 'hey-woo.mcpb' );
+		$bundle->stream( self::server_slug() . '.mcpb' );
 		// stream() exits.
 	}
 

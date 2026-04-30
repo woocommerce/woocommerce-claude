@@ -34,9 +34,25 @@ class RestApiKey {
 
 	/**
 	 * Description written into woocommerce_api_keys.description so the
-	 * key is recognisable in WC admin.
+	 * key is recognisable in WC admin. Also used as the orphan-cleanup
+	 * key — every row with this exact description is treated as
+	 * Hey-Woo-owned and revoked together.
 	 */
 	const KEY_DESCRIPTION = 'Hey Woo MCP — Claude Desktop';
+
+	/**
+	 * Transient name used as a short-lived mutex around create() so
+	 * two concurrent requests can't each insert a key row and have
+	 * one of them lost in the option-write race.
+	 */
+	const PROVISIONING_LOCK = 'hey_woo_setup_provisioning';
+
+	/**
+	 * Maximum mutex hold time, in seconds. Long enough to cover one
+	 * slow DB insert + option write; short enough that a crashed
+	 * request can't deadlock future provisioning indefinitely.
+	 */
+	const PROVISIONING_LOCK_TTL = 30;
 
 	/**
 	 * Return the stored credential (creating one if none exists).
@@ -101,20 +117,15 @@ class RestApiKey {
 	}
 
 	/**
-	 * Delete the row in woocommerce_api_keys and clear the stored
-	 * credential. Safe to call when no key exists.
+	 * Revoke every Hey-Woo-owned key row and clear the stored credential.
+	 *
+	 * Deletes by description rather than by tracked key_id, so any
+	 * orphans from a lost-race insert (or from a user manually
+	 * clearing the option but not the row, or vice versa) are caught
+	 * here too. Safe to call when no key exists.
 	 */
 	public function revoke() {
-		$key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
-		if ( $key_id > 0 ) {
-			global $wpdb;
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- targeted single-row revocation; no caching surface.
-			$wpdb->delete(
-				$wpdb->prefix . 'woocommerce_api_keys',
-				array( 'key_id' => $key_id ),
-				array( '%d' )
-			);
-		}
+		$this->delete_owned_rows();
 		$this->clear_options();
 	}
 
@@ -130,8 +141,15 @@ class RestApiKey {
 
 	/**
 	 * Insert a fresh row in woocommerce_api_keys and store the cleartext
-	 * credential locally. Returns a WP_Error if WC's hash helpers are
-	 * missing (extremely unlikely on any supported WC version).
+	 * credential locally.
+	 *
+	 * Serialised by a transient mutex so two concurrent first-time
+	 * requests can't each succeed and leave one of the rows orphaned
+	 * (the option-write loser would point at one row while the
+	 * other's row remained active and unrevoke-able). On entry: wait
+	 * briefly for any in-flight provisioning to finish, then re-read
+	 * the option state — if another request beat us to it, return
+	 * their result rather than inserting a duplicate.
 	 *
 	 * @param string $permissions WC permissions value.
 	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
@@ -144,46 +162,119 @@ class RestApiKey {
 			);
 		}
 
-		$permissions     = $this->normalise_permissions( $permissions );
-		$consumer_key    = 'ck_' . wc_rand_hash();
-		$consumer_secret = 'cs_' . wc_rand_hash();
-		$user_id         = get_current_user_id();
+		$this->wait_for_provisioning_lock();
+		set_transient( self::PROVISIONING_LOCK, 1, self::PROVISIONING_LOCK_TTL );
 
-		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- WC has no public helper for inserting an API key row.
-		$inserted = $wpdb->insert(
-			$wpdb->prefix . 'woocommerce_api_keys',
-			array(
-				'user_id'         => $user_id,
-				'description'     => self::KEY_DESCRIPTION,
-				'permissions'     => $permissions,
-				'consumer_key'    => wc_api_hash( $consumer_key ),
-				'consumer_secret' => $consumer_secret,
-				'truncated_key'   => substr( $consumer_key, -7 ),
-			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s' )
-		);
+		try {
+			// Re-read state inside the mutex — another request may
+			// have finished provisioning while we were waiting.
+			$existing_credential = get_option( self::OPTION_CREDENTIAL, '' );
+			$existing_key_id     = (int) get_option( self::OPTION_KEY_ID, 0 );
+			if ( '' !== $existing_credential && $existing_key_id > 0 && $this->key_exists( $existing_key_id ) ) {
+				return array(
+					'credential'  => $existing_credential,
+					'key_id'      => $existing_key_id,
+					'permissions' => $this->get_stored_permissions( $existing_key_id ),
+				);
+			}
 
-		if ( false === $inserted ) {
-			return new \WP_Error(
-				'hey_woo_key_insert_failed',
-				__( 'Could not create the WooCommerce REST API key.', 'hey-woo' )
+			// Defensive: clear any orphans from previous failed
+			// attempts before inserting a fresh row, so revoke() /
+			// uninstall continue to fully clean up after this run.
+			$this->delete_owned_rows();
+			$this->clear_options();
+
+			$permissions     = $this->normalise_permissions( $permissions );
+			$consumer_key    = 'ck_' . wc_rand_hash();
+			$consumer_secret = 'cs_' . wc_rand_hash();
+			$user_id         = get_current_user_id();
+
+			global $wpdb;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- WC has no public helper for inserting an API key row.
+			$inserted = $wpdb->insert(
+				$wpdb->prefix . 'woocommerce_api_keys',
+				array(
+					'user_id'         => $user_id,
+					'description'     => self::KEY_DESCRIPTION,
+					'permissions'     => $permissions,
+					'consumer_key'    => wc_api_hash( $consumer_key ),
+					'consumer_secret' => $consumer_secret,
+					'truncated_key'   => substr( $consumer_key, -7 ),
+				),
+				array( '%d', '%s', '%s', '%s', '%s', '%s' )
 			);
+
+			if ( false === $inserted ) {
+				return new \WP_Error(
+					'hey_woo_key_insert_failed',
+					__( 'Could not create the WooCommerce REST API key.', 'hey-woo' )
+				);
+			}
+
+			$key_id     = (int) $wpdb->insert_id;
+			$credential = $consumer_key . ':' . $consumer_secret;
+
+			// Use add_option with autoload=no so the credential
+			// never joins the per-request alloptions cache.
+			$cred_set = add_option( self::OPTION_CREDENTIAL, $credential, '', 'no' );
+			$key_set  = add_option( self::OPTION_KEY_ID, $key_id, '', 'no' );
+
+			if ( ! $cred_set || ! $key_set ) {
+				// Couldn't persist locally — clean up the row we
+				// just inserted so we don't leave an active credential
+				// nothing tracks.
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- compensating delete on persist failure.
+				$wpdb->delete(
+					$wpdb->prefix . 'woocommerce_api_keys',
+					array( 'key_id' => $key_id ),
+					array( '%d' )
+				);
+				$this->clear_options();
+				return new \WP_Error(
+					'hey_woo_key_persist_failed',
+					__( 'Could not store the API key locally.', 'hey-woo' )
+				);
+			}
+
+			return array(
+				'credential'  => $credential,
+				'key_id'      => $key_id,
+				'permissions' => $permissions,
+			);
+		} finally {
+			delete_transient( self::PROVISIONING_LOCK );
 		}
+	}
 
-		$key_id     = (int) $wpdb->insert_id;
-		$credential = $consumer_key . ':' . $consumer_secret;
+	/**
+	 * Busy-wait briefly while another request holds the provisioning
+	 * mutex. Caps at PROVISIONING_LOCK_TTL × 10 iterations so a stuck
+	 * lock never wedges this request indefinitely.
+	 */
+	private function wait_for_provisioning_lock() {
+		// 100ms × 30 ≈ 3 seconds. The lock TTL is the real ceiling —
+		// transients self-expire — so this is just to avoid spinning
+		// past the natural timeout.
+		$max_iterations = self::PROVISIONING_LOCK_TTL * 10;
+		$i              = 0;
+		while ( get_transient( self::PROVISIONING_LOCK ) && $i < $max_iterations ) {
+			usleep( 100000 );
+			++$i;
+		}
+	}
 
-		// Use add_option with autoload=no so the credential never
-		// joins the per-request alloptions cache.
-		$this->clear_options();
-		add_option( self::OPTION_CREDENTIAL, $credential, '', 'no' );
-		add_option( self::OPTION_KEY_ID, $key_id, '', 'no' );
-
-		return array(
-			'credential'  => $credential,
-			'key_id'      => $key_id,
-			'permissions' => $permissions,
+	/**
+	 * Delete every woocommerce_api_keys row whose description matches
+	 * Hey Woo's exact label. Catches orphans from concurrent inserts
+	 * and cleans up after manual table edits in WC admin.
+	 */
+	private function delete_owned_rows() {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped revocation; no caching surface.
+		$wpdb->delete(
+			$wpdb->prefix . 'woocommerce_api_keys',
+			array( 'description' => self::KEY_DESCRIPTION ),
+			array( '%s' )
 		);
 	}
 

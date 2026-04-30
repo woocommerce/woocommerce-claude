@@ -64,7 +64,7 @@ The WooCommerce MCP docs recommend connecting through [`@automattic/mcp-wordpres
 claude mcp add hey-woo \
   --env WP_API_URL=https://yourstore.com/wp-json/woocommerce/mcp \
   --env CUSTOM_HEADERS='{"X-MCP-API-Key": "ck_xxx:cs_xxx"}' \
-  -- npx -y @automattic/mcp-wordpress-remote@latest
+  -- npx -y @automattic/mcp-wordpress-remote@0.3.0
 ```
 
 **Claude Desktop / Cursor / generic** — add to your MCP config manually:
@@ -74,7 +74,7 @@ claude mcp add hey-woo \
   "mcpServers": {
     "hey-woo": {
       "command": "npx",
-      "args": ["-y", "@automattic/mcp-wordpress-remote@latest"],
+      "args": ["-y", "@automattic/mcp-wordpress-remote@0.3.0"],
       "env": {
         "WP_API_URL": "https://yourstore.com/wp-json/woocommerce/mcp",
         "CUSTOM_HEADERS": "{\"X-MCP-API-Key\": \"ck_xxx:cs_xxx\"}"

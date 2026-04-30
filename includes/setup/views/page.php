@@ -23,13 +23,15 @@ use HeyWoo\Setup\SetupPage;
 $credential    = $key_state['credential'] ?? '';
 $permissions   = $key_state['permissions'] ?? 'read';
 $is_read_write = 'read_write' === $permissions;
+$server_slug   = SetupPage::server_slug();
+$remote_pkg    = SetupPage::REMOTE_PACKAGE;
 
 $json_snippet = wp_json_encode(
 	array(
 		'mcpServers' => array(
-			'hey-woo' => array(
+			$server_slug => array(
 				'command' => 'npx',
-				'args'    => array( '-y', '@automattic/mcp-wordpress-remote@latest' ),
+				'args'    => array( '-y', $remote_pkg ),
 				'env'     => array(
 					'WP_API_URL'     => $endpoint_url,
 					'CUSTOM_HEADERS' => wp_json_encode(
@@ -44,12 +46,14 @@ $json_snippet = wp_json_encode(
 );
 
 $claude_code_command = sprintf(
-	"claude mcp add hey-woo \\\n  --env WP_API_URL=%s \\\n  --env CUSTOM_HEADERS='%s' \\\n  -- npx -y @automattic/mcp-wordpress-remote@latest",
+	"claude mcp add %s \\\n  --env WP_API_URL=%s \\\n  --env CUSTOM_HEADERS='%s' \\\n  -- npx -y %s",
+	$server_slug,
 	$endpoint_url,
 	wp_json_encode(
 		array( 'X-MCP-API-Key' => '' === $credential ? 'ck_xxx:cs_xxx' : $credential ),
 		JSON_UNESCAPED_SLASHES
-	)
+	),
+	$remote_pkg
 );
 
 $notices = array(
