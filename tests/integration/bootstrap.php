@@ -71,8 +71,12 @@ tests_add_filter( 'muplugins_loaded', 'hey_woo_tests_load_plugins' );
  * fires once the option is in place.
  */
 function hey_woo_tests_activate_woocommerce() {
+	// activate_plugin() lives in wp-admin/includes/plugin.php, which the WP
+	// test harness does not load. Require it explicitly so the activation hook
+	// fires and WC_Install::install() (which calls create_roles()) runs even on
+	// a fresh database with no pre-installed WooCommerce.
 	if ( ! function_exists( 'activate_plugin' ) ) {
-		return;
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 	}
 
 	update_option( 'woocommerce_custom_orders_table_enabled', 'yes' );
