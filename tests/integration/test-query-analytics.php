@@ -679,7 +679,7 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 
 	/**
 	 * Rows mode returns a row-per-order list with pseudonymised customer
-	 * id ("Customer #N") by default — no PII fields.
+	 * id ("Customer #N") — billing email / name are never returned.
 	 */
 	public function test_rows_mode_pseudonymisation() {
 		$result = $this->run_ability(

@@ -7,8 +7,6 @@
 
 namespace HeyWoo\Settings;
 
-use HeyWoo\Abilities\AbilitiesBootstrap;
-
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -53,23 +51,6 @@ class SettingsPage extends \WC_Settings_Page {
 			array(
 				'type' => 'sectionend',
 				'id'   => 'hey_woo_telemetry_section',
-			),
-			array(
-				'type'  => 'title',
-				'title' => __( 'Customer-level privacy', 'hey-woo' ),
-				'id'    => 'hey_woo_privacy_section',
-				'desc'  => __( 'Controls whether AI analytics tools return real names and emails for customer-level rows, or pseudonymised IDs only. Default is pseudonymised — flip on when you\'re deliberately chaining an email/CRM connector that needs real customer details.', 'hey-woo' ),
-			),
-			array(
-				'type'    => 'checkbox',
-				'id'      => AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII,
-				'title'   => __( 'Allow customer-level PII in AI responses', 'hey-woo' ),
-				'desc'    => __( 'When on, customer rows include real first_name / last_name / email fields. When off, rows return pseudonymised `Customer #N` identifiers.', 'hey-woo' ),
-				'default' => 'no',
-			),
-			array(
-				'type' => 'sectionend',
-				'id'   => 'hey_woo_privacy_section',
 			),
 		);
 	}

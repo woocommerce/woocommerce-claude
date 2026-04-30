@@ -1,33 +1,24 @@
 <?php
 /**
- * Integration test — customer-level PII gate on wc-analytics/get-customer-value.
+ * Integration test — customer-level PII is never surfaced by
+ * `wc-analytics/get-customer-value`.
  *
- * Pins the just-shipped privacy invariant: `hey_woo_allow_customer_pii`.
- *
- * OFF by default (option missing or falsy):
- *   `top_customers[i]` carries a pseudonymised `Customer #N` id only, with
- *   no `name` / `email` keys present. `privacy_mode` === 'pseudonymised'.
- *
- * ON (option set to a truthy value):
- *   `top_customers[i]` still carries the pseudonymised id (narration contract
- *   doesn't change), AND also exposes `name` / `email` so the list can be
- *   handed off to a CRM / email MCP (Klaviyo, Mailchimp). `privacy_mode` === 'full'.
+ * Pins the privacy invariant after the `hey_woo_allow_customer_pii` toggle
+ * was removed: top_customers ALWAYS pseudonymises and NEVER returns name
+ * or email, regardless of any leftover option value a previous version of
+ * the plugin (or a stray `update_option` call from another extension) may
+ * have left behind.
  *
  * A regression here is a privacy incident, not a functional bug — a wiring
- * change that flipped the default or silently dropped the gate would leak
- * real customer names / emails to anyone with Abilities API access.
- *
- * The option lives at `AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII`. Using
- * the constant (rather than the raw string) makes a rename loudly break this
- * test instead of silently passing against the old name.
+ * change that revived the old gate would silently leak real customer
+ * names / emails to anyone with Abilities API access.
  *
  * @package HeyWoo\Tests
  */
 
-use HeyWoo\Abilities\AbilitiesBootstrap;
-
 /**
- * Integration tests for the `hey_woo_allow_customer_pii` option.
+ * Integration tests for the (no longer toggleable) PII surface on
+ * get-customer-value.
  */
 class Test_Pii_Toggle extends WP_UnitTestCase {
 
@@ -49,8 +40,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	private $period_end = '2025-10-31';
 
 	/**
-	 * Seeded WP user ID — used to check name / email surface on the
-	 * PII-on branch.
+	 * Seeded WP user ID.
 	 *
 	 * @var int
 	 */
@@ -58,7 +48,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 
 	/**
 	 * Seed one customer with real name + email + one paid in-period order.
-	 * Option starts absent so each test exercises a known default.
+	 * If any of these surface in a response, the assertion will catch it.
 	 */
 	public function set_up() {
 		parent::set_up();
@@ -85,7 +75,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 		$order->save();
 		\Automattic\WooCommerce\Admin\API\Reports\Orders\Stats\DataStore::sync_order( $order->get_id() );
 
-		delete_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII );
+		delete_option( 'hey_woo_allow_customer_pii' );
 	}
 
 	/**
@@ -93,7 +83,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	 * rollback covers options, but explicit delete makes the contract clear).
 	 */
 	public function tear_down() {
-		delete_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII );
+		delete_option( 'hey_woo_allow_customer_pii' );
 		parent::tear_down();
 	}
 
@@ -129,7 +119,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Default state — option absent — must pseudonymise.
+	 * Default state — no leftover option — must pseudonymise.
 	 *
 	 * Pins three things at once:
 	 *   - `privacy_mode` is 'pseudonymised' (the string the MCP tool description
@@ -137,94 +127,63 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	 *   - `top_customers[0]` has no `name` or `email` keys at all. Presence of
 	 *     either key — even with a null value — would be a leak.
 	 *   - The `id` still follows `Customer #N` so the narration contract is
-	 *     intact regardless of the toggle.
+	 *     intact.
 	 */
-	public function test_pii_off_by_default_pseudonymises_top_customers() {
+	public function test_pseudonymises_top_customers_by_default() {
 		$result = $this->run_ability();
 
-		$this->assertSame( 'pseudonymised', $result['privacy_mode'], 'Default privacy_mode must be pseudonymised when option is absent.' );
+		$this->assertSame( 'pseudonymised', $result['privacy_mode'], 'privacy_mode must always be pseudonymised.' );
 		$this->assertNotEmpty( $result['top_customers'], 'Seeded order should produce a top_customers row.' );
 
 		$top = $result['top_customers'][0];
-		$this->assertMatchesRegularExpression( '/^Customer #\d+$/', $top['id'], 'Pseudonymised id must still follow the Customer #N pattern.' );
-		$this->assertArrayNotHasKey( 'name', $top, 'name key must not appear on top_customers when PII is off.' );
-		$this->assertArrayNotHasKey( 'email', $top, 'email key must not appear on top_customers when PII is off.' );
+		$this->assertMatchesRegularExpression( '/^Customer #\d+$/', $top['id'], 'Pseudonymised id must follow the Customer #N pattern.' );
+		$this->assertArrayNotHasKey( 'name', $top, 'name key must never appear on top_customers.' );
+		$this->assertArrayNotHasKey( 'email', $top, 'email key must never appear on top_customers.' );
 	}
 
 	/**
-	 * Option ON — name and email must surface so the list can be handed off
-	 * to a CRM/email MCP.
+	 * Privacy invariant — even if a leftover `hey_woo_allow_customer_pii`
+	 * option exists from a previous version of the plugin, it must not
+	 * revive PII surfacing. Defends against a future refactor that
+	 * accidentally restores the gate by reading the stale option.
 	 */
-	public function test_pii_on_surfaces_name_and_email() {
-		update_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII, '1' );
-
-		$result = $this->run_ability();
-
-		$this->assertSame( 'full', $result['privacy_mode'], 'privacy_mode must flip to full when the option is truthy.' );
-		$this->assertNotEmpty( $result['top_customers'] );
-
-		$top = $result['top_customers'][0];
-		// Narration contract stays — merchants still see the pseudonymised id.
-		$this->assertMatchesRegularExpression( '/^Customer #\d+$/', $top['id'] );
-
-		$this->assertArrayHasKey( 'name', $top, 'name key must be present on top_customers when PII is on.' );
-		$this->assertArrayHasKey( 'email', $top, 'email key must be present on top_customers when PII is on.' );
-		$this->assertSame( 'Alice Anderson', $top['name'] );
-		$this->assertSame( 'alice@example.test', $top['email'] );
-	}
-
-	/**
-	 * Deleting the option must return the ability to pseudonymised output.
-	 * Rules out an edge case where a stale cache, static state, or sticky
-	 * sanitizer would keep the PII branch active after the toggle was off.
-	 */
-	public function test_pii_returns_to_pseudonymised_after_option_delete() {
-		update_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII, '1' );
-		delete_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII );
-
-		$result = $this->run_ability();
-
-		$this->assertSame( 'pseudonymised', $result['privacy_mode'] );
-		$this->assertNotEmpty( $result['top_customers'] );
-		$top = $result['top_customers'][0];
-		$this->assertArrayNotHasKey( 'name', $top );
-		$this->assertArrayNotHasKey( 'email', $top );
-	}
-
-	/**
-	 * Falsy option values ('0', '', false) must also pseudonymise. The gate is
-	 * a `(bool) get_option(...)` so anything falsy should land on the
-	 * pseudonymised branch — if this regresses (e.g. someone flips it to a
-	 * `!== false` check), the falsy-but-present case would leak PII.
-	 */
-	public function test_falsy_option_values_pseudonymise() {
-		// Keyed by human-readable label so assertion failure messages identify
-		// which falsy value tripped the regression without reaching for
-		// var_export() (flagged by WordPress-Extra as debug code).
-		$falsy_values = array(
-			'string zero'  => '0',
-			'empty string' => '',
-			'bool false'   => false,
-			// WC Settings checkbox persists 'no' when unchecked — plain
-			// (bool) casts this to true (any non-empty string is truthy).
-			// wc_string_to_bool() correctly maps 'no' → false. Pinning this
-			// here so a future refactor back to (bool) loudly breaks.
-			'string no'    => 'no',
+	public function test_legacy_truthy_option_does_not_leak_pii() {
+		$truthy_values = array(
+			'string yes'  => 'yes',
+			'string one'  => '1',
+			'string true' => 'true',
+			'bool true'   => true,
+			'int one'     => 1,
 		);
 
-		foreach ( $falsy_values as $label => $falsy ) {
-			update_option( AbilitiesBootstrap::OPTION_ALLOW_CUSTOMER_PII, $falsy );
+		foreach ( $truthy_values as $label => $truthy ) {
+			update_option( 'hey_woo_allow_customer_pii', $truthy );
 
 			$result = $this->run_ability();
 
 			$this->assertSame(
 				'pseudonymised',
 				$result['privacy_mode'],
-				"Falsy option value ({$label}) must pseudonymise."
+				"Leftover option value ({$label}) must not flip privacy_mode."
 			);
 			$top = $result['top_customers'][0];
-			$this->assertArrayNotHasKey( 'name', $top, "Falsy option value ({$label}) should not surface name." );
-			$this->assertArrayNotHasKey( 'email', $top, "Falsy option value ({$label}) should not surface email." );
+			$this->assertArrayNotHasKey( 'name', $top, "Leftover option value ({$label}) must not surface name." );
+			$this->assertArrayNotHasKey( 'email', $top, "Leftover option value ({$label}) must not surface email." );
 		}
+	}
+
+	/**
+	 * The seeded fixture's name and email must not appear ANYWHERE in the
+	 * encoded response. Belt-and-braces against a future refactor that
+	 * adds a new key (e.g. `customer_label`, `display_name`) and
+	 * inadvertently includes the real name there.
+	 */
+	public function test_response_payload_contains_no_real_name_or_email() {
+		$result  = $this->run_ability();
+		$encoded = wp_json_encode( $result );
+
+		$this->assertStringNotContainsString( 'Alice', $encoded, 'Real first name must not appear anywhere in the response.' );
+		$this->assertStringNotContainsString( 'Anderson', $encoded, 'Real last name must not appear anywhere in the response.' );
+		$this->assertStringNotContainsString( 'alice@example.test', $encoded, 'Real email must not appear anywhere in the response.' );
 	}
 }
