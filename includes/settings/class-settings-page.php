@@ -53,39 +53,45 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Settings fields per section. The setup section returns an empty
-	 * array because it's rendered via SetupPage::render_setup_view()
-	 * in output() below; only the preferences section uses WC's
-	 * settings field API.
+	 * Default (Setup) section has no WC settings fields — it's
+	 * rendered as a custom view by output() below. WC's final
+	 * `get_settings_for_section()` dispatcher delegates here when
+	 * `$current_section === ''`.
 	 *
-	 * @param string $current_section Section ID.
 	 * @return array<int,array<string,mixed>>
 	 */
-	public function get_settings_for_section( $current_section ) {
-		if ( 'preferences' === $current_section ) {
-			return $this->get_preferences_settings();
-		}
+	protected function get_settings_for_default_section() {
 		return array();
 	}
 
 	/**
-	 * Render the active section. Setup is rendered as a custom view
-	 * (it has download buttons + nonced links rather than a settings
-	 * form), so we bypass the parent's standard field renderer for
-	 * that section.
+	 * Telemetry + customer-PII fields for the "preferences" section.
+	 * Discovered automatically by WC's final dispatcher via the
+	 * `get_settings_for_<section>_section` naming convention.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function get_settings_for_preferences_section() {
+		return $this->get_preferences_settings();
+	}
+
+	/**
+	 * Render the active section. The Setup (default) section has no
+	 * WC settings fields, so we render the custom view directly;
+	 * Preferences hands off to WC's standard field renderer.
 	 */
 	public function output() {
 		global $current_section;
 
-		if ( 'preferences' === $current_section ) {
-			parent::output();
+		if ( '' === $current_section || 'setup' === $current_section ) {
+			// Setup view — rendered inside WC's outer <form id="mainform">.
+			// SetupPage uses nonced GET links rather than nested <form>s
+			// to keep the HTML valid.
+			SetupPage::render_setup_view();
 			return;
 		}
 
-		// Setup view — rendered inside WC's outer <form id="mainform">.
-		// SetupPage uses nonced GET links rather than nested <form>s
-		// to keep the HTML valid.
-		SetupPage::render_setup_view();
+		parent::output();
 	}
 
 	/**
