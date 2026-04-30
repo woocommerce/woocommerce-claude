@@ -366,16 +366,35 @@ class RestApiKey {
 			$key_set  = add_option( self::OPTION_KEY_ID, $key_id, '', 'no' );
 
 			if ( ! $cred_set || ! $key_set ) {
-				// Couldn't persist locally — clean up the row we
-				// just inserted so we don't leave an active credential
-				// nothing tracks.
+				/*
+				 * Compensating cleanup with two narrow guards:
+				 *
+				 * 1. Always delete the row we just inserted, scoped by
+				 *    its key_id. This row is uniquely ours.
+				 *
+				 * 2. For each option write that succeeded, compare-and-
+				 *    delete only when the stored value still matches
+				 *    what we wrote. Avoids the failure mode flagged by
+				 *    review: a slow predecessor whose lock expired
+				 *    (TTL elapsed → reclaimed by a successor → successor
+				 *    persisted its own options) coming back here and
+				 *    clobbering the successor's options via an
+				 *    unconditional clear_options(). With compare-and-
+				 *    delete, the successor's options stay untouched
+				 *    because the value column won't match.
+				 */
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- compensating delete on persist failure.
 				$wpdb->delete(
 					$wpdb->prefix . 'woocommerce_api_keys',
 					array( 'key_id' => $key_id ),
 					array( '%d' )
 				);
-				$this->clear_options();
+				if ( $cred_set ) {
+					$this->compare_and_delete_option( self::OPTION_CREDENTIAL, $credential );
+				}
+				if ( $key_set ) {
+					$this->compare_and_delete_option( self::OPTION_KEY_ID, $key_id );
+				}
 				return new \WP_Error(
 					'hey_woo_key_persist_failed',
 					__( 'Could not store the API key locally.', 'hey-woo' )
@@ -455,6 +474,35 @@ class RestApiKey {
 		if ( is_array( $existing ) && ( $existing['token'] ?? '' ) === $token ) {
 			delete_option( self::PROVISIONING_LOCK );
 		}
+	}
+
+	/**
+	 * Compare-and-delete an option: delete the row only when its
+	 * `option_value` column still serializes to the value the caller
+	 * just wrote. Used by the cleanup path in create() to avoid
+	 * clobbering a successful concurrent provision's options when
+	 * our own writes failed for any reason.
+	 *
+	 * @param string $option_name The wp_options.option_name to target.
+	 * @param mixed  $expected    The value we believe we wrote.
+	 * @return int Number of rows deleted (0 = value didn't match; 1 = removed).
+	 */
+	private function compare_and_delete_option( $option_name, $expected ) {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- compare-and-delete on the wp_options unique key.
+		$rows = $wpdb->delete(
+			$wpdb->options,
+			array(
+				'option_name'  => $option_name,
+				'option_value' => maybe_serialize( $expected ),
+			),
+			array( '%s', '%s' )
+		);
+		if ( $rows > 0 ) {
+			wp_cache_delete( $option_name, 'options' );
+			wp_cache_delete( 'notoptions', 'options' );
+		}
+		return (int) $rows;
 	}
 
 	/**

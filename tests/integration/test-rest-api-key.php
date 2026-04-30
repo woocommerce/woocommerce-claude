@@ -490,6 +490,117 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Expired-lock interleaving: A acquires the lock, inserts a row,
+	 * then runs over the lock TTL. B reclaims, provisions, and
+	 * persists *its own* options. A's add_option() calls fail (B
+	 * already wrote them), and A enters the failure cleanup. The
+	 * cleanup must NOT clobber B's options — B's tracked credential
+	 * is what the page now relies on.
+	 *
+	 * Pin the contract by exercising compare_and_delete_option()
+	 * directly via Reflection: when called with a stale "expected"
+	 * value that no longer matches the stored option, the option
+	 * stays put and 0 rows are reported.
+	 */
+	public function test_compare_and_delete_option_does_not_clobber_a_newer_value() {
+		add_option( RestApiKey::OPTION_CREDENTIAL, 'B-credential', '', 'no' );
+		add_option( RestApiKey::OPTION_KEY_ID, 999, '', 'no' );
+
+		$helper      = new RestApiKey();
+		$compare_del = new ReflectionMethod( $helper, 'compare_and_delete_option' );
+		$compare_del->setAccessible( true );
+
+		// A's stale write attempt — its expected value doesn't
+		// match what B wrote.
+		$rows_cred = $compare_del->invoke( $helper, RestApiKey::OPTION_CREDENTIAL, 'A-credential' );
+		$rows_key  = $compare_del->invoke( $helper, RestApiKey::OPTION_KEY_ID, 42 );
+
+		$this->assertSame( 0, $rows_cred, 'B\'s credential option was not deleted.' );
+		$this->assertSame( 0, $rows_key, 'B\'s key_id option was not deleted.' );
+
+		// B's options remain intact and visible to subsequent reads.
+		$this->assertSame( 'B-credential', get_option( RestApiKey::OPTION_CREDENTIAL ) );
+		$this->assertSame( 999, (int) get_option( RestApiKey::OPTION_KEY_ID ) );
+	}
+
+	/**
+	 * Setup credential is route-restricted to /wp-json/woocommerce/mcp
+	 * — even though the underlying woocommerce_api_keys row would
+	 * normally authenticate against any WC REST endpoint. This is
+	 * the privacy boundary the setup UI implies: the bundle's
+	 * credential reaches the MCP integration only.
+	 *
+	 * Simulates a request bearing the setup credential by setting
+	 * $_SERVER['HTTP_X_MCP_API_KEY'] and the REQUEST_URI, then calls
+	 * the rest_authentication_errors filter callback directly.
+	 */
+	public function test_setup_key_is_rejected_on_non_mcp_routes() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create( 'read' );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
+			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * Setup credential IS allowed on the MCP endpoint — that's the
+	 * one route the bundle calls. Same simulation as the deny test,
+	 * just on the allowed path.
+	 */
+	public function test_setup_key_is_allowed_on_mcp_route() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create( 'read' );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			$_SERVER['REQUEST_URI']        = '/wp-json/woocommerce/mcp';
+			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * The route-scope filter is a no-op when the request isn't using
+	 * our credential at all. Anything else would inadvertently
+	 * affect REST clients that have their own (unrelated) WC API keys.
+	 */
+	public function test_route_scope_filter_passes_through_for_other_credentials() {
+		$helper = new RestApiKey();
+		$helper->get_or_create( 'read' );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			$_SERVER['HTTP_X_MCP_API_KEY'] = 'ck_some_other_key:cs_some_other_secret';
+			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
+			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertNull( $result, 'A different credential is unaffected by the setup-key gate.' );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
 	 * Deactivating the plugin must revoke the auto-created WC API
 	 * key. Without that, a merchant who deactivates Hey Woo to
 	 * disconnect Claude leaves the credential alive — the WC core

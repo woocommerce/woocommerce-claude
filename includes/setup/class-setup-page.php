@@ -66,6 +66,13 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 
+		// Restrict the setup credential to the WC MCP endpoint only.
+		// WC's API key auth runs at priority 10 on `determine_current_user`;
+		// `rest_authentication_errors` runs after that and before the
+		// route is dispatched, which is the right point to refuse a
+		// route the setup key shouldn't reach.
+		add_filter( 'rest_authentication_errors', array( __CLASS__, 'enforce_setup_key_route_scope' ), 50 );
+
 		add_filter(
 			'plugin_action_links_' . plugin_basename( HEY_WOO_PLUGIN_FILE ),
 			array( __CLASS__, 'add_plugin_row_link' )
@@ -487,6 +494,142 @@ class SetupPage {
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && '' === $sec;
+	}
+
+	/**
+	 * Server-side enforcement: the auto-created Hey Woo REST API
+	 * key is technically a standard `woocommerce_api_keys` row, so
+	 * by default it would authenticate against any WC REST surface
+	 * (`/wc/v3/orders`, `/wc/v3/customers`, etc.). The setup UI
+	 * implies the credential is scoped to the MCP integration, and
+	 * the bundle only ever calls `/wp-json/woocommerce/mcp` — so
+	 * we reject the key on every other route here.
+	 *
+	 * This shrinks the blast radius if the bundle leaks: the
+	 * credential is useless against the standard WC REST API even
+	 * with valid `ck_…:cs_…` pair. A merchant who wants direct WC
+	 * REST access for development should create a separate API key
+	 * the normal way.
+	 *
+	 * @param mixed $error Existing error (or null) from earlier in the auth chain.
+	 * @return mixed
+	 */
+	public static function enforce_setup_key_route_scope( $error ) {
+		// Earlier auth filter already errored — pass through.
+		if ( ! empty( $error ) ) {
+			return $error;
+		}
+
+		$presented = self::extract_request_credential();
+		if ( '' === $presented ) {
+			return $error;
+		}
+
+		$stored = get_option( RestApiKey::OPTION_CREDENTIAL, '' );
+		if ( '' === $stored || ! hash_equals( (string) $stored, $presented ) ) {
+			return $error;
+		}
+
+		// The request authenticated with our setup credential. Now
+		// bound to the MCP endpoint only.
+		if ( ! self::route_is_allowed_for_setup_key( self::current_rest_route() ) ) {
+			return new \WP_Error(
+				'hey_woo_route_restricted',
+				__( 'This API key is restricted to the WooCommerce MCP endpoint. Create a separate WooCommerce REST API key for direct WC REST access.', 'hey-woo' ),
+				array( 'status' => 403 )
+			);
+		}
+		return $error;
+	}
+
+	/**
+	 * Whether the given REST route is one the setup credential is
+	 * allowed to authenticate. Anchored on the canonical WC MCP
+	 * endpoint — `/wp-json/woocommerce/mcp` and any subpaths the
+	 * core MCP server may add.
+	 *
+	 * @param string $route REST route relative to the REST prefix (no leading slash).
+	 * @return bool
+	 */
+	private static function route_is_allowed_for_setup_key( $route ) {
+		if ( '' === $route ) {
+			return false;
+		}
+		return 0 === strpos( $route, 'woocommerce/mcp' );
+	}
+
+	/**
+	 * Extract the credential from the current REST request, if any.
+	 * Mirrors the auth surfaces that `mcp-wordpress-remote` and WC
+	 * core support: the X-MCP-API-Key header, HTTP Basic auth, and
+	 * `consumer_key` / `consumer_secret` query params.
+	 *
+	 * Returns '' if no credential is present (the request will be
+	 * unauthenticated or rely on cookies/nonces instead, neither of
+	 * which we want to gate here).
+	 *
+	 * @return string
+	 */
+	private static function extract_request_credential() {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
+		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
+
+		// 1. X-MCP-API-Key header — what mcp-wordpress-remote sends.
+		if ( ! empty( $_SERVER['HTTP_X_MCP_API_KEY'] ) ) {
+			return wp_unslash( (string) $_SERVER['HTTP_X_MCP_API_KEY'] );
+		}
+
+		// 2. HTTP Basic auth — username:password = ck_xxx:cs_xxx.
+		$auth = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] ) : '';
+		if ( 0 === stripos( $auth, 'Basic ' ) ) {
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
+			$decoded = base64_decode( substr( $auth, 6 ), true );
+			if ( false !== $decoded && false !== strpos( $decoded, ':' ) ) {
+				return $decoded;
+			}
+		}
+
+		// 3. Query string consumer_key + consumer_secret (WC legacy auth).
+		if ( ! empty( $_GET['consumer_key'] ) && ! empty( $_GET['consumer_secret'] ) ) {
+			return wp_unslash( (string) $_GET['consumer_key'] ) . ':' . wp_unslash( (string) $_GET['consumer_secret'] );
+		}
+		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		return '';
+	}
+
+	/**
+	 * Resolve the REST route the current request targets, regardless
+	 * of pretty (/wp-json/<route>) vs plain (?rest_route=/<route>)
+	 * permalinks. Returns the route relative to the REST prefix
+	 * without a leading slash, or '' if the request isn't a REST
+	 * request.
+	 *
+	 * @return string
+	 */
+	private static function current_rest_route() {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
+		if ( isset( $_GET['rest_route'] ) ) {
+			$route = wp_unslash( $_GET['rest_route'] );
+			return is_string( $route ) ? ltrim( $route, '/' ) : '';
+		}
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( (string) $_SERVER['REQUEST_URI'] ) : '';
+		if ( '' === $request_uri ) {
+			return '';
+		}
+		$path = strtok( $request_uri, '?#' );
+		if ( ! is_string( $path ) || '' === $path ) {
+			return '';
+		}
+		$rest_prefix = trailingslashit( rest_get_url_prefix() );
+		$position    = strpos( $path, $rest_prefix );
+		if ( false === $position ) {
+			return '';
+		}
+		return substr( $path, $position + strlen( $rest_prefix ) );
 	}
 
 	/**
