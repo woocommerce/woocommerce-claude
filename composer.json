@@ -32,6 +32,7 @@
     "scripts": {
         "phpcs": "phpcs",
         "phpcbf": "phpcbf",
-        "phpunit": "phpunit"
+        "phpunit": "phpunit",
+        "test-unit": "phpunit"
     }
 }

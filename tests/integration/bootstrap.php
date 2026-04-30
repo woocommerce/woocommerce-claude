@@ -2,10 +2,15 @@
 /**
  * PHPUnit bootstrap.
  *
- * Designed to run inside the wp-env `tests-cli` container, where the
- * WordPress test suite is mounted at `/wordpress-phpunit` and the repo
- * is mounted (via the `mappings` entry in .wp-env.json) at
- * `/var/www/html/wp-content/plugins/hey-woo-tests`.
+ * Supports two environments:
+ *
+ * 1. Local wp-env — run via `bin/check`. The tests-cli container mounts the
+ *    WP test suite at `/wordpress-phpunit` and the repo at
+ *    `wp-content/plugins/hey-woo-tests` (the --env-cwd target).
+ *
+ * 2. CI / bare PHP — run after `bin/install-wp-tests.sh`. Set WP_TESTS_DIR to
+ *    the path where the WP PHPUnit suite was installed; WooCommerce and the
+ *    plugin are installed into WP_PLUGIN_DIR by the install script.
  *
  * @package HeyWoo\Tests
  */
