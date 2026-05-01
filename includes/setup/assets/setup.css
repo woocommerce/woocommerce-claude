@@ -1,300 +1,319 @@
 /* Hey Woo setup view — rendered inside WC Settings → Hey Woo. */
 
 .hey-woo-setup {
-	max-width: 1100px;
-	margin-top: 8px;
+	max-width: 660px;
+	margin: 8px auto 0;
 }
 
-/* ---- Top status banner (MCP-off + HTTP warnings) ---- */
-
-.hey-woo-setup__topbar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 14px 18px;
-	margin: 0 0 24px;
-	border-radius: 6px;
-	flex-wrap: wrap;
-}
-
-.hey-woo-setup__topbar > div {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
-.hey-woo-setup__topbar strong {
-	display: block;
-	margin-bottom: 2px;
-}
-
-.hey-woo-setup__topbar span {
-	color: #50575e;
-	font-size: 13px;
-}
-
-.hey-woo-setup__topbar--warn {
-	background: #fff8e5;
-	border-left: 4px solid #dba617;
-}
-
-.hey-woo-setup__topbar--info {
-	background: #f0f6fc;
-	border-left: 4px solid #2271b1;
-}
-
-/* ---- Section row: label/lede on left, card on right ---- */
-
-.hey-woo-setup__row {
-	display: grid;
-	grid-template-columns: 240px 1fr;
-	gap: 36px;
-	padding: 24px 0;
-}
-
-.hey-woo-setup__row:first-of-type {
-	padding-top: 12px;
-}
-
-@media (max-width: 880px) {
-	.hey-woo-setup__row {
-		grid-template-columns: 1fr;
-		gap: 12px;
-	}
-}
+/* ---- Banners (status + flash) ---- */
 
 /*
- * The left-column heading top-aligns with the card's <h3> by sharing
- * the card's internal top padding (20px) — the row label gets the
- * same top inset so the two titles share a baseline. Font size and
- * weight match the card heading too.
+ * Single banner pattern used for flash messages (key generated, MCP
+ * enabled, etc.) and for the persistent topbar warnings (MCP off,
+ * HTTP-only). The icon column keeps the body text aligned even when
+ * the banner is just a single line.
  */
-.hey-woo-setup__row-label {
-	padding-top: 20px;
+.hey-woo-setup__banner {
+	display: grid;
+	grid-template-columns: 24px 1fr;
+	gap: 12px;
+	align-items: start;
+	padding: 14px 16px;
+	margin: 0 0 16px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: #f0f6fc;
+	color: #1d2327;
+	font-size: 13px;
+	line-height: 1.5;
 }
 
-.hey-woo-setup__row-label h2 {
-	margin: 0 0 8px;
-	font-size: 14px;
+.hey-woo-setup__banner--info {
+	background: #eff6ff;
+	border-color: #b8daff;
+	color: #1e3a8a;
+}
+
+.hey-woo-setup__banner--warning {
+	background: #fff8e5;
+	border-color: #f0c33c;
+	color: #5a4200;
+}
+
+.hey-woo-setup__banner--error {
+	background: #fcf0f1;
+	border-color: #d63638;
+	color: #8a1f1f;
+}
+
+.hey-woo-setup__banner-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	color: inherit;
+	opacity: .85;
+}
+
+.hey-woo-setup__banner-body {
+	min-width: 0;
+	color: #1d2327;
+}
+
+.hey-woo-setup__banner-body strong {
+	display: block;
+	font-size: 13px;
 	font-weight: 600;
-	line-height: 1.4;
+	margin-bottom: 4px;
+	color: #1d2327;
 }
 
-.hey-woo-setup__row-label p {
+.hey-woo-setup__banner-body p {
 	margin: 0;
 	color: #50575e;
 	font-size: 13px;
 	line-height: 1.55;
 }
 
-@media (max-width: 880px) {
-	.hey-woo-setup__row-label {
-		padding-top: 0;
-	}
+.hey-woo-setup__banner-body p + p {
+	margin-top: 10px;
 }
 
-.hey-woo-setup__row-content {
-	min-width: 0;
+.hey-woo-setup__banner-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px !important;
 }
 
-/* ---- Cards (right column) ---- */
+.hey-woo-setup__banner.is-flash .hey-woo-setup__banner-body p {
+	color: #1d2327;
+}
+
+/* ---- Cards (Step 1 / Step 2) ---- */
 
 .hey-woo-setup__card {
 	background: #fff;
-	border: 1px solid #c3c4c7;
+	border: 1px solid #dcdcde;
 	border-radius: 4px;
-	padding: 20px 22px;
-	min-width: 0;
+	padding: 22px 24px;
+	margin: 0 0 16px;
 	box-sizing: border-box;
 }
 
-.hey-woo-setup__card h3 {
-	margin: 0 0 14px;
-	font-size: 14px;
+.hey-woo-setup__card-title {
+	margin: 0 0 6px;
+	padding: 0;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.4;
+	color: #1d2327;
 }
 
-/* ---- Scope radio cards ---- */
+.hey-woo-setup__card-lede {
+	margin: 0 0 18px;
+	color: #50575e;
+	font-size: 13px;
+	line-height: 1.55;
+}
 
-/*
- * Layout uses CSS grid so the description in the second row aligns
- * exactly under the title (indented past the indicator), matching the
- * WC settings convention where helper text shares the label's column.
- */
-.hey-woo-setup__radio-card {
-	display: grid;
-	grid-template-columns: 18px 1fr;
-	column-gap: 12px;
-	row-gap: 4px;
-	align-items: center;
-	padding: 14px 16px;
+/* ---- Form fields ---- */
+
+.hey-woo-setup__field {
+	margin: 0 0 18px;
+	min-width: 0;
+}
+
+.hey-woo-setup__field-label {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	color: #50575e;
+	margin-bottom: 6px;
+}
+
+.hey-woo-setup__input {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 8px 12px;
+	font-size: 14px;
+	line-height: 1.4;
+	color: #1d2327;
+	background: #fff;
 	border: 1px solid #c3c4c7;
 	border-radius: 4px;
-	background: #fff;
-	color: #1d2327;
-	text-decoration: none;
-	margin-bottom: 8px;
-	transition: border-color .15s, background-color .15s;
+	box-shadow: 0 0 0 transparent;
+	transition: border-color .15s, box-shadow .15s;
 }
 
-.hey-woo-setup__radio-card:last-child {
+/*
+ * WP admin's `.wp-core-ui select` rule sets max-width: 25rem and a
+ * shorter padding, which would otherwise clip the permissions
+ * dropdown narrower than the description input above it. Override
+ * with matching specificity so both fields share the card's full
+ * inner width.
+ */
+select.hey-woo-setup__input {
+	width: 100%;
+	max-width: none;
+	min-height: 0;
+	padding: 8px 32px 8px 12px;
+}
+
+.hey-woo-setup__input:focus {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+	outline: none;
+}
+
+.hey-woo-setup__input:disabled {
+	background: #f6f7f7;
+	color: #8c8f94;
+	cursor: not-allowed;
+}
+
+.hey-woo-setup__field-help {
+	margin: 6px 0 0;
+	color: #6b7280;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.hey-woo-setup__field-help--write-warn {
+	background: #fff8e5;
+	border-left: 3px solid #f0c33c;
+	color: #5a4200;
+	padding: 8px 10px;
+	border-radius: 0 3px 3px 0;
+}
+
+/* ---- Action row (right-aligned button zone) ---- */
+
+.hey-woo-setup__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+/* ---- Existing-key summary row inside Step 1 ---- */
+
+.hey-woo-setup__keyrow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	padding-bottom: 18px;
+	margin-bottom: 18px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.hey-woo-setup__keyrow-meta {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.hey-woo-setup__keyrow-meta p {
+	margin: 0;
+	font-size: 14px;
+	color: #1d2327;
+}
+
+.hey-woo-setup__keyrow-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+/*
+ * Permissions toggle below the keyrow. The keyrow's bottom border
+ * already provides the separator; drop the field's bottom margin so
+ * the card padding handles spacing to Step 2.
+ */
+.hey-woo-setup__field--keyperms {
 	margin-bottom: 0;
 }
 
-.hey-woo-setup__radio-card:hover {
-	border-color: #2271b1;
+/* ---- Tabs (Step 2) ---- */
+
+.hey-woo-setup__tabs {
+	display: flex;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 3px;
+	gap: 3px;
+	margin: 0 0 18px;
 }
 
-.hey-woo-setup__radio-card.is-active {
-	border-color: #2271b1;
-	background: #f6fbff;
+.hey-woo-setup__tab {
+	flex: 1 1 0;
+	background: transparent;
+	border: 0;
+	padding: 8px 14px;
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.4;
+	color: #50575e;
+	cursor: pointer;
+	border-radius: 3px;
+	transition: background-color .15s, color .15s, box-shadow .15s;
 }
 
-.hey-woo-setup__radio-card:focus-visible {
+.hey-woo-setup__tab:hover {
+	color: #1d2327;
+}
+
+.hey-woo-setup__tab.is-active {
+	background: #fff;
+	color: #1d2327;
+	font-weight: 600;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, .04 );
+}
+
+.hey-woo-setup__tab:focus-visible {
 	outline: 2px solid #2271b1;
 	outline-offset: 1px;
 }
 
-.hey-woo-setup__radio-indicator {
-	grid-column: 1;
-	grid-row: 1;
-	width: 18px;
-	height: 18px;
-	border-radius: 50%;
-	border: 1.5px solid #8c8f94;
-	box-sizing: border-box;
-	position: relative;
-	justify-self: center;
-}
-
-.hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator {
-	border-color: #2271b1;
-}
-
-.hey-woo-setup__radio-card.is-active .hey-woo-setup__radio-indicator::after {
-	content: "";
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background: #2271b1;
-}
-
-.hey-woo-setup__radio-body {
-	display: contents;
-}
-
-.hey-woo-setup__radio-title {
-	grid-column: 2;
-	grid-row: 1;
-	display: flex;
-	align-items: center;
-	gap: 8px;
+.hey-woo-setup__tabpanel {
 	min-width: 0;
 }
 
-.hey-woo-setup__radio-title strong {
-	font-size: 14px;
+.hey-woo-setup__tabpanel[hidden] {
+	display: none;
 }
 
-.hey-woo-setup__badge {
-	font-size: 11px;
-	font-weight: 600;
-	padding: 2px 8px;
-	border-radius: 999px;
-	background: #d8edd8;
-	color: #044e15;
-}
-
-.hey-woo-setup__badge--alt {
-	background: #e0e8f4;
-	color: #14385c;
-}
-
-.hey-woo-setup__radio-desc {
-	grid-column: 2;
-	grid-row: 2;
-	color: #50575e;
-	font-size: 13px;
-	line-height: 1.5;
-}
-
-.hey-woo-setup__keymeta {
-	margin: 14px 0 0;
-	padding-top: 12px;
-	border-top: 1px solid #f0f0f1;
-	color: #50575e;
-	font-size: 13px;
-}
-
-.hey-woo-setup__keymeta code {
-	background: transparent;
-	padding: 0;
-	font-size: 13px;
-}
-
-/* ---- Setup card with Quick / OR / Manual panels ---- */
-
-.hey-woo-setup__panel {
-	padding: 4px 0;
-}
-
-.hey-woo-setup__panel h4 {
-	margin: 0 0 12px;
-	font-size: 14px;
-}
-
-.hey-woo-setup__panel h5 {
-	margin: 18px 0 8px;
-	font-size: 13px;
-	color: #1d2327;
-}
+/* ---- Step lists + helper text ---- */
 
 .hey-woo-setup__steps {
 	margin: 0 0 16px 18px;
 	padding: 0;
+	color: #1d2327;
 }
 
 .hey-woo-setup__steps li {
 	margin: 6px 0;
-}
-
-.hey-woo-setup__divider {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	margin: 22px 0;
-	color: #50575e;
-	font-size: 12px;
-	font-weight: 600;
-	letter-spacing: .08em;
-}
-
-.hey-woo-setup__divider::before,
-.hey-woo-setup__divider::after {
-	content: "";
-	flex: 1 1 auto;
-	height: 1px;
-	background: #dcdcde;
-}
-
-.hey-woo-setup__divider span {
-	flex: 0 0 auto;
+	font-size: 13px;
+	line-height: 1.55;
 }
 
 .hey-woo-setup__prereq {
 	font-size: 13px;
 	color: #50575e;
-	margin-top: 12px;
+	margin: 12px 0 0;
 }
 
 .hey-woo-setup__warn-block {
 	background: #fff8e5;
 	border-left: 4px solid #dba617;
 	padding: 10px 14px;
-	margin-top: 16px;
+	margin: 16px 0 0;
 	font-size: 13px;
 	color: #1d2327;
 }
@@ -307,51 +326,26 @@
 	color: #50575e;
 }
 
-/* ---- Credential + copy rows ---- */
-
-.hey-woo-setup__credential {
-	margin: 0 0 18px;
-	min-width: 0;
-}
-
-.hey-woo-setup__credential label {
-	display: block;
-	font-weight: 600;
-	margin-bottom: 6px;
-	font-size: 13px;
-}
-
-.hey-woo-setup__credential-value {
-	display: block;
-	background: #f6f7f7;
-	padding: 6px 10px;
-	border-radius: 3px;
-	font-size: 13px;
-	overflow-x: auto;
-	white-space: nowrap;
-	max-width: 100%;
-	box-sizing: border-box;
-}
+/* ---- Code blocks (Manual setup) ---- */
 
 /*
- * Dark code panel that holds both the snippet and the Copy button
- * (button sits inside the panel, separated from the code by a thin
- * top border, right-aligned). Reuses the WC convention of self-
- * contained code samples.
+ * Dark code panel with the Copy button overlaid in the top-right
+ * corner. Icon-only button mirrors the design — the click target is
+ * still the same size as before (32x32) for accessibility.
  */
 .hey-woo-setup__codeblock {
+	position: relative;
 	background: #1d2327;
 	color: #f0f0f1;
 	border-radius: 4px;
 	overflow: hidden;
-	margin: 0 0 16px;
 	min-width: 0;
 }
 
 .hey-woo-setup__codeblock pre {
 	background: transparent;
 	color: inherit;
-	padding: 14px 16px;
+	padding: 14px 48px 14px 16px;
 	margin: 0;
 	overflow-x: auto;
 	white-space: pre;
@@ -367,31 +361,51 @@
 	line-height: inherit;
 }
 
-.hey-woo-setup__codeblock-actions {
-	border-top: 1px solid rgba( 240, 240, 241, .12 );
-	padding: 8px 12px;
-	display: flex;
-	justify-content: flex-end;
-}
-
-.hey-woo-setup__codeblock-actions .hey-woo-setup__copy {
+.hey-woo-setup__copy {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
 	background: transparent;
-	border: 1px solid rgba( 240, 240, 241, .35 );
+	border: 1px solid rgba( 240, 240, 241, .25 );
 	color: #f0f0f1;
-	padding: 4px 14px;
-	border-radius: 3px;
+	border-radius: 4px;
 	cursor: pointer;
-	font-size: 12px;
-	line-height: 1.6;
 	transition: border-color .15s, background-color .15s;
 }
 
-.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:hover,
-.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:focus-visible {
-	border-color: #f0f0f1;
+.hey-woo-setup__copy:hover,
+.hey-woo-setup__copy:focus-visible {
+	border-color: rgba( 240, 240, 241, .8 );
+	background: rgba( 255, 255, 255, .06 );
 	outline: none;
 }
 
-.hey-woo-setup__codeblock-actions .hey-woo-setup__copy:disabled {
+.hey-woo-setup__copy.is-copied {
+	border-color: #4caf50;
+	color: #4caf50;
+}
+
+.hey-woo-setup__copy:disabled {
 	opacity: .8;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 600px) {
+	.hey-woo-setup__card {
+		padding: 18px 16px;
+	}
+
+	.hey-woo-setup__keyrow {
+		align-items: flex-start;
+	}
+
+	.hey-woo-setup__keyrow-actions {
+		width: 100%;
+	}
 }

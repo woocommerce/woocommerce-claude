@@ -544,13 +544,35 @@ class RestApiKey {
 	}
 
 	/**
-	 * Delete every woocommerce_api_keys row whose description matches
-	 * Hey Woo's exact label. Catches orphans from concurrent inserts
-	 * and cleans up after manual table edits in WC admin.
+	 * Delete every Hey-Woo-owned woocommerce_api_keys row.
+	 *
+	 * Two passes so an admin who renamed our key's description column
+	 * directly in WC's REST API admin can't strand it:
+	 *
+	 *  1. Delete by tracked key_id (OPTION_KEY_ID). Authoritative when
+	 *     the option pointer is intact — catches rows whose description
+	 *     was edited in WC admin after we minted them.
+	 *
+	 *  2. Delete by canonical KEY_DESCRIPTION. Safety net for orphans
+	 *     from concurrent inserts where the option pointer was never
+	 *     persisted, or where it was cleared without the row being
+	 *     removed. Always-canonical insert in create() keeps this
+	 *     match reliable.
 	 */
 	private function delete_owned_rows() {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped revocation; no caching surface.
+
+		$tracked_key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
+		if ( $tracked_key_id > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- key_id-scoped revocation; no caching surface.
+			$wpdb->delete(
+				$wpdb->prefix . 'woocommerce_api_keys',
+				array( 'key_id' => $tracked_key_id ),
+				array( '%d' )
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped orphan cleanup; no caching surface.
 		$wpdb->delete(
 			$wpdb->prefix . 'woocommerce_api_keys',
 			array( 'description' => self::KEY_DESCRIPTION ),

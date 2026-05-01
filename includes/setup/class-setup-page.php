@@ -48,11 +48,12 @@ class SetupPage {
 	 */
 	const SETTINGS_TAB = 'hey-woo';
 
-	const ACTION_DOWNLOAD   = 'hey_woo_download_mcpb';
-	const ACTION_REGEN_KEY  = 'hey_woo_regenerate_key';
-	const ACTION_ENABLE_MCP = 'hey_woo_enable_mcp_feature';
-	const ACTION_SET_PERMS  = 'hey_woo_set_permissions';
-	const ACTION_DISCONNECT = 'hey_woo_disconnect';
+	const ACTION_DOWNLOAD     = 'hey_woo_download_mcpb';
+	const ACTION_REGEN_KEY    = 'hey_woo_regenerate_key';
+	const ACTION_ENABLE_MCP   = 'hey_woo_enable_mcp_feature';
+	const ACTION_SET_PERMS    = 'hey_woo_set_permissions';
+	const ACTION_DISCONNECT   = 'hey_woo_disconnect';
+	const ACTION_GENERATE_KEY = 'hey_woo_generate_key';
 
 	/**
 	 * Wire all hooks. Called once during plugin bootstrap.
@@ -65,6 +66,7 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
 		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
+		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
 
 		// Restrict the setup credential to the WC MCP endpoint only.
 		// WC's API key auth runs at priority 10 on `determine_current_user`;
@@ -221,21 +223,16 @@ class SetupPage {
 		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		/*
-		 * Lookup is independent of the MCP flag. An existing Hey Woo
-		 * REST key authenticates against the WC REST surface generally,
-		 * not just /wp-json/woocommerce/mcp — so the page must surface
+		 * Render-time lookup is read-only. An existing Hey Woo REST
+		 * key authenticates against the WC REST surface generally, not
+		 * just /wp-json/woocommerce/mcp — so the page must surface
 		 * (and offer to disconnect) an existing key even when MCP is
-		 * off. Lazy provisioning still only happens when MCP is on,
-		 * since there's no reason to mint a credential for a flag that
-		 * gates the only thing it'd be embedded into.
+		 * off. Provisioning is gated behind the explicit "Generate
+		 * key" button (see handle_generate_key) rather than happening
+		 * silently on render — the merchant should always know when a
+		 * credential has been minted on their behalf.
 		 */
 		$key_state = $key_helper->existing_state();
-		if ( null === $key_state && $mcp_enabled ) {
-			$created = $key_helper->get_or_create( 'read' );
-			if ( ! is_wp_error( $created ) ) {
-				$key_state = $created;
-			}
-		}
 
 		$current_user_id = get_current_user_id();
 		$owner_user_id   = is_array( $key_state ) ? (int) ( $key_state['owner_user_id'] ?? 0 ) : 0;
@@ -282,14 +279,18 @@ class SetupPage {
 	 * without fighting wp_safe_redirect/exit. Validates, in order:
 	 *
 	 *   1. MCP feature flag is on (else `mcp_required`).
-	 *   2. Provisioning succeeded (else `key_failed`).
-	 *   3. The provisioned key is *still* owned by $expected_user_id —
+	 *   2. A key already exists (else `key_required`). The download is
+	 *      a *use* of an explicitly-generated credential — never a
+	 *      mint path. Without this gate a stale or bookmarked download
+	 *      URL with a still-valid nonce could silently provision a
+	 *      default-permissions key, bypassing the explicit Generate
+	 *      step and the merchant's chosen scope.
+	 *   3. The current key is *still* owned by $expected_user_id —
 	 *      this closes the download TOCTOU where a concurrent
 	 *      regenerate could transfer ownership between the initial
-	 *      `require_key_owner()` gate and this method's get_or_create
-	 *      call. Without the re-check, the current user could
-	 *      exfiltrate a credential that was just rotated to authenticate
-	 *      as a different admin.
+	 *      `require_key_owner()` gate and this method's lookup. Without
+	 *      the re-check, the current user could exfiltrate a credential
+	 *      that was just rotated to authenticate as a different admin.
 	 *
 	 * @param int $expected_user_id The user_id whose download was approved.
 	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
@@ -303,11 +304,11 @@ class SetupPage {
 		}
 
 		$key_helper = new RestApiKey();
-		$state      = $key_helper->get_or_create( 'read' );
-		if ( is_wp_error( $state ) ) {
+		$state      = $key_helper->existing_state();
+		if ( null === $state ) {
 			return new \WP_Error(
-				'key_failed',
-				__( 'Could not provision the API key.', 'hey-woo' )
+				'key_required',
+				__( 'Generate an API key in Step 1 before downloading.', 'hey-woo' )
 			);
 		}
 
@@ -324,16 +325,77 @@ class SetupPage {
 	/**
 	 * Rotate the API key (revoke + recreate). Preserves the current
 	 * permissions scope.
+	 *
+	 * Refuses if no key exists — Regenerate is a rotation primitive,
+	 * never a mint primitive. Without this gate a stale URL could
+	 * silently create a default-permissions key, bypassing the
+	 * explicit Generate step.
 	 */
 	public static function handle_regenerate_key() {
 		self::guard( self::ACTION_REGEN_KEY );
 
 		$key_helper = new RestApiKey();
-		$existing   = $key_helper->exists();
-		$current    = $existing ? ( $key_helper->get_or_create( 'read' )['permissions'] ?? 'read' ) : 'read';
-		$state      = $key_helper->regenerate( $current );
+		$existing   = $key_helper->existing_state();
+		if ( null === $existing ) {
+			self::redirect( 'key_required' );
+		}
+
+		$state = $key_helper->regenerate( $existing['permissions'] );
 
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_regenerated' );
+	}
+
+	/**
+	 * Provision the Hey Woo REST API key from the explicit Step 1 form.
+	 *
+	 * Gated by:
+	 *  - manage_woocommerce + nonce (self::guard)
+	 *  - WC MCP feature flag — refusing here mirrors the disabled state
+	 *    of the Generate button in the UI; if the feature was flipped
+	 *    off between page render and click submit, surface the
+	 *    `mcp_required` flash so the merchant re-enables it first.
+	 *  - No existing key — generation is a create-only action; if a key
+	 *    already exists the merchant should use Regenerate (which
+	 *    explicitly invalidates distributed bundles) instead of
+	 *    silently rotating.
+	 *
+	 * Reads `permissions` from the GET query string. The description
+	 * column is always written as the canonical KEY_DESCRIPTION so
+	 * RestApiKey::delete_owned_rows() retains its description-based
+	 * orphan-cleanup safety net.
+	 */
+	public static function handle_generate_key() {
+		self::guard( self::ACTION_GENERATE_KEY );
+
+		if ( ! self::mcp_feature_enabled() ) {
+			self::redirect( 'mcp_required' );
+		}
+
+		$key_helper = new RestApiKey();
+		if ( null !== $key_helper->existing_state() ) {
+			// Idempotent landing for double-submits — surface the
+			// existing key rather than treating it as an error or
+			// silently rotating.
+			//
+			// Use the same "key exists" definition the renderer uses
+			// (existing_state, not exists) so partial state — e.g.
+			// OPTION_KEY_ID points at a live WC row but OPTION_CREDENTIAL
+			// was lost in a compensating-cleanup race — drops through
+			// to get_or_create(), whose stale-state recovery clears
+			// the dangling option and lets create() revoke the orphan
+			// row via its canonical KEY_DESCRIPTION marker before
+			// inserting a fresh credential. Without this alignment the
+			// renderer would show the Generate form while the handler
+			// kept refusing — leaving the merchant stuck without a DB
+			// edit.
+			self::redirect( 'key_exists' );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
+		$permissions = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( (string) $_GET['permissions'] ) ) : 'read';
+
+		$state = $key_helper->get_or_create( $permissions );
+		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_generated' );
 	}
 
 	/**
@@ -369,6 +431,17 @@ class SetupPage {
 			self::redirect( 'mcp_required' );
 		}
 
+		$key_helper = new RestApiKey();
+
+		// Scope is a property of an existing key — refuse if there
+		// isn't one. Without this gate, a stale URL would silently
+		// trigger RestApiKey::set_permissions()'s no-key fallback,
+		// which mints a fresh credential with the requested scope,
+		// bypassing the explicit Generate step.
+		if ( null === $key_helper->existing_state() ) {
+			self::redirect( 'key_required' );
+		}
+
 		$expected_user_id = get_current_user_id();
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
@@ -378,8 +451,7 @@ class SetupPage {
 			$requested = 'read';
 		}
 
-		$key_helper = new RestApiKey();
-		$result     = $key_helper->set_permissions( $requested );
+		$result = $key_helper->set_permissions( $requested );
 
 		if ( is_wp_error( $result ) ) {
 			self::redirect( 'key_failed' );
