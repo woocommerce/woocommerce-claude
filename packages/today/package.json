@@ -1,0 +1,11 @@
+{
+  "name": "@hey-woo/today",
+  "version": "1.0.0",
+  "private": true,
+  "wpScriptModuleExports": "./src/index.tsx",
+  "dependencies": {
+    "@wordpress/element": "*",
+    "@wordpress/components": "*",
+    "@wordpress/i18n": "*"
+  }
+}
