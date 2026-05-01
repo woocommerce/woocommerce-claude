@@ -285,6 +285,9 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 						</a>
 					</div>
 				</div>
+				<p class="hey-woo-setup__keyrow-help">
+					<?php esc_html_e( 'To broaden access, click Permissions and pick Read/Write — Write alone disables reads. If you have shared the MCPB file, click Regenerate first so older copies stop authenticating before the new scope takes effect.', 'hey-woo' ); ?>
+				</p>
 
 			<?php else : ?>
 
@@ -293,7 +296,7 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 					printf(
 						wp_kses(
 							/* translators: 1: canonical key description label. 2: link to WC's REST API key list. */
-							__( 'A read-only WooCommerce REST API key labelled %1$s will be created for Claude. If you later want Claude to make changes, broaden it under %2$s.', 'hey-woo' ),
+							__( 'A read-only WooCommerce REST API key labelled %1$s will be created for Claude. If you later want Claude to make changes, change its scope to Read/Write under %2$s.', 'hey-woo' ),
 							array(
 								'code' => array(),
 								'a'    => array( 'href' => array() ),

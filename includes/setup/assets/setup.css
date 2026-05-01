@@ -283,6 +283,21 @@ select.hey-woo-setup__input {
 	color: #135e96;
 }
 
+/*
+ * Help text below the keyrow. Same colour/size as field-help, with
+ * extra top margin to separate from the keyrow's flex row instead of
+ * a stacked field above. Surfaces the rotation-on-escalation guidance
+ * (regenerate before broadening if the bundle has been shared) and
+ * the Read/Write vs. Write distinction without putting the controls
+ * back in this card.
+ */
+.hey-woo-setup__keyrow-help {
+	margin: 14px 0 0;
+	color: #6b7280;
+	font-size: 12px;
+	line-height: 1.5;
+}
+
 /* ---- Tabs (Step 2) ---- */
 
 .hey-woo-setup__tabs {
