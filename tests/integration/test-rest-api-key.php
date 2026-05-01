@@ -57,7 +57,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_get_or_create_provisions_a_single_key() {
 		$helper = new RestApiKey();
-		$state  = $helper->get_or_create( 'read' );
+		$state  = $helper->get_or_create();
 
 		$this->assertIsArray( $state );
 		$this->assertSame( 1, $this->count_owned_rows(), 'Exactly one Hey-Woo-owned row should exist.' );
@@ -74,8 +74,8 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_get_or_create_is_idempotent() {
 		$helper = new RestApiKey();
-		$first  = $helper->get_or_create( 'read' );
-		$second = $helper->get_or_create( 'read' );
+		$first  = $helper->get_or_create();
+		$second = $helper->get_or_create();
 
 		$this->assertSame( $first['credential'], $second['credential'] );
 		$this->assertSame( $first['key_id'], $second['key_id'] );
@@ -87,7 +87,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_revoke_removes_the_tracked_row() {
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$this->assertSame( 1, $this->count_owned_rows() );
 
 		$helper->revoke();
@@ -113,7 +113,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_revoke_cleans_up_orphan_rows_from_lost_race() {
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$this->assertSame( 1, $this->count_owned_rows() );
 
 		$orphan_id = $this->insert_orphan_row();
@@ -184,7 +184,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		);
 
 		$helper = new RestApiKey();
-		$result = $helper->get_or_create( 'read' );
+		$result = $helper->get_or_create();
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'hey_woo_provisioning_busy', $result->get_error_code() );
@@ -267,7 +267,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		);
 
 		$helper = new RestApiKey();
-		$state  = $helper->get_or_create( 'read' );
+		$state  = $helper->get_or_create();
 
 		$this->assertIsArray( $state );
 		$this->assertSame( 1, $this->count_owned_rows() );
@@ -281,80 +281,18 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_regenerate_clears_orphans_and_issues_one_fresh_row() {
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$this->insert_orphan_row();
 		$this->insert_orphan_row();
 		$this->assertSame( 3, $this->count_owned_rows() );
 
-		$state = $helper->regenerate( 'read_write' );
+		$state = $helper->regenerate();
 
 		$this->assertIsArray( $state );
 		$this->assertSame( 1, $this->count_owned_rows(), 'Exactly one row after regenerate.' );
-		$this->assertSame( 'read_write', $state['permissions'] );
+		$this->assertSame( 'read', $state['permissions'] );
 		$this->assertSame( $state['credential'], get_option( RestApiKey::OPTION_CREDENTIAL ) );
 		$this->assertSame( $state['key_id'], (int) get_option( RestApiKey::OPTION_KEY_ID ) );
-	}
-
-	/**
-	 * The security-critical scope-change contract:
-	 *
-	 *   Read → Read+Write must rotate the credential.
-	 *
-	 * Otherwise an already-distributed Read-only `.mcpb` (or pasted
-	 * snippet) silently gains write access when the merchant flips
-	 * the toggle, which is the explicit attack model — a contractor
-	 * who was given a read-only bundle should not be granted
-	 * product/order mutation by a UI click on the merchant's side.
-	 */
-	public function test_scope_escalation_rotates_credential() {
-		$helper     = new RestApiKey();
-		$initial    = $helper->get_or_create( 'read' );
-		$old_creds  = $initial['credential'];
-		$old_key_id = $initial['key_id'];
-
-		$result = $helper->set_permissions( 'read_write' );
-
-		$this->assertSame( RestApiKey::SCOPE_ROTATED, $result, 'Escalation reports SCOPE_ROTATED.' );
-
-		$post = $helper->get_or_create( 'read' ); // returns current state, not 'read'.
-		$this->assertNotSame( $old_creds, $post['credential'], 'Credential rotated on escalation.' );
-		$this->assertNotSame( $old_key_id, $post['key_id'], 'Key row replaced on escalation.' );
-		$this->assertSame( 'read_write', $post['permissions'] );
-		$this->assertSame( 1, $this->count_owned_rows(), 'Exactly one row after rotation.' );
-	}
-
-	/**
-	 * Read+Write → Read should NOT rotate — narrowing scope is safe
-	 * to apply in place. Existing bundles continue to authenticate
-	 * with the same credential, just losing write tools.
-	 */
-	public function test_scope_downgrade_is_in_place() {
-		$helper = new RestApiKey();
-		$helper->get_or_create( 'read_write' );
-		$initial    = $helper->get_or_create( 'read' ); // returns the existing read_write key state.
-		$old_creds  = $initial['credential'];
-		$old_key_id = $initial['key_id'];
-
-		$result = $helper->set_permissions( 'read' );
-
-		$this->assertSame( RestApiKey::SCOPE_DOWNGRADED, $result, 'Downgrade reports SCOPE_DOWNGRADED.' );
-
-		$post = $helper->get_or_create( 'read' );
-		$this->assertSame( $old_creds, $post['credential'], 'Credential preserved on downgrade.' );
-		$this->assertSame( $old_key_id, $post['key_id'], 'Same row, narrowed permissions.' );
-		$this->assertSame( 'read', $post['permissions'] );
-	}
-
-	/**
-	 * Setting the scope to its current value is a noop — no rotation,
-	 * no UPDATE, distinct return code so the UI flash can be
-	 * suppressed if desired.
-	 */
-	public function test_scope_noop_when_already_at_requested_value() {
-		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
-
-		$this->assertSame( RestApiKey::SCOPE_NOOP, $helper->set_permissions( 'read' ) );
 	}
 
 	/**
@@ -368,7 +306,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		wp_set_current_user( $user_id );
 
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 
 		$this->assertSame( $user_id, $helper->owner_user_id() );
 	}
@@ -398,7 +336,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->assertNull( $helper->existing_state(), 'No key → null.' );
 		$this->assertSame( 0, $this->count_owned_rows(), 'No row was provisioned by the lookup.' );
 
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$state = $helper->existing_state();
 
 		$this->assertIsArray( $state );
@@ -430,7 +368,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 		wp_set_current_user( $x_user );
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$state = $helper->existing_state();
 		$this->assertSame( $x_user, $state['owner_user_id'] );
 
@@ -484,7 +422,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 		// Mirror the production flow — Step 1 explicitly provisions
 		// the key before Step 2's download is reachable.
-		( new RestApiKey() )->get_or_create( 'read' );
+		( new RestApiKey() )->get_or_create();
 
 		$result = SetupPage::prepare_download_state( $user_id );
 
@@ -511,7 +449,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_get_or_create_recovers_from_partial_credential_state() {
 		$helper          = new RestApiKey();
-		$first           = $helper->get_or_create( 'read' );
+		$first           = $helper->get_or_create();
 		$original_key_id = (int) $first['key_id'];
 
 		// Simulate the partial state — drop only the credential
@@ -525,7 +463,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->assertNull( $helper->existing_state(), 'Renderer view: partial state reads as "no key".' );
 		$this->assertTrue( $helper->exists(), 'Row-only view differs — row is still present.' );
 
-		$recovered = $helper->get_or_create( 'read' );
+		$recovered = $helper->get_or_create();
 
 		$this->assertIsArray( $recovered );
 		$this->assertNotEmpty( $recovered['credential'] );
@@ -602,7 +540,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_setup_key_is_rejected_on_non_mcp_routes() {
 		$helper = new RestApiKey();
-		$state  = $helper->get_or_create( 'read' );
+		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
@@ -627,7 +565,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_setup_key_is_allowed_on_mcp_route() {
 		$helper = new RestApiKey();
-		$state  = $helper->get_or_create( 'read' );
+		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
@@ -650,7 +588,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_route_scope_filter_passes_through_for_other_credentials() {
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
@@ -677,7 +615,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 */
 	public function test_deactivation_revokes_the_api_key() {
 		$helper = new RestApiKey();
-		$helper->get_or_create( 'read' );
+		$helper->get_or_create();
 		$this->assertSame( 1, $this->count_owned_rows() );
 
 		// phpcs:disable WooCommerce.Commenting.CommentHooks -- this isn't a hook definition, it's a synthetic firing of the deactivation hook to test the behavior the plugin's register_deactivation_hook() registers.

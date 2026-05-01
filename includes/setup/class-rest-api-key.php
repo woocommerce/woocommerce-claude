@@ -76,10 +76,15 @@ class RestApiKey {
 	 * `current_user_id() === owner_user_id` — preventing a different
 	 * admin from extracting another admin's bound credential.
 	 *
-	 * @param string $permissions WC permissions value: 'read' | 'write' | 'read_write'.
+	 * Hey Woo always provisions read-only keys. If the merchant later
+	 * needs broader scope, they edit the key directly under
+	 * WooCommerce → Settings → Advanced → REST API — which updates
+	 * the same row in place (same credential, new permissions), so
+	 * already-distributed bundles keep working with the new scope.
+	 *
 	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
 	 */
-	public function get_or_create( $permissions = 'read' ) {
+	public function get_or_create() {
 		$credential = get_option( self::OPTION_CREDENTIAL, '' );
 		$key_id     = (int) get_option( self::OPTION_KEY_ID, 0 );
 
@@ -97,115 +102,18 @@ class RestApiKey {
 			$this->clear_options();
 		}
 
-		return $this->create( $permissions );
+		return $this->create();
 	}
 
 	/**
-	 * Revoke the existing key (if any) and issue a fresh one. Returns
-	 * the same shape as get_or_create().
+	 * Revoke the existing key (if any) and issue a fresh read-only one.
+	 * Returns the same shape as get_or_create().
 	 *
-	 * @param string $permissions WC permissions value.
 	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
 	 */
-	public function regenerate( $permissions = 'read' ) {
+	public function regenerate() {
 		$this->revoke();
-		return $this->create( $permissions );
-	}
-
-	/**
-	 * Result code returned by set_permissions().
-	 *
-	 * - SCOPE_NOOP: requested scope already in effect.
-	 * - SCOPE_DOWNGRADED: in-place permission narrowing (e.g. read_write → read).
-	 * - SCOPE_ROTATED: privilege escalation triggered credential rotation.
-	 *   The credential changed; previously distributed bundles or snippets
-	 *   are now invalid and must be re-downloaded / re-pasted.
-	 */
-	const SCOPE_NOOP       = 'noop';
-	const SCOPE_DOWNGRADED = 'downgraded';
-	const SCOPE_ROTATED    = 'rotated';
-
-	/**
-	 * Change the permissions on the provisioned key.
-	 *
-	 * Asymmetric on purpose:
-	 *
-	 *  - **Downgrade** (e.g. read_write → read): in-place UPDATE on
-	 *    the existing row. Strictly narrows what the credential can
-	 *    do; no surprise privilege grant. Existing bundles continue
-	 *    to authenticate with the same credential — they just lose
-	 *    the write tools.
-	 *
-	 *  - **Escalation** (read → read_write): rotates the credential
-	 *    via regenerate(). Necessary because the Read-only `.mcpb`
-	 *    bundles or pasted snippets the merchant has already handed
-	 *    out are now stale, instead of silently gaining write access.
-	 *    The merchant must re-download / re-paste to grant the
-	 *    elevated scope to specific installs.
-	 *
-	 * @param string $permissions WC permissions value: 'read' | 'write' | 'read_write'.
-	 * @return string|\WP_Error One of the SCOPE_* constants on success, WP_Error on failure.
-	 */
-	public function set_permissions( $permissions ) {
-		$key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
-		if ( $key_id <= 0 ) {
-			// No existing key — provision one with the requested scope.
-			$state = $this->get_or_create( $permissions );
-			return is_wp_error( $state ) ? $state : self::SCOPE_ROTATED;
-		}
-
-		$current = $this->get_stored_permissions( $key_id );
-		$next    = $this->normalise_permissions( $permissions );
-
-		if ( $current === $next ) {
-			return self::SCOPE_NOOP;
-		}
-
-		if ( $this->is_escalation( $current, $next ) ) {
-			$state = $this->regenerate( $next );
-			if ( is_wp_error( $state ) ) {
-				return $state;
-			}
-			return self::SCOPE_ROTATED;
-		}
-
-		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- WC has no public helper for updating an API key row.
-		$updated = $wpdb->update(
-			$wpdb->prefix . 'woocommerce_api_keys',
-			array( 'permissions' => $next ),
-			array( 'key_id' => $key_id ),
-			array( '%s' ),
-			array( '%d' )
-		);
-		if ( false === $updated ) {
-			return new \WP_Error(
-				'hey_woo_scope_update_failed',
-				__( 'Could not update the API key permissions.', 'hey-woo' )
-			);
-		}
-		return self::SCOPE_DOWNGRADED;
-	}
-
-	/**
-	 * Whether $next grants strictly more capability than $current.
-	 *
-	 * Capability ranking, from least to most privileged:
-	 *   read  <  write  <  read_write
-	 *
-	 * @param string $current Existing permission.
-	 * @param string $next    Requested permission.
-	 * @return bool
-	 */
-	private function is_escalation( $current, $next ) {
-		$rank = array(
-			'read'       => 1,
-			'write'      => 2,
-			'read_write' => 3,
-		);
-		$cur  = $rank[ $current ] ?? 0;
-		$new  = $rank[ $next ] ?? 0;
-		return $new > $cur;
+		return $this->create();
 	}
 
 	/**
@@ -281,8 +189,8 @@ class RestApiKey {
 	}
 
 	/**
-	 * Insert a fresh row in woocommerce_api_keys and store the cleartext
-	 * credential locally.
+	 * Insert a fresh read-only row in woocommerce_api_keys and store
+	 * the cleartext credential locally.
 	 *
 	 * Serialised by a transient mutex so two concurrent first-time
 	 * requests can't each succeed and leave one of the rows orphaned
@@ -292,10 +200,9 @@ class RestApiKey {
 	 * the option state — if another request beat us to it, return
 	 * their result rather than inserting a duplicate.
 	 *
-	 * @param string $permissions WC permissions value.
 	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
 	 */
-	private function create( $permissions ) {
+	private function create() {
 		if ( ! function_exists( 'wc_rand_hash' ) || ! function_exists( 'wc_api_hash' ) ) {
 			return new \WP_Error(
 				'hey_woo_wc_helpers_missing',
@@ -330,7 +237,6 @@ class RestApiKey {
 			$this->delete_owned_rows();
 			$this->clear_options();
 
-			$permissions     = $this->normalise_permissions( $permissions );
 			$consumer_key    = 'ck_' . wc_rand_hash();
 			$consumer_secret = 'cs_' . wc_rand_hash();
 			$user_id         = get_current_user_id();
@@ -342,7 +248,7 @@ class RestApiKey {
 				array(
 					'user_id'         => $user_id,
 					'description'     => self::KEY_DESCRIPTION,
-					'permissions'     => $permissions,
+					'permissions'     => 'read',
 					'consumer_key'    => wc_api_hash( $consumer_key ),
 					'consumer_secret' => $consumer_secret,
 					'truncated_key'   => substr( $consumer_key, -7 ),
@@ -404,7 +310,7 @@ class RestApiKey {
 			return array(
 				'credential'    => $credential,
 				'key_id'        => $key_id,
-				'permissions'   => $permissions,
+				'permissions'   => 'read',
 				'owner_user_id' => (int) $user_id,
 			);
 		} finally {
@@ -634,17 +540,6 @@ class RestApiKey {
 			)
 		);
 		return null !== $found;
-	}
-
-	/**
-	 * Coerce arbitrary input to one of WC's accepted permission values.
-	 *
-	 * @param string $permissions Caller-supplied value.
-	 * @return string One of 'read' | 'write' | 'read_write'.
-	 */
-	private function normalise_permissions( $permissions ) {
-		$allowed = array( 'read', 'write', 'read_write' );
-		return in_array( $permissions, $allowed, true ) ? $permissions : 'read';
 	}
 
 	/**

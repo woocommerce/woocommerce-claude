@@ -7,9 +7,9 @@
  *
  * Two-step layout:
  *
- *   Step 1 — Generate an API key (description + permissions form +
- *            explicit Generate button, OR a summary line for the
- *            already-provisioned key with Regenerate / Disconnect).
+ *   Step 1 — Generate a read-only API key (explicit Generate button,
+ *            OR a summary line for the already-provisioned key with
+ *            Regenerate / Disconnect).
  *   Step 2 — Configure in Claude (tabbed: Easy install / Manual setup).
  *
  * Step-2 actions (Download MCPB, copying snippets) require an existing
@@ -35,8 +35,6 @@ use HeyWoo\Setup\RestApiKey;
 use HeyWoo\Setup\SetupPage;
 
 $credential       = $key_state['credential'] ?? '';
-$permissions      = $key_state['permissions'] ?? 'read';
-$is_read_write    = 'read_write' === $permissions;
 $has_key          = null !== $key_state;
 $server_slug      = SetupPage::server_slug();
 $remote_pkg       = SetupPage::REMOTE_PACKAGE;
@@ -73,29 +71,31 @@ $claude_code_command = sprintf(
 );
 
 $notices = array(
-	'mcp_enabled'         => array( 'success', __( 'WooCommerce MCP integration enabled.', 'hey-woo' ) ),
-	'mcp_required'        => array( 'error', __( 'Enable WooCommerce MCP integration first.', 'hey-woo' ) ),
-	'key_generated'       => array( 'success', __( 'API key generated and ready to use with Claude.', 'hey-woo' ) ),
-	'key_exists'          => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'hey-woo' ) ),
-	'key_required'        => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'hey-woo' ) ),
-	'key_regenerated'     => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'hey-woo' ) ),
-	'key_failed'          => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
-	'permissions_updated' => array( 'success', __( 'Access level narrowed. Existing Claude Desktop installs continue to work with the new permissions.', 'hey-woo' ) ),
-	'permissions_rotated' => array( 'success', __( 'Access level upgraded — the API key was rotated. Re-download the MCPB file for Claude Desktop and re-paste any manual configurations so the new credential takes effect.', 'hey-woo' ) ),
-	'disconnected'        => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'hey-woo' ) ),
-	'ownership_changed'   => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'hey-woo' ) ),
+	'mcp_enabled'       => array( 'success', __( 'WooCommerce MCP integration enabled.', 'hey-woo' ) ),
+	'mcp_required'      => array( 'error', __( 'Enable WooCommerce MCP integration first.', 'hey-woo' ) ),
+	'key_generated'     => array( 'success', __( 'API key generated and ready to use with Claude.', 'hey-woo' ) ),
+	'key_exists'        => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'hey-woo' ) ),
+	'key_required'      => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'hey-woo' ) ),
+	'key_regenerated'   => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'hey-woo' ) ),
+	'key_failed'        => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
+	'disconnected'      => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'hey-woo' ) ),
+	'ownership_changed' => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'hey-woo' ) ),
 );
 
-$enable_url           = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
-$download_url         = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
-$regen_url            = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
-$disconnect_url       = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
-$scope_read_url       = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read' ) );
-$scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read_write' ) );
-// The Generate URL ships without `description` / `permissions` query
-// args — JS reads the form and appends them at click time. Backend
-// `handle_generate_key` sanitises both before use.
-$generate_url_base = SetupPage::action_url( SetupPage::ACTION_GENERATE_KEY );
+$enable_url     = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
+$download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
+$regen_url      = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
+$disconnect_url = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
+$generate_url   = SetupPage::action_url( SetupPage::ACTION_GENERATE_KEY );
+
+// Deep link to WC's REST API key list — used for "broaden permissions"
+// guidance. When a key already exists, link straight to its edit form
+// via &edit-key=<id> so the merchant lands on the row's permissions
+// dropdown without having to scroll the list.
+$wc_keys_url     = admin_url( 'admin.php?page=wc-settings&tab=advanced&section=keys' );
+$wc_key_edit_url = $has_key
+	? add_query_arg( 'edit-key', (int) $key_state['key_id'], $wc_keys_url )
+	: $wc_keys_url;
 
 $can_generate          = $mcp_enabled && ! $has_key;
 $can_use_step2_actions = $mcp_enabled && $has_key;
@@ -241,14 +241,21 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 
 		<?php /* Step 1 — Generate API key (form OR summary line). */ ?>
 		<section class="hey-woo-setup__card">
-			<h2 class="hey-woo-setup__card-title"><?php esc_html_e( 'Step 1: Generate an API key', 'hey-woo' ); ?></h2>
+			<?php if ( ! $has_key ) : ?>
+				<h2 class="hey-woo-setup__card-title"><?php esc_html_e( 'Step 1: Generate an API key', 'hey-woo' ); ?></h2>
+			<?php endif; ?>
 
 			<?php if ( $has_key ) : ?>
 
 				<div class="hey-woo-setup__keyrow">
 					<div class="hey-woo-setup__keyrow-meta">
-						<span class="hey-woo-setup__field-label"><?php esc_html_e( 'API KEY', 'hey-woo' ); ?></span>
-						<p>
+						<div class="hey-woo-setup__keyrow-label">
+							<span class="hey-woo-setup__field-label"><?php esc_html_e( 'API KEY', 'hey-woo' ); ?></span>
+							<span class="hey-woo-setup__pill hey-woo-setup__pill--<?php echo $mcp_enabled ? 'live' : 'off'; ?>">
+								<?php echo $mcp_enabled ? esc_html__( 'LIVE', 'hey-woo' ) : esc_html__( 'OFF', 'hey-woo' ); ?>
+							</span>
+						</div>
+						<p class="hey-woo-setup__keyrow-name">
 							<?php
 							printf(
 								/* translators: %s: key description label. */
@@ -259,15 +266,18 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 						</p>
 					</div>
 					<div class="hey-woo-setup__keyrow-actions">
+						<a class="hey-woo-setup__textlink" href="<?php echo esc_url( $wc_key_edit_url ); ?>">
+							<?php esc_html_e( 'Permissions', 'hey-woo' ); ?>
+						</a>
 						<a
-							class="button"
+							class="hey-woo-setup__textlink"
 							href="<?php echo esc_url( $regen_url ); ?>"
 							onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'hey-woo' ) ); ?>');"
 						>
 							<?php esc_html_e( 'Regenerate', 'hey-woo' ); ?>
 						</a>
 						<a
-							class="button"
+							class="hey-woo-setup__textlink"
 							href="<?php echo esc_url( $disconnect_url ); ?>"
 							onclick="return confirm('<?php echo esc_js( __( 'Disconnect Hey Woo and revoke the API key? Any installed bundle stops authenticating immediately and the credential is removed from WooCommerce.', 'hey-woo' ) ); ?>');"
 						>
@@ -275,93 +285,39 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 						</a>
 					</div>
 				</div>
-
-				<?php
-				/*
-				 * In-place scope toggle for the existing key. ACTION_SET_PERMS
-				 * routes downgrades through an in-place UPDATE (existing
-				 * bundles keep working with narrower capabilities) and
-				 * routes escalations through credential rotation (so already-
-				 * distributed Read bundles don't silently gain write
-				 * access). Each option carries its own pre-nonced URL;
-				 * JS navigates on change. Disabled while MCP is off,
-				 * matching the backend gate in handle_set_permissions.
-				 */
-				$can_change_perms = $mcp_enabled;
-				?>
-				<div class="hey-woo-setup__field hey-woo-setup__field--keyperms">
-					<label for="hey-woo-permissions-existing" class="hey-woo-setup__field-label">
-						<?php esc_html_e( 'PERMISSIONS', 'hey-woo' ); ?>
-					</label>
-					<select
-						id="hey-woo-permissions-existing"
-						class="hey-woo-setup__input"
-						data-hey-woo-perm-toggle
-						<?php disabled( ! $can_change_perms ); ?>
-					>
-						<option
-							value="read"
-							data-url="<?php echo esc_attr( $scope_read_url ); ?>"
-							<?php selected( ! $is_read_write ); ?>
-						>
-							<?php esc_html_e( 'Read', 'hey-woo' ); ?>
-						</option>
-						<option
-							value="read_write"
-							data-url="<?php echo esc_attr( $scope_read_write_url ); ?>"
-							<?php selected( $is_read_write ); ?>
-						>
-							<?php esc_html_e( 'Read + Write', 'hey-woo' ); ?>
-						</option>
-					</select>
-					<p class="hey-woo-setup__field-help">
-						<?php esc_html_e( 'Switching to Read narrows existing Claude installs in place — no re-download needed. Switching to Read + Write rotates the credential, so any installed bundles or pasted snippets will need to be re-downloaded / re-pasted.', 'hey-woo' ); ?>
-					</p>
-				</div>
+				<p class="hey-woo-setup__keyrow-help">
+					<?php esc_html_e( 'To broaden access, click Permissions and pick Read/Write — Write alone disables reads. If you have shared the MCPB file, click Regenerate first so older copies stop authenticating before the new scope takes effect.', 'hey-woo' ); ?>
+				</p>
 
 			<?php else : ?>
 
 				<p class="hey-woo-setup__card-lede">
 					<?php
 					printf(
-						/* translators: %s: canonical key description label that will appear in WC's REST API list. */
-						esc_html__( 'A WooCommerce REST API key labelled %s will be created for Claude. Pick the access level it should have.', 'hey-woo' ),
-						'<code>' . esc_html( $default_key_desc ) . '</code>'
+						wp_kses(
+							/* translators: 1: canonical key description label. 2: link to WC's REST API key list. */
+							__( 'A read-only WooCommerce REST API key labelled %1$s will be created for Claude. If you later want Claude to make changes, change its scope to Read/Write under %2$s.', 'hey-woo' ),
+							array(
+								'code' => array(),
+								'a'    => array( 'href' => array() ),
+							)
+						),
+						'<code>' . esc_html( $default_key_desc ) . '</code>',
+						'<a href="' . esc_url( $wc_keys_url ) . '">' . esc_html__( 'WooCommerce → Settings → Advanced → REST API', 'hey-woo' ) . '</a>'
 					);
 					?>
 				</p>
 
-				<div class="hey-woo-setup__field">
-					<label for="hey-woo-permissions" class="hey-woo-setup__field-label">
-						<?php esc_html_e( 'PERMISSIONS', 'hey-woo' ); ?>
-					</label>
-					<select
-						id="hey-woo-permissions"
-						class="hey-woo-setup__input"
-						<?php disabled( ! $can_generate ); ?>
-					>
-						<option value="read" selected><?php esc_html_e( 'Read', 'hey-woo' ); ?></option>
-						<option value="read_write"><?php esc_html_e( 'Read + Write', 'hey-woo' ); ?></option>
-					</select>
-					<p
-						class="hey-woo-setup__field-help hey-woo-setup__field-help--write-warn"
-						data-hey-woo-write-warning
-						hidden
-					>
-						<?php esc_html_e( 'Read + Write lets Claude create and edit products, orders, and other store data. Pick this only if you want Claude to make changes — Read is enough for analytics and recommendations.', 'hey-woo' ); ?>
-					</p>
-				</div>
-
 				<div class="hey-woo-setup__actions">
-					<button
-						type="button"
-						class="button button-primary"
-						data-hey-woo-generate
-						data-hey-woo-action-base="<?php echo esc_attr( $generate_url_base ); ?>"
-						<?php disabled( ! $can_generate ); ?>
-					>
-						<?php esc_html_e( 'Generate key', 'hey-woo' ); ?>
-					</button>
+					<?php if ( $can_generate ) : ?>
+						<a class="button button-primary" href="<?php echo esc_url( $generate_url ); ?>">
+							<?php esc_html_e( 'Generate key', 'hey-woo' ); ?>
+						</a>
+					<?php else : ?>
+						<button type="button" class="button button-primary" disabled>
+							<?php esc_html_e( 'Generate key', 'hey-woo' ); ?>
+						</button>
+					<?php endif; ?>
 				</div>
 
 			<?php endif; ?>

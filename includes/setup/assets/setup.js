@@ -2,10 +2,6 @@
  * Hey Woo setup page client-side wiring.
  *
  *  - Tab switcher for the Step 2 "Easy install" / "Manual setup" panels.
- *  - Generate button that reads the description + permissions form
- *    fields and navigates to the nonce-protected admin-post URL with
- *    those values appended as query args.
- *  - Inline "Read + Write" warning toggle on the permissions dropdown.
  *  - Copy-to-clipboard for the manual snippets.
  */
 (function () {
@@ -55,69 +51,6 @@
 					nextTab.focus();
 				}
 			});
-		});
-	}
-
-	function initGenerate() {
-		var button = document.querySelector('[data-hey-woo-generate]');
-		if (!button) {
-			return;
-		}
-
-		button.addEventListener('click', function () {
-			if (button.disabled) {
-				return;
-			}
-			var base = button.getAttribute('data-hey-woo-action-base') || '';
-			if (!base) {
-				return;
-			}
-
-			var permissionsInput = document.getElementById('hey-woo-permissions');
-			var permissions = permissionsInput ? permissionsInput.value : 'read';
-
-			var separator = base.indexOf('?') >= 0 ? '&' : '?';
-			var url = base + separator + 'permissions=' + encodeURIComponent(permissions);
-
-			button.disabled = true;
-			button.textContent = button.dataset.busyLabel || 'Generating…';
-			window.location.href = url;
-		});
-	}
-
-	function initWriteWarning() {
-		var permissionsInput = document.getElementById('hey-woo-permissions');
-		var warning = document.querySelector('[data-hey-woo-write-warning]');
-		if (!permissionsInput || !warning) {
-			return;
-		}
-
-		function update() {
-			warning.hidden = permissionsInput.value !== 'read_write';
-		}
-
-		permissionsInput.addEventListener('change', update);
-		update();
-	}
-
-	function initPermsToggle() {
-		var select = document.querySelector('[data-hey-woo-perm-toggle]');
-		if (!select) {
-			return;
-		}
-		// Snapshot the on-load value so a no-op change doesn't trigger
-		// navigation, and so we can restore the visible value if the
-		// admin uses the back button without the page reloading.
-		select.dataset.previousValue = select.value;
-
-		select.addEventListener('change', function () {
-			var option = select.options[select.selectedIndex];
-			var url = option ? option.getAttribute('data-url') : '';
-			if (!url || select.value === select.dataset.previousValue) {
-				return;
-			}
-			select.disabled = true;
-			window.location.href = url;
 		});
 	}
 
@@ -184,9 +117,6 @@
 
 	function init() {
 		initTabs();
-		initGenerate();
-		initWriteWarning();
-		initPermsToggle();
 		initCopy();
 	}
 

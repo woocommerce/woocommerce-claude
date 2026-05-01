@@ -51,7 +51,6 @@ class SetupPage {
 	const ACTION_DOWNLOAD     = 'hey_woo_download_mcpb';
 	const ACTION_REGEN_KEY    = 'hey_woo_regenerate_key';
 	const ACTION_ENABLE_MCP   = 'hey_woo_enable_mcp_feature';
-	const ACTION_SET_PERMS    = 'hey_woo_set_permissions';
 	const ACTION_DISCONNECT   = 'hey_woo_disconnect';
 	const ACTION_GENERATE_KEY = 'hey_woo_generate_key';
 
@@ -64,7 +63,6 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_DOWNLOAD, array( __CLASS__, 'handle_download' ) );
 		add_action( 'admin_post_' . self::ACTION_REGEN_KEY, array( __CLASS__, 'handle_regenerate_key' ) );
 		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
-		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
 
@@ -206,9 +204,9 @@ class SetupPage {
 	 * `user_id`, so showing the credential to a different admin (or
 	 * to a shop manager with `manage_woocommerce`) would let them
 	 * exfiltrate it and impersonate the original owner remotely. Only
-	 * the owner sees the credential, the bundle download, the manual
-	 * snippets, and the scope toggle. Non-owners get a "Regenerate
-	 * to re-bind to you" panel.
+	 * the owner sees the credential, the bundle download, and the
+	 * manual snippets. Non-owners get a "Regenerate to re-bind to you"
+	 * panel.
 	 */
 	public static function render_setup_view() {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
@@ -323,30 +321,32 @@ class SetupPage {
 	}
 
 	/**
-	 * Rotate the API key (revoke + recreate). Preserves the current
-	 * permissions scope.
+	 * Rotate the API key (revoke + recreate). Always issues a fresh
+	 * read-only key; if the merchant had previously broadened the
+	 * scope under WooCommerce → Settings → Advanced → REST API,
+	 * they re-apply that change there after regenerating.
 	 *
 	 * Refuses if no key exists — Regenerate is a rotation primitive,
 	 * never a mint primitive. Without this gate a stale URL could
-	 * silently create a default-permissions key, bypassing the
-	 * explicit Generate step.
+	 * silently create a key, bypassing the explicit Generate step.
 	 */
 	public static function handle_regenerate_key() {
 		self::guard( self::ACTION_REGEN_KEY );
 
 		$key_helper = new RestApiKey();
-		$existing   = $key_helper->existing_state();
-		if ( null === $existing ) {
+		if ( null === $key_helper->existing_state() ) {
 			self::redirect( 'key_required' );
 		}
 
-		$state = $key_helper->regenerate( $existing['permissions'] );
+		$state = $key_helper->regenerate();
 
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_regenerated' );
 	}
 
 	/**
 	 * Provision the Hey Woo REST API key from the explicit Step 1 form.
+	 * Always provisions a read-only key — the merchant can broaden it
+	 * later under WooCommerce → Settings → Advanced → REST API.
 	 *
 	 * Gated by:
 	 *  - manage_woocommerce + nonce (self::guard)
@@ -359,10 +359,9 @@ class SetupPage {
 	 *    explicitly invalidates distributed bundles) instead of
 	 *    silently rotating.
 	 *
-	 * Reads `permissions` from the GET query string. The description
-	 * column is always written as the canonical KEY_DESCRIPTION so
-	 * RestApiKey::delete_owned_rows() retains its description-based
-	 * orphan-cleanup safety net.
+	 * The description column is always written as the canonical
+	 * KEY_DESCRIPTION so RestApiKey::delete_owned_rows() retains its
+	 * description-based orphan-cleanup safety net.
 	 */
 	public static function handle_generate_key() {
 		self::guard( self::ACTION_GENERATE_KEY );
@@ -391,10 +390,7 @@ class SetupPage {
 			self::redirect( 'key_exists' );
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
-		$permissions = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( (string) $_GET['permissions'] ) ) : 'read';
-
-		$state = $key_helper->get_or_create( $permissions );
+		$state = $key_helper->get_or_create();
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_generated' );
 	}
 
@@ -406,70 +402,6 @@ class SetupPage {
 
 		update_option( self::FEATURE_FLAG_OPTION, 'yes' );
 		self::redirect( 'mcp_enabled' );
-	}
-
-	/**
-	 * Toggle between read and read_write scope on the existing key.
-	 * Reads the new scope from the `permissions` query arg (the action
-	 * is GET-based; nonce verified by self::guard()).
-	 *
-	 * Ownership gate: scope changes affect what the credential can
-	 * do, and a non-owner shouldn't be able to escalate someone
-	 * else's key. Only the owner can call this; non-owners must
-	 * Regenerate first to re-bind the key to themselves.
-	 */
-	public static function handle_set_permissions() {
-		self::guard( self::ACTION_SET_PERMS );
-		self::require_key_owner();
-
-		// Scope changes are meaningless while the MCP endpoint is off
-		// — and worse, an unsuspecting merchant could escalate to
-		// Read+Write thinking the integration is dormant when in fact
-		// the rotated credential remains usable against the standard
-		// WC REST surface. Refuse the action until MCP is back on.
-		if ( ! self::mcp_feature_enabled() ) {
-			self::redirect( 'mcp_required' );
-		}
-
-		$key_helper = new RestApiKey();
-
-		// Scope is a property of an existing key — refuse if there
-		// isn't one. Without this gate, a stale URL would silently
-		// trigger RestApiKey::set_permissions()'s no-key fallback,
-		// which mints a fresh credential with the requested scope,
-		// bypassing the explicit Generate step.
-		if ( null === $key_helper->existing_state() ) {
-			self::redirect( 'key_required' );
-		}
-
-		$expected_user_id = get_current_user_id();
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
-		$requested = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( $_GET['permissions'] ) ) : 'read';
-		$allowed   = array( 'read', 'read_write' );
-		if ( ! in_array( $requested, $allowed, true ) ) {
-			$requested = 'read';
-		}
-
-		$result = $key_helper->set_permissions( $requested );
-
-		if ( is_wp_error( $result ) ) {
-			self::redirect( 'key_failed' );
-		}
-
-		// TOCTOU re-check: a concurrent regenerate could have rotated
-		// the key out from under us between the initial gate and the
-		// scope change. Confirm the post-state is still ours.
-		$post = $key_helper->existing_state();
-		if ( null !== $post && (int) $post['owner_user_id'] !== $expected_user_id ) {
-			self::redirect( 'ownership_changed' );
-		}
-
-		// Distinguish in-place downgrade from credential rotation,
-		// because rotation invalidates already-distributed bundles
-		// and the merchant needs to know to re-download.
-		$flash = RestApiKey::SCOPE_ROTATED === $result ? 'permissions_rotated' : 'permissions_updated';
-		self::redirect( $flash );
 	}
 
 	/**
@@ -492,7 +424,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Add a "Set up Claude" link to the plugin's row on Plugins screen.
+	 * Add a "Setup" link to the plugin's row on the Plugins screen.
 	 *
 	 * @param array<int|string,string> $links Existing links.
 	 * @return array<int|string,string>
@@ -504,7 +436,7 @@ class SetupPage {
 		$setup_link = sprintf(
 			'<a href="%s">%s</a>',
 			esc_url( self::url() ),
-			esc_html__( 'Set up Claude', 'hey-woo' )
+			esc_html__( 'Setup', 'hey-woo' )
 		);
 		array_unshift( $links, $setup_link );
 		return $links;
