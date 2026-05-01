@@ -104,6 +104,27 @@
 		update();
 	}
 
+	function initPermsToggle() {
+		var select = document.querySelector('[data-hey-woo-perm-toggle]');
+		if (!select) {
+			return;
+		}
+		// Snapshot the on-load value so a no-op change doesn't trigger
+		// navigation, and so we can restore the visible value if the
+		// admin uses the back button without the page reloading.
+		select.dataset.previousValue = select.value;
+
+		select.addEventListener('change', function () {
+			var option = select.options[select.selectedIndex];
+			var url = option ? option.getAttribute('data-url') : '';
+			if (!url || select.value === select.dataset.previousValue) {
+				return;
+			}
+			select.disabled = true;
+			window.location.href = url;
+		});
+	}
+
 	function copyText(text, button) {
 		if (!text) {
 			return;
@@ -169,6 +190,7 @@
 		initTabs();
 		initGenerate();
 		initWriteWarning();
+		initPermsToggle();
 		initCopy();
 	}
 

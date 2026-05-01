@@ -208,6 +208,9 @@ select.hey-woo-setup__input {
 	justify-content: space-between;
 	gap: 16px;
 	flex-wrap: wrap;
+	padding-bottom: 18px;
+	margin-bottom: 18px;
+	border-bottom: 1px solid #f0f0f1;
 }
 
 .hey-woo-setup__keyrow-meta {
@@ -225,6 +228,15 @@ select.hey-woo-setup__input {
 	display: flex;
 	gap: 8px;
 	flex-wrap: wrap;
+}
+
+/*
+ * Permissions toggle below the keyrow. The keyrow's bottom border
+ * already provides the separator; drop the field's bottom margin so
+ * the card padding handles spacing to Step 2.
+ */
+.hey-woo-setup__field--keyperms {
+	margin-bottom: 0;
 }
 
 /* ---- Tabs (Step 2) ---- */

@@ -672,9 +672,18 @@ class RestApiKey {
 		if ( '' === $trimmed ) {
 			return self::KEY_DESCRIPTION;
 		}
+		$stripped = wp_strip_all_tags( $trimmed );
 		// WC's own create-key admin truncates to 200; mirror that to
 		// avoid surprising row-too-long errors on stricter DB configs.
-		return mb_substr( wp_strip_all_tags( $trimmed ), 0, 200 );
+		// Prefer mb_substr for multi-byte safety, but the plugin doesn't
+		// declare ext-mbstring as a dependency — fall back to byte-based
+		// substr when the extension is unavailable. Worst case: a
+		// multi-byte character at the 200-byte boundary loses a byte;
+		// acceptable for an informational admin label.
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $stripped, 0, 200 );
+		}
+		return substr( $stripped, 0, 200 );
 	}
 
 	/**

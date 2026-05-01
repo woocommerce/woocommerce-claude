@@ -85,10 +85,12 @@ $notices = array(
 	'ownership_changed'   => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'hey-woo' ) ),
 );
 
-$enable_url     = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
-$download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
-$regen_url      = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
-$disconnect_url = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
+$enable_url           = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
+$download_url         = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
+$regen_url            = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
+$disconnect_url       = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
+$scope_read_url       = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read' ) );
+$scope_read_write_url = SetupPage::action_url( SetupPage::ACTION_SET_PERMS, array( 'permissions' => 'read_write' ) );
 // The Generate URL ships without `description` / `permissions` query
 // args — JS reads the form and appends them at click time. Backend
 // `handle_generate_key` sanitises both before use.
@@ -248,10 +250,9 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 						<p>
 							<?php
 							printf(
-								/* translators: 1: key description label, 2: current scope. */
-								esc_html__( 'API key: %1$s (%2$s)', 'hey-woo' ),
-								esc_html( $default_key_desc ),
-								esc_html( $is_read_write ? __( 'Read + Write', 'hey-woo' ) : __( 'Read', 'hey-woo' ) )
+								/* translators: %s: key description label. */
+								esc_html__( 'API key: %s', 'hey-woo' ),
+								esc_html( $default_key_desc )
 							);
 							?>
 						</p>
@@ -272,6 +273,49 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 							<?php esc_html_e( 'Disconnect', 'hey-woo' ); ?>
 						</a>
 					</div>
+				</div>
+
+				<?php
+				/*
+				 * In-place scope toggle for the existing key. ACTION_SET_PERMS
+				 * routes downgrades through an in-place UPDATE (existing
+				 * bundles keep working with narrower capabilities) and
+				 * routes escalations through credential rotation (so already-
+				 * distributed Read bundles don't silently gain write
+				 * access). Each option carries its own pre-nonced URL;
+				 * JS navigates on change. Disabled while MCP is off,
+				 * matching the backend gate in handle_set_permissions.
+				 */
+				$can_change_perms = $mcp_enabled;
+				?>
+				<div class="hey-woo-setup__field hey-woo-setup__field--keyperms">
+					<label for="hey-woo-permissions-existing" class="hey-woo-setup__field-label">
+						<?php esc_html_e( 'PERMISSIONS', 'hey-woo' ); ?>
+					</label>
+					<select
+						id="hey-woo-permissions-existing"
+						class="hey-woo-setup__input"
+						data-hey-woo-perm-toggle
+						<?php disabled( ! $can_change_perms ); ?>
+					>
+						<option
+							value="read"
+							data-url="<?php echo esc_attr( $scope_read_url ); ?>"
+							<?php selected( ! $is_read_write ); ?>
+						>
+							<?php esc_html_e( 'Read', 'hey-woo' ); ?>
+						</option>
+						<option
+							value="read_write"
+							data-url="<?php echo esc_attr( $scope_read_write_url ); ?>"
+							<?php selected( $is_read_write ); ?>
+						>
+							<?php esc_html_e( 'Read + Write', 'hey-woo' ); ?>
+						</option>
+					</select>
+					<p class="hey-woo-setup__field-help">
+						<?php esc_html_e( 'Switching to Read narrows existing Claude installs in place — no re-download needed. Switching to Read + Write rotates the credential, so any installed bundles or pasted snippets will need to be re-downloaded / re-pasted.', 'hey-woo' ); ?>
+					</p>
 				</div>
 
 			<?php else : ?>
