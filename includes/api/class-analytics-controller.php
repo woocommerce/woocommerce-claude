@@ -5540,6 +5540,7 @@ class AnalyticsController {
 			"SELECT
 				ocl.coupon_id AS group_key,
 				COALESCE(NULLIF(p.post_title, ''), CAST(ocl.coupon_id AS CHAR)) AS coupon_code,
+				p.ID AS coupon_post_id,
 				COALESCE(pm_type.meta_value, 'unknown') AS coupon_type,
 				COALESCE(CAST(pm_amount.meta_value AS DECIMAL(18,4)), 0) AS coupon_amount,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN os.net_total ELSE 0 END) AS net_revenue,
@@ -5569,7 +5570,7 @@ class AnalyticsController {
 				AND pm_amount.meta_key = 'coupon_amount'
 			WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
 				AND ( (os.parent_id = 0 AND os.status IN ({$admin_ph})) OR os.parent_id != 0 )
-			GROUP BY ocl.coupon_id, coupon_code, coupon_type, coupon_amount
+			GROUP BY ocl.coupon_id, coupon_code, coupon_post_id, coupon_type, coupon_amount
 			HAVING orders_count != 0 OR pipeline_orders_count != 0 OR admin_orders_count != 0
 			ORDER BY {$orderby_col} DESC
 			LIMIT %d",
@@ -5679,10 +5680,19 @@ class AnalyticsController {
 			? round( ( $effective_campaign_cost / $net_revenue ) * 100, 1 )
 			: 0.0;
 
+		// Coupon post may be deleted — the row is preserved (LEFT JOIN +
+		// COALESCE on coupon_code) but coupon_post_id is null. Skip the URL
+		// in that case so we don't link the merchant to a missing edit
+		// screen; the description-side "deleted coupons surface their numeric
+		// ID" guidance still surfaces the row honestly.
+		$coupon_post_id = isset( $row['coupon_post_id'] ) && null !== $row['coupon_post_id']
+			? (int) $row['coupon_post_id']
+			: 0;
+
 		return array(
 			'key'                                    => $coupon_id,
 			'coupon_code'                            => $coupon_code,
-			'admin_url'                              => self::coupon_admin_url( $coupon_id ),
+			'admin_url'                              => self::coupon_admin_url( $coupon_post_id ),
 			'coupon_type'                            => (string) $row['coupon_type'],
 			'coupon_amount'                          => round( (float) $row['coupon_amount'], 2 ),
 			'net_revenue'                            => $net_revenue,
@@ -6253,6 +6263,7 @@ class AnalyticsController {
 			"SELECT
 				pl.product_id AS group_key,
 				COALESCE(p.post_title, CONCAT('#', pl.product_id)) AS group_label,
+				p.ID AS product_post_id,
 				ABS(SUM(pl.product_net_revenue)) AS refunds_amount,
 				COUNT(*) AS refunds_count,
 				COUNT(DISTINCT refund.parent_id) AS orders_refunded_count,
@@ -6275,7 +6286,7 @@ class AnalyticsController {
 			WHERE refund.parent_id != 0
 				AND refund.date_created >= %s
 				AND refund.date_created <= %s
-			GROUP BY pl.product_id, p.post_title, paid.paid_gross
+			GROUP BY pl.product_id, p.post_title, p.ID, paid.paid_gross
 			ORDER BY refunds_amount DESC
 			LIMIT %d",
 			array_merge(
@@ -6298,8 +6309,14 @@ class AnalyticsController {
 
 		return array_map(
 			function ( $row ) {
-				$key       = (string) $row['group_key'];
-				$admin_url = self::product_admin_url( (int) $row['group_key'] );
+				$key = (string) $row['group_key'];
+				// Product post may be deleted — refunds against it stay in
+				// the report (LEFT JOIN + COALESCE on the label) but linking
+				// to a missing edit screen would mislead, so gate the URL
+				// on the joined post actually existing.
+				$admin_url = ( isset( $row['product_post_id'] ) && null !== $row['product_post_id'] )
+					? self::product_admin_url( (int) $row['product_post_id'] )
+					: null;
 				return self::shape_refund_group_row( $key, (string) $row['group_label'], $row, $admin_url );
 			},
 			$rows
