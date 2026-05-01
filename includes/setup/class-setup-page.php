@@ -372,10 +372,22 @@ class SetupPage {
 		}
 
 		$key_helper = new RestApiKey();
-		if ( $key_helper->exists() ) {
+		if ( null !== $key_helper->existing_state() ) {
 			// Idempotent landing for double-submits — surface the
 			// existing key rather than treating it as an error or
 			// silently rotating.
+			//
+			// Use the same "key exists" definition the renderer uses
+			// (existing_state, not exists) so partial state — e.g.
+			// OPTION_KEY_ID points at a live WC row but OPTION_CREDENTIAL
+			// was lost in a compensating-cleanup race — drops through
+			// to get_or_create(), whose stale-state recovery clears
+			// the dangling option and lets create() revoke the orphan
+			// row via its canonical KEY_DESCRIPTION marker before
+			// inserting a fresh credential. Without this alignment the
+			// renderer would show the Generate form while the handler
+			// kept refusing — leaving the merchant stuck without a DB
+			// edit.
 			self::redirect( 'key_exists' );
 		}
 

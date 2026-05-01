@@ -494,6 +494,48 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Partial state recovery: OPTION_KEY_ID + WC row are intact but
+	 * OPTION_CREDENTIAL was lost (compensating-cleanup race in
+	 * create(), interrupted uninstall, manual DB edit). The renderer
+	 * reads this as "no key" via existing_state(), so the Generate
+	 * handler — which gates on the same predicate — drops through to
+	 * get_or_create() and lets it self-heal. Without this contract,
+	 * the renderer would show the Generate form while the handler
+	 * kept refusing as "key already exists", stranding the merchant
+	 * with no UI escape.
+	 *
+	 * Pins the helper-level recovery: after the second get_or_create()
+	 * call against partial state, exactly one Hey-Woo-owned row exists
+	 * (the original was revoked as an orphan via canonical-description
+	 * cleanup) and both options point at the fresh credential.
+	 */
+	public function test_get_or_create_recovers_from_partial_credential_state() {
+		$helper          = new RestApiKey();
+		$first           = $helper->get_or_create( 'read' );
+		$original_key_id = (int) $first['key_id'];
+
+		// Simulate the partial state — drop only the credential
+		// option, leaving the key_id pointer and the underlying WC
+		// row intact.
+		delete_option( RestApiKey::OPTION_CREDENTIAL );
+
+		// The renderer / Generate handler share existing_state().
+		// exists() (row-only) still reports true; the divergence is
+		// exactly the bug this test guards against.
+		$this->assertNull( $helper->existing_state(), 'Renderer view: partial state reads as "no key".' );
+		$this->assertTrue( $helper->exists(), 'Row-only view differs — row is still present.' );
+
+		$recovered = $helper->get_or_create( 'read' );
+
+		$this->assertIsArray( $recovered );
+		$this->assertNotEmpty( $recovered['credential'] );
+		$this->assertNotSame( $original_key_id, (int) $recovered['key_id'], 'A fresh row was provisioned.' );
+		$this->assertSame( 1, $this->count_owned_rows(), 'Orphan row was revoked before the fresh insert.' );
+		$this->assertSame( $recovered['credential'], get_option( RestApiKey::OPTION_CREDENTIAL ) );
+		$this->assertSame( $recovered['key_id'], (int) get_option( RestApiKey::OPTION_KEY_ID ) );
+	}
+
+	/**
 	 * Refuses the download when no key has been generated yet.
 	 *
 	 * The redesigned UI gates Step 2 behind an explicit Step 1 Generate
