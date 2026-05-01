@@ -8676,8 +8676,10 @@ class AnalyticsController {
 
 		$rows = array();
 		foreach ( $raw as $r ) {
-			$rows[] = array(
-				'product_id'             => (int) $r['product_id'],
+			$product_id = (int) $r['product_id'];
+			$rows[]     = array(
+				'product_id'             => $product_id,
+				'admin_url'              => self::product_admin_url( $product_id ),
 				'name'                   => (string) $r['name'],
 				'sku'                    => (string) $r['sku'],
 				'status'                 => (string) $r['status'],
