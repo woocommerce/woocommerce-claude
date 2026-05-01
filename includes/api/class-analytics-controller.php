@@ -1820,6 +1820,69 @@ class AnalyticsController {
 	}
 
 	/**
+	 * Build admin URL for a customer's WooCommerce Analytics single-customer view.
+	 *
+	 * Targets the WC Admin Customers report (`page=wc-admin&path=/customers`)
+	 * rather than `user-edit.php` because the WC view works for both
+	 * registered users and guest-checkout records (which never get a WP
+	 * user account but do live in `wc_customer_lookup`). Returns null for
+	 * `customer_id = 0` (guests not tracked in lookup).
+	 *
+	 * Output is consumed as a JSON value and rendered as a markdown link in
+	 * chat — no HTML escaping here. The id is cast to int so the URL is
+	 * always well-formed, and `admin_url()` honours the site's configured
+	 * admin path (single-site + multisite safe).
+	 *
+	 * @param int $customer_id WooCommerce customer id (wc_customer_lookup.customer_id).
+	 * @return string|null Admin URL, or null when the id is non-positive.
+	 */
+	public static function customer_admin_url( $customer_id ) {
+		$id = (int) $customer_id;
+		if ( $id <= 0 ) {
+			return null;
+		}
+		return admin_url( 'admin.php?page=wc-admin&path=/customers&filter=single_customer&customers=' . $id );
+	}
+
+	/**
+	 * Build admin edit URL for an order. HPOS-aware via the same `OrderUtil`
+	 * helper `get_order_meta_source()` uses — falls back to the classic
+	 * `post.php` URL when HPOS is unavailable or disabled. Returns null for
+	 * non-positive ids.
+	 *
+	 * @param int $order_id Order id.
+	 * @return string|null Admin URL, or null when the id is non-positive.
+	 */
+	public static function order_admin_url( $order_id ) {
+		$id = (int) $order_id;
+		if ( $id <= 0 ) {
+			return null;
+		}
+
+		$util = '\\Automattic\\WooCommerce\\Utilities\\OrderUtil';
+		if ( class_exists( $util ) && $util::custom_orders_table_usage_is_enabled() ) {
+			return admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $id );
+		}
+
+		return admin_url( 'post.php?post=' . $id . '&action=edit' );
+	}
+
+	/**
+	 * Build admin edit URL for a coupon (post_type = shop_coupon). Returns
+	 * null for non-positive ids.
+	 *
+	 * @param int $coupon_id Coupon post id.
+	 * @return string|null Admin URL, or null when the id is non-positive.
+	 */
+	public static function coupon_admin_url( $coupon_id ) {
+		$id = (int) $coupon_id;
+		if ( $id <= 0 ) {
+			return null;
+		}
+		return admin_url( 'post.php?post=' . $id . '&action=edit' );
+	}
+
+	/**
 	 * Resolve the time-series interval based on the date range length.
 	 *
 	 * Empty input → no series (return ''). 'auto' → bucket size based on range:
@@ -5619,6 +5682,7 @@ class AnalyticsController {
 		return array(
 			'key'                                    => $coupon_id,
 			'coupon_code'                            => $coupon_code,
+			'admin_url'                              => self::coupon_admin_url( $coupon_id ),
 			'coupon_type'                            => (string) $row['coupon_type'],
 			'coupon_amount'                          => round( (float) $row['coupon_amount'], 2 ),
 			'net_revenue'                            => $net_revenue,
@@ -6234,7 +6298,9 @@ class AnalyticsController {
 
 		return array_map(
 			function ( $row ) {
-				return self::shape_refund_group_row( (string) $row['group_key'], (string) $row['group_label'], $row );
+				$key       = (string) $row['group_key'];
+				$admin_url = self::product_admin_url( (int) $row['group_key'] );
+				return self::shape_refund_group_row( $key, (string) $row['group_label'], $row, $admin_url );
 			},
 			$rows
 		);
@@ -6345,15 +6411,21 @@ class AnalyticsController {
 	 * fetch_refund_analysis() because the store-wide denominator isn't
 	 * available here — this helper only handles the per-row mapping.
 	 *
-	 * @param string $key   Group key (stable string).
-	 * @param string $label Human-readable label.
-	 * @param array  $row   Raw SQL row.
+	 * `$admin_url` is null for country rows (countries have no admin
+	 * screen) and a product-edit URL for product rows. The key always
+	 * stays present so the response shape is identical across dimensions.
+	 *
+	 * @param string      $key       Group key (stable string).
+	 * @param string      $label     Human-readable label.
+	 * @param array       $row       Raw SQL row.
+	 * @param string|null $admin_url Optional WP Admin URL for the row's entity.
 	 * @return array Shaped group row.
 	 */
-	private static function shape_refund_group_row( $key, $label, $row ) {
+	private static function shape_refund_group_row( $key, $label, $row, $admin_url = null ) {
 		return array(
 			'key'                   => $key,
 			'label'                 => $label,
+			'admin_url'             => $admin_url,
 			'refunds_amount'        => round( (float) $row['refunds_amount'], 2 ),
 			'refunds_count'         => (int) $row['refunds_count'],
 			'orders_refunded_count' => (int) $row['orders_refunded_count'],
@@ -7535,15 +7607,18 @@ class AnalyticsController {
 
 		$rows = array();
 		foreach ( $raw_rows as $r ) {
-			$rows[] = array(
+			$customer_id = (int) $r['customer_id'];
+			$rows[]      = array(
 				'order_id'           => (int) $r['order_id'],
 				'order_ref'          => '#' . (int) $r['order_id'],
+				'admin_url'          => self::order_admin_url( $r['order_id'] ),
 				'date'               => substr( (string) $r['date_created'], 0, 10 ),
 				'status'             => (string) $r['status'],
 				'net_total'          => round( (float) $r['net_total'], 2 ),
 				'gross_total'        => round( (float) $r['total_sales'], 2 ),
 				'num_items_sold'     => (int) $r['num_items_sold'],
-				'customer_id_pseudo' => $r['customer_id'] ? 'Customer #' . (int) $r['customer_id'] : 'Guest',
+				'customer_id_pseudo' => $customer_id ? 'Customer #' . $customer_id : 'Guest',
+				'customer_admin_url' => self::customer_admin_url( $customer_id ),
 				'returning_customer' => (bool) $r['returning_customer'],
 			);
 		}
@@ -9031,8 +9106,10 @@ class AnalyticsController {
 
 		$rows = array();
 		foreach ( $raw as $r ) {
-			$rows[] = array(
-				'customer_id_pseudo'    => 'Customer #' . (int) $r['customer_id'],
+			$customer_id = (int) $r['customer_id'];
+			$rows[]      = array(
+				'customer_id_pseudo'    => 'Customer #' . $customer_id,
+				'admin_url'             => self::customer_admin_url( $customer_id ),
 				'country'               => (string) $r['country'],
 				'state'                 => (string) $r['state'],
 				'city'                  => (string) $r['city'],

@@ -102,6 +102,11 @@ When the first call returns zero rows, diagnose by explaining what the filters w
 MODE — AGGREGATE vs ROWS:
 - aggregate (default): summary + universe + share_of_universe + (orders only) pipeline + admin_equivalent sibling blocks. Use for any headline question — "how many", "how much", "what share". This honours the aggregated-only privacy rule.
 - rows: top-N list (limit 1-50, default 25) with per-entity row shape. Use when the merchant explicitly asks to see the specifics ("show me the actual orders", "give me the top 10 customers"). Rows mode on customers entity always returns pseudonymised ids ("Customer #N") — real names and emails are never returned. Direct the merchant to WP Admin > WooCommerce > Customers when they need the identity behind a pseudonymised id.
+- ROWS-MODE LINKING: every row carries WP Admin URLs so the merchant can jump straight to the entity. Render references as clickable markdown links to those URLs:
+  - `admin_url` on orders rows: the order edit screen — render the order ref like `[#1247](https://example.com/wp-admin/...)`.
+  - `customer_admin_url` on orders rows: the WC Customers report for that customer (null for guests) — when present, render the pseudonymised customer id like `[Customer #88](https://example.com/wp-admin/...)`.
+  - `admin_url` on customers rows: the WC Customers report for that customer — render the pseudonymised customer id as a markdown link to it.
+  - `admin_url` on products rows: same pattern as get_product_performance — render the product name as a markdown link.
 
 READ — DON'T DERIVE:
 - share_of_universe.share_of_orders_percent, share_of_revenue_percent, share_of_products_percent, share_of_customers_percent, share_of_lifetime_spend_percent are ALL pre-computed. Read them directly. Never divide matched_count / universe yourself — the rounding will disagree with what the tool returned.
