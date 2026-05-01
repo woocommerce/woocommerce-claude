@@ -385,6 +385,32 @@ select.hey-woo-setup__input {
 	color: #50575e;
 }
 
+/* ---- "Try it out" prompts list ---- */
+
+.hey-woo-setup__prompts {
+	list-style: none;
+	margin: 0 0 16px;
+	padding: 0;
+	border-top: 1px solid #f0f0f1;
+}
+
+.hey-woo-setup__prompt {
+	margin: 0;
+	padding: 12px 0;
+	border-bottom: 1px solid #f0f0f1;
+	font-size: 14px;
+	font-weight: 500;
+	color: #1d2327;
+	line-height: 1.45;
+}
+
+.hey-woo-setup__prompt-footer {
+	margin: 4px 0 0;
+	font-size: 13px;
+	color: #50575e;
+	line-height: 1.55;
+}
+
 /* ---- Code blocks (Manual setup) ---- */
 
 /*

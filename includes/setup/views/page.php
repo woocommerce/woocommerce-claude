@@ -456,6 +456,59 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 			</div>
 		</section>
 
+		<?php
+		/*
+		 * "Try it out" card — only relevant once the connection is live
+		 * ($mcp_enabled && $has_key, captured by $can_use_step2_actions).
+		 * Three starter questions the merchant can paste straight into
+		 * Claude, plus a link to a longer set of guide questions in the
+		 * repo. Intentionally avoids referencing MCP slash commands —
+		 * the picker UX varies across clients and a "paste this question"
+		 * pathway works on every Claude surface.
+		 */
+		if ( $can_use_step2_actions ) :
+			$starter_prompts = array(
+				__( 'Walk me through my store — what it sells, who buys, and what to look at this week.', 'hey-woo' ),
+				__( 'Revenue is down vs. last period — find the cause.', 'hey-woo' ),
+				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'hey-woo' ),
+			);
+			$guides_url      = 'https://github.com/woocommerce/hey-woo/blob/trunk/docs/prompt-guides.md';
+			?>
+			<section class="hey-woo-setup__card">
+				<h2 class="hey-woo-setup__card-title"><?php esc_html_e( 'Try it out', 'hey-woo' ); ?></h2>
+				<p class="hey-woo-setup__card-lede">
+					<?php esc_html_e( 'Three starter questions you can ask Claude about your store. Open Claude, paste one in, and Hey Woo will pull the data and write the answer.', 'hey-woo' ); ?>
+				</p>
+
+				<ul class="hey-woo-setup__prompts">
+					<?php foreach ( $starter_prompts as $question ) : ?>
+						<li class="hey-woo-setup__prompt">
+							<?php echo esc_html( $question ); ?>
+						</li>
+					<?php endforeach; ?>
+				</ul>
+
+				<p class="hey-woo-setup__prompt-footer">
+					<?php
+					printf(
+						wp_kses(
+							/* translators: %s: URL to the prompt-guides.md doc on GitHub. */
+							__( 'Want more ideas? See the <a href="%s" target="_blank" rel="noopener">prompt guides</a> in the repo for a longer list of questions you can ask, organised by what you\'re trying to learn.', 'hey-woo' ),
+							array(
+								'a' => array(
+									'href'   => array(),
+									'target' => array(),
+									'rel'    => array(),
+								),
+							)
+						),
+						esc_url( $guides_url )
+					);
+					?>
+				</p>
+			</section>
+		<?php endif; /* end Try it out card */ ?>
+
 	<?php endif; /* end non-owner gate */ ?>
 
 </div>
