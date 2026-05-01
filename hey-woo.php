@@ -94,3 +94,25 @@ add_action(
 		}
 	}
 );
+
+/**
+ * On deactivation, revoke the auto-created WooCommerce REST API key.
+ *
+ * Without this, a merchant who deactivates Hey Woo to roll back or
+ * disconnect Claude leaves an active credential behind: the WC core
+ * MCP server (and standard REST API) keep authenticating it because
+ * those surfaces don't depend on Hey Woo being active. Revoking on
+ * deactivation matches the merchant's mental model — "I turned this
+ * off, so the connection is closed."
+ *
+ * Re-activating the plugin re-runs the setup flow and provisions a
+ * fresh key, so the round-trip is clean.
+ */
+register_deactivation_hook(
+	__FILE__,
+	function () {
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
+		( new \HeyWoo\Setup\RestApiKey() )->revoke();
+	}
+);
+
