@@ -39,7 +39,7 @@ What's bleeding today.
 
 - *"What's stuck in fulfillment? Show on-hold orders by age and any failed orders from the last 30 days."*
 - *"Which top sellers are running low or out based on sales velocity?"*
-- *"Where am I losing margin — biggest discounts, highest refunds, longest fulfilment times?"*
+- *"Where's the leakage right now — biggest discounts, biggest refunds, and oldest on-hold or failed orders worth chasing?"*
 
 ## 5. Tune up the catalog
 
