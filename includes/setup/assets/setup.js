@@ -73,15 +73,11 @@
 				return;
 			}
 
-			var descriptionInput = document.getElementById('hey-woo-description');
 			var permissionsInput = document.getElementById('hey-woo-permissions');
-			var description = descriptionInput ? descriptionInput.value.trim() : '';
 			var permissions = permissionsInput ? permissionsInput.value : 'read';
 
 			var separator = base.indexOf('?') >= 0 ? '&' : '?';
-			var url = base + separator
-				+ 'permissions=' + encodeURIComponent(permissions)
-				+ '&description=' + encodeURIComponent(description);
+			var url = base + separator + 'permissions=' + encodeURIComponent(permissions);
 
 			button.disabled = true;
 			button.textContent = button.dataset.busyLabel || 'Generating…';

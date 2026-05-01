@@ -77,6 +77,7 @@ $notices = array(
 	'mcp_required'        => array( 'error', __( 'Enable WooCommerce MCP integration first.', 'hey-woo' ) ),
 	'key_generated'       => array( 'success', __( 'API key generated and ready to use with Claude.', 'hey-woo' ) ),
 	'key_exists'          => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'hey-woo' ) ),
+	'key_required'        => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'hey-woo' ) ),
 	'key_regenerated'     => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'hey-woo' ) ),
 	'key_failed'          => array( 'error', __( 'Could not provision the API key. Check the error log.', 'hey-woo' ) ),
 	'permissions_updated' => array( 'success', __( 'Access level narrowed. Existing Claude Desktop installs continue to work with the new permissions.', 'hey-woo' ) ),
@@ -320,22 +321,15 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 
 			<?php else : ?>
 
-				<div class="hey-woo-setup__field">
-					<label for="hey-woo-description" class="hey-woo-setup__field-label">
-						<?php esc_html_e( 'DESCRIPTION', 'hey-woo' ); ?>
-					</label>
-					<input
-						type="text"
-						id="hey-woo-description"
-						class="hey-woo-setup__input"
-						placeholder="<?php echo esc_attr( $default_key_desc ); ?>"
-						value=""
-						<?php disabled( ! $can_generate ); ?>
-					/>
-					<p class="hey-woo-setup__field-help">
-						<?php esc_html_e( 'Shown alongside the key in WooCommerce → Settings → Advanced → REST API. Leave blank to use the default.', 'hey-woo' ); ?>
-					</p>
-				</div>
+				<p class="hey-woo-setup__card-lede">
+					<?php
+					printf(
+						/* translators: %s: canonical key description label that will appear in WC's REST API list. */
+						esc_html__( 'A WooCommerce REST API key labelled %s will be created for Claude. Pick the access level it should have.', 'hey-woo' ),
+						'<code>' . esc_html( $default_key_desc ) . '</code>'
+					);
+					?>
+				</p>
 
 				<div class="hey-woo-setup__field">
 					<label for="hey-woo-permissions" class="hey-woo-setup__field-label">

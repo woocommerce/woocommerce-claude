@@ -279,14 +279,18 @@ class SetupPage {
 	 * without fighting wp_safe_redirect/exit. Validates, in order:
 	 *
 	 *   1. MCP feature flag is on (else `mcp_required`).
-	 *   2. Provisioning succeeded (else `key_failed`).
-	 *   3. The provisioned key is *still* owned by $expected_user_id —
+	 *   2. A key already exists (else `key_required`). The download is
+	 *      a *use* of an explicitly-generated credential — never a
+	 *      mint path. Without this gate a stale or bookmarked download
+	 *      URL with a still-valid nonce could silently provision a
+	 *      default-permissions key, bypassing the explicit Generate
+	 *      step and the merchant's chosen scope.
+	 *   3. The current key is *still* owned by $expected_user_id —
 	 *      this closes the download TOCTOU where a concurrent
 	 *      regenerate could transfer ownership between the initial
-	 *      `require_key_owner()` gate and this method's get_or_create
-	 *      call. Without the re-check, the current user could
-	 *      exfiltrate a credential that was just rotated to authenticate
-	 *      as a different admin.
+	 *      `require_key_owner()` gate and this method's lookup. Without
+	 *      the re-check, the current user could exfiltrate a credential
+	 *      that was just rotated to authenticate as a different admin.
 	 *
 	 * @param int $expected_user_id The user_id whose download was approved.
 	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
@@ -300,11 +304,11 @@ class SetupPage {
 		}
 
 		$key_helper = new RestApiKey();
-		$state      = $key_helper->get_or_create( 'read' );
-		if ( is_wp_error( $state ) ) {
+		$state      = $key_helper->existing_state();
+		if ( null === $state ) {
 			return new \WP_Error(
-				'key_failed',
-				__( 'Could not provision the API key.', 'hey-woo' )
+				'key_required',
+				__( 'Generate an API key in Step 1 before downloading.', 'hey-woo' )
 			);
 		}
 
@@ -321,14 +325,22 @@ class SetupPage {
 	/**
 	 * Rotate the API key (revoke + recreate). Preserves the current
 	 * permissions scope.
+	 *
+	 * Refuses if no key exists — Regenerate is a rotation primitive,
+	 * never a mint primitive. Without this gate a stale URL could
+	 * silently create a default-permissions key, bypassing the
+	 * explicit Generate step.
 	 */
 	public static function handle_regenerate_key() {
 		self::guard( self::ACTION_REGEN_KEY );
 
 		$key_helper = new RestApiKey();
-		$existing   = $key_helper->exists();
-		$current    = $existing ? ( $key_helper->get_or_create( 'read' )['permissions'] ?? 'read' ) : 'read';
-		$state      = $key_helper->regenerate( $current );
+		$existing   = $key_helper->existing_state();
+		if ( null === $existing ) {
+			self::redirect( 'key_required' );
+		}
+
+		$state = $key_helper->regenerate( $existing['permissions'] );
 
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_regenerated' );
 	}
@@ -347,8 +359,10 @@ class SetupPage {
 	 *    explicitly invalidates distributed bundles) instead of
 	 *    silently rotating.
 	 *
-	 * Reads `description` and `permissions` from the GET query string.
-	 * Both are sanitised by the underlying RestApiKey helpers.
+	 * Reads `permissions` from the GET query string. The description
+	 * column is always written as the canonical KEY_DESCRIPTION so
+	 * RestApiKey::delete_owned_rows() retains its description-based
+	 * orphan-cleanup safety net.
 	 */
 	public static function handle_generate_key() {
 		self::guard( self::ACTION_GENERATE_KEY );
@@ -365,12 +379,10 @@ class SetupPage {
 			self::redirect( 'key_exists' );
 		}
 
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
-		$description = isset( $_GET['description'] ) ? wp_unslash( (string) $_GET['description'] ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
 		$permissions = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( (string) $_GET['permissions'] ) ) : 'read';
-		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		$state = $key_helper->get_or_create( $permissions, $description );
+		$state = $key_helper->get_or_create( $permissions );
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_generated' );
 	}
 
@@ -407,6 +419,17 @@ class SetupPage {
 			self::redirect( 'mcp_required' );
 		}
 
+		$key_helper = new RestApiKey();
+
+		// Scope is a property of an existing key — refuse if there
+		// isn't one. Without this gate, a stale URL would silently
+		// trigger RestApiKey::set_permissions()'s no-key fallback,
+		// which mints a fresh credential with the requested scope,
+		// bypassing the explicit Generate step.
+		if ( null === $key_helper->existing_state() ) {
+			self::redirect( 'key_required' );
+		}
+
 		$expected_user_id = get_current_user_id();
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
@@ -416,8 +439,7 @@ class SetupPage {
 			$requested = 'read';
 		}
 
-		$key_helper = new RestApiKey();
-		$result     = $key_helper->set_permissions( $requested );
+		$result = $key_helper->set_permissions( $requested );
 
 		if ( is_wp_error( $result ) ) {
 			self::redirect( 'key_failed' );

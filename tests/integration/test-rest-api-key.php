@@ -482,11 +482,35 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
 
+		// Mirror the production flow — Step 1 explicitly provisions
+		// the key before Step 2's download is reachable.
+		( new RestApiKey() )->get_or_create( 'read' );
+
 		$result = SetupPage::prepare_download_state( $user_id );
 
 		$this->assertIsArray( $result );
 		$this->assertSame( $user_id, $result['owner_user_id'] );
 		$this->assertNotEmpty( $result['credential'] );
+	}
+
+	/**
+	 * Refuses the download when no key has been generated yet.
+	 *
+	 * The redesigned UI gates Step 2 behind an explicit Step 1 Generate
+	 * click; this test pins the equivalent backend gate so a stale or
+	 * bookmarked download URL with a still-valid nonce can't silently
+	 * mint a default-permissions credential.
+	 */
+	public function test_prepare_download_state_refuses_when_no_key_exists() {
+		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
+
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $user_id );
+
+		$result = SetupPage::prepare_download_state( $user_id );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'key_required', $result->get_error_code() );
 	}
 
 	/**
