@@ -48,11 +48,12 @@ class SetupPage {
 	 */
 	const SETTINGS_TAB = 'hey-woo';
 
-	const ACTION_DOWNLOAD   = 'hey_woo_download_mcpb';
-	const ACTION_REGEN_KEY  = 'hey_woo_regenerate_key';
-	const ACTION_ENABLE_MCP = 'hey_woo_enable_mcp_feature';
-	const ACTION_SET_PERMS  = 'hey_woo_set_permissions';
-	const ACTION_DISCONNECT = 'hey_woo_disconnect';
+	const ACTION_DOWNLOAD     = 'hey_woo_download_mcpb';
+	const ACTION_REGEN_KEY    = 'hey_woo_regenerate_key';
+	const ACTION_ENABLE_MCP   = 'hey_woo_enable_mcp_feature';
+	const ACTION_SET_PERMS    = 'hey_woo_set_permissions';
+	const ACTION_DISCONNECT   = 'hey_woo_disconnect';
+	const ACTION_GENERATE_KEY = 'hey_woo_generate_key';
 
 	/**
 	 * Wire all hooks. Called once during plugin bootstrap.
@@ -65,6 +66,7 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
 		add_action( 'admin_post_' . self::ACTION_SET_PERMS, array( __CLASS__, 'handle_set_permissions' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
+		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
 
 		// Restrict the setup credential to the WC MCP endpoint only.
 		// WC's API key auth runs at priority 10 on `determine_current_user`;
@@ -221,21 +223,16 @@ class SetupPage {
 		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		/*
-		 * Lookup is independent of the MCP flag. An existing Hey Woo
-		 * REST key authenticates against the WC REST surface generally,
-		 * not just /wp-json/woocommerce/mcp — so the page must surface
+		 * Render-time lookup is read-only. An existing Hey Woo REST
+		 * key authenticates against the WC REST surface generally, not
+		 * just /wp-json/woocommerce/mcp — so the page must surface
 		 * (and offer to disconnect) an existing key even when MCP is
-		 * off. Lazy provisioning still only happens when MCP is on,
-		 * since there's no reason to mint a credential for a flag that
-		 * gates the only thing it'd be embedded into.
+		 * off. Provisioning is gated behind the explicit "Generate
+		 * key" button (see handle_generate_key) rather than happening
+		 * silently on render — the merchant should always know when a
+		 * credential has been minted on their behalf.
 		 */
 		$key_state = $key_helper->existing_state();
-		if ( null === $key_state && $mcp_enabled ) {
-			$created = $key_helper->get_or_create( 'read' );
-			if ( ! is_wp_error( $created ) ) {
-				$key_state = $created;
-			}
-		}
 
 		$current_user_id = get_current_user_id();
 		$owner_user_id   = is_array( $key_state ) ? (int) ( $key_state['owner_user_id'] ?? 0 ) : 0;
@@ -334,6 +331,47 @@ class SetupPage {
 		$state      = $key_helper->regenerate( $current );
 
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_regenerated' );
+	}
+
+	/**
+	 * Provision the Hey Woo REST API key from the explicit Step 1 form.
+	 *
+	 * Gated by:
+	 *  - manage_woocommerce + nonce (self::guard)
+	 *  - WC MCP feature flag — refusing here mirrors the disabled state
+	 *    of the Generate button in the UI; if the feature was flipped
+	 *    off between page render and click submit, surface the
+	 *    `mcp_required` flash so the merchant re-enables it first.
+	 *  - No existing key — generation is a create-only action; if a key
+	 *    already exists the merchant should use Regenerate (which
+	 *    explicitly invalidates distributed bundles) instead of
+	 *    silently rotating.
+	 *
+	 * Reads `description` and `permissions` from the GET query string.
+	 * Both are sanitised by the underlying RestApiKey helpers.
+	 */
+	public static function handle_generate_key() {
+		self::guard( self::ACTION_GENERATE_KEY );
+
+		if ( ! self::mcp_feature_enabled() ) {
+			self::redirect( 'mcp_required' );
+		}
+
+		$key_helper = new RestApiKey();
+		if ( $key_helper->exists() ) {
+			// Idempotent landing for double-submits — surface the
+			// existing key rather than treating it as an error or
+			// silently rotating.
+			self::redirect( 'key_exists' );
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- nonce verified by self::guard() above.
+		$description = isset( $_GET['description'] ) ? wp_unslash( (string) $_GET['description'] ) : '';
+		$permissions = isset( $_GET['permissions'] ) ? sanitize_key( wp_unslash( (string) $_GET['permissions'] ) ) : 'read';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$state = $key_helper->get_or_create( $permissions, $description );
+		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_generated' );
 	}
 
 	/**

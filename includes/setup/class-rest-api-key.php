@@ -77,9 +77,11 @@ class RestApiKey {
 	 * admin from extracting another admin's bound credential.
 	 *
 	 * @param string $permissions WC permissions value: 'read' | 'write' | 'read_write'.
+	 * @param string $description Optional human-readable description stored on the WC API key row.
+	 *                            Defaults to the canonical KEY_DESCRIPTION used for orphan cleanup.
 	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
 	 */
-	public function get_or_create( $permissions = 'read' ) {
+	public function get_or_create( $permissions = 'read', $description = '' ) {
 		$credential = get_option( self::OPTION_CREDENTIAL, '' );
 		$key_id     = (int) get_option( self::OPTION_KEY_ID, 0 );
 
@@ -97,7 +99,7 @@ class RestApiKey {
 			$this->clear_options();
 		}
 
-		return $this->create( $permissions );
+		return $this->create( $permissions, $description );
 	}
 
 	/**
@@ -105,11 +107,12 @@ class RestApiKey {
 	 * the same shape as get_or_create().
 	 *
 	 * @param string $permissions WC permissions value.
+	 * @param string $description Optional human-readable description stored on the WC API key row.
 	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
 	 */
-	public function regenerate( $permissions = 'read' ) {
+	public function regenerate( $permissions = 'read', $description = '' ) {
 		$this->revoke();
-		return $this->create( $permissions );
+		return $this->create( $permissions, $description );
 	}
 
 	/**
@@ -293,9 +296,11 @@ class RestApiKey {
 	 * their result rather than inserting a duplicate.
 	 *
 	 * @param string $permissions WC permissions value.
+	 * @param string $description Optional override for the WC API key row's description.
+	 *                            Empty string falls back to KEY_DESCRIPTION (the orphan-cleanup marker).
 	 * @return array{credential:string,key_id:int,permissions:string}|\WP_Error
 	 */
-	private function create( $permissions ) {
+	private function create( $permissions, $description = '' ) {
 		if ( ! function_exists( 'wc_rand_hash' ) || ! function_exists( 'wc_api_hash' ) ) {
 			return new \WP_Error(
 				'hey_woo_wc_helpers_missing',
@@ -334,6 +339,7 @@ class RestApiKey {
 			$consumer_key    = 'ck_' . wc_rand_hash();
 			$consumer_secret = 'cs_' . wc_rand_hash();
 			$user_id         = get_current_user_id();
+			$description     = $this->normalise_description( $description );
 
 			global $wpdb;
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- WC has no public helper for inserting an API key row.
@@ -341,7 +347,7 @@ class RestApiKey {
 				$wpdb->prefix . 'woocommerce_api_keys',
 				array(
 					'user_id'         => $user_id,
-					'description'     => self::KEY_DESCRIPTION,
+					'description'     => $description,
 					'permissions'     => $permissions,
 					'consumer_key'    => wc_api_hash( $consumer_key ),
 					'consumer_secret' => $consumer_secret,
@@ -544,13 +550,37 @@ class RestApiKey {
 	}
 
 	/**
-	 * Delete every woocommerce_api_keys row whose description matches
-	 * Hey Woo's exact label. Catches orphans from concurrent inserts
-	 * and cleans up after manual table edits in WC admin.
+	 * Delete every Hey-Woo-owned woocommerce_api_keys row.
+	 *
+	 * Two passes so a merchant-customised description can't strand the
+	 * tracked row:
+	 *
+	 *  1. Delete by tracked key_id (OPTION_KEY_ID). Authoritative — this
+	 *     is the row we provisioned, regardless of what description the
+	 *     merchant typed into the Step 1 form.
+	 *
+	 *  2. Delete by canonical KEY_DESCRIPTION. Safety net for orphans
+	 *     from concurrent inserts or manual table edits in WC admin
+	 *     where OPTION_KEY_ID was lost but the row still carries the
+	 *     default label. A row with a customised description that is
+	 *     also unreachable via OPTION_KEY_ID is intentionally left
+	 *     alone — we can't tell it apart from a row the merchant
+	 *     created themselves.
 	 */
 	private function delete_owned_rows() {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped revocation; no caching surface.
+
+		$tracked_key_id = (int) get_option( self::OPTION_KEY_ID, 0 );
+		if ( $tracked_key_id > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- key_id-scoped revocation; no caching surface.
+			$wpdb->delete(
+				$wpdb->prefix . 'woocommerce_api_keys',
+				array( 'key_id' => $tracked_key_id ),
+				array( '%d' )
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped orphan cleanup; no caching surface.
 		$wpdb->delete(
 			$wpdb->prefix . 'woocommerce_api_keys',
 			array( 'description' => self::KEY_DESCRIPTION ),
@@ -623,6 +653,28 @@ class RestApiKey {
 	private function normalise_permissions( $permissions ) {
 		$allowed = array( 'read', 'write', 'read_write' );
 		return in_array( $permissions, $allowed, true ) ? $permissions : 'read';
+	}
+
+	/**
+	 * Coerce caller-supplied description to something safe to write into
+	 * woocommerce_api_keys.description. Empty / whitespace-only input
+	 * falls back to the canonical KEY_DESCRIPTION so the orphan-cleanup
+	 * safety net in delete_owned_rows() still applies.
+	 *
+	 * @param string $description Raw description value from the setup form.
+	 * @return string
+	 */
+	private function normalise_description( $description ) {
+		if ( ! is_string( $description ) ) {
+			return self::KEY_DESCRIPTION;
+		}
+		$trimmed = trim( $description );
+		if ( '' === $trimmed ) {
+			return self::KEY_DESCRIPTION;
+		}
+		// WC's own create-key admin truncates to 200; mirror that to
+		// avoid surprising row-too-long errors on stricter DB configs.
+		return mb_substr( wp_strip_all_tags( $trimmed ), 0, 200 );
 	}
 
 	/**
