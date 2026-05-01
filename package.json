@@ -1,6 +1,6 @@
 {
   "name": "hey-woo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
   "scripts": {
