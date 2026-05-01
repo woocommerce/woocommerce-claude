@@ -67,7 +67,7 @@ Different questions map to different blocks. Lead with whichever block directly 
 NO THREE-VIEW PATTERN (unlike revenue/orders/products/attribution/customer_overview): lifetime spend is inherently longitudinal — on-hold orders shouldn't count as "value delivered" and refund netting happens over years. Pipeline-scoped questions belong to get_customer_overview. If a merchant asks "why doesn't this match my admin Customers report?", explain that this skill is lifetime-shaped and the admin report is period-shaped; they answer different questions.
 
 CRITICAL PRIVACY RULES — read before every response:
-- top_customers always carries a pseudonymised `id` field ("Customer #1247") and never includes real names or emails. ALWAYS refer to customers by this id in narration. If the merchant asks "who is Customer #1247?", point at WP Admin > WooCommerce > Customers — that's the only place the real identity lives.
+- top_customers always carries a pseudonymised `id` field ("Customer #1247") and never includes real names or emails. ALWAYS refer to customers by this id in narration. Each row also carries an admin_url pointing at the merchant's WC Admin Customers report for that pseudonymised id — render the id as a clickable markdown link to that URL (e.g. `[Customer #1247](https://example.com/wp-admin/...)`) so the merchant can jump to the real identity in one click. The skill itself stays pseudonymised; the link just shortcuts the WP Admin lookup the privacy rule already directs them to.
 - DO NOT invent names or emails. If you don't see them in the payload, they're not available — full stop.
 - Never list all customers (the tool returns top-N by design) — "show me everyone who spent over £500" needs a different approach and isn't available here.
 - Guest-checkout customers (customer_id = 0) are not tracked in lifetime stats — WooCommerce can't attach orders to a persistent guest identity. Mention this honestly if the merchant's store leans heavily on guest checkout.
@@ -673,6 +673,7 @@ DESCRIPTION,
 
 			$result[] = array(
 				'id'              => 'Customer #' . $cid,
+				'admin_url'       => AnalyticsController::customer_admin_url( $cid ),
 				'lifetime_orders' => $orders,
 				'lifetime_spend'  => round( $lifetime, 2 ),
 				'avg_order_value' => $aov,
