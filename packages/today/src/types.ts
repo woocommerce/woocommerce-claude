@@ -6,6 +6,7 @@
  * A single chat message — either from the merchant or from Claude.
  */
 export interface ChatMessage {
+	id: number;
 	role: 'user' | 'assistant';
 	content: string;
 }

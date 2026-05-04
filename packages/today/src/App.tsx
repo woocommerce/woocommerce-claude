@@ -51,8 +51,8 @@ export function App() {
 					</p>
 				) }
 
-				{ state.messages.map( ( msg, i ) => (
-					<ChatBubble key={ i } message={ msg } />
+				{ state.messages.map( ( msg ) => (
+					<ChatBubble key={ msg.id } message={ msg } />
 				) ) }
 
 				{ isSending && (

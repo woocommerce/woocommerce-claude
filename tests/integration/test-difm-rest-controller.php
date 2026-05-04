@@ -277,4 +277,200 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertFalse( $data['valid'] );
 		$this->assertArrayHasKey( 'message', $data );
 	}
+
+	// ── POST /difm/chat — history capping ────────────────────────────────────
+
+	/**
+	 * POST /difm/chat caps conversation history to MAX_HISTORY_TURNS * 2 messages.
+	 */
+	public function test_chat_caps_history_to_max_turns() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$captured_body = null;
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $parsed_args ) use ( &$captured_body ) {
+				$captured_body = json_decode( $parsed_args['body'], true );
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Done.',
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		// Build 42 history items (21 user + 21 assistant pairs).
+		$history = array();
+		for ( $i = 0; $i < 42; $i++ ) {
+			$history[] = array(
+				'role'    => 0 === $i % 2 ? 'user' : 'assistant',
+				'content' => "Message {$i}",
+			);
+		}
+
+		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request->set_param( 'message', 'Final question' );
+		$request->set_param( 'history', $history );
+		$this->server->dispatch( $request );
+
+		remove_all_filters( 'pre_http_request' );
+
+		// Expect 40 capped history messages + 1 new user message = 41 total.
+		$this->assertNotNull( $captured_body );
+		$this->assertCount( 41, $captured_body['messages'] );
+		$this->assertSame( 'Final question', $captured_body['messages'][40]['content'] );
+	}
+
+	// ── POST /difm/chat — Anthropic error ────────────────────────────────────
+
+	/**
+	 * POST /difm/chat returns HTTP 200 {'status':'error','message':'...'} when
+	 * Anthropic rejects the request, rather than an HTTP 500.
+	 */
+	public function test_chat_returns_json_error_on_anthropic_failure() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		add_filter(
+			'pre_http_request',
+			static function () {
+				return array(
+					'response' => array(
+						'code'    => 400,
+						'message' => 'Bad Request',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'  => 'error',
+							'error' => array( 'message' => 'Invalid request body.' ),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request->set_param( 'message', 'Hello' );
+		$response = $this->server->dispatch( $request );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'error', $data['status'] );
+		$this->assertArrayHasKey( 'message', $data );
+	}
+
+	// ── POST /difm/chat — tool use loop ──────────────────────────────────────
+
+	/**
+	 * POST /difm/chat executes a tool-use round-trip: first Anthropic call
+	 * returns tool_use, PHP executes the tool, second call returns the final reply.
+	 */
+	public function test_chat_executes_tool_use_loop() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$call_count       = 0;
+		$second_call_body = null;
+
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $parsed_args ) use ( &$call_count, &$second_call_body ) {
+				++$call_count;
+
+				if ( 1 === $call_count ) {
+					// First call: Claude requests a tool.
+					return array(
+						'response' => array(
+							'code'    => 200,
+							'message' => 'OK',
+						),
+						'body'     => wp_json_encode(
+							array(
+								'type'        => 'message',
+								'stop_reason' => 'tool_use',
+								'content'     => array(
+									array(
+										'type'  => 'tool_use',
+										'id'    => 'toolu_01',
+										'name'  => 'get_revenue_summary',
+										'input' => array( 'period' => 'last_7_days' ),
+									),
+								),
+							)
+						),
+						'headers'  => array(),
+					);
+				}
+
+				// Second call: capture the body and return the final answer.
+				$second_call_body = json_decode( $parsed_args['body'], true );
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Your revenue last week was great.',
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request->set_param( 'message', 'What were my sales last week?' );
+		$response = $this->server->dispatch( $request );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		// Two Anthropic calls were made.
+		$this->assertSame( 2, $call_count );
+
+		// The second call must include a tool_result in the message history.
+		$this->assertNotNull( $second_call_body );
+		$messages       = $second_call_body['messages'];
+		$last_user_turn = end( $messages );
+		$this->assertIsArray( $last_user_turn['content'] );
+		$this->assertSame( 'tool_result', $last_user_turn['content'][0]['type'] );
+		$this->assertSame( 'toolu_01', $last_user_turn['content'][0]['tool_use_id'] );
+
+		// The final response is a successful reply.
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Your revenue last week was great.', $data['reply'] );
+	}
 }

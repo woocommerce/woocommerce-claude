@@ -18,7 +18,7 @@ const DEFAULTS: ModuleData = {
 	restBase: '',
 	settingsUrl: '',
 	userName: '',
-	currency: '£',
+	currency: '',
 	hasKey: false,
 };
 
