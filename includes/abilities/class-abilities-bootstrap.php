@@ -80,8 +80,8 @@ class AbilitiesBootstrap {
 		}
 
 		// Non-analytics tools (hey-woo/*) — store knowledge, readiness,
-		// and suggestion helpers. Picked up by the woocommerce_mcp_include_ability
-		// filter alongside wc-analytics/*.
+		// and suggestion helpers. Exposed as MCP tools on
+		// /wp-json/hey-woo/mcp via Plugin::mcp_tool_ability_ids().
 		GetStoreProfileAbility::register();
 		SearchProductsAbility::register();
 		GetProductDetailsAbility::register();
@@ -89,9 +89,8 @@ class AbilitiesBootstrap {
 		GetRecommendationsAbility::register();
 		SuggestImprovementsAbility::register();
 
-		// Resources (wc-knowledge/*) and prompts (wc-prompts/*) — wired into
-		// the Woo core MCP server by Plugin::inject_mcp_components, not by
-		// the tools include filter.
+		// Resources (wc-knowledge/*) and prompts (wc-prompts/*) — passed
+		// directly into create_server() by Plugin::register_mcp_server().
 		StoreProfileAbility::register();
 		CatalogSchemaAbility::register();
 		StorePoliciesAbility::register();

@@ -1,6 +1,6 @@
 # Hey Woo
 
-The intelligence layer on top of WooCommerce core's MCP server: analytics skills, knowledge resources, prompts, and an AI-readiness scoring engine, registered as WordPress Abilities and exposed through the single MCP endpoint at `/wp-json/woocommerce/mcp`.
+The intelligence layer for an AI-ready WooCommerce store: analytics skills, knowledge resources, prompts, and an AI-readiness scoring engine, registered as WordPress Abilities and exposed through the plugin's own MCP endpoint at `/wp-json/hey-woo/mcp`.
 
 WordPress plugin, PHP 7.4+, GPL-3.0-or-later. Public repo — never commit secrets, internal-only URLs, or anything not intended for public distribution.
 
@@ -27,7 +27,7 @@ WordPress plugin, PHP 7.4+, GPL-3.0-or-later. Public repo — never commit secre
 hey-woo/
 ├── hey-woo.php               # Plugin bootstrap (HPOS declaration, requirements, options migration)
 ├── includes/
-│   ├── class-plugin.php      # Singleton — wires hooks, MCP filter, mcp_adapter_init injection
+│   ├── class-plugin.php      # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
 │   ├── abilities/            # One file per skill. wc-analytics/* (analytics tools),
 │   │                         # hey-woo/* (store/readiness/search tools), wc-knowledge/*
 │   │                         # (resources), wc-prompts/* (prompts), hey-woo-integrations/*
@@ -56,8 +56,8 @@ hey-woo/
 
 ```bash
 npx @wordpress/env start          # boots WP 6.9 + WC + this plugin on http://localhost:8888
-                                   # afterStart enables the MCP feature flag, activates WC + Hey Woo,
-                                   # installs WC pages, sets a UK store address (London / GBP)
+                                   # afterStart activates WC + Hey Woo, installs WC pages,
+                                   # sets a UK store address (London / GBP)
 ./bin/check                        # full pre-push gate (PHPCS, composer audit, PHPUnit, DCC)
 ```
 
@@ -72,9 +72,9 @@ npx @wordpress/env run cli -- wp eval-file /tmp/seed.php
 
 These are validated decisions. **MUST NOT** relitigate without strong new signal.
 
-- **No separate MCP server process.** Everything ships through WC core's MCP at `/wp-json/woocommerce/mcp`. This plugin registers WordPress Abilities (`wp_register_ability`) and opts them in via `woocommerce_mcp_include_ability` for tools and `mcp_adapter_init` (priority 20, after WC's 10) for resources/prompts. WC core's component registry exposes `register_resources()` / `register_prompts()` — that's the injection seam.
+- **Plugin-owned MCP server.** Hey Woo registers its own MCP server at `/wp-json/hey-woo/mcp` via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`). The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('hey-woo', 'hey-woo', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts. Auth uses an `X-MCP-API-Key: ck:cs` header backed by a standard WC REST API key. The earlier "ride on WC's `woocommerce-mcp` server via `woocommerce_mcp_include_ability`" approach is gone — that endpoint is being deprecated upstream.
 - **Single Abilities API namespace.** Every analytics skill is at `wp-abilities/v1/abilities/wc-analytics/{skill}/run`. Earlier custom `hey-woo/v1/analytics/*` REST routes were folded into Abilities so MCP and direct callers hit one surface.
-- **Three plugin-owned ability prefixes**, declared in `Plugin::OWNED_ABILITY_NAMESPACES`: `wc-analytics/`, `hey-woo/`, `hey-woo-integrations/`. The WC auth scope filter trusts only routes under these prefixes — a Hey Woo consumer key cannot be replayed against abilities registered by other plugins. Adding a fourth prefix is a single-edit operation; the `include_wc_analytics_in_mcp` filter must be updated in lockstep.
+- **Three plugin-owned ability prefixes**, declared in `Plugin::OWNED_ABILITY_NAMESPACES`: `wc-analytics/`, `hey-woo/`, `hey-woo-integrations/`. The WC auth scope filter trusts only routes under these prefixes — a Hey Woo consumer key cannot be replayed against abilities registered by other plugins. Adding a fourth prefix is a single-edit operation; the `Plugin::mcp_tool_ability_ids()` curated list must be updated in lockstep.
 - **Aggregated-only privacy by default.** PII gate (`hey_woo_allow_customer_pii`) is off; merchants opt in only when chaining with email/CRM MCPs that need real addresses. `wc_string_to_bool` reads the option (not `(bool)` — `'no'` would otherwise be truthy).
 - **HPOS-compatible.** Declared via `FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true)`. SQL must read from HPOS tables (`wp_wc_orders_meta` for attribution) when available, falling back to `wp_postmeta` only when HPOS isn't enabled. The runtime branch lives in `AnalyticsController::get_order_meta_source()`.
 - **No background work.** No cron, no polling, no sync jobs. The plugin runs only when an MCP/REST request arrives. This is the contract that lets the perf doc say "lighter than loading WC Analytics a few times an hour."
@@ -103,7 +103,7 @@ The DCC step (`bin/check-dcc`) is gated — it auto-skips when `vendor-plugins/w
 
 ### MCP requires HTTPS by default
 
-Local wp-env runs on plain HTTP. The mu-plugin at `tools/mu-plugins/dev-allow-insecure-transport.php` sets `woocommerce_mcp_allow_insecure_transport` for the dev environment only. Don't move that filter into the plugin proper — it's dev-only, deliberately.
+Local wp-env runs on plain HTTP. The Hey Woo MCP transport (`WP\MCP\Transport\HttpTransport`) does not enforce HTTPS, so curl-style local testing against `/wp-json/hey-woo/mcp` works without a TLS cert. Production stores should still front the endpoint with HTTPS.
 
 ### Two-step skill addition
 

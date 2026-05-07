@@ -40,29 +40,21 @@ Same setup page, **Manual Setup** card. Pick your client from the dropdown — H
 
 ### Manual / scripted setup
 
-If you'd rather configure everything yourself — for example to drop the admin page from your workflow, ship via WP-CLI, or wire a CI deploy — the manual flow is unchanged:
+If you'd rather configure everything yourself — for example to drop the admin page from your workflow, ship via WP-CLI, or wire a CI deploy — the manual flow is:
 
-#### 1. Enable WooCommerce core MCP
+#### 1. Create an API key
 
-```bash
-wp option update woocommerce_feature_mcp_integration_enabled yes
-```
+In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required for production. For local HTTP dev no extra config is needed — Hey Woo's transport accepts the credential as-is.
 
-(Or via the admin: **WooCommerce > Settings > Advanced > Features > MCP integration**.)
+#### 2. Point your MCP client at the endpoint
 
-#### 2. Create an API key
-
-In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required by default. For local HTTP dev see the mu-plugin snippet in the [Local development](#local-development) section.
-
-#### 3. Point your MCP client at the endpoint
-
-The WooCommerce MCP docs recommend connecting through [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote) — a lightweight local proxy that translates stdio-based MCP (what most clients speak) into HTTP requests to WordPress. This works across Claude Desktop, Claude Code, and any other MCP client.
+The recommended path is to connect through [`@automattic/mcp-wordpress-remote`](https://github.com/Automattic/mcp-wordpress-remote) — a lightweight local proxy that translates stdio-based MCP (what most clients speak) into HTTP requests to WordPress. This works across Claude Desktop, Claude Code, and any other MCP client.
 
 **Claude Code** — one command:
 
 ```bash
 claude mcp add hey-woo \
-  --env WP_API_URL=https://yourstore.com/wp-json/woocommerce/mcp \
+  --env WP_API_URL=https://yourstore.com/wp-json/hey-woo/mcp \
   --env CUSTOM_HEADERS='{"X-MCP-API-Key": "ck_xxx:cs_xxx"}' \
   -- npx -y @automattic/mcp-wordpress-remote@0.3.0
 ```
@@ -76,7 +68,7 @@ claude mcp add hey-woo \
       "command": "npx",
       "args": ["-y", "@automattic/mcp-wordpress-remote@0.3.0"],
       "env": {
-        "WP_API_URL": "https://yourstore.com/wp-json/woocommerce/mcp",
+        "WP_API_URL": "https://yourstore.com/wp-json/hey-woo/mcp",
         "CUSTOM_HEADERS": "{\"X-MCP-API-Key\": \"ck_xxx:cs_xxx\"}"
       }
     }
@@ -93,7 +85,7 @@ If your MCP client supports HTTP transport natively (some do, many don't), you c
   "mcpServers": {
     "hey-woo": {
       "type": "http",
-      "url": "https://yourstore.com/wp-json/woocommerce/mcp",
+      "url": "https://yourstore.com/wp-json/hey-woo/mcp",
       "headers": {
         "X-MCP-API-Key": "ck_xxx:cs_xxx"
       }
@@ -202,7 +194,7 @@ WooCommerce core already exposes basic product and order CRUD via MCP. This proj
 | **WooCommerce core MCP** | HTTP transport, auth, product/order CRUD tools                    | WooCommerce core team |
 | **Hey Woo plugin**       | Analytics skills, knowledge resources, prompts, readiness scoring | This project          |
 
-Everything ships through the single endpoint at `/wp-json/woocommerce/mcp`. There is no separate MCP server process to run — the plugin registers its abilities, a filter widens the core server's inclusion rules to cover the `wc-analytics/*` and `hey-woo/*` namespaces, and resources/prompts are injected via the `mcp_adapter_init` action.
+Everything ships through the single endpoint at `/wp-json/hey-woo/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via an `X-MCP-API-Key` header backed by a standard WooCommerce REST API key.
 
 ---
 
@@ -253,20 +245,13 @@ add_filter( 'hey_woo_enriched_product', function( $data, $product ) {
 # Start the WordPress + WooCommerce environment:
 npx @wordpress/env start
 
-# Enable Woo core MCP:
-npx @wordpress/env run cli -- wp option update woocommerce_feature_mcp_integration_enabled yes
-
 # Test the plugin's REST endpoints (still available for direct access):
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/store/profile
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/readiness/score
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/products
 
-# MCP requires HTTPS by default. For local HTTP, add a mu-plugin:
-echo '<?php add_filter( "woocommerce_mcp_allow_insecure_transport", "__return_true" );' \
-  | npx @wordpress/env run cli -- bash -c "cat > /var/www/html/wp-content/mu-plugins/allow-http-mcp.php"
-
-# Then test the endpoint:
-curl -X POST http://localhost:8888/wp-json/woocommerce/mcp \
+# Test the MCP endpoint (HTTP works for local dev — HTTPS only matters for production):
+curl -X POST http://localhost:8888/wp-json/hey-woo/mcp \
   -H 'Content-Type: application/json' \
   -H 'X-MCP-API-Key: ck_xxx:cs_xxx' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'

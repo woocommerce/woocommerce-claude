@@ -36,7 +36,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
-		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 	}
 
 	/**
@@ -47,7 +46,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
-		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 		parent::tear_down();
 	}
 
@@ -325,10 +323,10 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * and never clears option state. Pin both directions: returns
 	 * the row when a key is provisioned, returns null when not.
 	 *
-	 * The setup view depends on this method to surface a key that
-	 * remains active even after the WC MCP feature flag is turned
-	 * off (the dangerous middle state where the credential can still
-	 * authenticate against the standard WC REST surface).
+	 * The setup view depends on this method to surface a key the
+	 * merchant may have left in place: the underlying WC API row
+	 * still authenticates against the standard WC REST surface, so
+	 * the page must always be able to surface and revoke it.
 	 */
 	public function test_existing_state_returns_state_or_null_without_side_effects() {
 		$helper = new RestApiKey();
@@ -361,8 +359,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * extracted helper with the original user as the expected owner.
 	 */
 	public function test_prepare_download_state_refuses_when_ownership_changed_mid_request() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$x_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		$y_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
 
@@ -392,31 +388,10 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Refuses with `mcp_required` when the WC MCP feature flag is
-	 * off, even if a key already exists.
-	 * The bundle would point at an endpoint that returns 404, so
-	 * downloading it would just hand out a credential with no
-	 * working delivery path — the merchant should re-enable first.
-	 */
-	public function test_prepare_download_state_refuses_when_mcp_disabled() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'no' );
-
-		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
-		wp_set_current_user( $user_id );
-
-		$result = SetupPage::prepare_download_state( $user_id );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'mcp_required', $result->get_error_code() );
-	}
-
-	/**
 	 * Returns the full key state on the happy path, with
 	 * owner_user_id matching the caller.
 	 */
 	public function test_prepare_download_state_returns_state_on_happy_path() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
 
@@ -482,8 +457,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * mint a default-permissions credential.
 	 */
 	public function test_prepare_download_state_refuses_when_no_key_exists() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
 
@@ -528,7 +501,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Setup credential is route-restricted to /wp-json/woocommerce/mcp
+	 * Setup credential is route-restricted to /wp-json/hey-woo/mcp
 	 * — even though the underlying woocommerce_api_keys row would
 	 * normally authenticate against any WC REST endpoint. This is
 	 * the privacy boundary the setup UI implies: the bundle's
@@ -571,7 +544,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
 			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
-			$_SERVER['REQUEST_URI']        = '/wp-json/woocommerce/mcp';
+			$_SERVER['REQUEST_URI']        = '/wp-json/hey-woo/mcp';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );

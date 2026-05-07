@@ -114,8 +114,9 @@ class Plugin {
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
 
-		// Resource + prompt abilities — not tools; wired into Woo core MCP
-		// via the mcp_adapter_init hook in init_hooks().
+		// Resource + prompt abilities — not tools; passed to our MCP server's
+		// resources/prompts arrays in register_mcp_server(), wired via the
+		// mcp_adapter_init hook in init_hooks().
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-profile-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-catalog-schema-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
@@ -157,16 +158,17 @@ class Plugin {
 		// WC's auth handler only processes requests to /wc/ routes by default.
 		add_filter( 'woocommerce_rest_is_request_to_rest_api', array( $this, 'enable_wc_auth_for_our_routes' ), 10 );
 
-		// Opt our wc-analytics/* abilities into the Woo core MCP server. WC core
-		// MCP only exposes woocommerce/* abilities by default; this filter widens
-		// that to include our namespace. See MCPAdapterProvider::get_woocommerce_mcp_abilities().
-		add_filter( 'woocommerce_mcp_include_ability', array( $this, 'include_wc_analytics_in_mcp' ), 10, 2 );
+		// Boot the MCP adapter ourselves so the Hey Woo MCP endpoint works
+		// independently of WC's `mcp_integration` feature flag. The adapter
+		// is a singleton — calling instance() repeatedly is a no-op, so this
+		// is safe even if WC's MCPAdapterProvider also boots it.
+		add_action( 'plugins_loaded', array( $this, 'bootstrap_mcp_adapter' ), 20 );
 
-		// Resources and prompts don't get a filter in WC core MCP — they have to
-		// be injected into the server's component registry directly. WC creates
-		// the 'woocommerce-mcp' server on mcp_adapter_init priority 10; we run
-		// after that to register our wc-knowledge/* resources and wc-prompts/*.
-		add_action( 'mcp_adapter_init', array( $this, 'inject_mcp_components' ), 20 );
+		// Register our own MCP server when the adapter initializes. Owns the
+		// `/wp-json/hey-woo/mcp` endpoint with a curated tool/resource/prompt
+		// surface and a custom auth callback that handles X-MCP-API-Key (the
+		// header `mcp-wordpress-remote` sends).
+		add_action( 'mcp_adapter_init', array( $this, 'register_mcp_server' ) );
 	}
 
 	/**
@@ -209,8 +211,8 @@ class Plugin {
 	 * Hey Woo consumer key can't be replayed against abilities registered
 	 * by an unrelated plugin under a different prefix. Kept as a constant
 	 * so adding a new namespace is a single-edit operation; the
-	 * `include_wc_analytics_in_mcp` filter below carries its own
-	 * per-namespace logic and must stay aligned by hand.
+	 * `mcp_tool_ability_ids()` curated list below has its own per-namespace
+	 * logic and must stay aligned by hand.
 	 *
 	 * @var array<int, string>
 	 */
@@ -300,91 +302,188 @@ class Plugin {
 	}
 
 	/**
-	 * Include our plugin's tool abilities in the Woo core MCP server.
-	 *
-	 * WC core MCP filters the abilities registry to `woocommerce/*` by default.
-	 * Our analytics skills live under `wc-analytics/*` and our non-analytics
-	 * tool skills live under `hey-woo/*`, so without this filter neither
-	 * set would be exposed at `/wp-json/woocommerce/mcp`. Resources
-	 * (`wc-knowledge/*`) and prompts (`wc-prompts/*`) are intentionally *not*
-	 * added here — they go through `inject_mcp_components()` below.
-	 *
-	 * @param bool   $should_include Whether core MCP would include this ability.
-	 * @param string $ability_id     The ability ID being evaluated.
-	 * @return bool
+	 * Server identity used when registering our MCP server. The endpoint
+	 * resolves to `/wp-json/<namespace>/<route>` — i.e. `/wp-json/hey-woo/mcp`.
 	 */
-	public function include_wc_analytics_in_mcp( $should_include, $ability_id ) {
-		if ( is_string( $ability_id ) ) {
-			// hey-woo/* and hey-woo-integrations/* are always included.
-			// Each prefix is plugin-owned. A bare `integrations/` prefix would
-			// hijack abilities registered by other plugins under the same
-			// generic namespace — keep our integration abilities under
-			// `hey-woo-integrations/` so the filter only opts our own surface
-			// into the Woo MCP tool list.
-			foreach ( array( 'hey-woo/', 'hey-woo-integrations/' ) as $prefix ) {
-				if ( str_starts_with( $ability_id, $prefix ) ) {
-					return true;
-				}
-			}
-			// wc-analytics/* — only the three top-level routing tools are exposed
-			// to MCP. The individual analytics abilities remain registered
-			// in the WP Abilities API so wc-analytics/describe can read their
-			// documentation, but are intentionally hidden from the MCP tool list.
-			if ( str_starts_with( $ability_id, 'wc-analytics/' ) ) {
-				return in_array(
-					$ability_id,
-					array(
-						Abilities\GetDataAbility::ABILITY_NAME,
-						Abilities\DescribeAbility::ABILITY_NAME,
-						Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
-					),
-					true
-				);
-			}
+	const MCP_SERVER_ID    = 'hey-woo';
+	const MCP_SERVER_NS    = 'hey-woo';
+	const MCP_SERVER_ROUTE = 'mcp';
+
+	/**
+	 * Boot the WordPress MCP adapter ahead of `rest_api_init` so our server
+	 * can register on `mcp_adapter_init`.
+	 *
+	 * The adapter is a vendored library inside WooCommerce
+	 * (`vendor/wordpress/mcp-adapter`); WC only initializes it when its
+	 * `mcp_integration` feature flag is on. We boot it ourselves so the Hey
+	 * Woo endpoint works without that toggle. `McpAdapter::instance()` is
+	 * idempotent — if WC has already booted it, this is a no-op.
+	 */
+	public function bootstrap_mcp_adapter() {
+		if ( class_exists( '\\WP\\MCP\\Core\\McpAdapter' ) ) {
+			\WP\MCP\Core\McpAdapter::instance();
 		}
-		return (bool) $should_include;
 	}
 
 	/**
-	 * Register our resource and prompt abilities into the Woo core MCP server.
+	 * Register the Hey Woo MCP server on `mcp_adapter_init`.
 	 *
-	 * WC core MCP only accepts tools via the `woocommerce_mcp_include_ability`
-	 * filter; it passes empty arrays for resources and prompts when calling
-	 * `create_server()`, and exposes no filter to extend them. The `McpServer`
-	 * class does expose `get_component_registry()` publicly, whose
-	 * `register_resources()` / `register_prompts()` methods accept ability IDs,
-	 * so we hook `mcp_adapter_init` *after* WC (priority 20 vs WC's 10) and
-	 * inject our abilities directly.
+	 * Replaces the previous "ride on WC's woocommerce-mcp server" approach
+	 * (which used `woocommerce_mcp_include_ability` + a late
+	 * `mcp_adapter_init` injection of resources/prompts). Our server owns
+	 * `/wp-json/hey-woo/mcp` directly and ships a curated tool list, so the
+	 * deprecation of WC's MCP endpoint and the upcoming change to its default
+	 * inclusion rules don't affect us.
 	 *
 	 * @param object $adapter The McpAdapter instance.
 	 * @return void
 	 */
-	public function inject_mcp_components( $adapter ) {
-		if ( ! is_object( $adapter ) || ! method_exists( $adapter, 'get_server' ) ) {
+	public function register_mcp_server( $adapter ) {
+		if ( ! is_object( $adapter ) || ! method_exists( $adapter, 'create_server' ) ) {
 			return;
 		}
 
-		$server = $adapter->get_server( 'woocommerce-mcp' );
-		if ( ! $server || ! method_exists( $server, 'get_component_registry' ) ) {
+		if ( ! class_exists( '\\WP\\MCP\\Transport\\HttpTransport' ) ) {
 			return;
 		}
 
-		$registry = $server->get_component_registry();
+		try {
+			$adapter->create_server(
+				self::MCP_SERVER_ID,
+				self::MCP_SERVER_NS,
+				self::MCP_SERVER_ROUTE,
+				__( 'Hey Woo MCP Server', 'hey-woo' ),
+				__( 'AI-accessible WooCommerce store analytics, knowledge, and prompts via MCP.', 'hey-woo' ),
+				HEY_WOO_VERSION,
+				array( \WP\MCP\Transport\HttpTransport::class ),
+				\WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler::class,
+				\WP\MCP\Infrastructure\Observability\NullMcpObservabilityHandler::class,
+				$this->mcp_tool_ability_ids(),
+				array(
+					Abilities\StoreProfileAbility::ABILITY_NAME,
+					Abilities\CatalogSchemaAbility::ABILITY_NAME,
+					Abilities\StorePoliciesAbility::ABILITY_NAME,
+				),
+				array(
+					Abilities\CatalogAuditAbility::ABILITY_NAME,
+					Abilities\ProductImproveAbility::ABILITY_NAME,
+				),
+				array( $this, 'authenticate_mcp_request' )
+			);
+		} catch ( \Throwable $e ) {
+			if ( function_exists( 'wc_get_logger' ) ) {
+				wc_get_logger()->error(
+					'Hey Woo MCP server initialization failed: ' . $e->getMessage(),
+					array( 'source' => 'hey-woo-mcp' )
+				);
+			}
+		}
+	}
 
-		$registry->register_resources(
-			array(
-				Abilities\StoreProfileAbility::ABILITY_NAME,
-				Abilities\CatalogSchemaAbility::ABILITY_NAME,
-				Abilities\StorePoliciesAbility::ABILITY_NAME,
+	/**
+	 * Tool ability IDs to expose on our MCP server.
+	 *
+	 * Curated rather than namespace-derived: only the three top-level
+	 * `wc-analytics/*` routing tools (get-data, describe, confirm-large-range)
+	 * are exposed; the individual analytics abilities remain registered in
+	 * the WP Abilities API so `wc-analytics/describe` can read their
+	 * documentation, but are intentionally hidden from the MCP tool list.
+	 *
+	 * @return array<int, string>
+	 */
+	private function mcp_tool_ability_ids() {
+		$tools = array(
+			// hey-woo/* — store knowledge, readiness, product helpers.
+			Abilities\GetStoreProfileAbility::ABILITY_NAME,
+			Abilities\GetReadinessScoreAbility::ABILITY_NAME,
+			Abilities\GetRecommendationsAbility::ABILITY_NAME,
+			Abilities\GetProductDetailsAbility::ABILITY_NAME,
+			Abilities\SearchProductsAbility::ABILITY_NAME,
+			Abilities\SuggestImprovementsAbility::ABILITY_NAME,
+			// wc-analytics/* — three top-level routing tools.
+			Abilities\GetDataAbility::ABILITY_NAME,
+			Abilities\DescribeAbility::ABILITY_NAME,
+			Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
+		);
+
+		// hey-woo-integrations/* — dev/local only. The class is loaded under
+		// the same environment gate in includes(), so check_class_exists
+		// before referencing the constant to keep production safe.
+		if ( class_exists( '\\HeyWoo\\Abilities\\GoogleAnalyticsChannelsAbility' ) ) {
+			$tools[] = \HeyWoo\Abilities\GoogleAnalyticsChannelsAbility::ABILITY_NAME;
+		}
+
+		return $tools;
+	}
+
+	/**
+	 * Authenticate an MCP request against the Hey Woo server.
+	 *
+	 * Honours two auth surfaces:
+	 *
+	 * 1. `X-MCP-API-Key: ck_xxx:cs_xxx` — what `mcp-wordpress-remote` sends
+	 *    and what every distributed `.mcpb` bundle is configured to use.
+	 *    Looked up against `wp_woocommerce_api_keys` directly so we don't
+	 *    depend on WC's internal MCP transport class.
+	 *
+	 * 2. Standard WC REST API key auth (Basic Auth or query-string
+	 *    consumer_key/consumer_secret). When no `X-MCP-API-Key` is present,
+	 *    WC's `determine_current_user` filter has already set the user via
+	 *    `enable_wc_auth_for_our_routes()` widening the auth scope to our
+	 *    namespace; we just check the resulting capability.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
+	 * @return bool True if authenticated, false otherwise.
+	 */
+	public function authenticate_mcp_request( $request ) {
+		if ( ! ( $request instanceof \WP_REST_Request ) ) {
+			return false;
+		}
+
+		$api_key = $request->get_header( 'X-MCP-API-Key' );
+		if ( ! is_string( $api_key ) || '' === $api_key ) {
+			return current_user_can( 'read' );
+		}
+
+		if ( false === strpos( $api_key, ':' ) ) {
+			return false;
+		}
+
+		if ( ! function_exists( 'wc_api_hash' ) ) {
+			return false;
+		}
+
+		list( $consumer_key, $consumer_secret ) = explode( ':', $api_key, 2 );
+		$consumer_key                           = trim( $consumer_key );
+		$consumer_secret                        = trim( $consumer_secret );
+		if ( '' === $consumer_key || '' === $consumer_secret ) {
+			return false;
+		}
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- direct lookup against woocommerce_api_keys; no caching surface for auth.
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT key_id, user_id, consumer_secret FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
+				wc_api_hash( $consumer_key )
 			)
 		);
 
-		$registry->register_prompts(
-			array(
-				Abilities\CatalogAuditAbility::ABILITY_NAME,
-				Abilities\ProductImproveAbility::ABILITY_NAME,
-			)
-		);
+		if ( ! $row ) {
+			return false;
+		}
+
+		if ( ! hash_equals( (string) $row->consumer_secret, $consumer_secret ) ) {
+			return false;
+		}
+
+		$user = get_user_by( 'id', (int) $row->user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		wp_set_current_user( $user->ID );
+		return true;
 	}
 
 	/**

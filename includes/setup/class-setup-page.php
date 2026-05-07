@@ -30,11 +30,6 @@ class SetupPage {
 	const CAPABILITY = 'manage_woocommerce';
 
 	/**
-	 * Woo core option that gates the MCP endpoint.
-	 */
-	const FEATURE_FLAG_OPTION = 'woocommerce_feature_mcp_integration_enabled';
-
-	/**
 	 * Pinned npm spec for the stdio→HTTP MCP proxy. Embedded into both
 	 * the .mcpb bundle's mcp_config.args and the manual JSON / CLI
 	 * snippets so a merchant who installed today still runs the same
@@ -50,7 +45,6 @@ class SetupPage {
 
 	const ACTION_DOWNLOAD     = 'hey_woo_download_mcpb';
 	const ACTION_REGEN_KEY    = 'hey_woo_regenerate_key';
-	const ACTION_ENABLE_MCP   = 'hey_woo_enable_mcp_feature';
 	const ACTION_DISCONNECT   = 'hey_woo_disconnect';
 	const ACTION_GENERATE_KEY = 'hey_woo_generate_key';
 
@@ -62,11 +56,10 @@ class SetupPage {
 
 		add_action( 'admin_post_' . self::ACTION_DOWNLOAD, array( __CLASS__, 'handle_download' ) );
 		add_action( 'admin_post_' . self::ACTION_REGEN_KEY, array( __CLASS__, 'handle_regenerate_key' ) );
-		add_action( 'admin_post_' . self::ACTION_ENABLE_MCP, array( __CLASS__, 'handle_enable_mcp' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
 
-		// Restrict the setup credential to the WC MCP endpoint only.
+		// Restrict the setup credential to the Hey Woo MCP endpoint only.
 		// WC's API key auth runs at priority 10 on `determine_current_user`;
 		// `rest_authentication_errors` runs after that and before the
 		// route is dispatched, which is the right point to refuse a
@@ -115,12 +108,12 @@ class SetupPage {
 	}
 
 	/**
-	 * The fully-qualified Woo MCP endpoint for this site.
+	 * The fully-qualified Hey Woo MCP endpoint for this site.
 	 *
 	 * @return string
 	 */
 	public static function endpoint_url() {
-		return rest_url( 'woocommerce/mcp' );
+		return rest_url( \HeyWoo\Plugin::MCP_SERVER_NS . '/' . \HeyWoo\Plugin::MCP_SERVER_ROUTE );
 	}
 
 	/**
@@ -132,13 +125,13 @@ class SetupPage {
 	 * not just the host, so subdirectory multisite installs and
 	 * same-host different-port dev stores get distinct slugs:
 	 *
-	 *   https://example.com/wp-json/woocommerce/mcp
+	 *   https://example.com/wp-json/hey-woo/mcp
 	 *     → `hey-woo-example-com-1a2b3c4d`
-	 *   https://example.com/shop-a/wp-json/woocommerce/mcp
+	 *   https://example.com/shop-a/wp-json/hey-woo/mcp
 	 *     → `hey-woo-example-com-5e6f7a8b` (path differs ⇒ hash differs)
-	 *   http://localhost:8888/wp-json/woocommerce/mcp
+	 *   http://localhost:8888/wp-json/hey-woo/mcp
 	 *     → `hey-woo-localhost-9c0d1e2f`
-	 *   http://localhost:8889/wp-json/woocommerce/mcp
+	 *   http://localhost:8889/wp-json/hey-woo/mcp
 	 *     → `hey-woo-localhost-3a4b5c6d` (port differs ⇒ hash differs)
 	 *
 	 * @return string
@@ -177,15 +170,6 @@ class SetupPage {
 	}
 
 	/**
-	 * Whether the Woo core MCP feature flag is currently on.
-	 *
-	 * @return bool
-	 */
-	public static function mcp_feature_enabled() {
-		return 'yes' === get_option( self::FEATURE_FLAG_OPTION, 'no' );
-	}
-
-	/**
 	 * Whether home_url() resolves to an https:// URL — used to warn
 	 * about local-dev HTTP setups in the page UI.
 	 *
@@ -214,7 +198,6 @@ class SetupPage {
 		}
 
 		$key_helper   = new RestApiKey();
-		$mcp_enabled  = self::mcp_feature_enabled();
 		$site_https   = self::site_is_https();
 		$endpoint_url = self::endpoint_url();
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash message.
@@ -223,12 +206,12 @@ class SetupPage {
 		/*
 		 * Render-time lookup is read-only. An existing Hey Woo REST
 		 * key authenticates against the WC REST surface generally, not
-		 * just /wp-json/woocommerce/mcp — so the page must surface
-		 * (and offer to disconnect) an existing key even when MCP is
-		 * off. Provisioning is gated behind the explicit "Generate
-		 * key" button (see handle_generate_key) rather than happening
-		 * silently on render — the merchant should always know when a
-		 * credential has been minted on their behalf.
+		 * just /wp-json/hey-woo/mcp — so the page must surface (and
+		 * offer to disconnect) an existing key. Provisioning is gated
+		 * behind the explicit "Generate key" button (see
+		 * handle_generate_key) rather than happening silently on
+		 * render — the merchant should always know when a credential
+		 * has been minted on their behalf.
 		 */
 		$key_state = $key_helper->existing_state();
 
@@ -276,14 +259,13 @@ class SetupPage {
 	 * including the post-provision ownership re-check — is testable
 	 * without fighting wp_safe_redirect/exit. Validates, in order:
 	 *
-	 *   1. MCP feature flag is on (else `mcp_required`).
-	 *   2. A key already exists (else `key_required`). The download is
+	 *   1. A key already exists (else `key_required`). The download is
 	 *      a *use* of an explicitly-generated credential — never a
 	 *      mint path. Without this gate a stale or bookmarked download
 	 *      URL with a still-valid nonce could silently provision a
 	 *      default-permissions key, bypassing the explicit Generate
 	 *      step and the merchant's chosen scope.
-	 *   3. The current key is *still* owned by $expected_user_id —
+	 *   2. The current key is *still* owned by $expected_user_id —
 	 *      this closes the download TOCTOU where a concurrent
 	 *      regenerate could transfer ownership between the initial
 	 *      `require_key_owner()` gate and this method's lookup. Without
@@ -294,13 +276,6 @@ class SetupPage {
 	 * @return array{credential:string,key_id:int,permissions:string,owner_user_id:int}|\WP_Error
 	 */
 	public static function prepare_download_state( $expected_user_id ) {
-		if ( ! self::mcp_feature_enabled() ) {
-			return new \WP_Error(
-				'mcp_required',
-				__( 'Enable WooCommerce MCP integration first.', 'hey-woo' )
-			);
-		}
-
 		$key_helper = new RestApiKey();
 		$state      = $key_helper->existing_state();
 		if ( null === $state ) {
@@ -350,10 +325,6 @@ class SetupPage {
 	 *
 	 * Gated by:
 	 *  - manage_woocommerce + nonce (self::guard)
-	 *  - WC MCP feature flag — refusing here mirrors the disabled state
-	 *    of the Generate button in the UI; if the feature was flipped
-	 *    off between page render and click submit, surface the
-	 *    `mcp_required` flash so the merchant re-enables it first.
 	 *  - No existing key — generation is a create-only action; if a key
 	 *    already exists the merchant should use Regenerate (which
 	 *    explicitly invalidates distributed bundles) instead of
@@ -365,10 +336,6 @@ class SetupPage {
 	 */
 	public static function handle_generate_key() {
 		self::guard( self::ACTION_GENERATE_KEY );
-
-		if ( ! self::mcp_feature_enabled() ) {
-			self::redirect( 'mcp_required' );
-		}
 
 		$key_helper = new RestApiKey();
 		if ( null !== $key_helper->existing_state() ) {
@@ -392,16 +359,6 @@ class SetupPage {
 
 		$state = $key_helper->get_or_create();
 		self::redirect( is_wp_error( $state ) ? 'key_failed' : 'key_generated' );
-	}
-
-	/**
-	 * Flip the Woo core MCP feature flag to "yes".
-	 */
-	public static function handle_enable_mcp() {
-		self::guard( self::ACTION_ENABLE_MCP );
-
-		update_option( self::FEATURE_FLAG_OPTION, 'yes' );
-		self::redirect( 'mcp_enabled' );
 	}
 
 	/**
@@ -506,8 +463,8 @@ class SetupPage {
 	 * by default it would authenticate against any WC REST surface
 	 * (`/wc/v3/orders`, `/wc/v3/customers`, etc.). The setup UI
 	 * implies the credential is scoped to the MCP integration, and
-	 * the bundle only ever calls `/wp-json/woocommerce/mcp` — so
-	 * we reject the key on every other route here.
+	 * the bundle only ever calls `/wp-json/hey-woo/mcp` — so we
+	 * reject the key on every other route here.
 	 *
 	 * This shrinks the blast radius if the bundle leaks: the
 	 * credential is useless against the standard WC REST API even
@@ -539,7 +496,7 @@ class SetupPage {
 		if ( ! self::route_is_allowed_for_setup_key( self::current_rest_route() ) ) {
 			return new \WP_Error(
 				'hey_woo_route_restricted',
-				__( 'This API key is restricted to the WooCommerce MCP endpoint. Create a separate WooCommerce REST API key for direct WC REST access.', 'hey-woo' ),
+				__( 'This API key is restricted to the Hey Woo MCP endpoint. Create a separate WooCommerce REST API key for direct WC REST access.', 'hey-woo' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -548,9 +505,9 @@ class SetupPage {
 
 	/**
 	 * Whether the given REST route is one the setup credential is
-	 * allowed to authenticate. Anchored on the canonical WC MCP
-	 * endpoint — `/wp-json/woocommerce/mcp` and any subpaths the
-	 * core MCP server may add.
+	 * allowed to authenticate. Anchored on the canonical Hey Woo MCP
+	 * endpoint — `/wp-json/hey-woo/mcp` and any subpaths the MCP
+	 * adapter's transport may add (e.g. session-id sub-routes).
 	 *
 	 * @param string $route REST route relative to the REST prefix (no leading slash).
 	 * @return bool
@@ -559,7 +516,8 @@ class SetupPage {
 		if ( '' === $route ) {
 			return false;
 		}
-		return 0 === strpos( $route, 'woocommerce/mcp' );
+		$allowed = \HeyWoo\Plugin::MCP_SERVER_NS . '/' . \HeyWoo\Plugin::MCP_SERVER_ROUTE;
+		return 0 === strpos( $route, $allowed );
 	}
 
 	/**

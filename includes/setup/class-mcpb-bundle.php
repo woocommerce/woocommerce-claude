@@ -35,8 +35,8 @@ class McpbBundle {
 	const NODE_MIN_VERSION = '>=18.0.0';
 
 	/**
-	 * The fully-qualified Woo MCP endpoint, e.g.
-	 * https://example.com/wp-json/woocommerce/mcp.
+	 * The fully-qualified Hey Woo MCP endpoint, e.g.
+	 * https://example.com/wp-json/hey-woo/mcp.
 	 *
 	 * @var string
 	 */
@@ -59,7 +59,7 @@ class McpbBundle {
 	/**
 	 * Construct the bundle generator with all data baked into the manifest.
 	 *
-	 * @param string $endpoint_url   Full Woo MCP endpoint URL.
+	 * @param string $endpoint_url   Full Hey Woo MCP endpoint URL.
 	 * @param string $api_credential `ck_xxx:cs_xxx` joined credential.
 	 * @param string $plugin_version Plugin version (e.g. '0.1.0').
 	 */

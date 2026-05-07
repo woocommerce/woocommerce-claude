@@ -25,11 +25,11 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers the GA4-channels prototype ability under the plugin-owned
- * `hey-woo-integrations/` namespace. The namespace is opted into Woo
- * core MCP via the `woocommerce_mcp_include_ability` filter in
- * Plugin::include_wc_analytics_in_mcp — using a plugin-owned prefix
- * (rather than the broader `integrations/`) so unrelated abilities
- * registered by other plugins don't get pulled into the Woo MCP tool list.
+ * `hey-woo-integrations/` namespace. The ability is exposed on the Hey
+ * Woo MCP server (`/wp-json/hey-woo/mcp`) by listing it in
+ * Plugin::mcp_tool_ability_ids(). Using a plugin-owned prefix (rather
+ * than the broader `integrations/`) keeps the curated tool list scoped
+ * to abilities we own.
  */
 class GoogleAnalyticsChannelsAbility {
 

@@ -19,9 +19,8 @@
  * Expects the following variables in scope (prepared by
  * SetupPage::render_setup_view()):
  *
- * @var bool                                                                $mcp_enabled  Whether the Woo MCP feature flag is on.
  * @var bool                                                                $site_https   Whether home_url() is https.
- * @var string                                                              $endpoint_url Full Woo MCP endpoint URL.
+ * @var string                                                              $endpoint_url Full Hey Woo MCP endpoint URL.
  * @var string                                                              $notice_code  Status flash from query string.
  * @var array{credential:string,key_id:int,permissions:string}|null         $key_state    Provisioned key, or null if not yet created.
  * @var bool                                                                $is_owner     Whether the current user owns the provisioned key.
@@ -71,8 +70,6 @@ $claude_code_command = sprintf(
 );
 
 $notices = array(
-	'mcp_enabled'       => array( 'success', __( 'WooCommerce MCP integration enabled.', 'hey-woo' ) ),
-	'mcp_required'      => array( 'error', __( 'Enable WooCommerce MCP integration first.', 'hey-woo' ) ),
 	'key_generated'     => array( 'success', __( 'API key generated and ready to use with Claude.', 'hey-woo' ) ),
 	'key_exists'        => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'hey-woo' ) ),
 	'key_required'      => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'hey-woo' ) ),
@@ -82,7 +79,6 @@ $notices = array(
 	'ownership_changed' => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'hey-woo' ) ),
 );
 
-$enable_url     = SetupPage::action_url( SetupPage::ACTION_ENABLE_MCP );
 $download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
 $regen_url      = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
 $disconnect_url = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
@@ -97,8 +93,8 @@ $wc_key_edit_url = $has_key
 	? add_query_arg( 'edit-key', (int) $key_state['key_id'], $wc_keys_url )
 	: $wc_keys_url;
 
-$can_generate          = $mcp_enabled && ! $has_key;
-$can_use_step2_actions = $mcp_enabled && $has_key;
+$can_generate          = ! $has_key;
+$can_use_step2_actions = $has_key;
 ?>
 <div class="hey-woo-setup">
 
@@ -126,63 +122,6 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 		</div>
 	<?php endif; ?>
 
-	<?php if ( ! $mcp_enabled && $has_key ) : ?>
-		<?php
-		/*
-		 * MCP-off + key-alive — the dangerous middle state. The
-		 * merchant likely turned the WC MCP feature off thinking that
-		 * disconnects Claude, but the auto-created REST key is still
-		 * in `woocommerce_api_keys` and authenticates against any WC
-		 * REST surface — not just /wp-json/woocommerce/mcp. Surface
-		 * loudly with both recovery paths.
-		 */
-		?>
-		<div class="hey-woo-setup__banner hey-woo-setup__banner--warning">
-			<span class="hey-woo-setup__banner-icon" aria-hidden="true">
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-					<path d="M10 2L18 17H2L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-					<path d="M10 8V12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					<circle cx="10" cy="14.5" r="0.85" fill="currentColor"/>
-				</svg>
-			</span>
-			<div class="hey-woo-setup__banner-body">
-				<strong><?php esc_html_e( 'WooCommerce MCP is off, but the Hey Woo API key is still active.', 'hey-woo' ); ?></strong>
-				<p><?php esc_html_e( 'Claude Desktop bundles can no longer call MCP tools, but the credential still authenticates against the standard WooCommerce REST API. Either re-enable MCP, or disconnect to revoke the key entirely.', 'hey-woo' ); ?></p>
-				<p class="hey-woo-setup__banner-actions">
-					<a class="button button-primary" href="<?php echo esc_url( $enable_url ); ?>">
-						<?php esc_html_e( 'Re-enable WooCommerce MCP', 'hey-woo' ); ?>
-					</a>
-					<a
-						class="button"
-						href="<?php echo esc_url( $disconnect_url ); ?>"
-						onclick="return confirm('<?php echo esc_js( __( 'Disconnect Hey Woo and revoke the API key? Any installed Claude Desktop bundle and pasted configuration will stop authenticating immediately.', 'hey-woo' ) ); ?>');"
-					>
-						<?php esc_html_e( 'Disconnect', 'hey-woo' ); ?>
-					</a>
-				</p>
-			</div>
-		</div>
-	<?php elseif ( ! $mcp_enabled ) : ?>
-		<div class="hey-woo-setup__banner hey-woo-setup__banner--info">
-			<span class="hey-woo-setup__banner-icon" aria-hidden="true">
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-					<circle cx="10" cy="10" r="8.25" stroke="currentColor" stroke-width="1.5"/>
-					<path d="M10 9V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					<circle cx="10" cy="6.25" r="0.95" fill="currentColor"/>
-				</svg>
-			</span>
-			<div class="hey-woo-setup__banner-body">
-				<strong><?php esc_html_e( 'WooCommerce MCP integration is off.', 'hey-woo' ); ?></strong>
-				<p><?php esc_html_e( 'Hey Woo needs it on to expose tools at /wp-json/woocommerce/mcp. Turn it on to continue.', 'hey-woo' ); ?></p>
-				<p class="hey-woo-setup__banner-actions">
-					<a class="button button-primary" href="<?php echo esc_url( $enable_url ); ?>">
-						<?php esc_html_e( 'Enable WooCommerce MCP', 'hey-woo' ); ?>
-					</a>
-				</p>
-			</div>
-		</div>
-	<?php endif; ?>
-
 	<?php if ( ! $site_https ) : ?>
 		<div class="hey-woo-setup__banner hey-woo-setup__banner--info">
 			<span class="hey-woo-setup__banner-icon" aria-hidden="true">
@@ -194,7 +133,7 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 			</span>
 			<div class="hey-woo-setup__banner-body">
 				<strong><?php esc_html_e( 'This store is on HTTP.', 'hey-woo' ); ?></strong>
-				<p><?php esc_html_e( 'WooCommerce MCP requires HTTPS by default. Local-dev sites can opt in via the woocommerce_mcp_allow_insecure_transport filter.', 'hey-woo' ); ?></p>
+				<p><?php esc_html_e( 'Production stores should use HTTPS so credentials and tool responses are not transmitted in clear text.', 'hey-woo' ); ?></p>
 			</div>
 		</div>
 	<?php endif; ?>
@@ -251,8 +190,8 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 					<div class="hey-woo-setup__keyrow-meta">
 						<div class="hey-woo-setup__keyrow-label">
 							<span class="hey-woo-setup__field-label"><?php esc_html_e( 'API KEY', 'hey-woo' ); ?></span>
-							<span class="hey-woo-setup__pill hey-woo-setup__pill--<?php echo $mcp_enabled ? 'live' : 'off'; ?>">
-								<?php echo $mcp_enabled ? esc_html__( 'LIVE', 'hey-woo' ) : esc_html__( 'OFF', 'hey-woo' ); ?>
+							<span class="hey-woo-setup__pill hey-woo-setup__pill--live">
+								<?php esc_html_e( 'LIVE', 'hey-woo' ); ?>
 							</span>
 						</div>
 						<p class="hey-woo-setup__keyrow-name">
@@ -459,7 +398,7 @@ $can_use_step2_actions = $mcp_enabled && $has_key;
 		<?php
 		/*
 		 * "Try it out" card — only relevant once the connection is live
-		 * ($mcp_enabled && $has_key, captured by $can_use_step2_actions).
+		 * ($has_key, captured by $can_use_step2_actions).
 		 * Three starter questions the merchant can paste straight into
 		 * Claude, plus a link to a longer set of guide questions in the
 		 * repo. Intentionally avoids referencing MCP slash commands —

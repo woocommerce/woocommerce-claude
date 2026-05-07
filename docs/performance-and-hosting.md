@@ -12,7 +12,7 @@ Where it can get noisier: very large catalogues (10k+ SKUs), very large order hi
 
 ## How load is generated
 
-Each question to Claude can fire one or more tool calls against `/wp-json/woocommerce/mcp`. Per uncached call:
+Each question to Claude can fire one or more tool calls against `/wp-json/hey-woo/mcp`. Per uncached call:
 
 1. The plugin runs a direct SQL query against WooCommerce's analytics lookup tables (`wc_order_stats`, `wc_order_product_lookup`, `wc_customer_lookup`, etc.).
 2. The result is stored in a WordPress transient with a 1-hour TTL.
