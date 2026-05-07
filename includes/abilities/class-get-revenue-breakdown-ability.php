@@ -5,12 +5,12 @@
  * Thin wrapper — JSON schemas + permission check live here, the SQL and
  * response assembly live in `AnalyticsController::fetch_revenue_breakdown()`.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\AnalyticsController;
+use WooCommerce\Claude\API\AnalyticsController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,7 +28,7 @@ class GetRevenueBreakdownAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get revenue breakdown', 'hey-woo' ),
+				'label'               => __( 'Get revenue breakdown', 'woocommerce-claude' ),
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
@@ -183,7 +183,7 @@ Good (steer to WP Admin display): "Check WP Admin > WooCommerce > Settings > Shi
 
 IMPORTANT: Only report numbers returned by this tool. Never estimate, extrapolate, or guess analytics figures. If the tool returns an error or empty data, tell the merchant you couldn't retrieve the data — do not fabricate numbers.
 DESCRIPTION,
-					'hey-woo'
+					'woocommerce-claude'
 				),
 				// phpcs:enable WordPress.WP.I18n.NonSingularStringLiteralText
 				'category'            => AbilitiesBootstrap::CATEGORY,

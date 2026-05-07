@@ -49,8 +49,8 @@
  *     variation as a distinct SKU and divides against the sellable-
  *     SKU denominator (simples with no variation children + published
  *     variations; variable parents excluded). Denominators cache
- *     via 1-hour transients keyed `hey_woo_catalogue_size` /
- *     `hey_woo_sku_count` — InnoDB-backed wp_options gets
+ *     via 1-hour transients keyed `woocommerce_claude_catalogue_size` /
+ *     `woocommerce_claude_sku_count` — InnoDB-backed wp_options gets
  *     rolled back per test by WP_UnitTestCase's transaction wrapper,
  *     so the transients reset cleanly without explicit eviction.
  *
@@ -83,7 +83,7 @@
  *     O5: 2025-10-20, 1 × P1                  (£30, refunded main-order)
  *     O6: 2025-10-22, refund of 1 P1 from O1  (−£30 via wc_create_refund)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -91,7 +91,7 @@
  */
 class Test_Get_Product_Performance extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.
@@ -599,7 +599,7 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 	 * itself a sellable SKU.
 	 *
 	 * Both denominators are cached via 1-hour transients keyed
-	 * `hey_woo_catalogue_size` / `hey_woo_sku_count`. WP
+	 * `woocommerce_claude_catalogue_size` / `woocommerce_claude_sku_count`. WP
 	 * wraps every test in a DB transaction that rolls back wp_options
 	 * in tear_down (InnoDB engine confirmed at write time), so the
 	 * transients reset cleanly between tests without explicit eviction.

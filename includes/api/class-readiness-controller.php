@@ -2,12 +2,12 @@
 /**
  * REST API controller for AI Readiness Scoring.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\API;
+namespace WooCommerce\Claude\API;
 
-use HeyWoo\Scoring\ScoringEngine;
+use WooCommerce\Claude\Scoring\ScoringEngine;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class ReadinessController {
 
-	const NAMESPACE = 'hey-woo/v1';
+	const NAMESPACE = 'woocommerce-claude/v1';
 
 	/**
 	 * Register the readiness REST routes.

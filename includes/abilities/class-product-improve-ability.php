@@ -7,10 +7,10 @@
  * prompt; the `product_id` argument interpolates into step 2 of the
  * instructions.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,8 +28,8 @@ class ProductImproveAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Product improve', 'hey-woo' ),
-				'description'         => __( 'Generate improvements for a specific product to make it more AI-discoverable.', 'hey-woo' ),
+				'label'               => __( 'Product improve', 'woocommerce-claude' ),
+				'description'         => __( 'Generate improvements for a specific product to make it more AI-discoverable.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),

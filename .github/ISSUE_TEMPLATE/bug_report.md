@@ -26,7 +26,7 @@ assignees: ''
 
 ## Environment
 
-- **Hey Woo version:** <!-- e.g. 0.1.0 — see plugin header -->
+- **WooCommerce for Claude version:** <!-- e.g. 0.1.0 — see plugin header -->
 - **WordPress version:**
 - **WooCommerce version:**
 - **PHP version:**

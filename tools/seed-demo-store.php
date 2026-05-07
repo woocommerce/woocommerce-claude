@@ -1,6 +1,6 @@
 <?php
 /**
- * Hey Woo — Demo Store Seeder
+ * WooCommerce for Claude — Demo Store Seeder
  *
  * Generates a realistic WooCommerce store with 2 years of data for testing
  * analytics Skills. Uses WooCommerce APIs (not raw SQL) so all analytics
@@ -10,7 +10,7 @@
  *
  * Uses WooCommerce CRUD APIs so all analytics lookup tables are populated correctly.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
 // phpcs:disable WordPress.WP.AlternativeFunctions.rand_seeding_mt_srand, WordPress.WP.AlternativeFunctions.rand_mt_rand -- Deterministic seeding is the whole point: mt_srand(42) + mt_rand() produce identical demo data across machines, which wp_rand() can't do.

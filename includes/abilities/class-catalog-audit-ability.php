@@ -7,10 +7,10 @@
  * The body text is ported verbatim from the TS server's `catalog-audit`
  * prompt; the `focus` argument interpolates into the middle line.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,8 +28,8 @@ class CatalogAuditAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Catalog audit', 'hey-woo' ),
-				'description'         => __( "Run a comprehensive AI readiness audit of the store's product catalog.", 'hey-woo' ),
+				'label'               => __( 'Catalog audit', 'woocommerce-claude' ),
+				'description'         => __( "Run a comprehensive AI readiness audit of the store's product catalog.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),

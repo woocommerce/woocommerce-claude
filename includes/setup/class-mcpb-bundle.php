@@ -3,10 +3,10 @@
  * Builds the .mcpb (Claude Desktop bundle) that wraps mcp-wordpress-remote
  * with this store's URL and REST API credential pre-filled.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Setup;
+namespace WooCommerce\Claude\Setup;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -25,9 +25,23 @@ class McpbBundle {
 	/**
 	 * MCPB manifest schema version this bundle conforms to.
 	 *
+	 * Pinned to 0.2 because Claude Desktop's UI handles 0.2 manifests
+	 * along a different code path than 0.3 — disconnect for our 0.3
+	 * bundle was incorrectly routing through the cloud-logout
+	 * endpoint (`/api/.../mcp/logout/<server-id>`) which validates
+	 * server IDs as UUID or `mcpsrv_*`, rejecting our slug name. Other
+	 * working `local.mcpb.automattic.*` extensions on the same machine
+	 * (e.g. context-a8c) ship with 0.2 and disconnect cleanly.
+	 *
 	 * @see https://github.com/anthropics/mcpb/blob/main/MANIFEST.md
 	 */
-	const MANIFEST_VERSION = '0.3';
+	const MANIFEST_VERSION = '0.2';
+
+	/**
+	 * Minimum Claude Desktop version required. Matches the floor that
+	 * other Automattic-shipped 0.2 manifests declare (e.g. context-a8c).
+	 */
+	const CLAUDE_DESKTOP_MIN_VERSION = '>=0.13.37';
 
 	/**
 	 * Minimum Node.js the bundled npx invocation requires.
@@ -35,8 +49,8 @@ class McpbBundle {
 	const NODE_MIN_VERSION = '>=18.0.0';
 
 	/**
-	 * The fully-qualified Hey Woo MCP endpoint, e.g.
-	 * https://example.com/wp-json/hey-woo/mcp.
+	 * The fully-qualified WooCommerce for Claude MCP endpoint, e.g.
+	 * https://example.com/wp-json/woocommerce-claude/mcp.
 	 *
 	 * @var string
 	 */
@@ -61,7 +75,7 @@ class McpbBundle {
 	/**
 	 * Construct the bundle generator with all data baked into the manifest.
 	 *
-	 * @param string $endpoint_url   Full Hey Woo MCP endpoint URL.
+	 * @param string $endpoint_url   Full WooCommerce for Claude MCP endpoint URL.
 	 * @param string $api_credential `ck_xxx:cs_xxx` joined credential.
 	 * @param string $plugin_version Plugin version (e.g. '0.1.0').
 	 */
@@ -84,20 +98,38 @@ class McpbBundle {
 
 		return array(
 			'manifest_version' => self::MANIFEST_VERSION,
-			// Per-store identity so two Hey Woo stores installed in the
-			// same Claude Desktop don't overwrite one another's
-			// extension entries. SetupPage::server_slug() derives this
-			// from the host (e.g. `hey-woo-example-com`).
+			// Per-store identity so two WooCommerce for Claude stores
+			// installed in the same Claude Desktop don't overwrite one
+			// another's extension entries. SetupPage::server_slug()
+			// derives this from the host
+			// (e.g. `woocommerce-claude-example-com`).
 			'name'             => SetupPage::server_slug(),
+			// Human-facing label used by the Claude Desktop UI.
+			// Without this, the UI falls back to `name` (the long
+			// machine slug) which Claude Desktop's disconnect routing
+			// rejects as malformed. Reproducible: a 0.2 manifest with
+			// `display_name` set disconnects cleanly; the same shape
+			// without it errors with `invalid_server_id`.
+			'display_name'     => sprintf(
+				/* translators: %s: store hostname. */
+				__( 'WooCommerce for Claude — %s', 'woocommerce-claude' ),
+				$host
+			),
 			'version'          => $this->plugin_version,
 			'description'      => sprintf(
 				/* translators: %s: store hostname. */
-				__( 'Connect %s to Claude Desktop via Hey Woo.', 'hey-woo' ),
+				__( 'Connect %s to Claude Desktop via WooCommerce for Claude.', 'woocommerce-claude' ),
 				$host
 			),
 			'author'           => array(
 				'name' => 'Automattic',
 				'url'  => 'https://woocommerce.com/',
+			),
+			'license'          => 'GPL-3.0-or-later',
+			'homepage'         => 'https://woocommerce.com/',
+			'repository'       => array(
+				'type' => 'git',
+				'url'  => 'https://github.com/woocommerce/woocommerce-claude',
 			),
 			'server'           => array(
 				'type'        => 'node',
@@ -117,7 +149,13 @@ class McpbBundle {
 				),
 			),
 			'compatibility'    => array(
-				'runtimes' => array(
+				// Match the floor declared by other Automattic-shipped
+				// 0.2 manifests — without this, Claude Desktop may
+				// treat the install as version-unconstrained and route
+				// it inconsistently.
+				'claude_desktop' => self::CLAUDE_DESKTOP_MIN_VERSION,
+				'platforms'      => array( 'darwin', 'linux', 'win32' ),
+				'runtimes'       => array(
 					'node' => self::NODE_MIN_VERSION,
 				),
 			),
@@ -132,11 +170,11 @@ class McpbBundle {
 	 * @param string $filename Suggested filename for the download.
 	 * @return void
 	 */
-	public function stream( $filename = 'hey-woo.mcpb' ) {
+	public function stream( $filename = 'woocommerce-claude.mcpb' ) {
 		if ( ! class_exists( '\\ZipArchive' ) ) {
 			wp_die(
-				esc_html__( 'PHP ZipArchive is unavailable on this server, so the bundle cannot be generated. Use the Manual Setup option instead.', 'hey-woo' ),
-				esc_html__( 'Bundle unavailable', 'hey-woo' ),
+				esc_html__( 'PHP ZipArchive is unavailable on this server, so the bundle cannot be generated. Use the Manual Setup option instead.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle unavailable', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -144,8 +182,8 @@ class McpbBundle {
 		$manifest_json = wp_json_encode( $this->manifest(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		if ( false === $manifest_json ) {
 			wp_die(
-				esc_html__( 'Could not encode the bundle manifest.', 'hey-woo' ),
-				esc_html__( 'Bundle error', 'hey-woo' ),
+				esc_html__( 'Could not encode the bundle manifest.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle error', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -155,8 +193,8 @@ class McpbBundle {
 		if ( true !== $zip->open( $tmp, \ZipArchive::OVERWRITE | \ZipArchive::CREATE ) ) {
 			wp_delete_file( $tmp );
 			wp_die(
-				esc_html__( 'Could not open the bundle for writing.', 'hey-woo' ),
-				esc_html__( 'Bundle error', 'hey-woo' ),
+				esc_html__( 'Could not open the bundle for writing.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle error', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -168,7 +206,7 @@ class McpbBundle {
 		// precedence at runtime.
 		$zip->addFromString(
 			'server/index.js',
-			"// Hey Woo MCPB placeholder — the real server is launched\n"
+			"// WooCommerce for Claude MCPB placeholder — the real server is launched\n"
 			. "// via mcp_config.command in manifest.json (npx fetches\n"
 			. "// @automattic/mcp-wordpress-remote at install time).\n"
 		);

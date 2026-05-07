@@ -24,7 +24,7 @@
  *   3. Reference the source-line range and Codex severity in the
  *      docblock so `git blame` traces back to the review note.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -32,7 +32,7 @@
  */
 class Test_Query_Analytics_Engine_Regressions extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by every test in this class.

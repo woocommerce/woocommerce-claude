@@ -1,17 +1,17 @@
 <?php
 /**
- * Hey Woo "Connect to Claude" setup view.
+ * WooCommerce for Claude "Connect to Claude" setup view.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Setup;
+namespace WooCommerce\Claude\Setup;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Setup view rendered inside the WooCommerce Settings → Hey Woo tab
- * (default section). Walks a store owner through connecting Hey Woo
+ * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude tab
+ * (default section). Walks a store owner through connecting WooCommerce for Claude
  * to Claude Desktop (one-click .mcpb download with the API key
  * embedded) or to other MCP clients via a copy-paste JSON snippet.
  *
@@ -41,12 +41,12 @@ class SetupPage {
 	/**
 	 * WC settings tab id this page lives under.
 	 */
-	const SETTINGS_TAB = 'hey-woo';
+	const SETTINGS_TAB = 'woocommerce-claude';
 
-	const ACTION_DOWNLOAD     = 'hey_woo_download_mcpb';
-	const ACTION_REGEN_KEY    = 'hey_woo_regenerate_key';
-	const ACTION_DISCONNECT   = 'hey_woo_disconnect';
-	const ACTION_GENERATE_KEY = 'hey_woo_generate_key';
+	const ACTION_DOWNLOAD     = 'woocommerce_claude_download_mcpb';
+	const ACTION_REGEN_KEY    = 'woocommerce_claude_regenerate_key';
+	const ACTION_DISCONNECT   = 'woocommerce_claude_disconnect';
+	const ACTION_GENERATE_KEY = 'woocommerce_claude_generate_key';
 
 	/**
 	 * Wire all hooks. Called once during plugin bootstrap.
@@ -59,7 +59,7 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
 
-		// Restrict the setup credential to the Hey Woo MCP endpoint only.
+		// Restrict the setup credential to the WooCommerce for Claude MCP endpoint only.
 		// WC's API key auth runs at priority 10 on `determine_current_user`;
 		// `rest_authentication_errors` runs after that and before the
 		// route is dispatched, which is the right point to refuse a
@@ -67,13 +67,13 @@ class SetupPage {
 		add_filter( 'rest_authentication_errors', array( __CLASS__, 'enforce_setup_key_route_scope' ), 50 );
 
 		add_filter(
-			'plugin_action_links_' . plugin_basename( HEY_WOO_PLUGIN_FILE ),
+			'plugin_action_links_' . plugin_basename( WOOCOMMERCE_CLAUDE_PLUGIN_FILE ),
 			array( __CLASS__, 'add_plugin_row_link' )
 		);
 	}
 
 	/**
-	 * Build the URL of the setup page (WC Settings → Hey Woo, default
+	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude, default
 	 * section).
 	 *
 	 * @param array<string,string|int> $args Extra query args.
@@ -108,12 +108,12 @@ class SetupPage {
 	}
 
 	/**
-	 * The fully-qualified Hey Woo MCP endpoint for this site.
+	 * The fully-qualified WooCommerce for Claude MCP endpoint for this site.
 	 *
 	 * @return string
 	 */
 	public static function endpoint_url() {
-		return rest_url( \HeyWoo\Plugin::MCP_SERVER_NS . '/' . \HeyWoo\Plugin::MCP_SERVER_ROUTE );
+		return rest_url( \WooCommerce\Claude\Plugin::MCP_SERVER_NS . '/' . \WooCommerce\Claude\Plugin::MCP_SERVER_ROUTE );
 	}
 
 	/**
@@ -125,14 +125,14 @@ class SetupPage {
 	 * not just the host, so subdirectory multisite installs and
 	 * same-host different-port dev stores get distinct slugs:
 	 *
-	 *   https://example.com/wp-json/hey-woo/mcp
-	 *     → `hey-woo-example-com-1a2b3c4d`
-	 *   https://example.com/shop-a/wp-json/hey-woo/mcp
-	 *     → `hey-woo-example-com-5e6f7a8b` (path differs ⇒ hash differs)
-	 *   http://localhost:8888/wp-json/hey-woo/mcp
-	 *     → `hey-woo-localhost-9c0d1e2f`
-	 *   http://localhost:8889/wp-json/hey-woo/mcp
-	 *     → `hey-woo-localhost-3a4b5c6d` (port differs ⇒ hash differs)
+	 *   https://example.com/wp-json/woocommerce-claude/mcp
+	 *     → `woocommerce-claude-example-com-1a2b3c4d`
+	 *   https://example.com/shop-a/wp-json/woocommerce-claude/mcp
+	 *     → `woocommerce-claude-example-com-5e6f7a8b` (path differs ⇒ hash differs)
+	 *   http://localhost:8888/wp-json/woocommerce-claude/mcp
+	 *     → `woocommerce-claude-localhost-9c0d1e2f`
+	 *   http://localhost:8889/wp-json/woocommerce-claude/mcp
+	 *     → `woocommerce-claude-localhost-3a4b5c6d` (port differs ⇒ hash differs)
 	 *
 	 * @return string
 	 */
@@ -158,15 +158,15 @@ class SetupPage {
 		$digest = '' === $url ? '' : substr( hash( 'sha256', $url ), 0, 8 );
 
 		if ( '' === $host && '' === $digest ) {
-			return 'hey-woo';
+			return 'woocommerce-claude';
 		}
 		if ( '' === $host ) {
-			return 'hey-woo-' . $digest;
+			return 'woocommerce-claude-' . $digest;
 		}
 		if ( '' === $digest ) {
-			return 'hey-woo-' . $host;
+			return 'woocommerce-claude-' . $host;
 		}
-		return 'hey-woo-' . $host . '-' . $digest;
+		return 'woocommerce-claude-' . $host . '-' . $digest;
 	}
 
 	/**
@@ -204,9 +204,9 @@ class SetupPage {
 		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		/*
-		 * Render-time lookup is read-only. An existing Hey Woo REST
+		 * Render-time lookup is read-only. An existing WooCommerce for Claude REST
 		 * key authenticates against the WC REST surface generally, not
-		 * just /wp-json/hey-woo/mcp — so the page must surface (and
+		 * just /wp-json/woocommerce-claude/mcp — so the page must surface (and
 		 * offer to disconnect) an existing key. Provisioning is gated
 		 * behind the explicit "Generate key" button (see
 		 * handle_generate_key) rather than happening silently on
@@ -221,10 +221,10 @@ class SetupPage {
 		$owner_display   = '';
 		if ( $owner_user_id > 0 && ! $is_owner ) {
 			$owner_user    = get_userdata( $owner_user_id );
-			$owner_display = $owner_user ? $owner_user->display_name : __( 'another administrator', 'hey-woo' );
+			$owner_display = $owner_user ? $owner_user->display_name : __( 'another administrator', 'woocommerce-claude' );
 		}
 
-		require HEY_WOO_PLUGIN_DIR . 'includes/setup/views/page.php';
+		require WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/views/page.php';
 	}
 
 	/**
@@ -245,8 +245,8 @@ class SetupPage {
 			self::redirect( $state->get_error_code() );
 		}
 
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-mcpb-bundle.php';
-		$bundle = new McpbBundle( self::endpoint_url(), $state['credential'], HEY_WOO_VERSION );
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-mcpb-bundle.php';
+		$bundle = new McpbBundle( self::endpoint_url(), $state['credential'], WOOCOMMERCE_CLAUDE_VERSION );
 		$bundle->stream( self::server_slug() . '.mcpb' );
 		// stream() exits.
 	}
@@ -281,14 +281,14 @@ class SetupPage {
 		if ( null === $state ) {
 			return new \WP_Error(
 				'key_required',
-				__( 'Generate an API key in Step 1 before downloading.', 'hey-woo' )
+				__( 'Generate an API key in Step 1 before downloading.', 'woocommerce-claude' )
 			);
 		}
 
 		if ( (int) ( $state['owner_user_id'] ?? 0 ) !== (int) $expected_user_id ) {
 			return new \WP_Error(
 				'ownership_changed',
-				__( 'The API key was rotated by another admin while your download was being prepared. Refresh the page and try again.', 'hey-woo' )
+				__( 'The API key was rotated by another admin while your download was being prepared. Refresh the page and try again.', 'woocommerce-claude' )
 			);
 		}
 
@@ -319,7 +319,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Provision the Hey Woo REST API key from the explicit Step 1 form.
+	 * Provision the WooCommerce for Claude REST API key from the explicit Step 1 form.
 	 * Always provisions a read-only key — the merchant can broaden it
 	 * later under WooCommerce → Settings → Advanced → REST API.
 	 *
@@ -393,7 +393,7 @@ class SetupPage {
 		$setup_link = sprintf(
 			'<a href="%s">%s</a>',
 			esc_url( self::url() ),
-			esc_html__( 'Setup', 'hey-woo' )
+			esc_html__( 'Setup', 'woocommerce-claude' )
 		);
 		array_unshift( $links, $setup_link );
 		return $links;
@@ -410,8 +410,8 @@ class SetupPage {
 			return;
 		}
 
-		$base_url  = plugins_url( 'includes/setup/assets/', HEY_WOO_PLUGIN_FILE );
-		$base_path = HEY_WOO_PLUGIN_DIR . 'includes/setup/assets/';
+		$base_url  = plugins_url( 'includes/setup/assets/', WOOCOMMERCE_CLAUDE_PLUGIN_FILE );
+		$base_path = WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/assets/';
 
 		// Use filemtime() so any edit to the asset auto-busts the
 		// browser cache. Plugin version doesn't change between iterations
@@ -419,25 +419,25 @@ class SetupPage {
 		// old CSS even after the file was rewritten.
 		$css_path = $base_path . 'setup.css';
 		$js_path  = $base_path . 'setup.js';
-		$css_ver  = file_exists( $css_path ) ? (string) filemtime( $css_path ) : HEY_WOO_VERSION;
-		$js_ver   = file_exists( $js_path ) ? (string) filemtime( $js_path ) : HEY_WOO_VERSION;
+		$css_ver  = file_exists( $css_path ) ? (string) filemtime( $css_path ) : WOOCOMMERCE_CLAUDE_VERSION;
+		$js_ver   = file_exists( $js_path ) ? (string) filemtime( $js_path ) : WOOCOMMERCE_CLAUDE_VERSION;
 
-		wp_enqueue_style( 'hey-woo-setup', $base_url . 'setup.css', array(), $css_ver );
-		wp_enqueue_script( 'hey-woo-setup', $base_url . 'setup.js', array(), $js_ver, true );
+		wp_enqueue_style( 'woocommerce-claude-setup', $base_url . 'setup.css', array(), $css_ver );
+		wp_enqueue_script( 'woocommerce-claude-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
 		// Hide WC's outer Save Changes button on this section — the
 		// setup view has its own actioned controls and nothing to
 		// "save". Scoped to #mainform > .submit so it only suppresses
 		// the WC-emitted save row, not anything inside our cards.
 		wp_add_inline_style(
-			'hey-woo-setup',
+			'woocommerce-claude-setup',
 			'#mainform > p.submit { display: none; }'
 		);
 	}
 
 	/**
 	 * Whether the current request is the setup page (WC Settings →
-	 * Hey Woo, default section). Caller may pass the admin hook suffix
+	 * WooCommerce for Claude, default section). Caller may pass the admin hook suffix
 	 * if it has it; falls back to the request's GET vars otherwise.
 	 *
 	 * @param string|null $hook_suffix Optional admin hook suffix.
@@ -458,12 +458,12 @@ class SetupPage {
 	}
 
 	/**
-	 * Server-side enforcement: the auto-created Hey Woo REST API
+	 * Server-side enforcement: the auto-created WooCommerce for Claude REST API
 	 * key is technically a standard `woocommerce_api_keys` row, so
 	 * by default it would authenticate against any WC REST surface
 	 * (`/wc/v3/orders`, `/wc/v3/customers`, etc.). The setup UI
 	 * implies the credential is scoped to the MCP integration, and
-	 * the bundle only ever calls `/wp-json/hey-woo/mcp` — so we
+	 * the bundle only ever calls `/wp-json/woocommerce-claude/mcp` — so we
 	 * reject the key on every other route here.
 	 *
 	 * This shrinks the blast radius if the bundle leaks: the
@@ -495,8 +495,8 @@ class SetupPage {
 		// bound to the MCP endpoint only.
 		if ( ! self::route_is_allowed_for_setup_key( self::current_rest_route() ) ) {
 			return new \WP_Error(
-				'hey_woo_route_restricted',
-				__( 'This API key is restricted to the Hey Woo MCP endpoint. Create a separate WooCommerce REST API key for direct WC REST access.', 'hey-woo' ),
+				'woocommerce_claude_route_restricted',
+				__( 'This API key is restricted to the WooCommerce for Claude MCP endpoint. Create a separate WooCommerce REST API key for direct WC REST access.', 'woocommerce-claude' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -505,8 +505,8 @@ class SetupPage {
 
 	/**
 	 * Whether the given REST route is one the setup credential is
-	 * allowed to authenticate. Anchored on the canonical Hey Woo MCP
-	 * endpoint — `/wp-json/hey-woo/mcp` and any subpaths the MCP
+	 * allowed to authenticate. Anchored on the canonical WooCommerce for Claude MCP
+	 * endpoint — `/wp-json/woocommerce-claude/mcp` and any subpaths the MCP
 	 * adapter's transport may add (e.g. session-id sub-routes).
 	 *
 	 * @param string $route REST route relative to the REST prefix (no leading slash).
@@ -516,7 +516,7 @@ class SetupPage {
 		if ( '' === $route ) {
 			return false;
 		}
-		$allowed = \HeyWoo\Plugin::MCP_SERVER_NS . '/' . \HeyWoo\Plugin::MCP_SERVER_ROUTE;
+		$allowed = \WooCommerce\Claude\Plugin::MCP_SERVER_NS . '/' . \WooCommerce\Claude\Plugin::MCP_SERVER_ROUTE;
 		return 0 === strpos( $route, $allowed );
 	}
 
@@ -533,7 +533,7 @@ class SetupPage {
 	 * deprecated WC core MCP endpoint at `/wp-json/woocommerce/mcp`.
 	 * Reading it here means `enforce_setup_key_route_scope()` can
 	 * still recognise our credential on those legacy requests and
-	 * deny them on every route except `/wp-json/hey-woo/mcp`. Drop
+	 * deny them on every route except `/wp-json/woocommerce-claude/mcp`. Drop
 	 * the header here and a leaked legacy bundle silently keeps
 	 * authenticating against the WC core endpoint.
 	 *
@@ -550,7 +550,7 @@ class SetupPage {
 		// 1. Legacy X-MCP-API-Key header — kept for defense-in-depth so
 		// pre-migration bundles still hit the route-scope deny path on
 		// non-allowed routes. Not a supported auth path for the new
-		// /wp-json/hey-woo/mcp endpoint (Plugin::authenticate_mcp_request
+		// /wp-json/woocommerce-claude/mcp endpoint (Plugin::authenticate_mcp_request
 		// only reads Basic auth).
 		if ( ! empty( $_SERVER['HTTP_X_MCP_API_KEY'] ) ) {
 			return wp_unslash( (string) $_SERVER['HTTP_X_MCP_API_KEY'] );
@@ -646,7 +646,7 @@ class SetupPage {
 		$owner = ( new RestApiKey() )->owner_user_id();
 		if ( 0 < $owner && get_current_user_id() !== $owner ) {
 			wp_die(
-				esc_html__( 'This action is restricted to the admin who provisioned the Hey Woo API key. Use Regenerate on the setup page to re-bind the key to your user, then try again.', 'hey-woo' ),
+				esc_html__( 'This action is restricted to the admin who provisioned the WooCommerce for Claude API key. Use Regenerate on the setup page to re-bind the key to your user, then try again.', 'woocommerce-claude' ),
 				'',
 				array( 'response' => 403 )
 			);
@@ -662,7 +662,7 @@ class SetupPage {
 	private static function guard( $action ) {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			wp_die(
-				esc_html__( 'You do not have permission to perform this action.', 'hey-woo' ),
+				esc_html__( 'You do not have permission to perform this action.', 'woocommerce-claude' ),
 				'',
 				array( 'response' => 403 )
 			);

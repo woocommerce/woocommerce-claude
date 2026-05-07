@@ -96,7 +96,7 @@
  *   8–30 days    = 1 (C, 13 days)
  *   31+ days     = 1 (D, 35 days — parent was in prior period)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -104,7 +104,7 @@
  */
 class Test_Get_Refund_Analysis extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

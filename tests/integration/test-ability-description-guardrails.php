@@ -22,7 +22,7 @@
  * See CLAUDE.md "Guardrail shape: bad/good phrasing pairs beat abstract
  * rules" → "Corollary: static sweeps as behavioural-test proxies".
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -40,7 +40,7 @@ class Test_Ability_Description_Guardrails extends WP_UnitTestCase {
 	 *
 	 * @var array<int, string>
 	 */
-	const SCOPED_PREFIXES = array( 'wc-analytics/', 'hey-woo/', 'wc-prompts/' );
+	const SCOPED_PREFIXES = array( 'wc-analytics/', 'woocommerce-claude/', 'wc-prompts/' );
 
 	/**
 	 * Subset of SCOPED_PREFIXES restricted to tool-shaped abilities —
@@ -52,7 +52,7 @@ class Test_Ability_Description_Guardrails extends WP_UnitTestCase {
 	 *
 	 * @var array<int, string>
 	 */
-	const TOOL_DESCRIPTION_PREFIXES = array( 'wc-analytics/', 'hey-woo/' );
+	const TOOL_DESCRIPTION_PREFIXES = array( 'wc-analytics/', 'woocommerce-claude/' );
 
 	/**
 	 * Tool names that may legitimately appear after a `→` follow-up arrow
@@ -85,7 +85,7 @@ class Test_Ability_Description_Guardrails extends WP_UnitTestCase {
 		'get_refund_analysis',
 		'get_tax_summary',
 		'query_analytics',
-		// hey-woo/*.
+		// woocommerce-claude/*.
 		'get_store_profile',
 		'search_products',
 		'get_product_details',

@@ -5,10 +5,10 @@
  * Scores how complete product data is across the catalog:
  * descriptions, images, categories, attributes, pricing, stock.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Scoring\Factors;
+namespace WooCommerce\Claude\Scoring\Factors;
 
 defined( 'ABSPATH' ) || exit;
 

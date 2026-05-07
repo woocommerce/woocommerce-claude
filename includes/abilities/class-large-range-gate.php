@@ -18,10 +18,10 @@
  *   }
  *   $series_cap = $gate;  // int — use as SQL LIMIT for time-series queries
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 

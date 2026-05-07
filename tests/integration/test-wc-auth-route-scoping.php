@@ -14,14 +14,14 @@
  *   2. The wp-abilities/v1 opt-in was scope-bleeding. The original code
  *      returned `true` for any URI containing `wp-abilities/`, opting WC
  *      consumer-key auth into abilities registered by other plugins
- *      under the same Abilities API surface. A Hey Woo WC API key
+ *      under the same Abilities API surface. A WooCommerce for Claude WC API key
  *      shouldn't be a usable auth path for unrelated plugins' abilities.
  *
  * Hits the filter callback directly with the relevant superglobals set.
  * No HTTP layer involved — the function is a pure inspection of
  * `$_SERVER['REQUEST_URI']` and `$_GET['rest_route']`.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -88,7 +88,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * Set the request superglobals for a pretty-permalink REST request.
 	 *
 	 * @param string $route Route relative to the REST prefix, with leading slash.
-	 *                      e.g. "/hey-woo/v1/store/profile".
+	 *                      e.g. "/woocommerce-claude/v1/store/profile".
 	 */
 	private function set_pretty_permalink_request( $route ) {
 		$_SERVER['REQUEST_URI'] = '/' . trailingslashit( rest_get_url_prefix() ) . ltrim( $route, '/' );
@@ -99,7 +99,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * Set the request superglobals for a plain-permalink REST request.
 	 *
 	 * @param string $route Route relative to the REST prefix, with leading slash.
-	 *                      e.g. "/hey-woo/v1/store/profile".
+	 *                      e.g. "/woocommerce-claude/v1/store/profile".
 	 */
 	private function set_plain_permalink_request( $route ) {
 		$_SERVER['REQUEST_URI'] = '/?rest_route=' . rawurlencode( $route );
@@ -112,22 +112,22 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * @return bool
 	 */
 	private function check() {
-		return \HeyWoo\Plugin::instance()->enable_wc_auth_for_our_routes( false );
+		return \WooCommerce\Claude\Plugin::instance()->enable_wc_auth_for_our_routes( false );
 	}
 
 	/**
 	 * Pretty-permalink hits to the plugin's own REST namespace stay in scope.
 	 */
-	public function test_pretty_permalink_hey_woo_route_returns_true() {
-		$this->set_pretty_permalink_request( '/hey-woo/v1/store/profile' );
+	public function test_pretty_permalink_woocommerce_claude_route_returns_true() {
+		$this->set_pretty_permalink_request( '/woocommerce-claude/v1/store/profile' );
 		$this->assertTrue( $this->check() );
 	}
 
 	/**
 	 * Plain-permalink (?rest_route=) hits to the plugin's own namespace stay in scope.
 	 */
-	public function test_plain_permalink_hey_woo_route_returns_true() {
-		$this->set_plain_permalink_request( '/hey-woo/v1/store/profile' );
+	public function test_plain_permalink_woocommerce_claude_route_returns_true() {
+		$this->set_plain_permalink_request( '/woocommerce-claude/v1/store/profile' );
 		$this->assertTrue( $this->check() );
 	}
 
@@ -135,7 +135,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * Each plugin-owned Abilities namespace is in scope under pretty permalinks.
 	 */
 	public function test_pretty_permalink_owned_ability_namespace_returns_true() {
-		foreach ( array( 'wc-analytics', 'hey-woo', 'hey-woo-integrations' ) as $namespace ) {
+		foreach ( array( 'wc-analytics', 'woocommerce-claude', 'woocommerce-claude-integrations' ) as $namespace ) {
 			$this->set_pretty_permalink_request( "/wp-abilities/v1/abilities/{$namespace}/some-skill/run" );
 			$this->assertTrue(
 				$this->check(),
@@ -148,7 +148,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * Each plugin-owned Abilities namespace is in scope under plain permalinks.
 	 */
 	public function test_plain_permalink_owned_ability_namespace_returns_true() {
-		foreach ( array( 'wc-analytics', 'hey-woo', 'hey-woo-integrations' ) as $namespace ) {
+		foreach ( array( 'wc-analytics', 'woocommerce-claude', 'woocommerce-claude-integrations' ) as $namespace ) {
 			$this->set_plain_permalink_request( "/wp-abilities/v1/abilities/{$namespace}/some-skill/run" );
 			$this->assertTrue(
 				$this->check(),
@@ -197,7 +197,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	public function test_passes_through_when_already_classified_as_request() {
 		$this->set_pretty_permalink_request( '/some/random/path' );
 		$this->assertTrue(
-			\HeyWoo\Plugin::instance()->enable_wc_auth_for_our_routes( true ),
+			\WooCommerce\Claude\Plugin::instance()->enable_wc_auth_for_our_routes( true ),
 			'Should pass through unchanged when WC has already classified the request.'
 		);
 	}
@@ -222,11 +222,11 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * the query and granted scope to a /wp/v2/posts request.
 	 */
 	public function test_query_string_with_owned_substring_does_not_grant_scope() {
-		$_SERVER['REQUEST_URI'] = '/' . trailingslashit( rest_get_url_prefix() ) . 'wp/v2/posts?return_to=/wp-json/hey-woo/v1/foo';
+		$_SERVER['REQUEST_URI'] = '/' . trailingslashit( rest_get_url_prefix() ) . 'wp/v2/posts?return_to=/wp-json/woocommerce-claude/v1/foo';
 		unset( $_GET['rest_route'] );
 		$this->assertFalse(
 			$this->check(),
-			'A query string mentioning a hey-woo/ path must not opt the underlying /wp/v2/posts request into WC auth.'
+			'A query string mentioning a woocommerce-claude/ path must not opt the underlying /wp/v2/posts request into WC auth.'
 		);
 	}
 
@@ -236,20 +236,20 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * that would 401 every MCP POST against a read-only key, so the
 	 * MCP transport handles auth itself via its own permission
 	 * callback. This pins the narrowing — if the prefix match ever
-	 * widens back to `hey-woo/`, MCP requests with read-only keys
+	 * widens back to `woocommerce-claude/`, MCP requests with read-only keys
 	 * would start 401-ing.
 	 */
 	public function test_mcp_route_is_outside_wc_auth_scope() {
-		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$this->set_pretty_permalink_request( '/woocommerce-claude/mcp' );
 		$this->assertFalse(
 			$this->check(),
-			'Pretty permalinks: hey-woo/mcp must NOT opt into WC auth (the MCP transport authenticates itself).'
+			'Pretty permalinks: woocommerce-claude/mcp must NOT opt into WC auth (the MCP transport authenticates itself).'
 		);
 
-		$this->set_plain_permalink_request( '/hey-woo/mcp' );
+		$this->set_plain_permalink_request( '/woocommerce-claude/mcp' );
 		$this->assertFalse(
 			$this->check(),
-			'Plain permalinks: hey-woo/mcp must NOT opt into WC auth.'
+			'Plain permalinks: woocommerce-claude/mcp must NOT opt into WC auth.'
 		);
 	}
 
@@ -271,31 +271,31 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * 401 cliff for any merchant who has app passwords in use.
 	 */
 	public function test_mcp_route_excluded_from_app_password_auth() {
-		$plugin = \HeyWoo\Plugin::instance();
+		$plugin = \WooCommerce\Claude\Plugin::instance();
 
-		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$this->set_pretty_permalink_request( '/woocommerce-claude/mcp' );
 		$this->assertFalse(
 			$plugin->exclude_mcp_route_from_app_password_auth( true ),
-			'Pretty permalinks: hey-woo/mcp must opt out of app-password auth.'
+			'Pretty permalinks: woocommerce-claude/mcp must opt out of app-password auth.'
 		);
 
-		$this->set_plain_permalink_request( '/hey-woo/mcp' );
+		$this->set_plain_permalink_request( '/woocommerce-claude/mcp' );
 		$this->assertFalse(
 			$plugin->exclude_mcp_route_from_app_password_auth( true ),
-			'Plain permalinks: hey-woo/mcp must opt out of app-password auth.'
+			'Plain permalinks: woocommerce-claude/mcp must opt out of app-password auth.'
 		);
 	}
 
 	/**
 	 * The app-password exclusion must be surgical — every other REST
-	 * route (including our own `hey-woo/v1/...` REST controllers) keeps
+	 * route (including our own `woocommerce-claude/v1/...` REST controllers) keeps
 	 * WP's normal app-password handling. Anything else would silently
 	 * disable a documented WP feature on unrelated routes.
 	 */
 	public function test_app_password_auth_passes_through_for_non_mcp_routes() {
-		$plugin = \HeyWoo\Plugin::instance();
+		$plugin = \WooCommerce\Claude\Plugin::instance();
 
-		foreach ( array( '/hey-woo/v1/store/profile', '/wp/v2/posts', '/wc/v3/orders', '/wp-abilities/v1/abilities/wc-analytics/get-revenue-summary/run' ) as $route ) {
+		foreach ( array( '/woocommerce-claude/v1/store/profile', '/wp/v2/posts', '/wc/v3/orders', '/wp-abilities/v1/abilities/wc-analytics/get-revenue-summary/run' ) as $route ) {
 			$this->set_pretty_permalink_request( $route );
 			$this->assertTrue(
 				$plugin->exclude_mcp_route_from_app_password_auth( true ),
@@ -310,8 +310,8 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * coerce false → true.
 	 */
 	public function test_app_password_filter_passes_through_when_already_false() {
-		$plugin = \HeyWoo\Plugin::instance();
-		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$plugin = \WooCommerce\Claude\Plugin::instance();
+		$this->set_pretty_permalink_request( '/woocommerce-claude/mcp' );
 		$this->assertFalse(
 			$plugin->exclude_mcp_route_from_app_password_auth( false ),
 			'When the incoming value is already false, the filter is a no-op pass-through.'
@@ -326,7 +326,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 * `authenticate_mcp_request` callback, so leaving it on would
 	 * expose a second, non-curated MCP surface — including any
 	 * abilities a third-party plugin marks as `mcp.public`. The setup
-	 * flow only scopes access to `/wp-json/hey-woo/mcp`, so the
+	 * flow only scopes access to `/wp-json/woocommerce-claude/mcp`, so the
 	 * default endpoint is an unsupervised parallel surface.
 	 *
 	 * Pin the filter contract: after Plugin::instance() runs,
@@ -336,7 +336,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	 */
 	public function test_default_mcp_adapter_server_is_suppressed() {
 		// Trigger plugin bootstrap if it hasn't already happened in this test run.
-		\HeyWoo\Plugin::instance();
+		\WooCommerce\Claude\Plugin::instance();
 
 		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- synthetic application of an upstream filter for assertion only; not a hook definition.
 		$result = apply_filters( 'mcp_adapter_create_default_server', true );

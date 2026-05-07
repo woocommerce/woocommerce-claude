@@ -5,12 +5,12 @@
  * Exposes enriched product data — completeness metadata, structured descriptions,
  * relationships — for AI consumption.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Knowledge\Providers;
+namespace WooCommerce\Claude\Knowledge\Providers;
 
-use HeyWoo\Knowledge\KnowledgeProvider;
+use WooCommerce\Claude\Knowledge\KnowledgeProvider;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -108,7 +108,7 @@ class ProductProvider implements KnowledgeProvider {
 		 * @param array $query_args WC product query arguments.
 		 * @param array $args       Original request arguments.
 		 */
-		$query_args = apply_filters( 'hey_woo_product_query_args', $query_args, $args );
+		$query_args = apply_filters( 'woocommerce_claude_product_query_args', $query_args, $args );
 
 		$products = wc_get_products( $query_args );
 		$enriched = array();
@@ -205,7 +205,7 @@ class ProductProvider implements KnowledgeProvider {
 		 * @param array       $data    Enriched product data.
 		 * @param \WC_Product $product WooCommerce product object.
 		 */
-		return apply_filters( 'hey_woo_enriched_product', $data, $product );
+		return apply_filters( 'woocommerce_claude_enriched_product', $data, $product );
 	}
 
 	/**

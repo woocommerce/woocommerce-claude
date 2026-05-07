@@ -2,10 +2,10 @@
 /**
  * Main plugin class.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo;
+namespace WooCommerce\Claude;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -51,82 +51,82 @@ class Plugin {
 		// already available (WC includes it just before the filter fires).
 
 		// Telemetry.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
 
 		// Knowledge system.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/class-knowledge-registry.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-store-profile-provider.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-catalog-provider.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-product-provider.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-policy-provider.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/class-knowledge-registry.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/providers/class-store-profile-provider.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/providers/class-catalog-provider.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/providers/class-product-provider.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/providers/class-policy-provider.php';
 
 		// Scoring engine.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/class-scoring-engine.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-product-completeness.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-schema-coverage.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-policy-completeness.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-content-quality.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/class-scoring-engine.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-product-completeness.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-schema-coverage.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-policy-completeness.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-content-quality.php';
 
 		// REST API (store knowledge + readiness — analytics lives under Abilities).
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-store-controller.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-catalog-controller.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-products-controller.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-readiness-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-store-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-catalog-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-products-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-readiness-controller.php';
 		// AnalyticsController is now a shared data-access helper (no REST
 		// routes of its own) — required so ability classes can call into it.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-analytics-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-analytics-controller.php';
 
 		// Abilities API — every analytics skill is exposed here.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-large-range-gate.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-confirm-large-range-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-describe-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-data-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-revenue-summary-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-orders-summary-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-product-performance-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-customer-overview-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-attribution-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-customer-value-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-revenue-breakdown-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-coupon-performance-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-refund-analysis-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-tax-summary-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-query-analytics-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-large-range-gate.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-confirm-large-range-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-describe-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-data-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-revenue-summary-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-orders-summary-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-product-performance-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-customer-overview-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-attribution-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-customer-value-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-revenue-breakdown-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-coupon-performance-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-refund-analysis-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-tax-summary-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-query-analytics-ability.php';
 
-		// External-integration abilities (hey-woo-integrations/*) — dev/local only.
+		// External-integration abilities (woocommerce-claude-integrations/*) — dev/local only.
 		// The GA4 ability is a prototype scaffold; only register it in local and
 		// development environments so it never surfaces to merchants on production.
 		if ( in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) ) {
-			require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-google-analytics-channels-ability.php';
+			require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-google-analytics-channels-ability.php';
 		}
 
-		// Non-analytics tool abilities (hey-woo/*) — store knowledge,
+		// Non-analytics tool abilities (woocommerce-claude/*) — store knowledge,
 		// readiness, and product search helpers.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-store-profile-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-search-products-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-product-details-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-readiness-score-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-store-profile-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-search-products-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-product-details-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-readiness-score-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
 
 		// Resource + prompt abilities — not tools; passed to our MCP server's
 		// resources/prompts arrays in register_mcp_server(), wired via the
 		// mcp_adapter_init hook in init_hooks().
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-profile-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-catalog-schema-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-store-profile-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-catalog-schema-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
 	}
 
 	/**
@@ -135,7 +135,7 @@ class Plugin {
 	private function init_hooks() {
 		// Gate TracksHandler behind the settings toggle. Must run before
 		// SkillTelemetry::init() so the filter is registered when handlers are built.
-		add_filter( 'hey_woo_telemetry_handlers', array( $this, 'maybe_add_tracks_handler' ) );
+		add_filter( 'woocommerce_claude_telemetry_handlers', array( $this, 'maybe_add_tracks_handler' ) );
 
 		Telemetry\SkillTelemetry::init();
 		Setup\SetupPage::init();
@@ -158,7 +158,7 @@ class Plugin {
 		// WC's auth handler only processes requests to /wc/ routes by default.
 		add_filter( 'woocommerce_rest_is_request_to_rest_api', array( $this, 'enable_wc_auth_for_our_routes' ), 10 );
 
-		// Boot the MCP adapter ourselves so the Hey Woo MCP endpoint works
+		// Boot the MCP adapter ourselves so the WooCommerce for Claude MCP endpoint works
 		// independently of WC's `mcp_integration` feature flag. The adapter
 		// is a singleton — calling instance() repeatedly is a no-op, so this
 		// is safe even if WC's MCPAdapterProvider also boots it.
@@ -170,12 +170,12 @@ class Plugin {
 		// of our `authenticate_mcp_request` callback, so leaving it on
 		// would expose a second, non-curated MCP surface — including any
 		// abilities a third-party plugin marks as `mcp.public`. The setup
-		// flow scopes access to `/wp-json/hey-woo/mcp` only, and our
+		// flow scopes access to `/wp-json/woocommerce-claude/mcp` only, and our
 		// curated server already covers the surface we want to expose.
 		add_filter( 'mcp_adapter_create_default_server', '__return_false' );
 
 		// Register our own MCP server when the adapter initializes. Owns the
-		// `/wp-json/hey-woo/mcp` endpoint with a curated tool/resource/prompt
+		// `/wp-json/woocommerce-claude/mcp` endpoint with a curated tool/resource/prompt
 		// surface and a custom auth callback that authenticates ck:cs Basic
 		// Auth against `wp_woocommerce_api_keys`.
 		add_action( 'mcp_adapter_init', array( $this, 'register_mcp_server' ) );
@@ -196,7 +196,7 @@ class Plugin {
 	}
 
 	/**
-	 * Register the Hey Woo settings tab in WooCommerce > Settings.
+	 * Register the WooCommerce for Claude settings tab in WooCommerce > Settings.
 	 *
 	 * WC includes WC_Settings_Page before firing this filter, so our class
 	 * is safe to load here.
@@ -205,7 +205,7 @@ class Plugin {
 	 * @return array
 	 */
 	public function register_settings_page( $pages ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
 		$pages[] = new Settings\SettingsPage();
 		return $pages;
 	}
@@ -213,7 +213,7 @@ class Plugin {
 	/**
 	 * Conditionally add TracksHandler to the telemetry handler list.
 	 *
-	 * Hooked on hey_woo_telemetry_handlers before SkillTelemetry::init()
+	 * Hooked on woocommerce_claude_telemetry_handlers before SkillTelemetry::init()
 	 * so the option is evaluated when the handler set is first built.
 	 * Option name matches Settings\SettingsPage::TELEMETRY_ENABLED_OPTION.
 	 *
@@ -221,7 +221,7 @@ class Plugin {
 	 * @return array
 	 */
 	public function maybe_add_tracks_handler( $handlers ) {
-		if ( 'yes' === get_option( 'hey_woo_telemetry_enabled', 'no' ) ) {
+		if ( 'yes' === get_option( 'woocommerce_claude_telemetry_enabled', 'no' ) ) {
 			$handlers[] = new Telemetry\Handlers\TracksHandler();
 		}
 		return $handlers;
@@ -232,7 +232,7 @@ class Plugin {
 	 *
 	 * Defines the namespaces this plugin claims ownership of. The WC auth
 	 * scope filter trusts only routes under one of these namespaces, so a
-	 * Hey Woo consumer key can't be replayed against abilities registered
+	 * WooCommerce for Claude consumer key can't be replayed against abilities registered
 	 * by an unrelated plugin under a different prefix. Kept as a constant
 	 * so adding a new namespace is a single-edit operation; the
 	 * `mcp_tool_ability_ids()` curated list below has its own per-namespace
@@ -242,8 +242,8 @@ class Plugin {
 	 */
 	private const OWNED_ABILITY_NAMESPACES = array(
 		'wc-analytics/',
-		'hey-woo/',
-		'hey-woo-integrations/',
+		'woocommerce-claude/',
+		'woocommerce-claude-integrations/',
 	);
 
 	/**
@@ -270,14 +270,14 @@ class Plugin {
 			return $is_request;
 		}
 
-		// Match REST controllers under hey-woo/v1/ — but *not* the MCP
-		// endpoint at hey-woo/mcp. WC's check_user_permissions enforces
+		// Match REST controllers under woocommerce-claude/v1/ — but *not* the MCP
+		// endpoint at woocommerce-claude/mcp. WC's check_user_permissions enforces
 		// the read/write split per HTTP method, which would block POST
 		// calls from a read-only key. MCP uses POST for every call
 		// (including semantic reads), so the MCP transport authenticates
 		// itself via the registered transport_permission_callback rather
 		// than going through WC's full auth chain.
-		if ( 0 === strpos( $route, 'hey-woo/v1/' ) ) {
+		if ( 0 === strpos( $route, 'woocommerce-claude/v1/' ) ) {
 			return true;
 		}
 
@@ -291,7 +291,7 @@ class Plugin {
 	}
 
 	/**
-	 * Tell WP not to treat the Hey Woo MCP route as an "API request" for
+	 * Tell WP not to treat the WooCommerce for Claude MCP route as an "API request" for
 	 * the purposes of application-password auth. See the rationale on
 	 * the `application_password_is_api_request` filter registration in
 	 * `init_hooks()` for the full chain — short version: the WC consumer
@@ -299,7 +299,7 @@ class Plugin {
 	 * handler turns that into a 401 on `rest_authentication_errors`
 	 * before our route permission callback runs.
 	 *
-	 * Filters very narrowly — only `/wp-json/hey-woo/mcp` and any
+	 * Filters very narrowly — only `/wp-json/woocommerce-claude/mcp` and any
 	 * sub-routes the transport may add. Every other REST route still
 	 * gets WP's normal app-password handling.
 	 *
@@ -330,7 +330,7 @@ class Plugin {
 	 * (?rest_route=/<route>) permalinks.
 	 *
 	 * Returns the route relative to the REST prefix, without a leading
-	 * slash (e.g. `hey-woo/v1/store/profile` or
+	 * slash (e.g. `woocommerce-claude/v1/store/profile` or
 	 * `wp-abilities/v1/abilities/wc-analytics/get-revenue-summary/run`),
 	 * or '' if the request doesn't look like a REST request.
 	 *
@@ -368,10 +368,10 @@ class Plugin {
 
 	/**
 	 * Server identity used when registering our MCP server. The endpoint
-	 * resolves to `/wp-json/<namespace>/<route>` — i.e. `/wp-json/hey-woo/mcp`.
+	 * resolves to `/wp-json/<namespace>/<route>` — i.e. `/wp-json/woocommerce-claude/mcp`.
 	 */
-	const MCP_SERVER_ID    = 'hey-woo';
-	const MCP_SERVER_NS    = 'hey-woo';
+	const MCP_SERVER_ID    = 'woocommerce-claude';
+	const MCP_SERVER_NS    = 'woocommerce-claude';
 	const MCP_SERVER_ROUTE = 'mcp';
 
 	/**
@@ -391,12 +391,12 @@ class Plugin {
 	}
 
 	/**
-	 * Register the Hey Woo MCP server on `mcp_adapter_init`.
+	 * Register the WooCommerce for Claude MCP server on `mcp_adapter_init`.
 	 *
 	 * Replaces the previous "ride on WC's woocommerce-mcp server" approach
 	 * (which used `woocommerce_mcp_include_ability` + a late
 	 * `mcp_adapter_init` injection of resources/prompts). Our server owns
-	 * `/wp-json/hey-woo/mcp` directly and ships a curated tool list, so the
+	 * `/wp-json/woocommerce-claude/mcp` directly and ships a curated tool list, so the
 	 * deprecation of WC's MCP endpoint and the upcoming change to its default
 	 * inclusion rules don't affect us.
 	 *
@@ -417,9 +417,9 @@ class Plugin {
 				self::MCP_SERVER_ID,
 				self::MCP_SERVER_NS,
 				self::MCP_SERVER_ROUTE,
-				__( 'Hey Woo MCP Server', 'hey-woo' ),
-				__( 'AI-accessible WooCommerce store analytics, knowledge, and prompts via MCP.', 'hey-woo' ),
-				HEY_WOO_VERSION,
+				__( 'WooCommerce for Claude MCP Server', 'woocommerce-claude' ),
+				__( 'AI-accessible WooCommerce store analytics, knowledge, and prompts via MCP.', 'woocommerce-claude' ),
+				WOOCOMMERCE_CLAUDE_VERSION,
 				array( \WP\MCP\Transport\HttpTransport::class ),
 				\WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler::class,
 				\WP\MCP\Infrastructure\Observability\NullMcpObservabilityHandler::class,
@@ -438,8 +438,8 @@ class Plugin {
 		} catch ( \Throwable $e ) {
 			if ( function_exists( 'wc_get_logger' ) ) {
 				wc_get_logger()->error(
-					'Hey Woo MCP server initialization failed: ' . $e->getMessage(),
-					array( 'source' => 'hey-woo-mcp' )
+					'WooCommerce for Claude MCP server initialization failed: ' . $e->getMessage(),
+					array( 'source' => 'woocommerce-claude-mcp' )
 				);
 			}
 		}
@@ -458,7 +458,7 @@ class Plugin {
 	 */
 	private function mcp_tool_ability_ids() {
 		$tools = array(
-			// hey-woo/* — store knowledge, readiness, product helpers.
+			// woocommerce-claude/* — store knowledge, readiness, product helpers.
 			Abilities\GetStoreProfileAbility::ABILITY_NAME,
 			Abilities\GetReadinessScoreAbility::ABILITY_NAME,
 			Abilities\GetRecommendationsAbility::ABILITY_NAME,
@@ -471,11 +471,11 @@ class Plugin {
 			Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
 		);
 
-		// hey-woo-integrations/* — dev/local only. The class is loaded under
+		// woocommerce-claude-integrations/* — dev/local only. The class is loaded under
 		// the same environment gate in includes(), so check_class_exists
 		// before referencing the constant to keep production safe.
-		if ( class_exists( '\\HeyWoo\\Abilities\\GoogleAnalyticsChannelsAbility' ) ) {
-			$tools[] = \HeyWoo\Abilities\GoogleAnalyticsChannelsAbility::ABILITY_NAME;
+		if ( class_exists( '\\WooCommerce\\Claude\\Abilities\\GoogleAnalyticsChannelsAbility' ) ) {
+			$tools[] = \WooCommerce\Claude\Abilities\GoogleAnalyticsChannelsAbility::ABILITY_NAME;
 		}
 
 		return $tools;
@@ -489,7 +489,7 @@ class Plugin {
 	 * `check_user_permissions` enforces a read/write split per HTTP
 	 * method — POST requires a `read_write` or `write` key. MCP uses
 	 * POST for every call, including semantic reads (tools/list,
-	 * resources/read, etc.). Hey Woo provisions read-only keys by
+	 * resources/read, etc.). WooCommerce for Claude provisions read-only keys by
 	 * design, so the standard chain would 401 every MCP call. This
 	 * callback authenticates the consumer key directly against
 	 * `wp_woocommerce_api_keys`, sets the user, and returns true —
@@ -616,6 +616,6 @@ class Plugin {
 		 *
 		 * @param Knowledge\KnowledgeRegistry $registry The knowledge registry instance.
 		 */
-		do_action( 'hey_woo_register_providers', $registry );
+		do_action( 'woocommerce_claude_register_providers', $registry );
 	}
 }

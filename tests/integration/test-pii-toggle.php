@@ -3,7 +3,7 @@
  * Integration test — customer-level PII is never surfaced by
  * `wc-analytics/get-customer-value`.
  *
- * Pins the privacy invariant after the `hey_woo_allow_customer_pii` toggle
+ * Pins the privacy invariant after the `woocommerce_claude_allow_customer_pii` toggle
  * was removed: top_customers ALWAYS pseudonymises and NEVER returns name
  * or email, regardless of any leftover option value a previous version of
  * the plugin (or a stray `update_option` call from another extension) may
@@ -13,7 +13,7 @@
  * change that revived the old gate would silently leak real customer
  * names / emails to anyone with Abilities API access.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -22,7 +22,7 @@
  */
 class Test_Pii_Toggle extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Fixture period start. Fixed historical window so assertions are
@@ -75,7 +75,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 		$order->save();
 		\Automattic\WooCommerce\Admin\API\Reports\Orders\Stats\DataStore::sync_order( $order->get_id() );
 
-		delete_option( 'hey_woo_allow_customer_pii' );
+		delete_option( 'woocommerce_claude_allow_customer_pii' );
 	}
 
 	/**
@@ -83,7 +83,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	 * rollback covers options, but explicit delete makes the contract clear).
 	 */
 	public function tear_down() {
-		delete_option( 'hey_woo_allow_customer_pii' );
+		delete_option( 'woocommerce_claude_allow_customer_pii' );
 		parent::tear_down();
 	}
 
@@ -142,7 +142,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Privacy invariant — even if a leftover `hey_woo_allow_customer_pii`
+	 * Privacy invariant — even if a leftover `woocommerce_claude_allow_customer_pii`
 	 * option exists from a previous version of the plugin, it must not
 	 * revive PII surfacing. Defends against a future refactor that
 	 * accidentally restores the gate by reading the stale option.
@@ -157,7 +157,7 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 		);
 
 		foreach ( $truthy_values as $label => $truthy ) {
-			update_option( 'hey_woo_allow_customer_pii', $truthy );
+			update_option( 'woocommerce_claude_allow_customer_pii', $truthy );
 
 			$result = $this->run_ability();
 

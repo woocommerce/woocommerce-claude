@@ -7,10 +7,10 @@
  * token. The server matches the confirmation to the pending session transient
  * that check_run() minted when the gate fired.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,7 +28,7 @@ class ConfirmLargeRangeAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Approve large date range query', 'hey-woo' ),
+				'label'               => __( 'Approve large date range query', 'woocommerce-claude' ),
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
@@ -55,7 +55,7 @@ The approval window is 5 minutes. If it has expired, call wc-analytics/get-data 
 
 Internal identifiers (date_start, date_end, range_days) are developer vocabulary and never belong in merchant-facing responses.
 DESCRIPTION,
-					'hey-woo'
+					'woocommerce-claude'
 				),
 				// phpcs:enable WordPress.WP.I18n.NonSingularStringLiteralText
 				'category'            => AbilitiesBootstrap::CATEGORY,

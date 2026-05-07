@@ -1,15 +1,15 @@
 <?php
 /**
- * `hey-woo/get-recommendations` ability — prioritised readiness fixes.
+ * `woocommerce-claude/get-recommendations` ability — prioritised readiness fixes.
  *
  * Thin wrapper over ReadinessController::get_recommendations().
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\ReadinessController;
+use WooCommerce\Claude\API\ReadinessController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class GetRecommendationsAbility {
 
-	const ABILITY_NAME = 'hey-woo/get-recommendations';
+	const ABILITY_NAME = 'woocommerce-claude/get-recommendations';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -27,8 +27,8 @@ class GetRecommendationsAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get recommendations', 'hey-woo' ),
-				'description'         => __( "Get prioritised recommendations for improving the store's AI readiness. Each recommendation includes priority, impact, and a description of what to fix. Requires the Hey Woo plugin.", 'hey-woo' ),
+				'label'               => __( 'Get recommendations', 'woocommerce-claude' ),
+				'description'         => __( "Get prioritised recommendations for improving the store's AI readiness. Each recommendation includes priority, impact, and a description of what to fix. Requires the WooCommerce for Claude plugin.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),

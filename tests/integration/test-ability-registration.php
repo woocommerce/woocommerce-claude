@@ -18,7 +18,7 @@
  * The expected-ability list is a single constant used by both guards, so
  * wiring a new ability means touching exactly one place in this file.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**

@@ -7,12 +7,12 @@
  * register the resource and calls execute() at resources/read time to get
  * the content payload.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -31,8 +31,8 @@ class StoreProfileAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Store profile', 'hey-woo' ),
-				'description'         => __( 'Store profile — identity, configuration, payment methods, shipping zones, features. Aggregated via the plugin\'s knowledge providers.', 'hey-woo' ),
+				'label'               => __( 'Store profile', 'woocommerce-claude' ),
+				'description'         => __( 'Store profile — identity, configuration, payment methods, shipping zones, features. Aggregated via the plugin\'s knowledge providers.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
@@ -72,7 +72,7 @@ class StoreProfileAbility {
 
 		$registry = KnowledgeRegistry::instance();
 		$payload  = array(
-			'version' => HEY_WOO_VERSION,
+			'version' => WOOCOMMERCE_CLAUDE_VERSION,
 			'data'    => $registry->get_knowledge( 'store-profile' ),
 		);
 

@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you've found a security issue in Hey Woo, please **do not** open a public GitHub issue.
+If you've found a security issue in WooCommerce for Claude, please **do not** open a public GitHub issue.
 
 Instead, report it privately so we can address it before disclosure:
 
@@ -13,7 +13,7 @@ Please include:
 
 - A description of the issue and its potential impact
 - Steps to reproduce
-- The plugin version (`Hey Woo` plugin header → `Version`)
+- The plugin version (`WooCommerce for Claude` plugin header → `Version`)
 - The WordPress and WooCommerce versions
 - Any relevant configuration details
 
@@ -22,7 +22,7 @@ We aim to acknowledge reports within 5 working days and to provide a fix or miti
 ## Scope
 
 In scope:
-- Vulnerabilities in the Hey Woo plugin source code (including the analytics abilities, knowledge providers, scoring engine, and REST/MCP surfaces)
+- Vulnerabilities in the WooCommerce for Claude plugin source code (including the analytics abilities, knowledge providers, scoring engine, and REST/MCP surfaces)
 - Issues in the documented MCP integration with WooCommerce core
 
 Out of scope:

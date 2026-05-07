@@ -92,4 +92,4 @@ if [ ! -f "$PLUGIN_DIR/woocommerce/woocommerce.php" ]; then
 fi
 
 # ── Plugin under test ──────────────────────────────────────────────────────────
-ln -sfn "$REPO_DIR" "$PLUGIN_DIR/hey-woo"
+ln -sfn "$REPO_DIR" "$PLUGIN_DIR/woocommerce-claude"

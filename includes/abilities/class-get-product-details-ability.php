@@ -1,17 +1,17 @@
 <?php
 /**
- * `hey-woo/get-product-details` ability — enriched single-product view.
+ * `woocommerce-claude/get-product-details` ability — enriched single-product view.
  *
  * Thin wrapper over ProductsController::get_product(). Adds completeness
  * scores + structured relationships on top of WC core MCP's basic
  * `woocommerce-products-get` tool; the overlap is deliberate.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\ProductsController;
+use WooCommerce\Claude\API\ProductsController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class GetProductDetailsAbility {
 
-	const ABILITY_NAME = 'hey-woo/get-product-details';
+	const ABILITY_NAME = 'woocommerce-claude/get-product-details';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -29,8 +29,8 @@ class GetProductDetailsAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get product details', 'hey-woo' ),
-				'description'         => __( 'Get full details for a specific product including description, attributes, images, relationships, and completeness score.', 'hey-woo' ),
+				'label'               => __( 'Get product details', 'woocommerce-claude' ),
+				'description'         => __( 'Get full details for a specific product including description, attributes, images, relationships, and completeness score.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),

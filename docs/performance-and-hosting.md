@@ -1,6 +1,6 @@
 # Performance and hosting considerations
 
-This doc covers what happens on a merchant's server when Claude asks questions through Hey Woo, which query shapes are expensive, and what merchants can do to stay comfortably inside their hosting plan.
+This doc covers what happens on a merchant's server when Claude asks questions through WooCommerce for Claude, which query shapes are expensive, and what merchants can do to stay comfortably inside their hosting plan.
 
 If you're running a typical WooCommerce store on decent shared hosting, you can skip to [Where it could bite](#where-it-could-bite) and leave the rest for later.
 
@@ -12,7 +12,7 @@ Where it can get noisier: very large catalogues (10k+ SKUs), very large order hi
 
 ## How load is generated
 
-Each question to Claude can fire one or more tool calls against `/wp-json/hey-woo/mcp`. Per uncached call:
+Each question to Claude can fire one or more tool calls against `/wp-json/woocommerce-claude/mcp`. Per uncached call:
 
 1. The plugin runs a direct SQL query against WooCommerce's analytics lookup tables (`wc_order_stats`, `wc_order_product_lookup`, `wc_customer_lookup`, etc.).
 2. The result is stored in a WordPress transient with a 1-hour TTL.
@@ -102,8 +102,8 @@ Not promises — a map of the levers we have if feedback shows load is actually 
 
 ## If you're investigating a suspected issue
 
-1. Check Query Monitor or a similar tool for slow queries tagged with transient keys starting `hey_woo_`.
+1. Check Query Monitor or a similar tool for slow queries tagged with transient keys starting `woocommerce_claude_`.
 2. Confirm the affected skill — the transient key includes the skill name.
 3. Compare response times against the WC Analytics dashboard for the same date range. If Analytics is also slow, the bottleneck is upstream of this plugin.
 
-Report anything unusual via the [project issues tracker](https://github.com/Automattic/hey-woo/issues) with the store size, hosting profile, and the question/skill that triggered it.
+Report anything unusual via the [project issues tracker](https://github.com/Automattic/woocommerce-claude/issues) with the store size, hosting profile, and the question/skill that triggered it.

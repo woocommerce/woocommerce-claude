@@ -2,10 +2,10 @@
 /**
  * Interface that all knowledge providers must implement.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Knowledge;
+namespace WooCommerce\Claude\Knowledge;
 
 defined( 'ABSPATH' ) || exit;
 

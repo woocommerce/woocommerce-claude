@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
-<ruleset name="HeyWoo">
-    <description>WordPress-Extra + WordPress-Docs + WooCommerce coding standards for Hey Woo.</description>
+<ruleset name="WooCommerceClaude">
+    <description>WordPress-Extra + WordPress-Docs + WooCommerce coding standards for WooCommerce for Claude.</description>
 
     <!-- Files to scan. -->
-    <file>hey-woo.php</file>
+    <file>woocommerce-claude.php</file>
     <file>includes</file>
     <file>tools</file>
     <file>tests</file>
@@ -41,7 +41,7 @@
     </rule>
 
     <!-- Project-wide configuration. -->
-    <config name="text_domain" value="hey-woo"/>
+    <config name="text_domain" value="woocommerce-claude"/>
     <config name="minimum_supported_wp_version" value="6.9"/>
 
     <!-- PHP compatibility floor matches the plugin header (PHP 7.4+). -->

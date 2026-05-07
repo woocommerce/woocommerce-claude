@@ -1,6 +1,6 @@
 <?php
 /**
- * Authentication contract for the Hey Woo MCP transport callback —
+ * Authentication contract for the WooCommerce for Claude MCP transport callback —
  * `Plugin::authenticate_mcp_request()`.
  *
  * Pins the security-sensitive contract:
@@ -22,11 +22,11 @@
  * HTTP_AUTHORIZATION). Tests inject the credential via $_SERVER and
  * assert the return shape.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
- * Authentication tests for HeyWoo\Plugin::authenticate_mcp_request().
+ * Authentication tests for WooCommerce\Claude\Plugin::authenticate_mcp_request().
  */
 class Test_MCP_Authentication extends WP_UnitTestCase {
 
@@ -70,7 +70,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		$cred    = $this->insert_api_key( $user_id, 'read' );
 		$this->set_basic_auth( $cred );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertTrue( $result, 'A read-permission key authenticates.' );
 		$this->assertSame( $user_id, get_current_user_id(), 'The bound user is set as the current user.' );
@@ -86,7 +86,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		$cred    = $this->insert_api_key( $user_id, 'read_write' );
 		$this->set_basic_auth( $cred );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertTrue( $result, 'A read_write-permission key authenticates.' );
 		$this->assertSame( $user_id, get_current_user_id() );
@@ -104,7 +104,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		$cred    = $this->insert_api_key( $user_id, 'write' );
 		$this->set_basic_auth( $cred );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertFalse( $result, 'A write-only key is rejected by the MCP auth callback.' );
 		$this->assertSame( 0, get_current_user_id(), 'No user is set when auth fails.' );
@@ -121,7 +121,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		list( $ck ) = explode( ':', $cred, 2 );
 		$this->set_basic_auth( $ck . ':cs_definitely_not_the_right_secret' );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertFalse( $result, 'A mismatched consumer secret is rejected.' );
 		$this->assertSame( 0, get_current_user_id() );
@@ -133,7 +133,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	public function test_rejects_unknown_consumer_key() {
 		$this->set_basic_auth( 'ck_no_such_key:cs_no_such_secret' );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertFalse( $result );
 		$this->assertSame( 0, get_current_user_id() );
@@ -146,7 +146,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	 * request left in `$_SERVER`.
 	 */
 	public function test_rejects_request_without_credential() {
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
 
 		$this->assertFalse( $result );
 		$this->assertSame( 0, get_current_user_id() );
@@ -164,7 +164,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		$cred    = $this->insert_api_key( $user_id, 'read' );
 		$this->set_basic_auth( $cred );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( null );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( null );
 
 		$this->assertFalse( $result );
 	}
@@ -190,7 +190,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
 		$request->set_header( 'authorization', 'Basic ' . base64_encode( $cred ) );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( $request );
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( $request );
 
 		$this->assertTrue( $result, 'A credential on the request header authenticates regardless of which $_SERVER var the SAPI populated.' );
 		$this->assertSame( $user_id, get_current_user_id() );
@@ -215,7 +215,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 			$wpdb->prefix . 'woocommerce_api_keys',
 			array(
 				'user_id'         => $user_id,
-				'description'     => 'Hey Woo auth test',
+				'description'     => 'WooCommerce for Claude auth test',
 				'permissions'     => $permissions,
 				'consumer_key'    => wc_api_hash( $consumer_key ),
 				'consumer_secret' => $consumer_secret,
@@ -251,7 +251,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- test fixture cleanup; no caching surface.
 		$wpdb->delete(
 			$wpdb->prefix . 'woocommerce_api_keys',
-			array( 'description' => 'Hey Woo auth test' ),
+			array( 'description' => 'WooCommerce for Claude auth test' ),
 			array( '%s' )
 		);
 		wp_set_current_user( 0 );

@@ -67,7 +67,7 @@
  *   orders_with_refunds   = 1     (O1 has O6 as refund sub-order)
  *   refund_count          = 1     (one sub-order with total_sales < 0)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -75,7 +75,7 @@
  */
 class Test_Get_Orders_Summary extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

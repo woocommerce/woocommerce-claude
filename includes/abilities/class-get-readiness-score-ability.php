@@ -1,16 +1,16 @@
 <?php
 /**
- * `hey-woo/get-readiness-score` ability — AI readiness score.
+ * `woocommerce-claude/get-readiness-score` ability — AI readiness score.
  *
  * Thin wrapper over ReadinessController::get_score() (which uses
  * ScoringEngine::get_store_score()).
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\ReadinessController;
+use WooCommerce\Claude\API\ReadinessController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,7 +19,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class GetReadinessScoreAbility {
 
-	const ABILITY_NAME = 'hey-woo/get-readiness-score';
+	const ABILITY_NAME = 'woocommerce-claude/get-readiness-score';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -28,8 +28,8 @@ class GetReadinessScoreAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get readiness score', 'hey-woo' ),
-				'description'         => __( "Get the store's AI readiness score (0-100) with breakdown by factor: product completeness, schema coverage, policy completeness, and content quality. Requires the Hey Woo plugin.", 'hey-woo' ),
+				'label'               => __( 'Get readiness score', 'woocommerce-claude' ),
+				'description'         => __( "Get the store's AI readiness score (0-100) with breakdown by factor: product completeness, schema coverage, policy completeness, and content quality. Requires the WooCommerce for Claude plugin.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),

@@ -1,6 +1,6 @@
 <?php
 /**
- * `hey-woo-integrations/google-analytics-channels` ability — flexible GA4 query.
+ * `woocommerce-claude-integrations/google-analytics-channels` ability — flexible GA4 query.
  *
  * Prototype scaffold for cross-referencing GA4 data against our internal
  * analytics. The current build returns a not-implemented WP_Error on
@@ -16,24 +16,24 @@
  * integration ships to merchants, focused skills with channel-taxonomy
  * normalisation would layer on top of this passthrough.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * Registers the GA4-channels prototype ability under the plugin-owned
- * `hey-woo-integrations/` namespace. The ability is exposed on the Hey
- * Woo MCP server (`/wp-json/hey-woo/mcp`) by listing it in
+ * `woocommerce-claude-integrations/` namespace. The ability is exposed on the Hey
+ * Woo MCP server (`/wp-json/woocommerce-claude/mcp`) by listing it in
  * Plugin::mcp_tool_ability_ids(). Using a plugin-owned prefix (rather
  * than the broader `integrations/`) keeps the curated tool list scoped
  * to abilities we own.
  */
 class GoogleAnalyticsChannelsAbility {
 
-	const ABILITY_NAME = 'hey-woo-integrations/google-analytics-channels';
+	const ABILITY_NAME = 'woocommerce-claude-integrations/google-analytics-channels';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -42,8 +42,8 @@ class GoogleAnalyticsChannelsAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Query Google Analytics 4 (channels-shaped)', 'hey-woo' ),
-				'description'         => __( 'Prototype scaffold for querying a GA4 property via the Data API. Currently returns a not-implemented error on every call — real auth + SDK calls land in a follow-up commit on this branch. Designed as a flexible passthrough so the same ability can serve channels, geography, search terms, or landing-page cuts without rebuilding. Not for merchant use yet.', 'hey-woo' ),
+				'label'               => __( 'Query Google Analytics 4 (channels-shaped)', 'woocommerce-claude' ),
+				'description'         => __( 'Prototype scaffold for querying a GA4 property via the Data API. Currently returns a not-implemented error on every call — real auth + SDK calls land in a follow-up commit on this branch. Designed as a flexible passthrough so the same ability can serve channels, geography, search terms, or landing-page cuts without rebuilding. Not for merchant use yet.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),
@@ -151,7 +151,7 @@ class GoogleAnalyticsChannelsAbility {
 
 		return new \WP_Error(
 			'not_implemented',
-			__( 'Google Analytics 4 integration is a prototype scaffold — the real fetcher (service-account auth + google/analytics-data SDK) lands in a follow-up commit on this branch. Calling this ability returns no data today.', 'hey-woo' ),
+			__( 'Google Analytics 4 integration is a prototype scaffold — the real fetcher (service-account auth + google/analytics-data SDK) lands in a follow-up commit on this branch. Calling this ability returns no data today.', 'woocommerce-claude' ),
 			array( 'status' => 501 )
 		);
 	}

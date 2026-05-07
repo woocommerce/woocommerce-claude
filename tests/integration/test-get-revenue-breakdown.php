@@ -118,7 +118,7 @@
  *   Electronics = £230 (B Headphones £100 + C Combo £30 + E Headphones £100),
  *                 3 orders (B, C, E)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -126,7 +126,7 @@
  */
 class Test_Get_Revenue_Breakdown extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

@@ -54,7 +54,7 @@
  *     flips_to_mature_on         = first day of the month two months from now
  *                                  (e.g. seeded today=2026-04-21 → "2026-06-01")
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -62,7 +62,7 @@
  */
 class Test_Get_Customer_Value extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period bounds used by every test. Fixed historical window so

@@ -2,12 +2,12 @@
 /**
  * REST API controller for Catalog Knowledge.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\API;
+namespace WooCommerce\Claude\API;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class CatalogController {
 
-	const NAMESPACE = 'hey-woo/v1';
+	const NAMESPACE = 'woocommerce-claude/v1';
 
 	/**
 	 * Register the catalog REST routes.

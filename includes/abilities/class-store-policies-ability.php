@@ -5,12 +5,12 @@
  * Resource-type ability. Wired into the Woo core MCP server by Plugin's
  * mcp_adapter_init hook; not a tool.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -29,8 +29,8 @@ class StorePoliciesAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Store policies', 'hey-woo' ),
-				'description'         => __( 'Store policies — privacy, refunds, shipping, terms. Aggregated via the plugin\'s knowledge providers.', 'hey-woo' ),
+				'label'               => __( 'Store policies', 'woocommerce-claude' ),
+				'description'         => __( 'Store policies — privacy, refunds, shipping, terms. Aggregated via the plugin\'s knowledge providers.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),

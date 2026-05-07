@@ -119,7 +119,7 @@
  * across 6 orders. Attributed (has source value): 4 (B, B2, C, D);
  * unattributed (no source): 2 (E, F). Coverage = 4/6 = 66.7%.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -127,7 +127,7 @@
  */
 class Test_Get_Attribution extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.
@@ -571,7 +571,7 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 			'Bootstrap enables HPOS — failure here means the bootstrap regressed.'
 		);
 
-		$source = \HeyWoo\API\AnalyticsController::get_order_meta_source();
+		$source = \WooCommerce\Claude\API\AnalyticsController::get_order_meta_source();
 		$this->assertSame( $wpdb->prefix . 'wc_orders_meta', $source['table'] );
 		$this->assertSame( 'order_id', $source['id_column'] );
 
@@ -612,7 +612,7 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 		add_filter( 'pre_option_woocommerce_custom_orders_table_enabled', $force_no );
 
 		try {
-			$source = \HeyWoo\API\AnalyticsController::get_order_meta_source();
+			$source = \WooCommerce\Claude\API\AnalyticsController::get_order_meta_source();
 			$this->assertSame( $wpdb->prefix . 'postmeta', $source['table'] );
 			$this->assertSame( 'post_id', $source['id_column'] );
 		} finally {

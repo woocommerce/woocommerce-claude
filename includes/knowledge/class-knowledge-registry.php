@@ -2,10 +2,10 @@
 /**
  * Knowledge Registry — singleton that collects data from all providers.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Knowledge;
+namespace WooCommerce\Claude\Knowledge;
 
 defined( 'ABSPATH' ) || exit;
 

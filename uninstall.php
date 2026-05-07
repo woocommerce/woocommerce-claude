@@ -8,7 +8,7 @@
  * (telemetry preference, etc.) are intentionally left in place — they
  * survive a deactivate-and-reinstall cycle.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
@@ -27,15 +27,15 @@ if ( $exists === $table ) {
 	// version, or from a user manually editing the options).
 	$wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- description-scoped revocation on uninstall.
 		$table,
-		array( 'description' => 'Hey Woo MCP — Claude Desktop' ),
+		array( 'description' => 'WooCommerce for Claude — Claude Desktop' ),
 		array( '%s' )
 	);
 }
 
-delete_option( 'hey_woo_setup_api_credential' );
-delete_option( 'hey_woo_setup_api_key_id' );
+delete_option( 'woocommerce_claude_setup_api_credential' );
+delete_option( 'woocommerce_claude_setup_api_key_id' );
 
 // Legacy: earlier versions of the plugin set this transient on
 // activation to drive a post-activation admin notice. The notice has
 // been removed but the transient may still be present from upgrades.
-delete_transient( 'hey_woo_show_setup_notice' );
+delete_transient( 'woocommerce_claude_show_setup_notice' );

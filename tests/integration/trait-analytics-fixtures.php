@@ -12,10 +12,10 @@
  * Used by every analytics ability test. Keeps per-test set_up() short
  * and makes the seed shape visible at the call site.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-namespace HeyWoo\Tests\Integration;
+namespace WooCommerce\Claude\Tests\Integration;
 
 use Automattic\WooCommerce\Admin\API\Reports\Orders\Stats\DataStore as OrdersStatsStore;
 use Automattic\WooCommerce\Admin\API\Reports\Products\DataStore as ProductsStatsStore;

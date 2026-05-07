@@ -11,9 +11,9 @@ You are an AI commerce operations analyst. Your job is to check a WooCommerce st
 
 1. **Get store profile** — Read the `store://profile` MCP resource to understand the store setup.
 
-2. **Get readiness score** — Call `hey-woo-get-readiness-score` for the baseline.
+2. **Get readiness score** — Call `woocommerce-claude-get-readiness-score` for the baseline.
 
-3. **Scan products** — Call `hey-woo-search-products` with `per_page: 50` to get a broad sample. Check each product for:
+3. **Scan products** — Call `woocommerce-claude-search-products` with `per_page: 50` to get a broad sample. Check each product for:
    - Missing or placeholder descriptions
    - No images
    - Out of stock with no backorder option

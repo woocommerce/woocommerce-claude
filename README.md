@@ -1,13 +1,13 @@
-# Hey Woo
+# WooCommerce for Claude
 
 **Make any WooCommerce store AI-operable.**
 
 WooCommerce core already has [native MCP support](https://developer.woocommerce.com/docs/features/mcp/) (in developer preview) — AI tools can connect and perform basic product and order operations. That's the plumbing.
 
-Hey Woo adds the **intelligence layer** on top: structured store knowledge, AI readiness scoring, analytics insights, and a library of Skills that make a Woo store genuinely useful to AI.
+WooCommerce for Claude adds the **intelligence layer** on top: structured store knowledge, AI readiness scoring, analytics insights, and a library of Skills that make a Woo store genuinely useful to AI.
 
 Core MCP: "Claude can talk to your store."
-Hey Woo: "Claude can understand your store and help you run it better."
+WooCommerce for Claude: "Claude can understand your store and help you run it better."
 
 ---
 
@@ -27,16 +27,16 @@ For a typical WooCommerce store, the plugin's load is lighter than loading the W
 
 ### Claude Desktop — one click
 
-1. Install and activate Hey Woo. For local dev: `npx wp-env start`.
-2. Open **WooCommerce → Settings → Hey Woo** in WP admin (or click **Set up Claude** in the post-activation notice).
+1. Install and activate WooCommerce for Claude. For local dev: `npx wp-env start`.
+2. Open **WooCommerce → Settings → WooCommerce for Claude** in WP admin (or click **Set up Claude** in the post-activation notice).
 3. If WooCommerce MCP integration isn't on yet, click **Enable WooCommerce MCP integration**.
-4. Click **Download Hey Woo for Claude Desktop**, then double-click the downloaded `.mcpb` file. Claude Desktop registers Hey Woo automatically — no copy-paste, no JSON, no API key wrangling.
+4. Click **Download WooCommerce for Claude**, then double-click the downloaded `.mcpb` file. Claude Desktop registers WooCommerce for Claude automatically — no copy-paste, no JSON, no API key wrangling.
 
-The setup page auto-creates a Read-only WooCommerce REST API key (named "Hey Woo MCP — Claude Desktop") and embeds it in the bundle. Switch to Read + Write on the same page if you want Claude to be able to create or edit products and orders. The bundle contains a credential — if it leaks, click **Regenerate** on the same page to revoke it instantly.
+The setup page auto-creates a Read-only WooCommerce REST API key (named "WooCommerce for Claude — Claude Desktop") and embeds it in the bundle. Switch to Read + Write on the same page if you want Claude to be able to create or edit products and orders. The bundle contains a credential — if it leaks, click **Regenerate** on the same page to revoke it instantly.
 
 ### Other MCP clients (Claude Code, Cursor, …)
 
-Same setup page, **Manual Setup** card. Pick your client from the dropdown — Hey Woo renders a copy-pasteable JSON snippet (or a `claude mcp add …` one-liner for Claude Code) with this store's URL and the auto-generated API key already filled in.
+Same setup page, **Manual Setup** card. Pick your client from the dropdown — WooCommerce for Claude renders a copy-pasteable JSON snippet (or a `claude mcp add …` one-liner for Claude Code) with this store's URL and the auto-generated API key already filled in.
 
 ### Manual / scripted setup
 
@@ -53,8 +53,8 @@ The recommended path is to connect through [`@automattic/mcp-wordpress-remote`](
 **Claude Code** — one command:
 
 ```bash
-claude mcp add hey-woo \
-  --env WP_API_URL=https://yourstore.com/wp-json/hey-woo/mcp \
+claude mcp add woocommerce-claude \
+  --env WP_API_URL=https://yourstore.com/wp-json/woocommerce-claude/mcp \
   --env WP_API_USERNAME=ck_xxx \
   --env WP_API_PASSWORD=cs_xxx \
   -- npx -y @automattic/mcp-wordpress-remote@0.3.0
@@ -65,11 +65,11 @@ claude mcp add hey-woo \
 ```json
 {
   "mcpServers": {
-    "hey-woo": {
+    "woocommerce-claude": {
       "command": "npx",
       "args": ["-y", "@automattic/mcp-wordpress-remote@0.3.0"],
       "env": {
-        "WP_API_URL": "https://yourstore.com/wp-json/hey-woo/mcp",
+        "WP_API_URL": "https://yourstore.com/wp-json/woocommerce-claude/mcp",
         "WP_API_USERNAME": "ck_xxx",
         "WP_API_PASSWORD": "cs_xxx"
       }
@@ -88,11 +88,11 @@ You now have these tools available (plus the nine built-in `woocommerce-*` CRUD 
 
 | Tool                                   | What it does                                           |
 | -------------------------------------- | ------------------------------------------------------ |
-| `hey-woo-search-products`              | Search the catalog with enriched metadata              |
-| `hey-woo-get-product-details`          | Full product data with completeness scores             |
-| `hey-woo-get-readiness-score`          | AI readiness score (0-100) with factor breakdown       |
-| `hey-woo-get-recommendations`          | Prioritised improvements for AI readiness              |
-| `hey-woo-suggest-improvements`         | Specific improvements for a product or the whole store |
+| `woocommerce-claude-search-products`              | Search the catalog with enriched metadata              |
+| `woocommerce-claude-get-product-details`          | Full product data with completeness scores             |
+| `woocommerce-claude-get-readiness-score`          | AI readiness score (0-100) with factor breakdown       |
+| `woocommerce-claude-get-recommendations`          | Prioritised improvements for AI readiness              |
+| `woocommerce-claude-suggest-improvements`         | Specific improvements for a product or the whole store |
 | `wc-analytics-get-revenue-summary`     | Revenue summary with three-view reconciliation         |
 | `wc-analytics-get-orders-summary`      | Order counts, AOV, status breakdown, heatmap           |
 | `wc-analytics-get-product-performance` | Top products with catalogue coverage + time series     |
@@ -180,9 +180,9 @@ WooCommerce core already exposes basic product and order CRUD via MCP. This proj
 | Layer                    | What it provides                                                  | Who built it          |
 | ------------------------ | ----------------------------------------------------------------- | --------------------- |
 | **WooCommerce core MCP** | HTTP transport, auth, product/order CRUD tools                    | WooCommerce core team |
-| **Hey Woo plugin**       | Analytics skills, knowledge resources, prompts, readiness scoring | This project          |
+| **WooCommerce for Claude plugin**       | Analytics skills, knowledge resources, prompts, readiness scoring | This project          |
 
-Everything ships through the single endpoint at `/wp-json/hey-woo/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via standard HTTP Basic auth — `ck_xxx` as the username, `cs_xxx` as the password, sourced from a WooCommerce REST API key with `read` or `read_write` scope.
+Everything ships through the single endpoint at `/wp-json/woocommerce-claude/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via standard HTTP Basic auth — `ck_xxx` as the username, `cs_xxx` as the password, sourced from a WooCommerce REST API key with `read` or `read_write` scope.
 
 ---
 
@@ -191,12 +191,12 @@ Everything ships through the single endpoint at `/wp-json/hey-woo/mcp`. There is
 The plugin uses a provider pattern. Register your own knowledge provider:
 
 ```php
-add_action( 'hey_woo_register_providers', function( $registry ) {
+add_action( 'woocommerce_claude_register_providers', function( $registry ) {
     $registry->register( new My_Custom_Provider() );
 });
 ```
 
-Your provider implements `HeyWoo\Knowledge\KnowledgeProvider`:
+Your provider implements `WooCommerce\Claude\Knowledge\KnowledgeProvider`:
 
 ```php
 interface KnowledgeProvider {
@@ -210,7 +210,7 @@ interface KnowledgeProvider {
 Add custom scoring factors:
 
 ```php
-add_filter( 'hey_woo_scoring_factors', function( $factors ) {
+add_filter( 'woocommerce_claude_scoring_factors', function( $factors ) {
     $factors[] = new My_Custom_Scoring_Factor();
     return $factors;
 });
@@ -219,7 +219,7 @@ add_filter( 'hey_woo_scoring_factors', function( $factors ) {
 Filter enriched product data:
 
 ```php
-add_filter( 'hey_woo_enriched_product', function( $data, $product ) {
+add_filter( 'woocommerce_claude_enriched_product', function( $data, $product ) {
     $data['subscription_status'] = get_post_meta( $product->get_id(), '_subscription_status', true );
     return $data;
 }, 10, 2 );
@@ -234,12 +234,12 @@ add_filter( 'hey_woo_enriched_product', function( $data, $product ) {
 npx @wordpress/env start
 
 # Test the plugin's REST endpoints (still available for direct access):
-curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/store/profile
-curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/readiness/score
-curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/products
+curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/v1/store/profile
+curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/v1/readiness/score
+curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/v1/products
 
 # Test the MCP endpoint (HTTP works for local dev — HTTPS only matters for production):
-curl -X POST -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/mcp \
+curl -X POST -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 ```
@@ -256,7 +256,7 @@ Runs PHPCS (WordPress + Docs), composer audit, and a PHPUnit smoke test inside t
 
 `./bin/check` mirrors `.github/workflows/ci.yml` line-for-line, so the same checks run in CI on every push.
 
-### Demo store ("Hey Woo!")
+### Demo store ("WooCommerce for Claude!")
 
 For testing analytics Skills, seed a full demo store with 2 years of realistic data:
 
@@ -283,7 +283,7 @@ To reset and re-seed:
 
 ```bash
 npx @wordpress/env run cli -- wp db reset --yes
-npx @wordpress/env run cli -- wp core install --url=localhost:8888 --title="Hey Woo!" \
+npx @wordpress/env run cli -- wp core install --url=localhost:8888 --title="WooCommerce for Claude!" \
   --admin_user=admin --admin_password=password --admin_email=admin@example.com --skip-email
 npx @wordpress/env run cli -- wp plugin activate woocommerce.latest-stable plugin
 npx @wordpress/env run cli -- wp wc tool run install_pages --user=admin

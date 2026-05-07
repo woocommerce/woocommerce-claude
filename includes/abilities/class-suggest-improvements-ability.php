@@ -1,19 +1,19 @@
 <?php
 /**
- * `hey-woo/suggest-improvements` ability — per-product or store-wide hints.
+ * `woocommerce-claude/suggest-improvements` ability — per-product or store-wide hints.
  *
  * Branches: if product_id is provided, returns that product's full details
  * plus a focus-aware instruction string for the model. If not, falls through
  * to store-wide recommendations. Shape preserved byte-for-byte from the TS
  * server's `suggest_improvements` tool.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\ProductsController;
-use HeyWoo\API\ReadinessController;
+use WooCommerce\Claude\API\ProductsController;
+use WooCommerce\Claude\API\ReadinessController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class SuggestImprovementsAbility {
 
-	const ABILITY_NAME = 'hey-woo/suggest-improvements';
+	const ABILITY_NAME = 'woocommerce-claude/suggest-improvements';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -31,8 +31,8 @@ class SuggestImprovementsAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Suggest improvements', 'hey-woo' ),
-				'description'         => __( 'Suggest specific improvements for a product or the entire store to increase AI readiness. For a specific product, provide the product_id.', 'hey-woo' ),
+				'label'               => __( 'Suggest improvements', 'woocommerce-claude' ),
+				'description'         => __( 'Suggest specific improvements for a product or the entire store to increase AI readiness. For a specific product, provide the product_id.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),

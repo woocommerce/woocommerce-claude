@@ -5,14 +5,14 @@
  * Active on non-production environments (local/development/staging) so devs
  * can observe event volume and payload shape in WC > Status > Logs without
  * any extra setup. Not loaded in production — use TracksHandler there.
- * Logs at INFO level under the 'hey-woo' source.
+ * Logs at INFO level under the 'woocommerce-claude' source.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Telemetry\Handlers;
+namespace WooCommerce\Claude\Telemetry\Handlers;
 
-use HeyWoo\Telemetry\TelemetryHandlerInterface;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -24,7 +24,7 @@ class LogHandler implements TelemetryHandlerInterface {
 	/**
 	 * Log source label used in WooCommerce > Status > Logs.
 	 */
-	const LOG_SOURCE = 'hey-woo';
+	const LOG_SOURCE = 'woocommerce-claude';
 
 	/**
 	 * Write the event to the WC logger at INFO level.
