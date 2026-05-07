@@ -25,9 +25,23 @@ class McpbBundle {
 	/**
 	 * MCPB manifest schema version this bundle conforms to.
 	 *
+	 * Pinned to 0.2 because Claude Desktop's UI handles 0.2 manifests
+	 * along a different code path than 0.3 — disconnect for our 0.3
+	 * bundle was incorrectly routing through the cloud-logout
+	 * endpoint (`/api/.../mcp/logout/<server-id>`) which validates
+	 * server IDs as UUID or `mcpsrv_*`, rejecting our slug name. Other
+	 * working `local.mcpb.automattic.*` extensions on the same machine
+	 * (e.g. context-a8c) ship with 0.2 and disconnect cleanly.
+	 *
 	 * @see https://github.com/anthropics/mcpb/blob/main/MANIFEST.md
 	 */
-	const MANIFEST_VERSION = '0.3';
+	const MANIFEST_VERSION = '0.2';
+
+	/**
+	 * Minimum Claude Desktop version required. Matches the floor that
+	 * other Automattic-shipped 0.2 manifests declare (e.g. context-a8c).
+	 */
+	const CLAUDE_DESKTOP_MIN_VERSION = '>=0.13.37';
 
 	/**
 	 * Minimum Node.js the bundled npx invocation requires.
@@ -84,11 +98,23 @@ class McpbBundle {
 
 		return array(
 			'manifest_version' => self::MANIFEST_VERSION,
-			// Per-store identity so two WooCommerce for Claude stores installed in the
-			// same Claude Desktop don't overwrite one another's
-			// extension entries. SetupPage::server_slug() derives this
-			// from the host (e.g. `woocommerce-claude-example-com`).
+			// Per-store identity so two WooCommerce for Claude stores
+			// installed in the same Claude Desktop don't overwrite one
+			// another's extension entries. SetupPage::server_slug()
+			// derives this from the host
+			// (e.g. `woocommerce-claude-example-com`).
 			'name'             => SetupPage::server_slug(),
+			// Human-facing label used by the Claude Desktop UI.
+			// Without this, the UI falls back to `name` (the long
+			// machine slug) which Claude Desktop's disconnect routing
+			// rejects as malformed. Reproducible: a 0.2 manifest with
+			// `display_name` set disconnects cleanly; the same shape
+			// without it errors with `invalid_server_id`.
+			'display_name'     => sprintf(
+				/* translators: %s: store hostname. */
+				__( 'WooCommerce for Claude — %s', 'woocommerce-claude' ),
+				$host
+			),
 			'version'          => $this->plugin_version,
 			'description'      => sprintf(
 				/* translators: %s: store hostname. */
@@ -98,6 +124,12 @@ class McpbBundle {
 			'author'           => array(
 				'name' => 'Automattic',
 				'url'  => 'https://woocommerce.com/',
+			),
+			'license'          => 'GPL-3.0-or-later',
+			'homepage'         => 'https://woocommerce.com/',
+			'repository'       => array(
+				'type' => 'git',
+				'url'  => 'https://github.com/woocommerce/woocommerce-claude',
 			),
 			'server'           => array(
 				'type'        => 'node',
@@ -117,7 +149,13 @@ class McpbBundle {
 				),
 			),
 			'compatibility'    => array(
-				'runtimes' => array(
+				// Match the floor declared by other Automattic-shipped
+				// 0.2 manifests — without this, Claude Desktop may
+				// treat the install as version-unconstrained and route
+				// it inconsistently.
+				'claude_desktop' => self::CLAUDE_DESKTOP_MIN_VERSION,
+				'platforms'      => array( 'darwin', 'linux', 'win32' ),
+				'runtimes'       => array(
 					'node' => self::NODE_MIN_VERSION,
 				),
 			),
