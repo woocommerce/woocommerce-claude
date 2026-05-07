@@ -44,7 +44,7 @@ If you'd rather configure everything yourself — for example to drop the admin 
 
 #### 1. Create an API key
 
-In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates via an `X-MCP-API-Key: ck_...:cs_...` header; HTTPS is required for production. For local HTTP dev no extra config is needed — Hey Woo's transport accepts the credential as-is.
+In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates with the standard WooCommerce REST API key flow — `ck_...` as the username and `cs_...` as the password over HTTP Basic auth. HTTPS is required for production; HTTP works for local dev.
 
 #### 2. Point your MCP client at the endpoint
 
@@ -55,7 +55,8 @@ The recommended path is to connect through [`@automattic/mcp-wordpress-remote`](
 ```bash
 claude mcp add hey-woo \
   --env WP_API_URL=https://yourstore.com/wp-json/hey-woo/mcp \
-  --env CUSTOM_HEADERS='{"X-MCP-API-Key": "ck_xxx:cs_xxx"}' \
+  --env WP_API_USERNAME=ck_xxx \
+  --env WP_API_PASSWORD=cs_xxx \
   -- npx -y @automattic/mcp-wordpress-remote@0.3.0
 ```
 
@@ -69,7 +70,8 @@ claude mcp add hey-woo \
       "args": ["-y", "@automattic/mcp-wordpress-remote@0.3.0"],
       "env": {
         "WP_API_URL": "https://yourstore.com/wp-json/hey-woo/mcp",
-        "CUSTOM_HEADERS": "{\"X-MCP-API-Key\": \"ck_xxx:cs_xxx\"}"
+        "WP_API_USERNAME": "ck_xxx",
+        "WP_API_PASSWORD": "cs_xxx"
       }
     }
   }
@@ -78,21 +80,7 @@ claude mcp add hey-woo \
 
 Having trouble? See the [mcp-wordpress-remote troubleshooting guide](https://github.com/Automattic/mcp-wordpress-remote/blob/trunk/Docs/troubleshooting.md).
 
-If your MCP client supports HTTP transport natively (some do, many don't), you can point it straight at the endpoint without the proxy:
-
-```json
-{
-  "mcpServers": {
-    "hey-woo": {
-      "type": "http",
-      "url": "https://yourstore.com/wp-json/hey-woo/mcp",
-      "headers": {
-        "X-MCP-API-Key": "ck_xxx:cs_xxx"
-      }
-    }
-  }
-}
-```
+If your MCP client supports HTTP transport natively (some do, many don't), you can point it straight at the endpoint without the proxy. Use HTTP Basic auth with the consumer key as the username and consumer secret as the password.
 
 ### Restart your client and talk to your store
 
@@ -251,9 +239,8 @@ curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/readiness/score
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/v1/products
 
 # Test the MCP endpoint (HTTP works for local dev — HTTPS only matters for production):
-curl -X POST http://localhost:8888/wp-json/hey-woo/mcp \
+curl -X POST -u ck_xxx:cs_xxx http://localhost:8888/wp-json/hey-woo/mcp \
   -H 'Content-Type: application/json' \
-  -H 'X-MCP-API-Key: ck_xxx:cs_xxx' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 ```
 

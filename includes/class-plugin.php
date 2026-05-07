@@ -246,7 +246,14 @@ class Plugin {
 			return $is_request;
 		}
 
-		if ( 0 === strpos( $route, 'hey-woo/' ) ) {
+		// Match REST controllers under hey-woo/v1/ — but *not* the MCP
+		// endpoint at hey-woo/mcp. WC's check_user_permissions enforces
+		// the read/write split per HTTP method, which would block POST
+		// calls from a read-only key. MCP uses POST for every call
+		// (including semantic reads), so the MCP transport authenticates
+		// itself via the registered transport_permission_callback rather
+		// than going through WC's full auth chain.
+		if ( 0 === strpos( $route, 'hey-woo/v1/' ) ) {
 			return true;
 		}
 
@@ -417,20 +424,21 @@ class Plugin {
 	}
 
 	/**
-	 * Authenticate an MCP request against the Hey Woo server.
+	 * Authenticate an MCP request using a WooCommerce REST API key sent
+	 * as HTTP Basic Auth (`ck_xxx` username, `cs_xxx` password).
 	 *
-	 * Honours two auth surfaces:
-	 *
-	 * 1. `X-MCP-API-Key: ck_xxx:cs_xxx` — what `mcp-wordpress-remote` sends
-	 *    and what every distributed `.mcpb` bundle is configured to use.
-	 *    Looked up against `wp_woocommerce_api_keys` directly so we don't
-	 *    depend on WC's internal MCP transport class.
-	 *
-	 * 2. Standard WC REST API key auth (Basic Auth or query-string
-	 *    consumer_key/consumer_secret). When no `X-MCP-API-Key` is present,
-	 *    WC's `determine_current_user` filter has already set the user via
-	 *    `enable_wc_auth_for_our_routes()` widening the auth scope to our
-	 *    namespace; we just check the resulting capability.
+	 * Why a custom callback instead of WC's standard REST auth: WC's
+	 * `check_user_permissions` enforces a read/write split per HTTP
+	 * method — POST requires a `read_write` or `write` key. MCP uses
+	 * POST for every call, including semantic reads (tools/list,
+	 * resources/read, etc.). Hey Woo provisions read-only keys by
+	 * design, so the standard chain would 401 every MCP call. This
+	 * callback authenticates the consumer key directly against
+	 * `wp_woocommerce_api_keys`, sets the user, and returns true —
+	 * bypassing WC's POST-as-write assumption while still requiring a
+	 * valid key. Per-ability `permission_callback` handlers enforce the
+	 * real capability gates (e.g. `manage_woocommerce` for analytics
+	 * tools).
 	 *
 	 * @param \WP_REST_Request $request The current REST request.
 	 * @return bool True if authenticated, false otherwise.
@@ -440,23 +448,12 @@ class Plugin {
 			return false;
 		}
 
-		$api_key = $request->get_header( 'X-MCP-API-Key' );
-		if ( ! is_string( $api_key ) || '' === $api_key ) {
-			return current_user_can( 'read' );
-		}
-
-		if ( false === strpos( $api_key, ':' ) ) {
+		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth();
+		if ( '' === $consumer_key || '' === $consumer_secret ) {
 			return false;
 		}
 
 		if ( ! function_exists( 'wc_api_hash' ) ) {
-			return false;
-		}
-
-		list( $consumer_key, $consumer_secret ) = explode( ':', $api_key, 2 );
-		$consumer_key                           = trim( $consumer_key );
-		$consumer_secret                        = trim( $consumer_secret );
-		if ( '' === $consumer_key || '' === $consumer_secret ) {
 			return false;
 		}
 
@@ -469,11 +466,7 @@ class Plugin {
 			)
 		);
 
-		if ( ! $row ) {
-			return false;
-		}
-
-		if ( ! hash_equals( (string) $row->consumer_secret, $consumer_secret ) ) {
+		if ( ! $row || ! hash_equals( (string) $row->consumer_secret, $consumer_secret ) ) {
 			return false;
 		}
 
@@ -484,6 +477,48 @@ class Plugin {
 
 		wp_set_current_user( $user->ID );
 		return true;
+	}
+
+	/**
+	 * Pull a Basic Auth credential pair off the current request.
+	 *
+	 * Tries `PHP_AUTH_USER`/`PHP_AUTH_PW` first (what mod_php and
+	 * php-fpm normally populate from `Authorization: Basic …`), then
+	 * falls back to parsing `HTTP_AUTHORIZATION` directly for
+	 * environments that don't populate the split form (CGI, certain
+	 * fastcgi setups). Returns `['', '']` if no credential is present
+	 * or the header is malformed — caller treats that as auth failure.
+	 *
+	 * @return array{0:string,1:string} `[username, password]`.
+	 */
+	private static function extract_basic_auth() {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
+		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
+		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
+			return array(
+				trim( wp_unslash( (string) $_SERVER['PHP_AUTH_USER'] ) ),
+				trim( wp_unslash( (string) $_SERVER['PHP_AUTH_PW'] ) ),
+			);
+		}
+
+		$header = isset( $_SERVER['HTTP_AUTHORIZATION'] )
+			? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] )
+			: '';
+		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		if ( 0 !== stripos( $header, 'Basic ' ) ) {
+			return array( '', '' );
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
+		$decoded = base64_decode( substr( $header, 6 ), true );
+		if ( false === $decoded || false === strpos( $decoded, ':' ) ) {
+			return array( '', '' );
+		}
+
+		list( $username, $password ) = explode( ':', $decoded, 2 );
+		return array( trim( $username ), trim( $password ) );
 	}
 
 	/**

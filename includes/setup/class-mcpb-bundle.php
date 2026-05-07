@@ -43,7 +43,9 @@ class McpbBundle {
 	private $endpoint_url;
 
 	/**
-	 * The joined `ck_xxx:cs_xxx` credential to embed in CUSTOM_HEADERS.
+	 * The joined `ck_xxx:cs_xxx` credential. Split into username/password
+	 * at manifest-build time and sent as Basic Auth via the proxy's
+	 * native `WP_API_USERNAME` / `WP_API_PASSWORD` env vars.
 	 *
 	 * @var string
 	 */
@@ -75,10 +77,7 @@ class McpbBundle {
 	 * @return array
 	 */
 	public function manifest() {
-		$custom_headers = wp_json_encode(
-			array( 'X-MCP-API-Key' => $this->api_credential ),
-			JSON_UNESCAPED_SLASHES
-		);
+		list( $username, $password ) = RestApiKey::split_credential( $this->api_credential );
 
 		$host = wp_parse_url( $this->endpoint_url, PHP_URL_HOST );
 		$host = is_string( $host ) ? $host : 'this store';
@@ -111,8 +110,9 @@ class McpbBundle {
 						SetupPage::REMOTE_PACKAGE,
 					),
 					'env'     => array(
-						'WP_API_URL'     => $this->endpoint_url,
-						'CUSTOM_HEADERS' => $custom_headers,
+						'WP_API_URL'      => $this->endpoint_url,
+						'WP_API_USERNAME' => $username,
+						'WP_API_PASSWORD' => $password,
 					),
 				),
 			),
@@ -123,6 +123,7 @@ class McpbBundle {
 			),
 		);
 	}
+
 
 	/**
 	 * Generate the bundle and stream it to the browser as a download.

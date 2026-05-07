@@ -39,6 +39,10 @@ $server_slug      = SetupPage::server_slug();
 $remote_pkg       = SetupPage::REMOTE_PACKAGE;
 $default_key_desc = RestApiKey::KEY_DESCRIPTION;
 
+list( $api_username, $api_password ) = '' === $credential
+	? array( 'ck_xxx', 'cs_xxx' )
+	: RestApiKey::split_credential( $credential );
+
 $json_snippet = wp_json_encode(
 	array(
 		'mcpServers' => array(
@@ -46,11 +50,9 @@ $json_snippet = wp_json_encode(
 				'command' => 'npx',
 				'args'    => array( '-y', $remote_pkg ),
 				'env'     => array(
-					'WP_API_URL'     => $endpoint_url,
-					'CUSTOM_HEADERS' => wp_json_encode(
-						array( 'X-MCP-API-Key' => '' === $credential ? 'ck_xxx:cs_xxx' : $credential ),
-						JSON_UNESCAPED_SLASHES
-					),
+					'WP_API_URL'      => $endpoint_url,
+					'WP_API_USERNAME' => $api_username,
+					'WP_API_PASSWORD' => $api_password,
 				),
 			),
 		),
@@ -59,13 +61,11 @@ $json_snippet = wp_json_encode(
 );
 
 $claude_code_command = sprintf(
-	"claude mcp add %s \\\n  --env WP_API_URL=%s \\\n  --env CUSTOM_HEADERS='%s' \\\n  -- npx -y %s",
+	"claude mcp add %s \\\n  --env WP_API_URL=%s \\\n  --env WP_API_USERNAME=%s \\\n  --env WP_API_PASSWORD=%s \\\n  -- npx -y %s",
 	$server_slug,
 	$endpoint_url,
-	wp_json_encode(
-		array( 'X-MCP-API-Key' => '' === $credential ? 'ck_xxx:cs_xxx' : $credential ),
-		JSON_UNESCAPED_SLASHES
-	),
+	$api_username,
+	$api_password,
 	$remote_pkg
 );
 
