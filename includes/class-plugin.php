@@ -166,9 +166,23 @@ class Plugin {
 
 		// Register our own MCP server when the adapter initializes. Owns the
 		// `/wp-json/hey-woo/mcp` endpoint with a curated tool/resource/prompt
-		// surface and a custom auth callback that handles X-MCP-API-Key (the
-		// header `mcp-wordpress-remote` sends).
+		// surface and a custom auth callback that authenticates ck:cs Basic
+		// Auth against `wp_woocommerce_api_keys`.
 		add_action( 'mcp_adapter_init', array( $this, 'register_mcp_server' ) );
+
+		// Tell WP not to run application-password auth on our MCP route.
+		// Without this, on any site where any app password exists
+		// (`WP_Application_Passwords::is_in_use()` returns true), WP's
+		// app-password handler runs at `determine_current_user` priority
+		// 20, fails with `invalid_username` for our `ck_xxx` user, stores
+		// the error on `$wp_rest_application_password_status`, and
+		// `rest_application_password_check_errors` returns 401 before our
+		// route permission callback ever runs. Excluding the MCP route
+		// from `application_password_is_api_request` makes the early
+		// return inside `wp_authenticate_application_password` fire — no
+		// error global, no 401 — so our own callback can authenticate
+		// the WC API key cleanly.
+		add_filter( 'application_password_is_api_request', array( $this, 'exclude_mcp_route_from_app_password_auth' ) );
 	}
 
 	/**
@@ -264,6 +278,40 @@ class Plugin {
 		}
 
 		return $is_request;
+	}
+
+	/**
+	 * Tell WP not to treat the Hey Woo MCP route as an "API request" for
+	 * the purposes of application-password auth. See the rationale on
+	 * the `application_password_is_api_request` filter registration in
+	 * `init_hooks()` for the full chain — short version: the WC consumer
+	 * key (`ck_xxx`) is not a WP user login, and the app-password
+	 * handler turns that into a 401 on `rest_authentication_errors`
+	 * before our route permission callback runs.
+	 *
+	 * Filters very narrowly — only `/wp-json/hey-woo/mcp` and any
+	 * sub-routes the transport may add. Every other REST route still
+	 * gets WP's normal app-password handling.
+	 *
+	 * @param bool $is_api_request What WP would otherwise consider this request.
+	 * @return bool
+	 */
+	public function exclude_mcp_route_from_app_password_auth( $is_api_request ) {
+		if ( ! $is_api_request ) {
+			return $is_api_request;
+		}
+
+		$route = $this->current_rest_route();
+		if ( '' === $route ) {
+			return $is_api_request;
+		}
+
+		$mcp_prefix = self::MCP_SERVER_NS . '/' . self::MCP_SERVER_ROUTE;
+		if ( 0 === strpos( $route, $mcp_prefix ) ) {
+			return false;
+		}
+
+		return $is_api_request;
 	}
 
 	/**

@@ -555,6 +555,69 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Apache + mod_php (and many fastcgi setups) expose Basic auth via
+	 * `PHP_AUTH_USER` / `PHP_AUTH_PW` and strip `HTTP_AUTHORIZATION`.
+	 * WC's auth reads the split form directly, so the route-scope
+	 * filter must too — otherwise a request bearing the setup
+	 * credential as Basic auth against a non-MCP route (e.g.
+	 * /wc/v3/orders) would be authenticated by WC and slip past the
+	 * scope check on those SAPIs, defeating the credential's privacy
+	 * boundary.
+	 *
+	 * Pin the deny-by-PHP_AUTH path explicitly so the regression
+	 * surfaces if the credential extractor is ever narrowed back to
+	 * HTTP_AUTHORIZATION-only.
+	 */
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_php_auth_basic() {
+		$helper                      = new RestApiKey();
+		$state                       = $helper->get_or_create();
+		list( $username, $password ) = RestApiKey::split_credential( $state['credential'] );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['HTTP_X_MCP_API_KEY'], $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = $username;
+			$_SERVER['PHP_AUTH_PW']   = $password;
+			$_SERVER['REQUEST_URI']   = '/wp-json/wc/v3/orders';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * Companion to the deny test above — the credential is allowed on
+	 * the MCP route when delivered as PHP_AUTH_USER/PHP_AUTH_PW too.
+	 * Pins the same SAPI shape on the allow side.
+	 */
+	public function test_setup_key_is_allowed_on_mcp_route_with_php_auth_basic() {
+		$helper                      = new RestApiKey();
+		$state                       = $helper->get_or_create();
+		list( $username, $password ) = RestApiKey::split_credential( $state['credential'] );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['HTTP_X_MCP_API_KEY'], $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = $username;
+			$_SERVER['PHP_AUTH_PW']   = $password;
+			$_SERVER['REQUEST_URI']   = '/wp-json/hey-woo/mcp';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
 	 * The route-scope filter is a no-op when the request isn't using
 	 * our credential at all. Anything else would inadvertently
 	 * affect REST clients that have their own (unrelated) WC API keys.

@@ -541,7 +541,17 @@ class SetupPage {
 			return wp_unslash( (string) $_SERVER['HTTP_X_MCP_API_KEY'] );
 		}
 
-		// 2. HTTP Basic auth — username:password = ck_xxx:cs_xxx.
+		// 2a. PHP_AUTH_USER + PHP_AUTH_PW — the split form Apache/mod_php
+		// (and many fastcgi setups) expose Basic auth as. WC's auth reads
+		// these directly, so the route-scope filter must too — otherwise
+		// a request bearing our setup credential against a non-MCP route
+		// (e.g. /wc/v3/orders) would slip past the scope check on any
+		// SAPI that doesn't surface HTTP_AUTHORIZATION.
+		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
+			return wp_unslash( (string) $_SERVER['PHP_AUTH_USER'] ) . ':' . wp_unslash( (string) $_SERVER['PHP_AUTH_PW'] );
+		}
+
+		// 2b. HTTP Basic auth (raw header form) — username:password = ck_xxx:cs_xxx.
 		$auth = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] ) : '';
 		if ( 0 === stripos( $auth, 'Basic ' ) ) {
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
