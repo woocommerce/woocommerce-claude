@@ -5,12 +5,12 @@
  * Exposes the catalog structure — categories, attributes, product type
  * distribution — as structured knowledge for AI consumption.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Knowledge\Providers;
+namespace WooCommerce\Claude\Knowledge\Providers;
 
-use HeyWoo\Knowledge\KnowledgeProvider;
+use WooCommerce\Claude\Knowledge\KnowledgeProvider;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -5,10 +5,10 @@
  * Scores how well the store uses structured data — attributes,
  * category depth, tags, and product relationships.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Scoring\Factors;
+namespace WooCommerce\Claude\Scoring\Factors;
 
 defined( 'ABSPATH' ) || exit;
 

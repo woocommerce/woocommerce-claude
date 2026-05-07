@@ -1,6 +1,6 @@
 <?php
 /**
- * `hey-woo/search-products` ability — enriched product listing.
+ * `woocommerce-claude/search-products` ability — enriched product listing.
  *
  * Thin wrapper over ProductsController::get_products() (which delegates to
  * the `products` knowledge provider). Adds completeness scores and structured
@@ -8,12 +8,12 @@
  * returns; the overlap is deliberate because the enriched data is only
  * available when this plugin is installed.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\ProductsController;
+use WooCommerce\Claude\API\ProductsController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -22,7 +22,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class SearchProductsAbility {
 
-	const ABILITY_NAME = 'hey-woo/search-products';
+	const ABILITY_NAME = 'woocommerce-claude/search-products';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -31,8 +31,8 @@ class SearchProductsAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Search products', 'hey-woo' ),
-				'description'         => __( "Search the product catalog with enriched AI metadata. Extends WooCommerce core MCP's basic product listing with completeness scores and structured knowledge when the Hey Woo plugin is installed.", 'hey-woo' ),
+				'label'               => __( 'Search products', 'woocommerce-claude' ),
+				'description'         => __( "Search the product catalog with enriched AI metadata. Extends WooCommerce core MCP's basic product listing with completeness scores and structured knowledge when the WooCommerce for Claude plugin is installed.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),

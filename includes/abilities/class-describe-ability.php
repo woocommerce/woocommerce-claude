@@ -5,10 +5,10 @@
  * Returns the full documentation for a specific analytics type — call this
  * before using wc-analytics/get-data with a type you haven't used before.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -45,8 +45,8 @@ class DescribeAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Describe analytics type', 'hey-woo' ),
-				'description'         => __( 'Returns the full documentation for a specific analytics type — narrative guidance, what it can and cannot answer, and parameter reference. Call this before using wc-analytics/get-data with a type you have not used before in this session.', 'hey-woo' ),
+				'label'               => __( 'Describe analytics type', 'woocommerce-claude' ),
+				'description'         => __( 'Returns the full documentation for a specific analytics type — narrative guidance, what it can and cannot answer, and parameter reference. Call this before using wc-analytics/get-data with a type you have not used before in this session.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),

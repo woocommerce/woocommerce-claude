@@ -56,7 +56,7 @@
  *   refund_count = 1    (O6)
  *   total_customers = 3 (A, B, C)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -64,7 +64,7 @@
  */
 class Test_Get_Revenue_Summary extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

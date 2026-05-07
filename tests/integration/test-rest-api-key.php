@@ -16,14 +16,14 @@
  * `ck_…:cs_…` row that no UI surface knows about and no Regenerate
  * click revokes.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\Setup\RestApiKey;
-use HeyWoo\Setup\SetupPage;
+use WooCommerce\Claude\Setup\RestApiKey;
+use WooCommerce\Claude\Setup\SetupPage;
 
 /**
- * Integration tests for HeyWoo\Setup\RestApiKey.
+ * Integration tests for WooCommerce\Claude\Setup\RestApiKey.
  */
 class Test_Rest_Api_Key extends WP_UnitTestCase {
 
@@ -185,7 +185,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$result = $helper->get_or_create();
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'hey_woo_provisioning_busy', $result->get_error_code() );
+		$this->assertSame( 'woocommerce_claude_provisioning_busy', $result->get_error_code() );
 		$this->assertSame( 0, $this->count_owned_rows(), 'No row was inserted while the lock was held.' );
 	}
 
@@ -501,7 +501,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Setup credential is route-restricted to /wp-json/hey-woo/mcp
+	 * Setup credential is route-restricted to /wp-json/woocommerce-claude/mcp
 	 * — even though the underlying woocommerce_api_keys row would
 	 * normally authenticate against any WC REST endpoint. This is
 	 * the privacy boundary the setup UI implies: the bundle's
@@ -524,7 +524,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertInstanceOf( \WP_Error::class, $result );
-			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 'woocommerce_claude_route_restricted', $result->get_error_code() );
 			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
 		} finally {
 			$_SERVER = $original_server;
@@ -547,7 +547,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
 			$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
-			$_SERVER['REQUEST_URI']        = '/wp-json/hey-woo/mcp';
+			$_SERVER['REQUEST_URI']        = '/wp-json/woocommerce-claude/mcp';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
@@ -586,7 +586,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			$result                   = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertInstanceOf( \WP_Error::class, $result );
-			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 'woocommerce_claude_route_restricted', $result->get_error_code() );
 			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
 		} finally {
 			$_SERVER = $original_server;
@@ -610,7 +610,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			unset( $_SERVER['HTTP_X_MCP_API_KEY'], $_SERVER['HTTP_AUTHORIZATION'] );
 			$_SERVER['PHP_AUTH_USER'] = $username;
 			$_SERVER['PHP_AUTH_PW']   = $password;
-			$_SERVER['REQUEST_URI']   = '/wp-json/hey-woo/mcp';
+			$_SERVER['REQUEST_URI']   = '/wp-json/woocommerce-claude/mcp';
 			$result                   = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
@@ -647,7 +647,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			$result                                 = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertInstanceOf( \WP_Error::class, $result );
-			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 'woocommerce_claude_route_restricted', $result->get_error_code() );
 			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
 		} finally {
 			$_SERVER = $original_server;
@@ -680,7 +680,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertInstanceOf( \WP_Error::class, $result, 'Legacy X-MCP-API-Key against the deprecated WC MCP route must be denied.' );
-			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 'woocommerce_claude_route_restricted', $result->get_error_code() );
 			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
 		} finally {
 			$_SERVER = $original_server;
@@ -715,10 +715,10 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 	/**
 	 * Deactivating the plugin must revoke the auto-created WC API
-	 * key. Without that, a merchant who deactivates Hey Woo to
+	 * key. Without that, a merchant who deactivates WooCommerce for Claude to
 	 * disconnect Claude leaves the credential alive — the WC core
 	 * MCP server (and WC REST surfaces generally) keep
-	 * authenticating it because they don't depend on Hey Woo. A
+	 * authenticating it because they don't depend on WooCommerce for Claude. A
 	 * regression here means deactivation appears to disconnect but
 	 * doesn't actually close the access path.
 	 */
@@ -728,7 +728,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->count_owned_rows() );
 
 		// phpcs:disable WooCommerce.Commenting.CommentHooks -- this isn't a hook definition, it's a synthetic firing of the deactivation hook to test the behavior the plugin's register_deactivation_hook() registers.
-		do_action( 'deactivate_' . plugin_basename( HEY_WOO_PLUGIN_FILE ) );
+		do_action( 'deactivate_' . plugin_basename( WOOCOMMERCE_CLAUDE_PLUGIN_FILE ) );
 		// phpcs:enable WooCommerce.Commenting.CommentHooks
 
 		$this->assertSame( 0, $this->count_owned_rows(), 'Deactivation revokes the WC API key row.' );
@@ -738,7 +738,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 	/**
 	 * Count rows in WC's API key table whose description matches the
-	 * Hey Woo label. Used by every assertion above.
+	 * WooCommerce for Claude label. Used by every assertion above.
 	 *
 	 * @return int
 	 */

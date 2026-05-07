@@ -131,7 +131,7 @@
  *   share_of_coupon_revenue_pct = 50.0  (100/200)
  *   share_of_total_discount_pct = 32.3  (10/31)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -139,7 +139,7 @@
  */
 class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

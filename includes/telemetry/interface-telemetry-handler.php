@@ -2,10 +2,10 @@
 /**
  * Contract for skill telemetry handlers.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Telemetry;
+namespace WooCommerce\Claude\Telemetry;
 
 defined( 'ABSPATH' ) || exit;
 

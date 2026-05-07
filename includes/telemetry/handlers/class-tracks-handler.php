@@ -3,16 +3,16 @@
  * Telemetry handler — forwards events to WooCommerce Tracks.
  *
  * Activated by Plugin::maybe_add_tracks_handler when the "Enable telemetry"
- * setting is on (WooCommerce > Settings > Hey Woo). Also respects
+ * setting is on (WooCommerce > Settings > WooCommerce for Claude). Also respects
  * WC_Site_Tracking::is_tracking_enabled() as an additional safety gate.
  * Silently skips if WC_Tracks isn't loaded.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Telemetry\Handlers;
+namespace WooCommerce\Claude\Telemetry\Handlers;
 
-use HeyWoo\Telemetry\TelemetryHandlerInterface;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -24,7 +24,7 @@ class TracksHandler implements TelemetryHandlerInterface {
 	/**
 	 * Tracks event name (without the wcadmin_ prefix that WC_Tracks adds).
 	 */
-	const EVENT_NAME = 'hey_woo_skill_executed';
+	const EVENT_NAME = 'woocommerce_claude_skill_executed';
 
 	/**
 	 * Send the event to Tracks.

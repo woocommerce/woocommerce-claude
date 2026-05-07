@@ -20,10 +20,10 @@
  * microseconds in the cache key, so the MD5 changes every request and the
  * cache never hits).
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\API;
+namespace WooCommerce\Claude\API;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -126,7 +126,7 @@ class AnalyticsController {
 	 * Count the primary variable-length rows in a result payload.
 	 *
 	 * Used to populate the rows_returned field in the
-	 * hey_woo_skill_executed telemetry hook. Skills that return a
+	 * woocommerce_claude_skill_executed telemetry hook. Skills that return a
 	 * flat scalar result (revenue summary, orders summary, customer overview)
 	 * don't have a top-N array, so we return 1 — the response is one "record".
 	 *
@@ -193,7 +193,7 @@ class AnalyticsController {
 		 * @param array  $params     Resolved input parameters passed to the skill.
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_revenue_summary',
 			array(
 				'period'     => $period,
@@ -207,7 +207,7 @@ class AnalyticsController {
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		// Check cache. Include settings in key so changes invalidate cache.
-		$cache_key = 'hey_woo_revenue_' . md5(
+		$cache_key = 'woocommerce_claude_revenue_' . md5(
 			$dates['start'] . '_' . $dates['end'] . '_' . ( $compare ? '1' : '0' )
 			. '_' . self::get_date_column()
 			. '_' . implode( ',', self::get_paid_statuses() )
@@ -237,7 +237,7 @@ class AnalyticsController {
 			 * }
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_revenue_summary',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -308,7 +308,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_revenue_summary',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -514,7 +514,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_orders_summary',
 			array(
 				'period'     => $period,
@@ -526,7 +526,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_orders_' . md5(
+		$cache_key = 'woocommerce_claude_orders_' . md5(
 			$dates['start'] . '_' . $dates['end'] . '_' . ( $compare ? '1' : '0' )
 			. '_' . self::get_date_column()
 			. '_' . implode( ',', self::get_paid_statuses() )
@@ -539,7 +539,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_orders_summary',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -633,7 +633,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_orders_summary',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -1509,7 +1509,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_product_performance',
 			array(
 				'period'     => $period,
@@ -1534,7 +1534,7 @@ class AnalyticsController {
 		if ( null !== $series_cap_override ) {
 			$series_cap = (int) $series_cap_override;
 		} else {
-			$gate_result = \HeyWoo\Abilities\LargeRangeGate::check(
+			$gate_result = \WooCommerce\Claude\Abilities\LargeRangeGate::check(
 				$dates['start'],
 				$dates['end'],
 				$confirmation_token
@@ -1545,7 +1545,7 @@ class AnalyticsController {
 			$series_cap = $gate_result;
 		}
 
-		$cache_key = 'hey_woo_products_' . md5(
+		$cache_key = 'woocommerce_claude_products_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -1563,7 +1563,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_product_performance',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -1793,7 +1793,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_product_performance',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -2158,7 +2158,7 @@ class AnalyticsController {
 	private static function query_catalogue_size() {
 		global $wpdb;
 
-		$cached = get_transient( 'hey_woo_catalogue_size' );
+		$cached = get_transient( 'woocommerce_claude_catalogue_size' );
 		if ( false !== $cached ) {
 			return (int) $cached;
 		}
@@ -2169,7 +2169,7 @@ class AnalyticsController {
 		);
 
 		// Short cache — catalogue size shouldn't change frequently.
-		set_transient( 'hey_woo_catalogue_size', $count, self::CACHE_TTL );
+		set_transient( 'woocommerce_claude_catalogue_size', $count, self::CACHE_TTL );
 
 		return $count;
 	}
@@ -2190,7 +2190,7 @@ class AnalyticsController {
 	private static function query_sellable_sku_count() {
 		global $wpdb;
 
-		$cached = get_transient( 'hey_woo_sku_count' );
+		$cached = get_transient( 'woocommerce_claude_sku_count' );
 		if ( false !== $cached ) {
 			return (int) $cached;
 		}
@@ -2217,7 +2217,7 @@ class AnalyticsController {
 
 		$count = $simple + $variations;
 
-		set_transient( 'hey_woo_sku_count', $count, self::CACHE_TTL );
+		set_transient( 'woocommerce_claude_sku_count', $count, self::CACHE_TTL );
 
 		return $count;
 	}
@@ -2681,7 +2681,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_attribution',
 			array(
 				'period'             => $period,
@@ -2697,7 +2697,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_attribution_' . md5(
+		$cache_key = 'woocommerce_claude_attribution_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -2715,7 +2715,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_attribution',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -2906,7 +2906,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_attribution',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -3284,7 +3284,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_customer_overview',
 			array(
 				'period'     => $period,
@@ -3306,7 +3306,7 @@ class AnalyticsController {
 		if ( null !== $series_cap_override ) {
 			$series_cap = (int) $series_cap_override;
 		} else {
-			$gate_result = \HeyWoo\Abilities\LargeRangeGate::check(
+			$gate_result = \WooCommerce\Claude\Abilities\LargeRangeGate::check(
 				$dates['start'],
 				$dates['end'],
 				$confirmation_token
@@ -3317,7 +3317,7 @@ class AnalyticsController {
 			$series_cap = $gate_result;
 		}
 
-		$cache_key = 'hey_woo_customers_' . md5(
+		$cache_key = 'woocommerce_claude_customers_' . md5(
 			$dates['start'] . '_' . $dates['end'] . '_' . ( $compare ? '1' : '0' )
 			. '_' . $resolved_interval
 			. '_' . self::get_date_column()
@@ -3331,7 +3331,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_customer_overview',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -3435,7 +3435,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_customer_overview',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -4006,7 +4006,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_revenue_breakdown',
 			array(
 				'period'             => $period,
@@ -4022,7 +4022,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_revenue_breakdown_' . md5(
+		$cache_key = 'woocommerce_claude_revenue_breakdown_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -4040,7 +4040,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_revenue_breakdown',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -4199,7 +4199,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_revenue_breakdown',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -5112,7 +5112,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_coupon_performance',
 			array(
 				'period'     => $period,
@@ -5126,7 +5126,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_coupon_performance_' . md5(
+		$cache_key = 'woocommerce_claude_coupon_performance_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -5142,7 +5142,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_coupon_performance',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -5300,7 +5300,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_coupon_performance',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -5808,7 +5808,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_refund_analysis',
 			array(
 				'period'             => $period,
@@ -5823,7 +5823,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_refund_analysis_' . md5(
+		$cache_key = 'woocommerce_claude_refund_analysis_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $group_by
@@ -5840,7 +5840,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_refund_analysis',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -5921,7 +5921,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_refund_analysis',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -6542,7 +6542,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_tax_summary',
 			array(
 				'period'     => $period,
@@ -6556,7 +6556,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_tax_summary_' . md5(
+		$cache_key = 'woocommerce_claude_tax_summary_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -6572,7 +6572,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_tax_summary',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -6725,7 +6725,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_tax_summary',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -7124,7 +7124,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'query_analytics',
 			array(
 				'entity'     => $entity,
@@ -7142,7 +7142,7 @@ class AnalyticsController {
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_query_analytics_' . md5(
+		$cache_key = 'woocommerce_claude_query_analytics_' . md5(
 			$entity
 			. '|' . $match_mode
 			. '|' . wp_json_encode( $filters )
@@ -7162,7 +7162,7 @@ class AnalyticsController {
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'query_analytics',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -7190,7 +7190,7 @@ class AnalyticsController {
 			default:
 				return new \WP_Error(
 					'unknown_entity',
-					__( 'Unknown entity. Expected one of: orders, products, customers.', 'hey-woo' ),
+					__( 'Unknown entity. Expected one of: orders, products, customers.', 'woocommerce-claude' ),
 					array( 'status' => 400 )
 				);
 		}
@@ -7207,7 +7207,7 @@ class AnalyticsController {
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'query_analytics',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
@@ -7969,7 +7969,7 @@ class AnalyticsController {
 	 */
 	private static function qa_validate_filters( $filters, $registry ) {
 		if ( ! is_array( $filters ) ) {
-			return new \WP_Error( 'invalid_filters', __( 'Filters must be an array.', 'hey-woo' ), array( 'status' => 400 ) );
+			return new \WP_Error( 'invalid_filters', __( 'Filters must be an array.', 'woocommerce-claude' ), array( 'status' => 400 ) );
 		}
 
 		foreach ( $filters as $i => $f ) {
@@ -7978,7 +7978,7 @@ class AnalyticsController {
 					'invalid_filter',
 					sprintf(
 						/* translators: %d: filter index */
-						__( 'Filter at index %d is not an object.', 'hey-woo' ),
+						__( 'Filter at index %d is not an object.', 'woocommerce-claude' ),
 						$i
 					),
 					array( 'status' => 400 )
@@ -7993,7 +7993,7 @@ class AnalyticsController {
 					'unknown_field',
 					sprintf(
 						/* translators: %s: field name */
-						__( 'Unknown field: %s. See the tool description for the field list.', 'hey-woo' ),
+						__( 'Unknown field: %s. See the tool description for the field list.', 'woocommerce-claude' ),
 						(string) $field
 					),
 					array(
@@ -8008,7 +8008,7 @@ class AnalyticsController {
 					'missing_operator',
 					sprintf(
 						/* translators: %s: field name */
-						__( 'Filter on %s is missing an operator.', 'hey-woo' ),
+						__( 'Filter on %s is missing an operator.', 'woocommerce-claude' ),
 						$field
 					),
 					array( 'status' => 400 )
@@ -8022,7 +8022,7 @@ class AnalyticsController {
 					'invalid_operator',
 					sprintf(
 						/* translators: 1: operator, 2: field, 3: list of allowed operators */
-						__( 'Operator %1$s is not valid for field %2$s. Allowed: %3$s.', 'hey-woo' ),
+						__( 'Operator %1$s is not valid for field %2$s. Allowed: %3$s.', 'woocommerce-claude' ),
 						$op,
 						$field,
 						implode( ', ', $allowed )
@@ -8101,7 +8101,7 @@ class AnalyticsController {
 					'untranslatable_filter',
 					sprintf(
 						/* translators: 1: operator, 2: field */
-						__( 'Filter "%1$s" on field "%2$s" cannot be translated to SQL — check the operator/value shape against the field type. Common causes: "between" needs two values; "is_in" / "is_not_in" need a non-empty array; subquery fields don\'t support "between" or string operators ("contains" / "starts_with" / "is_empty").', 'hey-woo' ),
+						__( 'Filter "%1$s" on field "%2$s" cannot be translated to SQL — check the operator/value shape against the field type. Common causes: "between" needs two values; "is_in" / "is_not_in" need a non-empty array; subquery fields don\'t support "between" or string operators ("contains" / "starts_with" / "is_empty").', 'woocommerce-claude' ),
 						(string) $op,
 						(string) $f['field']
 					),

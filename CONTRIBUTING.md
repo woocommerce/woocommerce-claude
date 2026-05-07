@@ -1,4 +1,4 @@
-# Contributing to Hey Woo
+# Contributing to WooCommerce for Claude
 
 Thanks for taking an interest. This document covers how the codebase is organised, the engineering norms we follow, and the workflow for adding a new analytics skill.
 
@@ -19,18 +19,18 @@ If you're just looking to install / use the plugin, the [README](./README.md) is
 ## Architecture
 
 ```
-Plugin (PHP)                           Hey Woo MCP server
+Plugin (PHP)                           WooCommerce for Claude MCP server
 ─────────────────────                  ──────────────────────
-Abilities (wp-abilities/v1)     ─────▶ /wp-json/hey-woo/mcp
+Abilities (wp-abilities/v1)     ─────▶ /wp-json/woocommerce-claude/mcp
   - wc-analytics/* (tools)             tools     (curated via Plugin::mcp_tool_ability_ids())
-  - hey-woo/*       (tools)            resources (passed in to create_server())
+  - woocommerce-claude/*       (tools)            resources (passed in to create_server())
   - wc-knowledge/* (resources)         prompts   (passed in to create_server())
   - wc-prompts/*    (prompts)
 Knowledge providers
 Scoring engine
 ```
 
-There is **no separate MCP server process** — Hey Woo registers its own MCP server via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`) and owns the single endpoint at `/wp-json/hey-woo/mcp`. The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('hey-woo', 'hey-woo', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts.
+There is **no separate MCP server process** — WooCommerce for Claude registers its own MCP server via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`) and owns the single endpoint at `/wp-json/woocommerce-claude/mcp`. The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('woocommerce-claude', 'woocommerce-claude', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts.
 
 **Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). This is the standard path for anything that exposes actions or tools to AI systems.
 
@@ -38,12 +38,12 @@ There is **no separate MCP server process** — Hey Woo registers its own MCP se
 
 | Path | What |
 |---|---|
-| `includes/abilities/` | Ability classes — one file per skill. `wc-analytics/*` for analytics tools, `hey-woo/*` for store/readiness tools, `wc-knowledge/*` for resources, `wc-prompts/*` for prompts. Bootstrap in `class-abilities-bootstrap.php`. |
+| `includes/abilities/` | Ability classes — one file per skill. `wc-analytics/*` for analytics tools, `woocommerce-claude/*` for store/readiness tools, `wc-knowledge/*` for resources, `wc-prompts/*` for prompts. Bootstrap in `class-abilities-bootstrap.php`. |
 | `includes/api/class-analytics-controller.php` | Shared analytics data-access helper. Holds the SQL + response assembly for every skill; no REST routes of its own. |
 | `includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
 | `includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
 | `includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
-| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the Hey Woo MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
+| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
 
 ## Privacy rule
@@ -84,7 +84,7 @@ Don't use WC core's DataStore cache. It has a known bug — `TimeInterval::defau
 
 ```php
 // Good: stable cache key
-$cache_key = 'hey_woo_revenue_' . md5( $date_start . '_' . $date_end . '_' . $status_filter );
+$cache_key = 'woocommerce_claude_revenue_' . md5( $date_start . '_' . $date_end . '_' . $status_filter );
 $cached = get_transient( $cache_key );
 if ( false !== $cached ) {
     return $cached;
@@ -118,7 +118,7 @@ The high-level shape every skill follows:
    - Add the new class to `AbilitiesBootstrap::register_abilities()`
    - `require_once` it from `class-plugin.php`
 
-3. **Add the new ability ID to `Plugin::mcp_tool_ability_ids()`** in `class-plugin.php` so it's exposed as a tool on `/wp-json/hey-woo/mcp` — only top-level routing tools (`get-data`, `describe`, `confirm-large-range`) and curated `hey-woo/*` tools are exposed; analytics sub-skills stay registered in the Abilities API but hidden from the MCP tool list, since `wc-analytics/describe` reads their docs.
+3. **Add the new ability ID to `Plugin::mcp_tool_ability_ids()`** in `class-plugin.php` so it's exposed as a tool on `/wp-json/woocommerce-claude/mcp` — only top-level routing tools (`get-data`, `describe`, `confirm-large-range`) and curated `woocommerce-claude/*` tools are exposed; analytics sub-skills stay registered in the Abilities API but hidden from the MCP tool list, since `wc-analytics/describe` reads their docs.
 
 4. **Verify** — compare the endpoint output against direct SQL (or the WC Analytics REST API) for the same date range.
 
@@ -142,7 +142,7 @@ Pattern-match an existing one — the closest sibling to your skill is the right
 Shared shape every test file follows:
 
 1. **File-level docblock** pinning the invariants this test class guards.
-2. **`use \HeyWoo\Tests\Integration\AnalyticsFixtures;`** — provides `seed_customer()`, `seed_paid_order()`, `seed_refund_order()`, etc.
+2. **`use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;`** — provides `seed_customer()`, `seed_paid_order()`, `seed_refund_order()`, etc.
 3. **`set_up()`** seeds the deterministic fixture for all tests in the class.
 4. **`run_ability( array $input )` helper** — one-line wrapper over `wp_get_ability( 'wc-analytics/…' )->execute(…)`.
 5. **One `test_*` method per invariant** — one assertion cluster per question the merchant will ask.
@@ -160,7 +160,7 @@ Reusable lessons that sit above any single skill. Reach for them when making des
 
 ### "Silence isn't signal"
 
-When a design call defaults to *"ship the simpler/safer thing, wait for signal"*, stop and ask whether the signal is structurally hard to hear. For Hey Woo, signal is hard to hear for:
+When a design call defaults to *"ship the simpler/safer thing, wait for signal"*, stop and ask whether the signal is structurally hard to hear. For WooCommerce for Claude, signal is hard to hear for:
 
 - B2B / wholesale / invoice merchants — most demo stores are consumer-skewed, so on-hold / pipeline patterns barely register in test data
 - Merchants on less-common payment methods (BACS, cheque, purchase order)

@@ -6,13 +6,13 @@
  *
  * 1. Local wp-env — run via `bin/check`. The tests-cli container mounts the
  *    WP test suite at `/wordpress-phpunit` and the repo at
- *    `wp-content/plugins/hey-woo-tests` (the --env-cwd target).
+ *    `wp-content/plugins/woocommerce-claude-tests` (the --env-cwd target).
  *
  * 2. CI / bare PHP — run after `bin/install-wp-tests.sh`. Set WP_TESTS_DIR to
  *    the path where the WP PHPUnit suite was installed; WooCommerce and the
  *    plugin are installed into WP_PLUGIN_DIR by the install script.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 $_tests_dir = getenv( 'WP_TESTS_DIR' );
@@ -28,7 +28,7 @@ if ( ! file_exists( $_tests_dir . '/includes/functions.php' ) ) {
 require_once $_tests_dir . '/includes/functions.php';
 
 /**
- * Manually load WooCommerce + Hey Woo before WP_UnitTestCase boots.
+ * Manually load WooCommerce + WooCommerce for Claude before WP_UnitTestCase boots.
  *
  * `muplugins_loaded` fires after WordPress core is up (so WP_PLUGIN_DIR is
  * defined) but before the regular plugin loader, which lets us guarantee
@@ -36,10 +36,10 @@ require_once $_tests_dir . '/includes/functions.php';
  *
  * Plugin slugs are resolved at runtime: wp-env mounts WooCommerce as
  * `woocommerce*` (the .latest-stable zip lands at `woocommerce.latest-stable/`),
- * and our plugin at `hey-woo/` (destination slug of the `./plugin`
+ * and our plugin at `woocommerce-claude/` (destination slug of the `./plugin`
  * mount in `.wp-env.json`).
  */
-function hey_woo_tests_load_plugins() {
+function woocommerce_claude_tests_load_plugins() {
 	$plugin_dir = defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins';
 
 	$wc_candidates = glob( $plugin_dir . '/woocommerce*/woocommerce.php' );
@@ -49,14 +49,14 @@ function hey_woo_tests_load_plugins() {
 	}
 	require_once $wc_candidates[0];
 
-	require_once $plugin_dir . '/hey-woo/hey-woo.php';
+	require_once $plugin_dir . '/woocommerce-claude/woocommerce-claude.php';
 
 	// Prevent WooCommerce's own check_version() hook (plugins_loaded) from
 	// running WC_Install::install() before we have a chance to set the HPOS
 	// options below.  We do the controlled install ourselves in the init hook.
 	update_option( 'woocommerce_db_version', WC()->version );
 }
-tests_add_filter( 'muplugins_loaded', 'hey_woo_tests_load_plugins' );
+tests_add_filter( 'muplugins_loaded', 'woocommerce_claude_tests_load_plugins' );
 
 /**
  * Run the WooCommerce install routine with the correct options set.
@@ -74,7 +74,7 @@ tests_add_filter( 'muplugins_loaded', 'hey_woo_tests_load_plugins' );
  *    see the stale pre-install snapshot.
  *    See https://core.trac.wordpress.org/ticket/28374
  */
-function hey_woo_tests_install_woocommerce() {
+function woocommerce_claude_tests_install_woocommerce() {
 	update_option( 'woocommerce_custom_orders_table_enabled', 'yes' );
 	update_option( 'woocommerce_custom_orders_table_data_sync_enabled', 'no' );
 	update_option( 'woocommerce_show_feature_enable_notice_custom_order_tables', 'no' );
@@ -91,7 +91,7 @@ function hey_woo_tests_install_woocommerce() {
 	$GLOBALS['wp_roles'] = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 	wp_roles();
 }
-tests_add_filter( 'init', 'hey_woo_tests_install_woocommerce', 0 );
+tests_add_filter( 'init', 'woocommerce_claude_tests_install_woocommerce', 0 );
 
 require $_tests_dir . '/includes/bootstrap.php';
 

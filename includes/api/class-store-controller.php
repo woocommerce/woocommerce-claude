@@ -2,12 +2,12 @@
 /**
  * REST API controller for Store Knowledge.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\API;
+namespace WooCommerce\Claude\API;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class StoreController {
 
-	const NAMESPACE = 'hey-woo/v1';
+	const NAMESPACE = 'woocommerce-claude/v1';
 
 	/**
 	 * Register the store REST routes.
@@ -73,7 +73,7 @@ class StoreController {
 
 		return rest_ensure_response(
 			array(
-				'version' => HEY_WOO_VERSION,
+				'version' => WOOCOMMERCE_CLAUDE_VERSION,
 				'data'    => $data,
 			)
 		);

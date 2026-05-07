@@ -49,7 +49,7 @@
  * permission bypass constructed out of correctly-callable pieces, but it
  * pins the known regression shapes.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -71,7 +71,7 @@ class Test_Ability_Security_Guardrails extends WP_UnitTestCase {
 	 */
 	const SCOPED_PREFIXES = array(
 		'wc-analytics/',
-		'hey-woo/',
+		'woocommerce-claude/',
 		'wc-knowledge/',
 		'wc-prompts/',
 	);
@@ -110,10 +110,10 @@ class Test_Ability_Security_Guardrails extends WP_UnitTestCase {
 	 * @return array<int, string> Absolute paths.
 	 */
 	private function ability_source_files() {
-		$files = glob( HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-*.php' );
+		$files = glob( WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-*.php' );
 		$this->assertNotEmpty(
 			$files,
-			'No ability source files found under ' . HEY_WOO_PLUGIN_DIR . 'includes/abilities/.'
+			'No ability source files found under ' . WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/.'
 		);
 		return $files;
 	}
@@ -124,10 +124,10 @@ class Test_Ability_Security_Guardrails extends WP_UnitTestCase {
 	 * @return array<int, string> Absolute paths.
 	 */
 	private function rest_controller_source_files() {
-		$files = glob( HEY_WOO_PLUGIN_DIR . 'includes/api/class-*-controller.php' );
+		$files = glob( WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-*-controller.php' );
 		$this->assertNotEmpty(
 			$files,
-			'No REST controller source files found under ' . HEY_WOO_PLUGIN_DIR . 'includes/api/.'
+			'No REST controller source files found under ' . WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/.'
 		);
 		return $files;
 	}
@@ -140,7 +140,7 @@ class Test_Ability_Security_Guardrails extends WP_UnitTestCase {
 	private function plugin_source_files() {
 		$files    = array();
 		$iterator = new RecursiveIteratorIterator(
-			new RecursiveDirectoryIterator( HEY_WOO_PLUGIN_DIR . 'includes/' )
+			new RecursiveDirectoryIterator( WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/' )
 		);
 		foreach ( $iterator as $file ) {
 			if ( $file->isFile() && 'php' === $file->getExtension() ) {
@@ -328,7 +328,7 @@ class Test_Ability_Security_Guardrails extends WP_UnitTestCase {
 		$failures = array();
 		foreach ( $this->plugin_source_files() as $file ) {
 			$source   = $this->source_without_comments( $file );
-			$relative = ltrim( str_replace( HEY_WOO_PLUGIN_DIR, '', $file ), '/' );
+			$relative = ltrim( str_replace( WOOCOMMERCE_CLAUDE_PLUGIN_DIR, '', $file ), '/' );
 
 			foreach ( $dangerous_patterns as $name => $pattern ) {
 				if ( preg_match( $pattern, $source ) ) {

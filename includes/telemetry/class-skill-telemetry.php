@@ -2,7 +2,7 @@
 /**
  * Skill telemetry dispatcher.
  *
- * Listens on the hey_woo_skill_executed action (fired by
+ * Listens on the woocommerce_claude_skill_executed action (fired by
  * AnalyticsController and GetCustomerValueAbility after every fetch)
  * and fans the payload out to registered handlers.
  *
@@ -11,20 +11,20 @@
  *   - TracksHandler: active when the "Enable telemetry" setting is on
  *     (wired in Plugin::maybe_add_tracks_handler via the filter below).
  *
- * Custom handlers can be added via the hey_woo_telemetry_handlers filter:
+ * Custom handlers can be added via the woocommerce_claude_telemetry_handlers filter:
  *
  *   add_filter(
- *       'hey_woo_telemetry_handlers',
+ *       'woocommerce_claude_telemetry_handlers',
  *       function ( $handlers ) {
  *           $handlers[] = new My_Custom_Handler();
  *           return $handlers;
  *       }
  *   );
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Telemetry;
+namespace WooCommerce\Claude\Telemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -43,7 +43,7 @@ class SkillTelemetry {
 	/**
 	 * Wire up the action listener and build the default handler set.
 	 *
-	 * Called once from Plugin::init_hooks(). The hey_woo_telemetry_handlers
+	 * Called once from Plugin::init_hooks(). The woocommerce_claude_telemetry_handlers
 	 * filter runs here, so handlers must be added to the filter before plugins_loaded
 	 * or init at the latest.
 	 */
@@ -59,7 +59,7 @@ class SkillTelemetry {
 		 *
 		 * @param TelemetryHandlerInterface[] $handlers Default handler list.
 		 */
-		$candidates = apply_filters( 'hey_woo_telemetry_handlers', self::default_handlers() );
+		$candidates = apply_filters( 'woocommerce_claude_telemetry_handlers', self::default_handlers() );
 
 		foreach ( $candidates as $handler ) {
 			if ( $handler instanceof TelemetryHandlerInterface ) {
@@ -67,7 +67,7 @@ class SkillTelemetry {
 			}
 		}
 
-		add_action( 'hey_woo_skill_executed', array( self::class, 'dispatch' ), 10, 2 );
+		add_action( 'woocommerce_claude_skill_executed', array( self::class, 'dispatch' ), 10, 2 );
 	}
 
 	/**
@@ -84,7 +84,7 @@ class SkillTelemetry {
 	/**
 	 * Dispatch a skill-execution event to all registered handlers.
 	 *
-	 * Hooked on hey_woo_skill_executed at priority 10.
+	 * Hooked on woocommerce_claude_skill_executed at priority 10.
 	 *
 	 * @param string $skill_name Skill identifier.
 	 * @param array  $data       Telemetry payload.

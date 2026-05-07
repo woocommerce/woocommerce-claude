@@ -48,7 +48,7 @@
  *   Customer E — in-period refunded order 2025-10-18, $80 (flag=0).
  *                Appears only in `admin_equivalent`.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -56,7 +56,7 @@
  */
 class Test_Get_Customer_Overview extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs. Fixed historical window

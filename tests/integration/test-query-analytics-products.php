@@ -41,7 +41,7 @@
  *   products_with_sales_count = 4 (P4 has zero sales)
  *   products_with_zero_sales  = 1 (P4)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -49,7 +49,7 @@
  */
 class Test_Query_Analytics_Products extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.

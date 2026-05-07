@@ -95,7 +95,7 @@
  *   DE_VAT     — total_tax £24, share 25.5%, orders 1, refunded_tax £9.50
  *   Unmatched  — total_tax £10, share 10.6%, orders 1
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -103,7 +103,7 @@
  */
 class Test_Get_Tax_Summary extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by populated-fixture runs.

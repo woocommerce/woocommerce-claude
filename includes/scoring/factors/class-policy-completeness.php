@@ -5,12 +5,12 @@
  * Scores whether the store has key policy pages (shipping, returns,
  * privacy, terms) and whether they contain meaningful content.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Scoring\Factors;
+namespace WooCommerce\Claude\Scoring\Factors;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
 
 defined( 'ABSPATH' ) || exit;
 

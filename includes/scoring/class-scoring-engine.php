@@ -3,10 +3,10 @@
  * Scoring Engine — orchestrates all scoring factors to produce
  * overall store readiness and per-product scores.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Scoring;
+namespace WooCommerce\Claude\Scoring;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -40,7 +40,7 @@ class ScoringEngine {
 		 *
 		 * @param array $factors Array of scoring factor instances.
 		 */
-		$this->factors = apply_filters( 'hey_woo_scoring_factors', $this->factors );
+		$this->factors = apply_filters( 'woocommerce_claude_scoring_factors', $this->factors );
 	}
 
 	/**

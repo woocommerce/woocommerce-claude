@@ -3,10 +3,10 @@
  * Builds the .mcpb (Claude Desktop bundle) that wraps mcp-wordpress-remote
  * with this store's URL and REST API credential pre-filled.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Setup;
+namespace WooCommerce\Claude\Setup;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,8 +35,8 @@ class McpbBundle {
 	const NODE_MIN_VERSION = '>=18.0.0';
 
 	/**
-	 * The fully-qualified Hey Woo MCP endpoint, e.g.
-	 * https://example.com/wp-json/hey-woo/mcp.
+	 * The fully-qualified WooCommerce for Claude MCP endpoint, e.g.
+	 * https://example.com/wp-json/woocommerce-claude/mcp.
 	 *
 	 * @var string
 	 */
@@ -61,7 +61,7 @@ class McpbBundle {
 	/**
 	 * Construct the bundle generator with all data baked into the manifest.
 	 *
-	 * @param string $endpoint_url   Full Hey Woo MCP endpoint URL.
+	 * @param string $endpoint_url   Full WooCommerce for Claude MCP endpoint URL.
 	 * @param string $api_credential `ck_xxx:cs_xxx` joined credential.
 	 * @param string $plugin_version Plugin version (e.g. '0.1.0').
 	 */
@@ -84,15 +84,15 @@ class McpbBundle {
 
 		return array(
 			'manifest_version' => self::MANIFEST_VERSION,
-			// Per-store identity so two Hey Woo stores installed in the
+			// Per-store identity so two WooCommerce for Claude stores installed in the
 			// same Claude Desktop don't overwrite one another's
 			// extension entries. SetupPage::server_slug() derives this
-			// from the host (e.g. `hey-woo-example-com`).
+			// from the host (e.g. `woocommerce-claude-example-com`).
 			'name'             => SetupPage::server_slug(),
 			'version'          => $this->plugin_version,
 			'description'      => sprintf(
 				/* translators: %s: store hostname. */
-				__( 'Connect %s to Claude Desktop via Hey Woo.', 'hey-woo' ),
+				__( 'Connect %s to Claude Desktop via WooCommerce for Claude.', 'woocommerce-claude' ),
 				$host
 			),
 			'author'           => array(
@@ -132,11 +132,11 @@ class McpbBundle {
 	 * @param string $filename Suggested filename for the download.
 	 * @return void
 	 */
-	public function stream( $filename = 'hey-woo.mcpb' ) {
+	public function stream( $filename = 'woocommerce-claude.mcpb' ) {
 		if ( ! class_exists( '\\ZipArchive' ) ) {
 			wp_die(
-				esc_html__( 'PHP ZipArchive is unavailable on this server, so the bundle cannot be generated. Use the Manual Setup option instead.', 'hey-woo' ),
-				esc_html__( 'Bundle unavailable', 'hey-woo' ),
+				esc_html__( 'PHP ZipArchive is unavailable on this server, so the bundle cannot be generated. Use the Manual Setup option instead.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle unavailable', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -144,8 +144,8 @@ class McpbBundle {
 		$manifest_json = wp_json_encode( $this->manifest(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		if ( false === $manifest_json ) {
 			wp_die(
-				esc_html__( 'Could not encode the bundle manifest.', 'hey-woo' ),
-				esc_html__( 'Bundle error', 'hey-woo' ),
+				esc_html__( 'Could not encode the bundle manifest.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle error', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -155,8 +155,8 @@ class McpbBundle {
 		if ( true !== $zip->open( $tmp, \ZipArchive::OVERWRITE | \ZipArchive::CREATE ) ) {
 			wp_delete_file( $tmp );
 			wp_die(
-				esc_html__( 'Could not open the bundle for writing.', 'hey-woo' ),
-				esc_html__( 'Bundle error', 'hey-woo' ),
+				esc_html__( 'Could not open the bundle for writing.', 'woocommerce-claude' ),
+				esc_html__( 'Bundle error', 'woocommerce-claude' ),
 				array( 'response' => 500 )
 			);
 		}
@@ -168,7 +168,7 @@ class McpbBundle {
 		// precedence at runtime.
 		$zip->addFromString(
 			'server/index.js',
-			"// Hey Woo MCPB placeholder — the real server is launched\n"
+			"// WooCommerce for Claude MCPB placeholder — the real server is launched\n"
 			. "// via mcp_config.command in manifest.json (npx fetches\n"
 			. "// @automattic/mcp-wordpress-remote at install time).\n"
 		);

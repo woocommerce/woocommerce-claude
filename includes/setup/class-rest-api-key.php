@@ -1,12 +1,12 @@
 <?php
 /**
- * Manages the auto-created WooCommerce REST API key used by Hey Woo's
+ * Manages the auto-created WooCommerce REST API key used by WooCommerce for Claude's
  * Claude Desktop setup flow.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Setup;
+namespace WooCommerce\Claude\Setup;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -23,14 +23,14 @@ class RestApiKey {
 	/**
 	 * Option storing the joined `ck_xxx:cs_xxx` credential.
 	 */
-	const OPTION_CREDENTIAL = 'hey_woo_setup_api_credential';
+	const OPTION_CREDENTIAL = 'woocommerce_claude_setup_api_credential';
 
 	/**
 	 * Option storing the woocommerce_api_keys.key_id row tied to the
 	 * credential above. Kept separately so revocation can target the row
 	 * directly without parsing the credential.
 	 */
-	const OPTION_KEY_ID = 'hey_woo_setup_api_key_id';
+	const OPTION_KEY_ID = 'woocommerce_claude_setup_api_key_id';
 
 	/**
 	 * Description written into woocommerce_api_keys.description so the
@@ -38,7 +38,7 @@ class RestApiKey {
 	 * key — every row with this exact description is treated as
 	 * Hey-Woo-owned and revoked together.
 	 */
-	const KEY_DESCRIPTION = 'Hey Woo MCP — Claude Desktop';
+	const KEY_DESCRIPTION = 'WooCommerce for Claude — Claude Desktop';
 
 	/**
 	 * Option name used as the provisioning mutex around create().
@@ -49,7 +49,7 @@ class RestApiKey {
 	 * `add_option()` calls — one wins, one fails — so the lock is
 	 * acquired (or denied) atomically without a check-then-set race.
 	 */
-	const PROVISIONING_LOCK = 'hey_woo_setup_provisioning_lock';
+	const PROVISIONING_LOCK = 'woocommerce_claude_setup_provisioning_lock';
 
 	/**
 	 * Maximum lock hold time, in seconds. The lock value carries an
@@ -95,7 +95,7 @@ class RestApiKey {
 	 * `current_user_id() === owner_user_id` — preventing a different
 	 * admin from extracting another admin's bound credential.
 	 *
-	 * Hey Woo always provisions read-only keys. If the merchant later
+	 * WooCommerce for Claude always provisions read-only keys. If the merchant later
 	 * needs broader scope, they edit the key directly under
 	 * WooCommerce → Settings → Advanced → REST API — which updates
 	 * the same row in place (same credential, new permissions), so
@@ -164,7 +164,7 @@ class RestApiKey {
 	 * Returns the same shape as get_or_create() if a Hey-Woo-owned
 	 * key exists, or null otherwise. The credential authenticates
 	 * against the standard WC REST API surface generally (not just
-	 * /wp-json/hey-woo/mcp), so the page must be able to surface
+	 * /wp-json/woocommerce-claude/mcp), so the page must be able to surface
 	 * and revoke an existing key whether the merchant is mid-setup
 	 * or arriving on the page after the fact — only
 	 * revoke()/Disconnect/uninstall removes it.
@@ -223,16 +223,16 @@ class RestApiKey {
 	private function create() {
 		if ( ! function_exists( 'wc_rand_hash' ) || ! function_exists( 'wc_api_hash' ) ) {
 			return new \WP_Error(
-				'hey_woo_wc_helpers_missing',
-				__( 'WooCommerce API helpers are unavailable. Make sure WooCommerce is active.', 'hey-woo' )
+				'woocommerce_claude_wc_helpers_missing',
+				__( 'WooCommerce API helpers are unavailable. Make sure WooCommerce is active.', 'woocommerce-claude' )
 			);
 		}
 
 		$lock_token = $this->acquire_provisioning_lock();
 		if ( null === $lock_token ) {
 			return new \WP_Error(
-				'hey_woo_provisioning_busy',
-				__( 'Another setup request is in progress. Please try again in a moment.', 'hey-woo' )
+				'woocommerce_claude_provisioning_busy',
+				__( 'Another setup request is in progress. Please try again in a moment.', 'woocommerce-claude' )
 			);
 		}
 
@@ -276,8 +276,8 @@ class RestApiKey {
 
 			if ( false === $inserted ) {
 				return new \WP_Error(
-					'hey_woo_key_insert_failed',
-					__( 'Could not create the WooCommerce REST API key.', 'hey-woo' )
+					'woocommerce_claude_key_insert_failed',
+					__( 'Could not create the WooCommerce REST API key.', 'woocommerce-claude' )
 				);
 			}
 
@@ -320,8 +320,8 @@ class RestApiKey {
 					$this->compare_and_delete_option( self::OPTION_KEY_ID, $key_id );
 				}
 				return new \WP_Error(
-					'hey_woo_key_persist_failed',
-					__( 'Could not store the API key locally.', 'hey-woo' )
+					'woocommerce_claude_key_persist_failed',
+					__( 'Could not store the API key locally.', 'woocommerce-claude' )
 				);
 			}
 

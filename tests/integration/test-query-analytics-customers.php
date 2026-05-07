@@ -34,7 +34,7 @@
  *   GB: C3 (1, £800)
  *   FR: C4 (1, £50)
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -42,7 +42,7 @@
  */
 class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.
@@ -406,14 +406,14 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Privacy invariant — even if a leftover `hey_woo_allow_customer_pii`
+	 * Privacy invariant — even if a leftover `woocommerce_claude_allow_customer_pii`
 	 * option exists from a previous version of the plugin (truthy or
 	 * otherwise), it must not revive PII surfacing. Defends against a
 	 * future refactor that accidentally restores the gate by reading the
 	 * stale option.
 	 */
 	public function test_legacy_truthy_option_does_not_leak_pii() {
-		update_option( 'hey_woo_allow_customer_pii', true );
+		update_option( 'woocommerce_claude_allow_customer_pii', true );
 
 		$result = $this->run_ability(
 			array(
@@ -433,7 +433,7 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 			$this->assertMatchesRegularExpression( '/^Customer #\d+$/', $row['customer_id_pseudo'] );
 		}
 
-		delete_option( 'hey_woo_allow_customer_pii' );
+		delete_option( 'woocommerce_claude_allow_customer_pii' );
 	}
 
 	/**

@@ -59,7 +59,7 @@
  *
  * Pipeline totals: 1 order (O5, £80).
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -67,7 +67,7 @@
  */
 class Test_Query_Analytics extends WP_UnitTestCase {
 
-	use \HeyWoo\Tests\Integration\AnalyticsFixtures;
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
 
 	/**
 	 * Period start used by the default runs.
@@ -825,7 +825,7 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 			'Bootstrap enables HPOS — failure here means the bootstrap regressed.'
 		);
 
-		$source = \HeyWoo\API\AnalyticsController::get_order_addresses_source();
+		$source = \WooCommerce\Claude\API\AnalyticsController::get_order_addresses_source();
 		$this->assertSame( 'hpos', $source['mode'] );
 		$this->assertSame( $wpdb->prefix . 'wc_order_addresses', $source['table'] );
 		$this->assertSame( 'order_id', $source['id_column'] );
@@ -849,7 +849,7 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 		add_filter( 'pre_option_woocommerce_custom_orders_table_enabled', $force_no );
 
 		try {
-			$source = \HeyWoo\API\AnalyticsController::get_order_addresses_source();
+			$source = \WooCommerce\Claude\API\AnalyticsController::get_order_addresses_source();
 			$this->assertSame( 'classic', $source['mode'] );
 			$this->assertSame( $wpdb->prefix . 'postmeta', $source['table'] );
 			$this->assertSame( 'post_id', $source['id_column'] );

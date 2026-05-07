@@ -1,5 +1,5 @@
 {
-    "name": "woocommerce/hey-woo",
+    "name": "woocommerce/woocommerce-claude",
     "description": "Make any WooCommerce store AI-operable.",
     "type": "wordpress-plugin",
     "license": "GPL-3.0-or-later",

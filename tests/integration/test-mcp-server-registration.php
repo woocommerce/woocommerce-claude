@@ -3,7 +3,7 @@
  * MCP server registration contract.
  *
  * Pins that by the time `mcp_adapter_init` has fired (i.e. anyone
- * actually hitting `/wp-json/hey-woo/mcp`), the Hey Woo server
+ * actually hitting `/wp-json/woocommerce-claude/mcp`), the WooCommerce for Claude server
  * exists and exposes the full curated tool / resource / prompt
  * surface — not an empty server because abilities hadn't registered
  * yet.
@@ -19,11 +19,11 @@
  * synchronously inside `bootstrap_mcp_adapter()` on `plugins_loaded`)
  * fails loudly instead of producing an empty production endpoint.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
- * Integration tests for the Hey Woo MCP server registration.
+ * Integration tests for the WooCommerce for Claude MCP server registration.
  */
 class Test_MCP_Server_Registration extends WP_UnitTestCase {
 
@@ -44,12 +44,12 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	 * because `mcp_adapter_init` didn't fire, or our hook wasn't on
 	 * it) — every other assertion below depends on this.
 	 */
-	public function test_hey_woo_server_is_registered() {
+	public function test_woocommerce_claude_server_is_registered() {
 		$adapter = \WP\MCP\Core\McpAdapter::instance();
-		$server  = $adapter->get_server( 'hey-woo' );
+		$server  = $adapter->get_server( 'woocommerce-claude' );
 
-		$this->assertNotNull( $server, 'Hey Woo MCP server must be registered with the adapter.' );
-		$this->assertSame( 'hey-woo', $server->get_server_route_namespace() );
+		$this->assertNotNull( $server, 'WooCommerce for Claude MCP server must be registered with the adapter.' );
+		$this->assertSame( 'woocommerce-claude', $server->get_server_route_namespace() );
 		$this->assertSame( 'mcp', $server->get_server_route() );
 	}
 
@@ -61,8 +61,8 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	 * — fails on the missing-by-name assertion rather than passing
 	 * a count check that happens to match.
 	 */
-	public function test_hey_woo_server_exposes_expected_tools() {
-		$server     = \WP\MCP\Core\McpAdapter::instance()->get_server( 'hey-woo' );
+	public function test_woocommerce_claude_server_exposes_expected_tools() {
+		$server     = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
 		$tool_names = array();
 		foreach ( $server->get_tools() as $tool ) {
 			$tool_names[] = $tool->get_name();
@@ -71,12 +71,12 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 		// Tool names are the ability ID with `/` replaced by `-` (the
 		// MCP transport's name-mangling for ability ids).
 		$expected = array(
-			'hey-woo-get-store-profile',
-			'hey-woo-get-readiness-score',
-			'hey-woo-get-recommendations',
-			'hey-woo-get-product-details',
-			'hey-woo-search-products',
-			'hey-woo-suggest-improvements',
+			'woocommerce-claude-get-store-profile',
+			'woocommerce-claude-get-readiness-score',
+			'woocommerce-claude-get-recommendations',
+			'woocommerce-claude-get-product-details',
+			'woocommerce-claude-search-products',
+			'woocommerce-claude-suggest-improvements',
 			'wc-analytics-get-data',
 			'wc-analytics-describe',
 			'wc-analytics-confirm-large-range',
@@ -86,7 +86,7 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			$this->assertContains(
 				$tool_name,
 				$tool_names,
-				"Tool {$tool_name} must be exposed on the Hey Woo MCP server."
+				"Tool {$tool_name} must be exposed on the WooCommerce for Claude MCP server."
 			);
 		}
 	}
@@ -97,8 +97,8 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	 * an ability that's silently skipped surfaces as a missing-by-
 	 * name failure.
 	 */
-	public function test_hey_woo_server_exposes_expected_resources() {
-		$server         = \WP\MCP\Core\McpAdapter::instance()->get_server( 'hey-woo' );
+	public function test_woocommerce_claude_server_exposes_expected_resources() {
+		$server         = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
 		$resources      = $server->get_resources();
 		$resource_count = count( $resources );
 
@@ -112,8 +112,8 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	/**
 	 * The two prompts (`wc-prompts/*`) are registered.
 	 */
-	public function test_hey_woo_server_exposes_expected_prompts() {
-		$server  = \WP\MCP\Core\McpAdapter::instance()->get_server( 'hey-woo' );
+	public function test_woocommerce_claude_server_exposes_expected_prompts() {
+		$server  = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
 		$prompts = $server->get_prompts();
 
 		$prompt_names = array();

@@ -24,12 +24,12 @@
  * surfaced — the merchant looks up the real identity in WP Admin >
  * WooCommerce > Customers when they need it.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\AnalyticsController;
+use WooCommerce\Claude\API\AnalyticsController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -52,7 +52,7 @@ class GetCustomerValueAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get customer value', 'hey-woo' ),
+				'label'               => __( 'Get customer value', 'woocommerce-claude' ),
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
@@ -140,7 +140,7 @@ Rule: no backticks around parameter names or parameter values in the response to
 
 IMPORTANT: Only report numbers returned by this tool. Never estimate, extrapolate, or guess lifetime figures. If the tool returns an error or empty response, tell the merchant you couldn't retrieve the data — do not fabricate numbers. Never mix active-base and acquisition-cohort frames in a single number claim.
 DESCRIPTION,
-					'hey-woo'
+					'woocommerce-claude'
 				),
 				// phpcs:enable WordPress.WP.I18n.NonSingularStringLiteralText
 				'category'            => AbilitiesBootstrap::CATEGORY,
@@ -282,7 +282,7 @@ DESCRIPTION,
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_called',
+			'woocommerce_claude_skill_called',
 			'get_customer_value',
 			array(
 				'period'          => $period,
@@ -296,7 +296,7 @@ DESCRIPTION,
 
 		$dates = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
 
-		$cache_key = 'hey_woo_customer_value_' . md5(
+		$cache_key = 'woocommerce_claude_customer_value_' . md5(
 			$dates['start'] . '_' . $dates['end']
 			. '_' . ( $compare ? '1' : '0' )
 			. '_' . $limit
@@ -312,7 +312,7 @@ DESCRIPTION,
 			 * @since 0.1.0
 			 */
 			do_action(
-				'hey_woo_skill_executed',
+				'woocommerce_claude_skill_executed',
 				'get_customer_value',
 				array(
 					'duration_ms'   => (int) round( ( microtime( true ) - $telemetry_start ) * 1000 ),
@@ -398,7 +398,7 @@ DESCRIPTION,
 		 * @since 0.1.0
 		 */
 		do_action(
-			'hey_woo_skill_executed',
+			'woocommerce_claude_skill_executed',
 			'get_customer_value',
 			array(
 				'duration_ms'   => (int) round( ( microtime( true ) - $telemetry_start ) * 1000 ),

@@ -19,12 +19,12 @@
  *   - End-to-end: fetch_product_performance / fetch_customer_overview return
  *     extended_range_required for long ranges and succeed on confirmed follow-up.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\Abilities\LargeRangeGate;
-use HeyWoo\Abilities\GetDataAbility;
-use HeyWoo\API\AnalyticsController;
+use WooCommerce\Claude\Abilities\LargeRangeGate;
+use WooCommerce\Claude\Abilities\GetDataAbility;
+use WooCommerce\Claude\API\AnalyticsController;
 
 /**
  * Tests for LargeRangeGate.

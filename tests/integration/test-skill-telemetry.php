@@ -1,6 +1,6 @@
 <?php
 /**
- * Integration tests — hey_woo_skill_executed telemetry hook.
+ * Integration tests — woocommerce_claude_skill_executed telemetry hook.
  *
  * What's pinned:
  *
@@ -17,15 +17,15 @@
  * simplest (scalar result, no fixtures required — an empty date range returns
  * a zeroed payload with a note). The hook contract is the same for every skill.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\API\AnalyticsController;
-use HeyWoo\Telemetry\SkillTelemetry;
-use HeyWoo\Telemetry\TelemetryHandlerInterface;
+use WooCommerce\Claude\API\AnalyticsController;
+use WooCommerce\Claude\Telemetry\SkillTelemetry;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
- * Integration tests for the hey_woo_skill_executed hook.
+ * Integration tests for the woocommerce_claude_skill_executed hook.
  */
 class Test_Skill_Telemetry extends WP_UnitTestCase {
 
@@ -64,7 +64,7 @@ class Test_Skill_Telemetry extends WP_UnitTestCase {
 			);
 		};
 
-		add_action( 'hey_woo_skill_executed', $this->listener, 10, 2 );
+		add_action( 'woocommerce_claude_skill_executed', $this->listener, 10, 2 );
 
 		// Ensure no stale transient from a prior test run bleeds in.
 		$this->delete_revenue_transients();
@@ -74,7 +74,7 @@ class Test_Skill_Telemetry extends WP_UnitTestCase {
 	 * Remove the listener and clean up transients.
 	 */
 	public function tear_down() {
-		remove_action( 'hey_woo_skill_executed', $this->listener, 10 );
+		remove_action( 'woocommerce_claude_skill_executed', $this->listener, 10 );
 		$this->delete_revenue_transients();
 		parent::tear_down();
 	}
@@ -197,8 +197,8 @@ class Test_Skill_Telemetry extends WP_UnitTestCase {
 		$wpdb->query(
 			$wpdb->prepare(
 				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
-				'_transient_hey_woo_revenue_%',
-				'_transient_timeout_hey_woo_revenue_%'
+				'_transient_woocommerce_claude_revenue_%',
+				'_transient_timeout_woocommerce_claude_revenue_%'
 			)
 		);
 	}

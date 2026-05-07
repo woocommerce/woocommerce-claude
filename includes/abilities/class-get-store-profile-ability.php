@@ -1,6 +1,6 @@
 <?php
 /**
- * `hey-woo/get-store-profile` ability — store profile as a tool.
+ * `woocommerce-claude/get-store-profile` ability — store profile as a tool.
  *
  * Companion to the `store://profile` MCP resource. The resource form is
  * the right shape for explicit-include clients (clients that pre-load
@@ -11,12 +11,12 @@
  * up with the client doesn't depend on whether the client auto-reads
  * resources.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\Abilities;
+namespace WooCommerce\Claude\Abilities;
 
-use HeyWoo\API\StoreController;
+use WooCommerce\Claude\API\StoreController;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -25,7 +25,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class GetStoreProfileAbility {
 
-	const ABILITY_NAME = 'hey-woo/get-store-profile';
+	const ABILITY_NAME = 'woocommerce-claude/get-store-profile';
 
 	/**
 	 * Register the ability with the WordPress Abilities API.
@@ -34,8 +34,8 @@ class GetStoreProfileAbility {
 		wp_register_ability(
 			self::ABILITY_NAME,
 			array(
-				'label'               => __( 'Get store profile', 'hey-woo' ),
-				'description'         => __( "Get the store's identity, configuration, payment methods, shipping zones, and features. This goes beyond WooCommerce core MCP by providing structured store knowledge for AI reasoning. Use this first to understand the store context.", 'hey-woo' ),
+				'label'               => __( 'Get store profile', 'woocommerce-claude' ),
+				'description'         => __( "Get the store's identity, configuration, payment methods, shipping zones, and features. This goes beyond WooCommerce core MCP by providing structured store knowledge for AI reasoning. Use this first to understand the store context.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),

@@ -32,7 +32,7 @@
  * filter omission, `is_in` placeholder leak). The clustering motivated a
  * data-driven harness rather than ad-hoc method-per-bug tests.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
 /**
@@ -486,7 +486,7 @@ class Test_Query_Analytics_Filters extends WP_UnitTestCase {
 	 */
 	private function reflect_method( $name ) {
 		if ( ! isset( $this->reflected_methods[ $name ] ) ) {
-			$ref = new \ReflectionMethod( \HeyWoo\API\AnalyticsController::class, $name );
+			$ref = new \ReflectionMethod( \WooCommerce\Claude\API\AnalyticsController::class, $name );
 			$ref->setAccessible( true );
 			$this->reflected_methods[ $name ] = $ref;
 		}

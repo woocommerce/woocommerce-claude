@@ -2,13 +2,13 @@
 /**
  * REST API controller for Enriched Product Knowledge.
  *
- * @package HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace HeyWoo\API;
+namespace WooCommerce\Claude\API;
 
-use HeyWoo\Knowledge\KnowledgeRegistry;
-use HeyWoo\Scoring\ScoringEngine;
+use WooCommerce\Claude\Knowledge\KnowledgeRegistry;
+use WooCommerce\Claude\Scoring\ScoringEngine;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  */
 class ProductsController {
 
-	const NAMESPACE = 'hey-woo/v1';
+	const NAMESPACE = 'woocommerce-claude/v1';
 
 	/**
 	 * Register the product REST routes.
