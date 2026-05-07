@@ -229,4 +229,121 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 			'A query string mentioning a hey-woo/ path must not opt the underlying /wp/v2/posts request into WC auth.'
 		);
 	}
+
+	/**
+	 * The MCP route is intentionally *outside* WC's auth scope. WC's
+	 * `check_user_permissions` enforces a per-method read/write split
+	 * that would 401 every MCP POST against a read-only key, so the
+	 * MCP transport handles auth itself via its own permission
+	 * callback. This pins the narrowing — if the prefix match ever
+	 * widens back to `hey-woo/`, MCP requests with read-only keys
+	 * would start 401-ing.
+	 */
+	public function test_mcp_route_is_outside_wc_auth_scope() {
+		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$this->assertFalse(
+			$this->check(),
+			'Pretty permalinks: hey-woo/mcp must NOT opt into WC auth (the MCP transport authenticates itself).'
+		);
+
+		$this->set_plain_permalink_request( '/hey-woo/mcp' );
+		$this->assertFalse(
+			$this->check(),
+			'Plain permalinks: hey-woo/mcp must NOT opt into WC auth.'
+		);
+	}
+
+	/**
+	 * `Plugin::exclude_mcp_route_from_app_password_auth` is the second
+	 * half of the auth picture. Without it, on any site where a
+	 * `WP_Application_Passwords` row exists,
+	 * `wp_authenticate_application_password()` runs at
+	 * `determine_current_user` priority 20 against our `ck_xxx`
+	 * username, fails with `invalid_username`, stores the error on the
+	 * `$wp_rest_application_password_status` global, and
+	 * `rest_application_password_check_errors` returns 401 before our
+	 * route permission callback ever runs. Returning false here makes
+	 * `wp_authenticate_application_password()` early-return without
+	 * touching the global, so the MCP transport's own callback runs
+	 * cleanly.
+	 *
+	 * Pin the deny path so a regression doesn't silently re-open the
+	 * 401 cliff for any merchant who has app passwords in use.
+	 */
+	public function test_mcp_route_excluded_from_app_password_auth() {
+		$plugin = \HeyWoo\Plugin::instance();
+
+		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$this->assertFalse(
+			$plugin->exclude_mcp_route_from_app_password_auth( true ),
+			'Pretty permalinks: hey-woo/mcp must opt out of app-password auth.'
+		);
+
+		$this->set_plain_permalink_request( '/hey-woo/mcp' );
+		$this->assertFalse(
+			$plugin->exclude_mcp_route_from_app_password_auth( true ),
+			'Plain permalinks: hey-woo/mcp must opt out of app-password auth.'
+		);
+	}
+
+	/**
+	 * The app-password exclusion must be surgical — every other REST
+	 * route (including our own `hey-woo/v1/...` REST controllers) keeps
+	 * WP's normal app-password handling. Anything else would silently
+	 * disable a documented WP feature on unrelated routes.
+	 */
+	public function test_app_password_auth_passes_through_for_non_mcp_routes() {
+		$plugin = \HeyWoo\Plugin::instance();
+
+		foreach ( array( '/hey-woo/v1/store/profile', '/wp/v2/posts', '/wc/v3/orders', '/wp-abilities/v1/abilities/wc-analytics/get-revenue-summary/run' ) as $route ) {
+			$this->set_pretty_permalink_request( $route );
+			$this->assertTrue(
+				$plugin->exclude_mcp_route_from_app_password_auth( true ),
+				"Route {$route} must keep WP's app-password handling."
+			);
+		}
+	}
+
+	/**
+	 * Pass-through when WP would not have considered the request an
+	 * API request anyway. We only ever flip true → false; we never
+	 * coerce false → true.
+	 */
+	public function test_app_password_filter_passes_through_when_already_false() {
+		$plugin = \HeyWoo\Plugin::instance();
+		$this->set_pretty_permalink_request( '/hey-woo/mcp' );
+		$this->assertFalse(
+			$plugin->exclude_mcp_route_from_app_password_auth( false ),
+			'When the incoming value is already false, the filter is a no-op pass-through.'
+		);
+	}
+
+	/**
+	 * The plugin must suppress the WP MCP adapter's auto-created
+	 * default server. That endpoint at
+	 * `/wp-json/mcp/mcp-adapter-default-server` uses the adapter's
+	 * default `current_user_can('read')` permission instead of our
+	 * `authenticate_mcp_request` callback, so leaving it on would
+	 * expose a second, non-curated MCP surface — including any
+	 * abilities a third-party plugin marks as `mcp.public`. The setup
+	 * flow only scopes access to `/wp-json/hey-woo/mcp`, so the
+	 * default endpoint is an unsupervised parallel surface.
+	 *
+	 * Pin the filter contract: after Plugin::instance() runs,
+	 * `mcp_adapter_create_default_server` resolves to false regardless
+	 * of the incoming value. If a future refactor drops the filter
+	 * registration, this test fails loud.
+	 */
+	public function test_default_mcp_adapter_server_is_suppressed() {
+		// Trigger plugin bootstrap if it hasn't already happened in this test run.
+		\HeyWoo\Plugin::instance();
+
+		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- synthetic application of an upstream filter for assertion only; not a hook definition.
+		$result = apply_filters( 'mcp_adapter_create_default_server', true );
+
+		$this->assertFalse(
+			$result,
+			'mcp_adapter_create_default_server must resolve to false so the default endpoint is not registered.'
+		);
+	}
 }

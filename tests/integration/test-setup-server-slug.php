@@ -32,9 +32,9 @@ class Test_Setup_Server_Slug extends WP_UnitTestCase {
 	 * distinct slugs.
 	 */
 	public function test_distinct_slug_for_same_host_different_path() {
-		$root   = SetupPage::derive_server_slug( 'https://example.com/wp-json/woocommerce/mcp' );
-		$shop_a = SetupPage::derive_server_slug( 'https://example.com/shop-a/wp-json/woocommerce/mcp' );
-		$shop_b = SetupPage::derive_server_slug( 'https://example.com/shop-b/wp-json/woocommerce/mcp' );
+		$root   = SetupPage::derive_server_slug( 'https://example.com/wp-json/hey-woo/mcp' );
+		$shop_a = SetupPage::derive_server_slug( 'https://example.com/shop-a/wp-json/hey-woo/mcp' );
+		$shop_b = SetupPage::derive_server_slug( 'https://example.com/shop-b/wp-json/hey-woo/mcp' );
 
 		$this->assertNotSame( $root, $shop_a, 'Root vs shop-a must differ.' );
 		$this->assertNotSame( $root, $shop_b, 'Root vs shop-b must differ.' );
@@ -47,8 +47,8 @@ class Test_Setup_Server_Slug extends WP_UnitTestCase {
 	 * produce distinct slugs.
 	 */
 	public function test_distinct_slug_for_same_host_different_port() {
-		$port_8888 = SetupPage::derive_server_slug( 'http://localhost:8888/wp-json/woocommerce/mcp' );
-		$port_8889 = SetupPage::derive_server_slug( 'http://localhost:8889/wp-json/woocommerce/mcp' );
+		$port_8888 = SetupPage::derive_server_slug( 'http://localhost:8888/wp-json/hey-woo/mcp' );
+		$port_8889 = SetupPage::derive_server_slug( 'http://localhost:8889/wp-json/hey-woo/mcp' );
 
 		$this->assertNotSame( $port_8888, $port_8889 );
 	}
@@ -57,8 +57,8 @@ class Test_Setup_Server_Slug extends WP_UnitTestCase {
 	 * Genuinely different hosts must of course produce distinct slugs.
 	 */
 	public function test_distinct_slug_for_different_hosts() {
-		$a = SetupPage::derive_server_slug( 'https://store-a.example/wp-json/woocommerce/mcp' );
-		$b = SetupPage::derive_server_slug( 'https://store-b.example/wp-json/woocommerce/mcp' );
+		$a = SetupPage::derive_server_slug( 'https://store-a.example/wp-json/hey-woo/mcp' );
+		$b = SetupPage::derive_server_slug( 'https://store-b.example/wp-json/hey-woo/mcp' );
 
 		$this->assertNotSame( $a, $b );
 	}
@@ -70,7 +70,7 @@ class Test_Setup_Server_Slug extends WP_UnitTestCase {
 	 * extension entry in Claude Desktop.
 	 */
 	public function test_slug_is_stable_for_same_url() {
-		$url = 'https://example.com/wp-json/woocommerce/mcp';
+		$url = 'https://example.com/wp-json/hey-woo/mcp';
 
 		$this->assertSame(
 			SetupPage::derive_server_slug( $url ),
@@ -85,7 +85,7 @@ class Test_Setup_Server_Slug extends WP_UnitTestCase {
 	 * glance.
 	 */
 	public function test_slug_shape() {
-		$slug = SetupPage::derive_server_slug( 'https://example.com/wp-json/woocommerce/mcp' );
+		$slug = SetupPage::derive_server_slug( 'https://example.com/wp-json/hey-woo/mcp' );
 
 		$this->assertStringStartsWith( 'hey-woo-', $slug );
 		$this->assertSame( 1, preg_match( '/^[a-z0-9\-]+$/', $slug ), 'Slug is sanitize_title-safe.' );

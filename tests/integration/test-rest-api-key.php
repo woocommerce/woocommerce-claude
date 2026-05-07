@@ -36,7 +36,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
-		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 	}
 
 	/**
@@ -47,7 +46,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
-		delete_option( SetupPage::FEATURE_FLAG_OPTION );
 		parent::tear_down();
 	}
 
@@ -325,10 +323,10 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * and never clears option state. Pin both directions: returns
 	 * the row when a key is provisioned, returns null when not.
 	 *
-	 * The setup view depends on this method to surface a key that
-	 * remains active even after the WC MCP feature flag is turned
-	 * off (the dangerous middle state where the credential can still
-	 * authenticate against the standard WC REST surface).
+	 * The setup view depends on this method to surface a key the
+	 * merchant may have left in place: the underlying WC API row
+	 * still authenticates against the standard WC REST surface, so
+	 * the page must always be able to surface and revoke it.
 	 */
 	public function test_existing_state_returns_state_or_null_without_side_effects() {
 		$helper = new RestApiKey();
@@ -361,8 +359,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * extracted helper with the original user as the expected owner.
 	 */
 	public function test_prepare_download_state_refuses_when_ownership_changed_mid_request() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$x_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		$y_user = self::factory()->user->create( array( 'role' => 'administrator' ) );
 
@@ -392,31 +388,10 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Refuses with `mcp_required` when the WC MCP feature flag is
-	 * off, even if a key already exists.
-	 * The bundle would point at an endpoint that returns 404, so
-	 * downloading it would just hand out a credential with no
-	 * working delivery path — the merchant should re-enable first.
-	 */
-	public function test_prepare_download_state_refuses_when_mcp_disabled() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'no' );
-
-		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
-		wp_set_current_user( $user_id );
-
-		$result = SetupPage::prepare_download_state( $user_id );
-
-		$this->assertInstanceOf( \WP_Error::class, $result );
-		$this->assertSame( 'mcp_required', $result->get_error_code() );
-	}
-
-	/**
 	 * Returns the full key state on the happy path, with
 	 * owner_user_id matching the caller.
 	 */
 	public function test_prepare_download_state_returns_state_on_happy_path() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
 
@@ -482,8 +457,6 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * mint a default-permissions credential.
 	 */
 	public function test_prepare_download_state_refuses_when_no_key_exists() {
-		update_option( 'woocommerce_feature_mcp_integration_enabled', 'yes' );
-
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
 
@@ -528,24 +501,25 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Setup credential is route-restricted to /wp-json/woocommerce/mcp
+	 * Setup credential is route-restricted to /wp-json/hey-woo/mcp
 	 * — even though the underlying woocommerce_api_keys row would
 	 * normally authenticate against any WC REST endpoint. This is
 	 * the privacy boundary the setup UI implies: the bundle's
 	 * credential reaches the MCP integration only.
 	 *
-	 * Simulates a request bearing the setup credential by setting
-	 * $_SERVER['HTTP_X_MCP_API_KEY'] and the REQUEST_URI, then calls
-	 * the rest_authentication_errors filter callback directly.
+	 * Pins the deny path when the credential is delivered via the
+	 * raw HTTP_AUTHORIZATION header form (nginx/php-fpm and CGI SAPIs).
 	 */
-	public function test_setup_key_is_rejected_on_non_mcp_routes() {
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_authorization_header() {
 		$helper = new RestApiKey();
 		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
-			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
 			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
@@ -560,21 +534,154 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 	/**
 	 * Setup credential IS allowed on the MCP endpoint — that's the
-	 * one route the bundle calls. Same simulation as the deny test,
-	 * just on the allowed path.
+	 * one route the bundle calls. Pins the allow path via the raw
+	 * HTTP_AUTHORIZATION header form.
 	 */
-	public function test_setup_key_is_allowed_on_mcp_route() {
+	public function test_setup_key_is_allowed_on_mcp_route_with_authorization_header() {
 		$helper = new RestApiKey();
 		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
+			$_SERVER['REQUEST_URI']        = '/wp-json/hey-woo/mcp';
+			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * Apache + mod_php (and many fastcgi setups) expose Basic auth via
+	 * `PHP_AUTH_USER` / `PHP_AUTH_PW` and strip `HTTP_AUTHORIZATION`.
+	 * WC's auth reads the split form directly, so the route-scope
+	 * filter must too — otherwise a request bearing the setup
+	 * credential as Basic auth against a non-MCP route (e.g.
+	 * /wc/v3/orders) would be authenticated by WC and slip past the
+	 * scope check on those SAPIs, defeating the credential's privacy
+	 * boundary.
+	 *
+	 * Pin the deny-by-PHP_AUTH path explicitly so the regression
+	 * surfaces if the credential extractor is ever narrowed back to
+	 * HTTP_AUTHORIZATION-only.
+	 */
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_php_auth_basic() {
+		$helper                      = new RestApiKey();
+		$state                       = $helper->get_or_create();
+		list( $username, $password ) = RestApiKey::split_credential( $state['credential'] );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['HTTP_X_MCP_API_KEY'], $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = $username;
+			$_SERVER['PHP_AUTH_PW']   = $password;
+			$_SERVER['REQUEST_URI']   = '/wp-json/wc/v3/orders';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * Companion to the deny test above — the credential is allowed on
+	 * the MCP route when delivered as PHP_AUTH_USER/PHP_AUTH_PW too.
+	 * Pins the same SAPI shape on the allow side.
+	 */
+	public function test_setup_key_is_allowed_on_mcp_route_with_php_auth_basic() {
+		$helper                      = new RestApiKey();
+		$state                       = $helper->get_or_create();
+		list( $username, $password ) = RestApiKey::split_credential( $state['credential'] );
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['HTTP_X_MCP_API_KEY'], $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = $username;
+			$_SERVER['PHP_AUTH_PW']   = $password;
+			$_SERVER['REQUEST_URI']   = '/wp-json/hey-woo/mcp';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * On CGI/FastCGI SAPIs behind Apache `mod_rewrite`, the
+	 * `Authorization` header is forwarded as `REDIRECT_HTTP_AUTHORIZATION`
+	 * and `HTTP_AUTHORIZATION` is empty. The route-scope filter runs
+	 * on `rest_authentication_errors` (no request param), so it has to
+	 * read the alternate $_SERVER key directly — otherwise our setup
+	 * credential could be replayed against non-MCP routes on those
+	 * installs without the scope guard recognising it.
+	 *
+	 * Pin the deny path explicitly: same fixture as the
+	 * HTTP_AUTHORIZATION test, but only `REDIRECT_HTTP_AUTHORIZATION`
+	 * is populated.
+	 */
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_redirect_authorization_header() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create();
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'], $_SERVER['HTTP_X_MCP_API_KEY'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['REDIRECT_HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
+			$_SERVER['REQUEST_URI']                 = '/wp-json/wc/v3/orders';
+			$result                                 = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
+	 * Legacy `.mcpb` bundles distributed before the wordpress/mcp
+	 * migration ship the credential as `X-MCP-API-Key` and target the
+	 * deprecated WC core MCP endpoint at /wp-json/woocommerce/mcp. The
+	 * auth callback for the new endpoint no longer accepts that header,
+	 * but the route-scope filter must still recognise it — otherwise a
+	 * pre-migration bundle whose credential matches our stored one
+	 * silently bypasses the scope guard against the WC core endpoint
+	 * (which still authenticates the same WC API key when its feature
+	 * flag is on). Pin the deny path so a regression here doesn't
+	 * re-open that bypass.
+	 */
+	public function test_legacy_x_mcp_api_key_header_is_scope_denied_on_non_mcp_routes() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create();
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'] );
 			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
 			$_SERVER['REQUEST_URI']        = '/wp-json/woocommerce/mcp';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
-			$this->assertNull( $result, 'No restriction error on the allowed MCP route.' );
+			$this->assertInstanceOf( \WP_Error::class, $result, 'Legacy X-MCP-API-Key against the deprecated WC MCP route must be denied.' );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
 		} finally {
 			$_SERVER = $original_server;
 			// phpcs:enable WordPress.Security.NonceVerification.Recommended
@@ -593,9 +700,11 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
-			$_SERVER['HTTP_X_MCP_API_KEY'] = 'ck_some_other_key:cs_some_other_secret';
-			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
-			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+			unset( $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = 'ck_some_other_key';
+			$_SERVER['PHP_AUTH_PW']   = 'cs_some_other_secret';
+			$_SERVER['REQUEST_URI']   = '/wp-json/wc/v3/orders';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertNull( $result, 'A different credential is unaffected by the setup-key gate.' );
 		} finally {

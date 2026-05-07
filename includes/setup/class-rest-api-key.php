@@ -68,6 +68,25 @@ class RestApiKey {
 	const PROVISIONING_WAIT_LIMIT = 5;
 
 	/**
+	 * Split a joined `ck_xxx:cs_xxx` credential into its consumer-key and
+	 * consumer-secret halves. The bundle and the manual setup snippets
+	 * ship them as separate env vars (`WP_API_USERNAME`, `WP_API_PASSWORD`)
+	 * so the proxy can send them as standard Basic Auth, which WC's REST
+	 * API key handler accepts on the routes our
+	 * `enable_wc_auth_for_our_routes` filter widens.
+	 *
+	 * @param string $credential Joined `ck_…:cs_…` value.
+	 * @return array{0:string,1:string} `[username, password]`. Both empty if input is malformed.
+	 */
+	public static function split_credential( $credential ) {
+		if ( ! is_string( $credential ) || false === strpos( $credential, ':' ) ) {
+			return array( '', '' );
+		}
+		list( $username, $password ) = explode( ':', $credential, 2 );
+		return array( $username, $password );
+	}
+
+	/**
 	 * Return the stored credential (creating one if none exists).
 	 *
 	 * The `owner_user_id` field is the WP user the underlying WC API
@@ -143,13 +162,12 @@ class RestApiKey {
 	 * Read-only snapshot of the current key state.
 	 *
 	 * Returns the same shape as get_or_create() if a Hey-Woo-owned
-	 * key exists, or null otherwise. Crucially, this lookup is
-	 * **independent of the WC MCP feature flag**: even when MCP is
-	 * disabled, an active credential still authenticates against
-	 * the standard WC REST API surface (not just /wp-json/woocommerce/mcp),
-	 * so the page must be able to surface and revoke an existing key
-	 * regardless of MCP being on. Toggling MCP off doesn't disconnect
-	 * the credential — only revoke()/Disconnect/uninstall does.
+	 * key exists, or null otherwise. The credential authenticates
+	 * against the standard WC REST API surface generally (not just
+	 * /wp-json/hey-woo/mcp), so the page must be able to surface
+	 * and revoke an existing key whether the merchant is mid-setup
+	 * or arriving on the page after the fact — only
+	 * revoke()/Disconnect/uninstall removes it.
 	 *
 	 * Side-effect-free: never provisions, never clears options.
 	 * Caller (get_or_create or render_setup_view) decides whether to

@@ -114,8 +114,9 @@ class Plugin {
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
 
-		// Resource + prompt abilities — not tools; wired into Woo core MCP
-		// via the mcp_adapter_init hook in init_hooks().
+		// Resource + prompt abilities — not tools; passed to our MCP server's
+		// resources/prompts arrays in register_mcp_server(), wired via the
+		// mcp_adapter_init hook in init_hooks().
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-profile-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-catalog-schema-ability.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
@@ -157,16 +158,41 @@ class Plugin {
 		// WC's auth handler only processes requests to /wc/ routes by default.
 		add_filter( 'woocommerce_rest_is_request_to_rest_api', array( $this, 'enable_wc_auth_for_our_routes' ), 10 );
 
-		// Opt our wc-analytics/* abilities into the Woo core MCP server. WC core
-		// MCP only exposes woocommerce/* abilities by default; this filter widens
-		// that to include our namespace. See MCPAdapterProvider::get_woocommerce_mcp_abilities().
-		add_filter( 'woocommerce_mcp_include_ability', array( $this, 'include_wc_analytics_in_mcp' ), 10, 2 );
+		// Boot the MCP adapter ourselves so the Hey Woo MCP endpoint works
+		// independently of WC's `mcp_integration` feature flag. The adapter
+		// is a singleton — calling instance() repeatedly is a no-op, so this
+		// is safe even if WC's MCPAdapterProvider also boots it.
+		add_action( 'plugins_loaded', array( $this, 'bootstrap_mcp_adapter' ), 20 );
 
-		// Resources and prompts don't get a filter in WC core MCP — they have to
-		// be injected into the server's component registry directly. WC creates
-		// the 'woocommerce-mcp' server on mcp_adapter_init priority 10; we run
-		// after that to register our wc-knowledge/* resources and wc-prompts/*.
-		add_action( 'mcp_adapter_init', array( $this, 'inject_mcp_components' ), 20 );
+		// Suppress the adapter's auto-created default server at
+		// `/wp-json/mcp/mcp-adapter-default-server`. That endpoint uses the
+		// adapter's default `current_user_can('read')` permission instead
+		// of our `authenticate_mcp_request` callback, so leaving it on
+		// would expose a second, non-curated MCP surface — including any
+		// abilities a third-party plugin marks as `mcp.public`. The setup
+		// flow scopes access to `/wp-json/hey-woo/mcp` only, and our
+		// curated server already covers the surface we want to expose.
+		add_filter( 'mcp_adapter_create_default_server', '__return_false' );
+
+		// Register our own MCP server when the adapter initializes. Owns the
+		// `/wp-json/hey-woo/mcp` endpoint with a curated tool/resource/prompt
+		// surface and a custom auth callback that authenticates ck:cs Basic
+		// Auth against `wp_woocommerce_api_keys`.
+		add_action( 'mcp_adapter_init', array( $this, 'register_mcp_server' ) );
+
+		// Tell WP not to run application-password auth on our MCP route.
+		// Without this, on any site where any app password exists
+		// (`WP_Application_Passwords::is_in_use()` returns true), WP's
+		// app-password handler runs at `determine_current_user` priority
+		// 20, fails with `invalid_username` for our `ck_xxx` user, stores
+		// the error on `$wp_rest_application_password_status`, and
+		// `rest_application_password_check_errors` returns 401 before our
+		// route permission callback ever runs. Excluding the MCP route
+		// from `application_password_is_api_request` makes the early
+		// return inside `wp_authenticate_application_password` fire — no
+		// error global, no 401 — so our own callback can authenticate
+		// the WC API key cleanly.
+		add_filter( 'application_password_is_api_request', array( $this, 'exclude_mcp_route_from_app_password_auth' ) );
 	}
 
 	/**
@@ -209,8 +235,8 @@ class Plugin {
 	 * Hey Woo consumer key can't be replayed against abilities registered
 	 * by an unrelated plugin under a different prefix. Kept as a constant
 	 * so adding a new namespace is a single-edit operation; the
-	 * `include_wc_analytics_in_mcp` filter below carries its own
-	 * per-namespace logic and must stay aligned by hand.
+	 * `mcp_tool_ability_ids()` curated list below has its own per-namespace
+	 * logic and must stay aligned by hand.
 	 *
 	 * @var array<int, string>
 	 */
@@ -244,7 +270,14 @@ class Plugin {
 			return $is_request;
 		}
 
-		if ( 0 === strpos( $route, 'hey-woo/' ) ) {
+		// Match REST controllers under hey-woo/v1/ — but *not* the MCP
+		// endpoint at hey-woo/mcp. WC's check_user_permissions enforces
+		// the read/write split per HTTP method, which would block POST
+		// calls from a read-only key. MCP uses POST for every call
+		// (including semantic reads), so the MCP transport authenticates
+		// itself via the registered transport_permission_callback rather
+		// than going through WC's full auth chain.
+		if ( 0 === strpos( $route, 'hey-woo/v1/' ) ) {
 			return true;
 		}
 
@@ -255,6 +288,40 @@ class Plugin {
 		}
 
 		return $is_request;
+	}
+
+	/**
+	 * Tell WP not to treat the Hey Woo MCP route as an "API request" for
+	 * the purposes of application-password auth. See the rationale on
+	 * the `application_password_is_api_request` filter registration in
+	 * `init_hooks()` for the full chain — short version: the WC consumer
+	 * key (`ck_xxx`) is not a WP user login, and the app-password
+	 * handler turns that into a 401 on `rest_authentication_errors`
+	 * before our route permission callback runs.
+	 *
+	 * Filters very narrowly — only `/wp-json/hey-woo/mcp` and any
+	 * sub-routes the transport may add. Every other REST route still
+	 * gets WP's normal app-password handling.
+	 *
+	 * @param bool $is_api_request What WP would otherwise consider this request.
+	 * @return bool
+	 */
+	public function exclude_mcp_route_from_app_password_auth( $is_api_request ) {
+		if ( ! $is_api_request ) {
+			return $is_api_request;
+		}
+
+		$route = $this->current_rest_route();
+		if ( '' === $route ) {
+			return $is_api_request;
+		}
+
+		$mcp_prefix = self::MCP_SERVER_NS . '/' . self::MCP_SERVER_ROUTE;
+		if ( 0 === strpos( $route, $mcp_prefix ) ) {
+			return false;
+		}
+
+		return $is_api_request;
 	}
 
 	/**
@@ -300,91 +367,235 @@ class Plugin {
 	}
 
 	/**
-	 * Include our plugin's tool abilities in the Woo core MCP server.
-	 *
-	 * WC core MCP filters the abilities registry to `woocommerce/*` by default.
-	 * Our analytics skills live under `wc-analytics/*` and our non-analytics
-	 * tool skills live under `hey-woo/*`, so without this filter neither
-	 * set would be exposed at `/wp-json/woocommerce/mcp`. Resources
-	 * (`wc-knowledge/*`) and prompts (`wc-prompts/*`) are intentionally *not*
-	 * added here — they go through `inject_mcp_components()` below.
-	 *
-	 * @param bool   $should_include Whether core MCP would include this ability.
-	 * @param string $ability_id     The ability ID being evaluated.
-	 * @return bool
+	 * Server identity used when registering our MCP server. The endpoint
+	 * resolves to `/wp-json/<namespace>/<route>` — i.e. `/wp-json/hey-woo/mcp`.
 	 */
-	public function include_wc_analytics_in_mcp( $should_include, $ability_id ) {
-		if ( is_string( $ability_id ) ) {
-			// hey-woo/* and hey-woo-integrations/* are always included.
-			// Each prefix is plugin-owned. A bare `integrations/` prefix would
-			// hijack abilities registered by other plugins under the same
-			// generic namespace — keep our integration abilities under
-			// `hey-woo-integrations/` so the filter only opts our own surface
-			// into the Woo MCP tool list.
-			foreach ( array( 'hey-woo/', 'hey-woo-integrations/' ) as $prefix ) {
-				if ( str_starts_with( $ability_id, $prefix ) ) {
-					return true;
-				}
-			}
-			// wc-analytics/* — only the three top-level routing tools are exposed
-			// to MCP. The individual analytics abilities remain registered
-			// in the WP Abilities API so wc-analytics/describe can read their
-			// documentation, but are intentionally hidden from the MCP tool list.
-			if ( str_starts_with( $ability_id, 'wc-analytics/' ) ) {
-				return in_array(
-					$ability_id,
-					array(
-						Abilities\GetDataAbility::ABILITY_NAME,
-						Abilities\DescribeAbility::ABILITY_NAME,
-						Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
-					),
-					true
-				);
-			}
+	const MCP_SERVER_ID    = 'hey-woo';
+	const MCP_SERVER_NS    = 'hey-woo';
+	const MCP_SERVER_ROUTE = 'mcp';
+
+	/**
+	 * Boot the WordPress MCP adapter ahead of `rest_api_init` so our server
+	 * can register on `mcp_adapter_init`.
+	 *
+	 * The adapter is a vendored library inside WooCommerce
+	 * (`vendor/wordpress/mcp-adapter`); WC only initializes it when its
+	 * `mcp_integration` feature flag is on. We boot it ourselves so the Hey
+	 * Woo endpoint works without that toggle. `McpAdapter::instance()` is
+	 * idempotent — if WC has already booted it, this is a no-op.
+	 */
+	public function bootstrap_mcp_adapter() {
+		if ( class_exists( '\\WP\\MCP\\Core\\McpAdapter' ) ) {
+			\WP\MCP\Core\McpAdapter::instance();
 		}
-		return (bool) $should_include;
 	}
 
 	/**
-	 * Register our resource and prompt abilities into the Woo core MCP server.
+	 * Register the Hey Woo MCP server on `mcp_adapter_init`.
 	 *
-	 * WC core MCP only accepts tools via the `woocommerce_mcp_include_ability`
-	 * filter; it passes empty arrays for resources and prompts when calling
-	 * `create_server()`, and exposes no filter to extend them. The `McpServer`
-	 * class does expose `get_component_registry()` publicly, whose
-	 * `register_resources()` / `register_prompts()` methods accept ability IDs,
-	 * so we hook `mcp_adapter_init` *after* WC (priority 20 vs WC's 10) and
-	 * inject our abilities directly.
+	 * Replaces the previous "ride on WC's woocommerce-mcp server" approach
+	 * (which used `woocommerce_mcp_include_ability` + a late
+	 * `mcp_adapter_init` injection of resources/prompts). Our server owns
+	 * `/wp-json/hey-woo/mcp` directly and ships a curated tool list, so the
+	 * deprecation of WC's MCP endpoint and the upcoming change to its default
+	 * inclusion rules don't affect us.
 	 *
 	 * @param object $adapter The McpAdapter instance.
 	 * @return void
 	 */
-	public function inject_mcp_components( $adapter ) {
-		if ( ! is_object( $adapter ) || ! method_exists( $adapter, 'get_server' ) ) {
+	public function register_mcp_server( $adapter ) {
+		if ( ! is_object( $adapter ) || ! method_exists( $adapter, 'create_server' ) ) {
 			return;
 		}
 
-		$server = $adapter->get_server( 'woocommerce-mcp' );
-		if ( ! $server || ! method_exists( $server, 'get_component_registry' ) ) {
+		if ( ! class_exists( '\\WP\\MCP\\Transport\\HttpTransport' ) ) {
 			return;
 		}
 
-		$registry = $server->get_component_registry();
+		try {
+			$adapter->create_server(
+				self::MCP_SERVER_ID,
+				self::MCP_SERVER_NS,
+				self::MCP_SERVER_ROUTE,
+				__( 'Hey Woo MCP Server', 'hey-woo' ),
+				__( 'AI-accessible WooCommerce store analytics, knowledge, and prompts via MCP.', 'hey-woo' ),
+				HEY_WOO_VERSION,
+				array( \WP\MCP\Transport\HttpTransport::class ),
+				\WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler::class,
+				\WP\MCP\Infrastructure\Observability\NullMcpObservabilityHandler::class,
+				$this->mcp_tool_ability_ids(),
+				array(
+					Abilities\StoreProfileAbility::ABILITY_NAME,
+					Abilities\CatalogSchemaAbility::ABILITY_NAME,
+					Abilities\StorePoliciesAbility::ABILITY_NAME,
+				),
+				array(
+					Abilities\CatalogAuditAbility::ABILITY_NAME,
+					Abilities\ProductImproveAbility::ABILITY_NAME,
+				),
+				array( $this, 'authenticate_mcp_request' )
+			);
+		} catch ( \Throwable $e ) {
+			if ( function_exists( 'wc_get_logger' ) ) {
+				wc_get_logger()->error(
+					'Hey Woo MCP server initialization failed: ' . $e->getMessage(),
+					array( 'source' => 'hey-woo-mcp' )
+				);
+			}
+		}
+	}
 
-		$registry->register_resources(
-			array(
-				Abilities\StoreProfileAbility::ABILITY_NAME,
-				Abilities\CatalogSchemaAbility::ABILITY_NAME,
-				Abilities\StorePoliciesAbility::ABILITY_NAME,
+	/**
+	 * Tool ability IDs to expose on our MCP server.
+	 *
+	 * Curated rather than namespace-derived: only the three top-level
+	 * `wc-analytics/*` routing tools (get-data, describe, confirm-large-range)
+	 * are exposed; the individual analytics abilities remain registered in
+	 * the WP Abilities API so `wc-analytics/describe` can read their
+	 * documentation, but are intentionally hidden from the MCP tool list.
+	 *
+	 * @return array<int, string>
+	 */
+	private function mcp_tool_ability_ids() {
+		$tools = array(
+			// hey-woo/* — store knowledge, readiness, product helpers.
+			Abilities\GetStoreProfileAbility::ABILITY_NAME,
+			Abilities\GetReadinessScoreAbility::ABILITY_NAME,
+			Abilities\GetRecommendationsAbility::ABILITY_NAME,
+			Abilities\GetProductDetailsAbility::ABILITY_NAME,
+			Abilities\SearchProductsAbility::ABILITY_NAME,
+			Abilities\SuggestImprovementsAbility::ABILITY_NAME,
+			// wc-analytics/* — three top-level routing tools.
+			Abilities\GetDataAbility::ABILITY_NAME,
+			Abilities\DescribeAbility::ABILITY_NAME,
+			Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
+		);
+
+		// hey-woo-integrations/* — dev/local only. The class is loaded under
+		// the same environment gate in includes(), so check_class_exists
+		// before referencing the constant to keep production safe.
+		if ( class_exists( '\\HeyWoo\\Abilities\\GoogleAnalyticsChannelsAbility' ) ) {
+			$tools[] = \HeyWoo\Abilities\GoogleAnalyticsChannelsAbility::ABILITY_NAME;
+		}
+
+		return $tools;
+	}
+
+	/**
+	 * Authenticate an MCP request using a WooCommerce REST API key sent
+	 * as HTTP Basic Auth (`ck_xxx` username, `cs_xxx` password).
+	 *
+	 * Why a custom callback instead of WC's standard REST auth: WC's
+	 * `check_user_permissions` enforces a read/write split per HTTP
+	 * method — POST requires a `read_write` or `write` key. MCP uses
+	 * POST for every call, including semantic reads (tools/list,
+	 * resources/read, etc.). Hey Woo provisions read-only keys by
+	 * design, so the standard chain would 401 every MCP call. This
+	 * callback authenticates the consumer key directly against
+	 * `wp_woocommerce_api_keys`, sets the user, and returns true —
+	 * bypassing WC's POST-as-write assumption while still requiring a
+	 * valid key. Per-ability `permission_callback` handlers enforce the
+	 * real capability gates (e.g. `manage_woocommerce` for analytics
+	 * tools).
+	 *
+	 * Honours the WC key's permission scope: `read` and `read_write`
+	 * authenticate; `write` does not. The MCP surface is read-only
+	 * today (analytics fetches, knowledge resources, prompt
+	 * descriptions), so a write-only key has nothing to authenticate
+	 * for — letting it through would silently grant the read access
+	 * the merchant explicitly excluded when they set the key to
+	 * write-only in WooCommerce → Settings → Advanced → REST API.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
+	 * @return bool True if authenticated, false otherwise.
+	 */
+	public function authenticate_mcp_request( $request ) {
+		if ( ! ( $request instanceof \WP_REST_Request ) ) {
+			return false;
+		}
+
+		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth( $request );
+		if ( '' === $consumer_key || '' === $consumer_secret ) {
+			return false;
+		}
+
+		if ( ! function_exists( 'wc_api_hash' ) ) {
+			return false;
+		}
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- direct lookup against woocommerce_api_keys; table prefix is trusted; no caching surface for auth.
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT key_id, user_id, consumer_secret, permissions FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
+				wc_api_hash( $consumer_key )
 			)
 		);
 
-		$registry->register_prompts(
-			array(
-				Abilities\CatalogAuditAbility::ABILITY_NAME,
-				Abilities\ProductImproveAbility::ABILITY_NAME,
-			)
-		);
+		if ( ! $row || ! hash_equals( (string) $row->consumer_secret, $consumer_secret ) ) {
+			return false;
+		}
+
+		// Honour WC key scope: only `read` and `read_write` keys can read
+		// from the MCP surface. `write` is a no-op for the current
+		// read-only ability set.
+		if ( ! in_array( (string) $row->permissions, array( 'read', 'read_write' ), true ) ) {
+			return false;
+		}
+
+		$user = get_user_by( 'id', (int) $row->user_id );
+		if ( ! $user ) {
+			return false;
+		}
+
+		wp_set_current_user( $user->ID );
+		return true;
+	}
+
+	/**
+	 * Pull a Basic Auth credential pair off the current request.
+	 *
+	 * Tries `PHP_AUTH_USER`/`PHP_AUTH_PW` first (what mod_php and
+	 * php-fpm normally populate from `Authorization: Basic …`). Then
+	 * reads the request's `Authorization` header via WP's normalised
+	 * accessor — `WP_REST_Server::get_headers()` already maps the raw
+	 * `HTTP_AUTHORIZATION` *and* the `REDIRECT_HTTP_AUTHORIZATION`
+	 * variant (common on CGI/FastCGI behind Apache `mod_rewrite`) onto
+	 * the same `Authorization` request header, so a single
+	 * `$request->get_header()` call covers every SAPI WP itself
+	 * supports.
+	 *
+	 * Returns `['', '']` if no credential is present or the header is
+	 * malformed — caller treats that as auth failure.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
+	 * @return array{0:string,1:string} `[username, password]`.
+	 */
+	private static function extract_basic_auth( $request ) {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
+		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
+		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
+			return array(
+				trim( wp_unslash( (string) $_SERVER['PHP_AUTH_USER'] ) ),
+				trim( wp_unslash( (string) $_SERVER['PHP_AUTH_PW'] ) ),
+			);
+		}
+		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$header = $request->get_header( 'authorization' );
+		if ( ! is_string( $header ) || 0 !== stripos( $header, 'Basic ' ) ) {
+			return array( '', '' );
+		}
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
+		$decoded = base64_decode( substr( $header, 6 ), true );
+		if ( false === $decoded || false === strpos( $decoded, ':' ) ) {
+			return array( '', '' );
+		}
+
+		list( $username, $password ) = explode( ':', $decoded, 2 );
+		return array( trim( $username ), trim( $password ) );
 	}
 
 	/**

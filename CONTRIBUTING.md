@@ -19,18 +19,18 @@ If you're just looking to install / use the plugin, the [README](./README.md) is
 ## Architecture
 
 ```
-Plugin (PHP)                           WC core MCP server
+Plugin (PHP)                           Hey Woo MCP server
 ─────────────────────                  ──────────────────────
-Abilities (wp-abilities/v1)     ─────▶ /wp-json/woocommerce/mcp
-  - wc-analytics/* (tools)             tools    (via woocommerce_mcp_include_ability filter)
-  - hey-woo/* (tools)            ↑
-  - wc-knowledge/* (resources)  ─────▶ resources (via mcp_adapter_init injection)
-  - wc-prompts/*    (prompts)   ─────▶ prompts   (via mcp_adapter_init injection)
+Abilities (wp-abilities/v1)     ─────▶ /wp-json/hey-woo/mcp
+  - wc-analytics/* (tools)             tools     (curated via Plugin::mcp_tool_ability_ids())
+  - hey-woo/*       (tools)            resources (passed in to create_server())
+  - wc-knowledge/* (resources)         prompts   (passed in to create_server())
+  - wc-prompts/*    (prompts)
 Knowledge providers
 Scoring engine
 ```
 
-There is **no separate MCP server process** — abilities register into the WC core MCP server, which is the single endpoint at `/wp-json/woocommerce/mcp`.
+There is **no separate MCP server process** — Hey Woo registers its own MCP server via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`) and owns the single endpoint at `/wp-json/hey-woo/mcp`. The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('hey-woo', 'hey-woo', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts.
 
 **Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). This is the standard path for anything that exposes actions or tools to AI systems.
 
@@ -43,7 +43,7 @@ There is **no separate MCP server process** — abilities register into the WC c
 | `includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
 | `includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
 | `includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
-| `includes/class-plugin.php` | Singleton. Registers the include filter + the `mcp_adapter_init` hook that injects resources/prompts into the WC MCP server's component registry. |
+| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the Hey Woo MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
 
 ## Privacy rule
@@ -118,7 +118,7 @@ The high-level shape every skill follows:
    - Add the new class to `AbilitiesBootstrap::register_abilities()`
    - `require_once` it from `class-plugin.php`
 
-3. **The `woocommerce_mcp_include_ability` filter** already whitelists the `wc-analytics/` prefix, so the ability auto-exposes at `/wp-json/woocommerce/mcp` as `wc-analytics-get-skill-name` — no extra wiring per skill.
+3. **Add the new ability ID to `Plugin::mcp_tool_ability_ids()`** in `class-plugin.php` so it's exposed as a tool on `/wp-json/hey-woo/mcp` — only top-level routing tools (`get-data`, `describe`, `confirm-large-range`) and curated `hey-woo/*` tools are exposed; analytics sub-skills stay registered in the Abilities API but hidden from the MCP tool list, since `wc-analytics/describe` reads their docs.
 
 4. **Verify** — compare the endpoint output against direct SQL (or the WC Analytics REST API) for the same date range.
 
