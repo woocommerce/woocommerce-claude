@@ -507,18 +507,19 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	 * the privacy boundary the setup UI implies: the bundle's
 	 * credential reaches the MCP integration only.
 	 *
-	 * Simulates a request bearing the setup credential by setting
-	 * $_SERVER['HTTP_X_MCP_API_KEY'] and the REQUEST_URI, then calls
-	 * the rest_authentication_errors filter callback directly.
+	 * Pins the deny path when the credential is delivered via the
+	 * raw HTTP_AUTHORIZATION header form (nginx/php-fpm and CGI SAPIs).
 	 */
-	public function test_setup_key_is_rejected_on_non_mcp_routes() {
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_authorization_header() {
 		$helper = new RestApiKey();
 		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
-			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
 			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
@@ -533,17 +534,19 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 
 	/**
 	 * Setup credential IS allowed on the MCP endpoint — that's the
-	 * one route the bundle calls. Same simulation as the deny test,
-	 * just on the allowed path.
+	 * one route the bundle calls. Pins the allow path via the raw
+	 * HTTP_AUTHORIZATION header form.
 	 */
-	public function test_setup_key_is_allowed_on_mcp_route() {
+	public function test_setup_key_is_allowed_on_mcp_route_with_authorization_header() {
 		$helper = new RestApiKey();
 		$state  = $helper->get_or_create();
 
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
-			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
 			$_SERVER['REQUEST_URI']        = '/wp-json/hey-woo/mcp';
 			$result                        = SetupPage::enforce_setup_key_route_scope( null );
 
@@ -629,9 +632,11 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$original_server = $_SERVER;
 		try {
 			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
-			$_SERVER['HTTP_X_MCP_API_KEY'] = 'ck_some_other_key:cs_some_other_secret';
-			$_SERVER['REQUEST_URI']        = '/wp-json/wc/v3/orders';
-			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+			unset( $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['PHP_AUTH_USER'] = 'ck_some_other_key';
+			$_SERVER['PHP_AUTH_PW']   = 'cs_some_other_secret';
+			$_SERVER['REQUEST_URI']   = '/wp-json/wc/v3/orders';
+			$result                   = SetupPage::enforce_setup_key_route_scope( null );
 
 			$this->assertNull( $result, 'A different credential is unaffected by the setup-key gate.' );
 		} finally {

@@ -43,7 +43,7 @@ There is **no separate MCP server process** — Hey Woo registers its own MCP se
 | `includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
 | `includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
 | `includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
-| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the Hey Woo MCP server (with its tools, resources, prompts, and `X-MCP-API-Key` auth callback) on `mcp_adapter_init`. |
+| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the Hey Woo MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
 
 ## Privacy rule

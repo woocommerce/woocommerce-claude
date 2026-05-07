@@ -488,6 +488,14 @@ class Plugin {
 	 * real capability gates (e.g. `manage_woocommerce` for analytics
 	 * tools).
 	 *
+	 * Honours the WC key's permission scope: `read` and `read_write`
+	 * authenticate; `write` does not. The MCP surface is read-only
+	 * today (analytics fetches, knowledge resources, prompt
+	 * descriptions), so a write-only key has nothing to authenticate
+	 * for — letting it through would silently grant the read access
+	 * the merchant explicitly excluded when they set the key to
+	 * write-only in WooCommerce → Settings → Advanced → REST API.
+	 *
 	 * @param \WP_REST_Request $request The current REST request.
 	 * @return bool True if authenticated, false otherwise.
 	 */
@@ -509,12 +517,19 @@ class Plugin {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- direct lookup against woocommerce_api_keys; no caching surface for auth.
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT key_id, user_id, consumer_secret FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
+				"SELECT key_id, user_id, consumer_secret, permissions FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
 				wc_api_hash( $consumer_key )
 			)
 		);
 
 		if ( ! $row || ! hash_equals( (string) $row->consumer_secret, $consumer_secret ) ) {
+			return false;
+		}
+
+		// Honour WC key scope: only `read` and `read_write` keys can read
+		// from the MCP surface. `write` is a no-op for the current
+		// read-only ability set.
+		if ( ! in_array( (string) $row->permissions, array( 'read', 'read_write' ), true ) ) {
 			return false;
 		}
 
