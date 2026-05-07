@@ -8,27 +8,27 @@
 	'use strict';
 
 	function initTabs() {
-		var tabs = document.querySelectorAll('.hey-woo-setup__tab');
+		var tabs = document.querySelectorAll('.woocommerce-claude-setup__tab');
 		if (!tabs.length) {
 			return;
 		}
 
 		function activate(targetKey) {
 			tabs.forEach(function (tab) {
-				var isActive = tab.getAttribute('data-hey-woo-tab') === targetKey;
+				var isActive = tab.getAttribute('data-woocommerce-claude-tab') === targetKey;
 				tab.classList.toggle('is-active', isActive);
 				tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
 				tab.setAttribute('tabindex', isActive ? '0' : '-1');
 			});
-			document.querySelectorAll('.hey-woo-setup__tabpanel').forEach(function (panel) {
-				var isActive = panel.id === 'hey-woo-panel-' + targetKey;
+			document.querySelectorAll('.woocommerce-claude-setup__tabpanel').forEach(function (panel) {
+				var isActive = panel.id === 'woocommerce-claude-panel-' + targetKey;
 				panel.hidden = !isActive;
 			});
 		}
 
 		tabs.forEach(function (tab) {
 			tab.addEventListener('click', function () {
-				activate(tab.getAttribute('data-hey-woo-tab'));
+				activate(tab.getAttribute('data-woocommerce-claude-tab'));
 			});
 			tab.addEventListener('keydown', function (event) {
 				if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
@@ -36,16 +36,16 @@
 				}
 				event.preventDefault();
 				var keys = Array.prototype.map.call(tabs, function (t) {
-					return t.getAttribute('data-hey-woo-tab');
+					return t.getAttribute('data-woocommerce-claude-tab');
 				});
-				var current = tab.getAttribute('data-hey-woo-tab');
+				var current = tab.getAttribute('data-woocommerce-claude-tab');
 				var index = keys.indexOf(current);
 				var nextIndex = event.key === 'ArrowRight'
 					? (index + 1) % keys.length
 					: (index - 1 + keys.length) % keys.length;
 				activate(keys[nextIndex]);
 				var nextTab = document.querySelector(
-					'.hey-woo-setup__tab[data-hey-woo-tab="' + keys[nextIndex] + '"]'
+					'.woocommerce-claude-setup__tab[data-woocommerce-claude-tab="' + keys[nextIndex] + '"]'
 				);
 				if (nextTab) {
 					nextTab.focus();
@@ -99,14 +99,14 @@
 	}
 
 	function initCopy() {
-		document.querySelectorAll('.hey-woo-setup__copy').forEach(function (button) {
+		document.querySelectorAll('.woocommerce-claude-setup__copy').forEach(function (button) {
 			button.addEventListener('click', function () {
-				var key = button.getAttribute('data-hey-woo-copy-target');
+				var key = button.getAttribute('data-woocommerce-claude-copy-target');
 				var source;
 				if (key === 'cli') {
-					source = document.querySelector('[data-hey-woo-cli]');
+					source = document.querySelector('[data-woocommerce-claude-cli]');
 				} else if (key === 'json') {
-					source = document.querySelector('[data-hey-woo-json]');
+					source = document.querySelector('[data-woocommerce-claude-json]');
 				}
 				if (source) {
 					copyText(source.textContent, button);
