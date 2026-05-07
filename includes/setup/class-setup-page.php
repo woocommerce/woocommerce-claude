@@ -522,9 +522,20 @@ class SetupPage {
 
 	/**
 	 * Extract the credential from the current REST request, if any.
-	 * Mirrors the surfaces that WC's REST auth recognises: HTTP Basic
-	 * auth (split form via PHP_AUTH_USER/PW or raw HTTP_AUTHORIZATION
-	 * header) and `consumer_key` / `consumer_secret` query params.
+	 * Recognises the surfaces WC's REST auth reads (Basic auth split
+	 * form via PHP_AUTH_USER/PW; raw HTTP_AUTHORIZATION; query-string
+	 * `consumer_key` / `consumer_secret`) plus the legacy
+	 * `X-MCP-API-Key` header.
+	 *
+	 * The legacy header is no longer accepted by our MCP auth callback,
+	 * but pre-migration `.mcpb` bundles distributed against earlier
+	 * plugin versions still send it — typically targeting the
+	 * deprecated WC core MCP endpoint at `/wp-json/woocommerce/mcp`.
+	 * Reading it here means `enforce_setup_key_route_scope()` can
+	 * still recognise our credential on those legacy requests and
+	 * deny them on every route except `/wp-json/hey-woo/mcp`. Drop
+	 * the header here and a leaked legacy bundle silently keeps
+	 * authenticating against the WC core endpoint.
 	 *
 	 * Returns '' if no credential is present (the request will be
 	 * unauthenticated or rely on cookies/nonces instead, neither of
@@ -536,7 +547,16 @@ class SetupPage {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
 
-		// 1a. PHP_AUTH_USER + PHP_AUTH_PW — the split form Apache/mod_php
+		// 1. Legacy X-MCP-API-Key header — kept for defense-in-depth so
+		// pre-migration bundles still hit the route-scope deny path on
+		// non-allowed routes. Not a supported auth path for the new
+		// /wp-json/hey-woo/mcp endpoint (Plugin::authenticate_mcp_request
+		// only reads Basic auth).
+		if ( ! empty( $_SERVER['HTTP_X_MCP_API_KEY'] ) ) {
+			return wp_unslash( (string) $_SERVER['HTTP_X_MCP_API_KEY'] );
+		}
+
+		// 2a. PHP_AUTH_USER + PHP_AUTH_PW — the split form Apache/mod_php
 		// (and many fastcgi setups) expose Basic auth as. WC's auth reads
 		// these directly, so the route-scope filter must too — otherwise
 		// a request bearing our setup credential against a non-MCP route
@@ -546,7 +566,7 @@ class SetupPage {
 			return wp_unslash( (string) $_SERVER['PHP_AUTH_USER'] ) . ':' . wp_unslash( (string) $_SERVER['PHP_AUTH_PW'] );
 		}
 
-		// 1b. HTTP Basic auth (raw header form) — username:password = ck_xxx:cs_xxx.
+		// 2b. HTTP Basic auth (raw header form) — username:password = ck_xxx:cs_xxx.
 		$auth = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] ) : '';
 		if ( 0 === stripos( $auth, 'Basic ' ) ) {
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
@@ -556,7 +576,7 @@ class SetupPage {
 			}
 		}
 
-		// 2. Query string consumer_key + consumer_secret (WC legacy auth).
+		// 3. Query string consumer_key + consumer_secret (WC legacy auth).
 		if ( ! empty( $_GET['consumer_key'] ) && ! empty( $_GET['consumer_secret'] ) ) {
 			return wp_unslash( (string) $_GET['consumer_key'] ) . ':' . wp_unslash( (string) $_GET['consumer_secret'] );
 		}

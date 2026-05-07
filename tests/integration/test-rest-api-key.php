@@ -621,6 +621,39 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Legacy `.mcpb` bundles distributed before the wordpress/mcp
+	 * migration ship the credential as `X-MCP-API-Key` and target the
+	 * deprecated WC core MCP endpoint at /wp-json/woocommerce/mcp. The
+	 * auth callback for the new endpoint no longer accepts that header,
+	 * but the route-scope filter must still recognise it — otherwise a
+	 * pre-migration bundle whose credential matches our stored one
+	 * silently bypasses the scope guard against the WC core endpoint
+	 * (which still authenticates the same WC API key when its feature
+	 * flag is on). Pin the deny path so a regression here doesn't
+	 * re-open that bypass.
+	 */
+	public function test_legacy_x_mcp_api_key_header_is_scope_denied_on_non_mcp_routes() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create();
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'] );
+			$_SERVER['HTTP_X_MCP_API_KEY'] = $state['credential'];
+			$_SERVER['REQUEST_URI']        = '/wp-json/woocommerce/mcp';
+			$result                        = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result, 'Legacy X-MCP-API-Key against the deprecated WC MCP route must be denied.' );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
 	 * The route-scope filter is a no-op when the request isn't using
 	 * our credential at all. Anything else would inadvertently
 	 * affect REST clients that have their own (unrelated) WC API keys.

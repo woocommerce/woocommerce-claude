@@ -182,7 +182,7 @@ WooCommerce core already exposes basic product and order CRUD via MCP. This proj
 | **WooCommerce core MCP** | HTTP transport, auth, product/order CRUD tools                    | WooCommerce core team |
 | **Hey Woo plugin**       | Analytics skills, knowledge resources, prompts, readiness scoring | This project          |
 
-Everything ships through the single endpoint at `/wp-json/hey-woo/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via an `X-MCP-API-Key` header backed by a standard WooCommerce REST API key.
+Everything ships through the single endpoint at `/wp-json/hey-woo/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via standard HTTP Basic auth — `ck_xxx` as the username, `cs_xxx` as the password, sourced from a WooCommerce REST API key with `read` or `read_write` scope.
 
 ---
 

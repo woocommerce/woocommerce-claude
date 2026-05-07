@@ -514,7 +514,7 @@ class Plugin {
 		}
 
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- direct lookup against woocommerce_api_keys; no caching surface for auth.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- direct lookup against woocommerce_api_keys; table prefix is trusted; no caching surface for auth.
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT key_id, user_id, consumer_secret, permissions FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
