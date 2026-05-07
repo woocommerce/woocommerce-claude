@@ -317,4 +317,33 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 			'When the incoming value is already false, the filter is a no-op pass-through.'
 		);
 	}
+
+	/**
+	 * The plugin must suppress the WP MCP adapter's auto-created
+	 * default server. That endpoint at
+	 * `/wp-json/mcp/mcp-adapter-default-server` uses the adapter's
+	 * default `current_user_can('read')` permission instead of our
+	 * `authenticate_mcp_request` callback, so leaving it on would
+	 * expose a second, non-curated MCP surface — including any
+	 * abilities a third-party plugin marks as `mcp.public`. The setup
+	 * flow only scopes access to `/wp-json/hey-woo/mcp`, so the
+	 * default endpoint is an unsupervised parallel surface.
+	 *
+	 * Pin the filter contract: after Plugin::instance() runs,
+	 * `mcp_adapter_create_default_server` resolves to false regardless
+	 * of the incoming value. If a future refactor drops the filter
+	 * registration, this test fails loud.
+	 */
+	public function test_default_mcp_adapter_server_is_suppressed() {
+		// Trigger plugin bootstrap if it hasn't already happened in this test run.
+		\HeyWoo\Plugin::instance();
+
+		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- synthetic application of an upstream filter for assertion only; not a hook definition.
+		$result = apply_filters( 'mcp_adapter_create_default_server', true );
+
+		$this->assertFalse(
+			$result,
+			'mcp_adapter_create_default_server must resolve to false so the default endpoint is not registered.'
+		);
+	}
 }

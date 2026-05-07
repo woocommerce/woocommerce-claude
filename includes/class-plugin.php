@@ -164,6 +164,16 @@ class Plugin {
 		// is safe even if WC's MCPAdapterProvider also boots it.
 		add_action( 'plugins_loaded', array( $this, 'bootstrap_mcp_adapter' ), 20 );
 
+		// Suppress the adapter's auto-created default server at
+		// `/wp-json/mcp/mcp-adapter-default-server`. That endpoint uses the
+		// adapter's default `current_user_can('read')` permission instead
+		// of our `authenticate_mcp_request` callback, so leaving it on
+		// would expose a second, non-curated MCP surface — including any
+		// abilities a third-party plugin marks as `mcp.public`. The setup
+		// flow scopes access to `/wp-json/hey-woo/mcp` only, and our
+		// curated server already covers the surface we want to expose.
+		add_filter( 'mcp_adapter_create_default_server', '__return_false' );
+
 		// Register our own MCP server when the adapter initializes. Owns the
 		// `/wp-json/hey-woo/mcp` endpoint with a curated tool/resource/prompt
 		// surface and a custom auth callback that authenticates ck:cs Basic
@@ -504,7 +514,7 @@ class Plugin {
 			return false;
 		}
 
-		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth();
+		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth( $request );
 		if ( '' === $consumer_key || '' === $consumer_secret ) {
 			return false;
 		}
@@ -546,15 +556,22 @@ class Plugin {
 	 * Pull a Basic Auth credential pair off the current request.
 	 *
 	 * Tries `PHP_AUTH_USER`/`PHP_AUTH_PW` first (what mod_php and
-	 * php-fpm normally populate from `Authorization: Basic …`), then
-	 * falls back to parsing `HTTP_AUTHORIZATION` directly for
-	 * environments that don't populate the split form (CGI, certain
-	 * fastcgi setups). Returns `['', '']` if no credential is present
-	 * or the header is malformed — caller treats that as auth failure.
+	 * php-fpm normally populate from `Authorization: Basic …`). Then
+	 * reads the request's `Authorization` header via WP's normalised
+	 * accessor — `WP_REST_Server::get_headers()` already maps the raw
+	 * `HTTP_AUTHORIZATION` *and* the `REDIRECT_HTTP_AUTHORIZATION`
+	 * variant (common on CGI/FastCGI behind Apache `mod_rewrite`) onto
+	 * the same `Authorization` request header, so a single
+	 * `$request->get_header()` call covers every SAPI WP itself
+	 * supports.
 	 *
+	 * Returns `['', '']` if no credential is present or the header is
+	 * malformed — caller treats that as auth failure.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
 	 * @return array{0:string,1:string} `[username, password]`.
 	 */
-	private static function extract_basic_auth() {
+	private static function extract_basic_auth( $request ) {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
 		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
@@ -563,14 +580,11 @@ class Plugin {
 				trim( wp_unslash( (string) $_SERVER['PHP_AUTH_PW'] ) ),
 			);
 		}
-
-		$header = isset( $_SERVER['HTTP_AUTHORIZATION'] )
-			? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] )
-			: '';
 		// phpcs:enable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		if ( 0 !== stripos( $header, 'Basic ' ) ) {
+		$header = $request->get_header( 'authorization' );
+		if ( ! is_string( $header ) || 0 !== stripos( $header, 'Basic ' ) ) {
 			return array( '', '' );
 		}
 

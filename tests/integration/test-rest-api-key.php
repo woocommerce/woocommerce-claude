@@ -621,6 +621,41 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
+	 * On CGI/FastCGI SAPIs behind Apache `mod_rewrite`, the
+	 * `Authorization` header is forwarded as `REDIRECT_HTTP_AUTHORIZATION`
+	 * and `HTTP_AUTHORIZATION` is empty. The route-scope filter runs
+	 * on `rest_authentication_errors` (no request param), so it has to
+	 * read the alternate $_SERVER key directly — otherwise our setup
+	 * credential could be replayed against non-MCP routes on those
+	 * installs without the scope guard recognising it.
+	 *
+	 * Pin the deny path explicitly: same fixture as the
+	 * HTTP_AUTHORIZATION test, but only `REDIRECT_HTTP_AUTHORIZATION`
+	 * is populated.
+	 */
+	public function test_setup_key_is_rejected_on_non_mcp_routes_with_redirect_authorization_header() {
+		$helper = new RestApiKey();
+		$state  = $helper->get_or_create();
+
+		$original_server = $_SERVER;
+		try {
+			// phpcs:disable WordPress.Security.NonceVerification.Recommended -- test fixture mutates $_SERVER directly.
+			unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'], $_SERVER['HTTP_X_MCP_API_KEY'] );
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
+			$_SERVER['REDIRECT_HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $state['credential'] );
+			$_SERVER['REQUEST_URI']                 = '/wp-json/wc/v3/orders';
+			$result                                 = SetupPage::enforce_setup_key_route_scope( null );
+
+			$this->assertInstanceOf( \WP_Error::class, $result );
+			$this->assertSame( 'hey_woo_route_restricted', $result->get_error_code() );
+			$this->assertSame( 403, $result->get_error_data()['status'] ?? 0 );
+		} finally {
+			$_SERVER = $original_server;
+			// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		}
+	}
+
+	/**
 	 * Legacy `.mcpb` bundles distributed before the wordpress/mcp
 	 * migration ship the credential as `X-MCP-API-Key` and target the
 	 * deprecated WC core MCP endpoint at /wp-json/woocommerce/mcp. The

@@ -567,7 +567,21 @@ class SetupPage {
 		}
 
 		// 2b. HTTP Basic auth (raw header form) — username:password = ck_xxx:cs_xxx.
-		$auth = isset( $_SERVER['HTTP_AUTHORIZATION'] ) ? wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] ) : '';
+		// Reads HTTP_AUTHORIZATION first, then REDIRECT_HTTP_AUTHORIZATION as
+		// a fallback. The latter is what shows up on CGI/FastCGI behind
+		// Apache `mod_rewrite` — the same SAPI shape `WP_REST_Server::get_headers()`
+		// normalises into the request's `Authorization` header. We can't
+		// reach that normalised value from this `rest_authentication_errors`
+		// filter (no request param), so cover the alternate $_SERVER key
+		// directly, otherwise our setup credential could be replayed
+		// against non-MCP routes on those SAPIs without our scope guard
+		// recognising it.
+		$auth = '';
+		if ( ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ) {
+			$auth = wp_unslash( (string) $_SERVER['HTTP_AUTHORIZATION'] );
+		} elseif ( ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ) {
+			$auth = wp_unslash( (string) $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] );
+		}
 		if ( 0 === stripos( $auth, 'Basic ' ) ) {
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
 			$decoded = base64_decode( substr( $auth, 6 ), true );

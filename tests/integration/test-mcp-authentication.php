@@ -170,21 +170,29 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	}
 
 	/**
-	 * HTTP_AUTHORIZATION raw form (no PHP_AUTH split) authenticates
-	 * too — covers nginx/php-fpm and CGI SAPIs where Apache's
-	 * `mod_authz` doesn't pre-split the header.
+	 * Basic auth raw form authenticates via `$request->get_header()`.
+	 * `WP_REST_Server::get_headers()` normalises every Authorization
+	 * SAPI variant — `HTTP_AUTHORIZATION` (mod_php / php-fpm) and
+	 * `REDIRECT_HTTP_AUTHORIZATION` (CGI/FastCGI behind Apache
+	 * `mod_rewrite`) — onto the same request header, so a single
+	 * `get_header('authorization')` covers them all. Pre-fix the auth
+	 * callback only inspected `$_SERVER['HTTP_AUTHORIZATION']`, so
+	 * stores on the alternate SAPI rejected every MCP call even with
+	 * a valid key (Codex regression flag).
 	 */
-	public function test_authenticates_via_authorization_header_raw_form() {
+	public function test_authenticates_via_request_authorization_header() {
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		$cred    = $this->insert_api_key( $user_id, 'read' );
 
-		unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'] );
+		unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'], $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] );
+
+		$request = new \WP_REST_Request();
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- encoding a synthetic Basic auth header for the test fixture.
-		$_SERVER['HTTP_AUTHORIZATION'] = 'Basic ' . base64_encode( $cred );
+		$request->set_header( 'authorization', 'Basic ' . base64_encode( $cred ) );
 
-		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+		$result = \HeyWoo\Plugin::instance()->authenticate_mcp_request( $request );
 
-		$this->assertTrue( $result );
+		$this->assertTrue( $result, 'A credential on the request header authenticates regardless of which $_SERVER var the SAPI populated.' );
 		$this->assertSame( $user_id, get_current_user_id() );
 	}
 
