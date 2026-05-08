@@ -215,7 +215,7 @@ class Plugin {
 	 *
 	 * Hooked on woocommerce_claude_telemetry_handlers before SkillTelemetry::init()
 	 * so the option is evaluated when the handler set is first built.
-	 * Option name matches Settings\SettingsPage::TELEMETRY_ENABLED_OPTION.
+	 * Option name matches Setup\SetupPage::TELEMETRY_OPTION.
 	 *
 	 * @param array $handlers Current handler list.
 	 * @return array

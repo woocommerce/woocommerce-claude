@@ -96,6 +96,39 @@ add_action(
 );
 
 /**
+ * On activation, opt new installs into anonymised usage telemetry by
+ * default. Gated on the option being absent so:
+ *
+ *   - Fresh installs land on `'yes'`.
+ *   - Existing installs that already chose `'no'` (or `'yes'`) keep
+ *     their value across reactivation.
+ *   - Plugin auto-updates don't fire activation hooks at all, so an
+ *     upgrade-in-place merchant is never silently flipped on.
+ *
+ * The legacy-option migration runs eagerly before the default check so
+ * a prior `woo_ai_connect_telemetry_enabled` (the pre-rename key) is
+ * copied to the current key first. Without this, activation would
+ * write `'yes'` before plugins_loaded fires the migration, and the
+ * migration's "new key absent?" guard would skip — silently dropping
+ * a user's pre-rename opt-out.
+ *
+ * Defaulting on still respects WC's site-wide tracking opt-in: TracksHandler
+ * routes through WC_Tracks::record_event(), which is itself gated by
+ * the `woocommerce_allow_tracking` setting — no events leave the site
+ * unless that's also enabled.
+ */
+register_activation_hook(
+	__FILE__,
+	function () {
+		woocommerce_claude_migrate_legacy_options();
+
+		if ( false === get_option( 'woocommerce_claude_telemetry_enabled', false ) ) {
+			update_option( 'woocommerce_claude_telemetry_enabled', 'yes' );
+		}
+	}
+);
+
+/**
  * On deactivation, revoke the auto-created WooCommerce REST API key.
  *
  * Without this, a merchant who deactivates WooCommerce for Claude to roll back or
