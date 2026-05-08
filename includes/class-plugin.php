@@ -513,11 +513,11 @@ Slicing aggregates — for "broken down by X" questions:
 - `revenue_breakdown` — by category, country, or payment method.
 
 Flexible filter engine — for "show me the actual records" questions:
-- `query_analytics` — `entity` is one of `orders`, `products`, `customers`; `mode` is `summary` (default) or `rows`. Returns either an aggregated summary or a row list. Reach for this BEFORE concluding that an aggregated tool "can't show specifics" — it almost always can.
+- `query_analytics` — `entity` is one of `orders`, `products`, `customers`; `mode` is `aggregate` (default) or `rows`. Returns either an aggregated summary or a row list. Reach for this BEFORE concluding that an aggregated tool "can't show specifics" — it almost always can.
 
 ## Common routing mistakes — do not make these
 
-- "Which customers ordered?" → `query_analytics` (entity=customers, mode=rows). NOT `customer_overview`, which returns counts only.
+- "Which customers ordered?" → `query_analytics` (entity=customers, mode=rows). NOT `customer_overview` — it surfaces aggregates (new vs returning split, repeat rate, segment-level AOV), not per-customer rows.
 - "Show me the on-hold orders" → `query_analytics` (entity=orders, with a status filter). NOT `orders_summary`.
 - "Which products haven't sold this month?" → `query_analytics` (entity=products, with a sales-velocity filter).
 - "Is one channel filling my on-hold pipeline?" → `attribution` with `group_by=channel`. The `pipeline_over_index_points` field per row is the answer.
@@ -533,11 +533,11 @@ This connector returns aggregated metrics and pseudonymised customer rows. It do
 
 ## Date ranges over 365 days
 
-`wc-analytics-get-data` returns an `extended_range_required` error when the range exceeds 365 days. The error includes a `confirmation_token`. Flow:
+`wc-analytics-get-data` returns an `extended_range_required` error when the range exceeds 365 days. The error includes a `cost_estimate` showing the range in days and months. Flow:
 
 1. Show the cost estimate from the error to the merchant.
-2. Wait for explicit approval — never use the token autonomously.
-3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, and the token.
+2. Wait for explicit approval — never call `wc-analytics-confirm-large-range` autonomously.
+3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, plus a `description` field (a one-line plain-English summary of the query the merchant just approved — e.g. "3-year customer overview, monthly granularity"). Approval is session-keyed server-side; no token round-trips through the request.
 4. Retry `wc-analytics-get-data` with the same params.
 
 Do not split the range into smaller chunks to bypass the gate — that defeats its purpose.

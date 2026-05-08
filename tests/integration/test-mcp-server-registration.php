@@ -158,10 +158,14 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			// Privacy posture: pseudonymisation is the rule clients keep refusing without this guidance.
 			'pseudonymised',
 			'Customer #N',
-			// 365-day gate handshake.
+			// 365-day gate handshake — names the trigger error and the confirm-large-range tool.
 			'extended_range_required',
-			'confirmation_token',
 			'wc-analytics-confirm-large-range',
+			// query_analytics mode enum value — must read 'aggregate', not 'summary'
+			// (the actual ConfirmLargeRangeAbility schema took 'aggregate' before this
+			// instructions block existed; a regression to 'summary' would route the model
+			// to a non-existent enum value).
+			'aggregate',
 			// Privacy posture explicit instruction.
 			'Do not refuse',
 		);
