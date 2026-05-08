@@ -126,15 +126,19 @@ class AnalyticsController {
 	 * Count the primary variable-length rows in a result payload.
 	 *
 	 * Used to populate the rows_returned field in the
-	 * woocommerce_claude_skill_executed telemetry hook. Skills that return a
-	 * flat scalar result (revenue summary, orders summary, customer overview)
-	 * don't have a top-N array, so we return 1 — the response is one "record".
+	 * woocommerce_claude_skill_executed telemetry hook. Recognised top-level
+	 * keys: `top_groups` (revenue breakdown), `top_products` (product
+	 * performance), and `rows` (query_analytics in rows mode). Skills that
+	 * return a flat scalar result (revenue summary, orders summary, customer
+	 * overview) don't carry any of these arrays, so we return 1 — the response
+	 * is one "record". `rows` is null in query_analytics aggregate mode and
+	 * the is_array() check below skips it correctly.
 	 *
 	 * @param array $result Assembled fetch_* result.
 	 * @return int Row count.
 	 */
 	private static function count_result_rows( $result ) {
-		foreach ( array( 'top_groups', 'top_products' ) as $key ) {
+		foreach ( array( 'top_groups', 'top_products', 'rows' ) as $key ) {
 			if ( isset( $result[ $key ] ) && is_array( $result[ $key ] ) ) {
 				return count( $result[ $key ] );
 			}

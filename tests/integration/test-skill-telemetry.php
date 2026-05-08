@@ -29,6 +29,8 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
  */
 class Test_Skill_Telemetry extends WP_UnitTestCase {
 
+	use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;
+
 	/**
 	 * Payloads captured during the current test.
 	 *
@@ -135,6 +137,71 @@ class Test_Skill_Telemetry extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->captured[0]['data']['rows_returned'] );
 	}
 
+	/**
+	 * Rows_returned matches count(rows) for query_analytics in rows mode.
+	 *
+	 * Regression guard: count_result_rows() must recognise the `rows` key
+	 * that query_analytics emits in rows mode. Before the fix this fell
+	 * through to the scalar default (1) regardless of result size, so a
+	 * 50-row response logged rows_returned=1 — telemetry was unusable for
+	 * sizing rows-mode usage.
+	 */
+	public function test_rows_returned_matches_count_for_query_analytics_rows_mode() {
+		$product_id = $this->seed_simple_product(
+			array(
+				'name'  => 'Telemetry Fixture Product',
+				'sku'   => 'TLM-FIX-1',
+				'price' => 50,
+			)
+		);
+
+		// Three active in-period customers — enough to exceed the buggy
+		// rows_returned=1 default.
+		foreach ( array( 'tlm_a@example.test', 'tlm_b@example.test', 'tlm_c@example.test' ) as $email ) {
+			$this->seed_paid_order(
+				array(
+					'customer_id' => $this->seed_customer( $email ),
+					'total'       => 0,
+					'date'        => '2025-10-15 10:00:00',
+					'items'       => array(
+						array(
+							'product_id' => $product_id,
+							'qty'        => 2,
+						),
+					),
+				)
+			);
+		}
+
+		$this->delete_query_analytics_transients();
+
+		$result = AnalyticsController::fetch_query_analytics(
+			'customers',
+			array(),
+			'all',
+			'custom',
+			'2025-10-01',
+			'2025-10-31',
+			'rows',
+			10,
+			null,
+			'DESC'
+		);
+
+		$this->assertIsArray( $result );
+		$this->assertIsArray( $result['rows'] );
+		$this->assertGreaterThan( 1, count( $result['rows'] ), 'Fixture must produce >1 row to exercise the bug.' );
+
+		$event = end( $this->captured );
+		$this->assertSame( 'query_analytics', $event['skill'] );
+		$this->assertFalse( $event['data']['cache_hit'], 'First call must be a cache miss.' );
+		$this->assertSame(
+			count( $result['rows'] ),
+			$event['data']['rows_returned'],
+			'rows_returned must equal count(rows) — the bug counted 1 instead.'
+		);
+	}
+
 	// -------------------------------------------------------------------------
 	// SkillTelemetry handler dispatch.
 	// -------------------------------------------------------------------------
@@ -199,6 +266,20 @@ class Test_Skill_Telemetry extends WP_UnitTestCase {
 				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
 				'_transient_woocommerce_claude_revenue_%',
 				'_transient_timeout_woocommerce_claude_revenue_%'
+			)
+		);
+	}
+
+	/**
+	 * Delete all query_analytics transients so tests start with a cold cache.
+	 */
+	private function delete_query_analytics_transients() {
+		global $wpdb;
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				'_transient_woocommerce_claude_query_analytics_%',
+				'_transient_timeout_woocommerce_claude_query_analytics_%'
 			)
 		);
 	}
