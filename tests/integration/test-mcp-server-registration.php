@@ -124,4 +124,54 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 		$this->assertContains( 'wc-prompts-catalog-audit', $prompt_names );
 		$this->assertContains( 'wc-prompts-product-improve', $prompt_names );
 	}
+
+	/**
+	 * The connector's session-level guidance is shipped to clients via the
+	 * `instructions` field of the MCP `initialize` response (the WP MCP
+	 * adapter's InitializeHandler reads `get_server_description()` and
+	 * places the value there).
+	 *
+	 * Pin the contract by content marker rather than exact wording — that
+	 * leaves room for editorial polish without locking the tests against
+	 * the routing/privacy guarantees the block exists to enforce. If a
+	 * future edit silently drops the `query_analytics` routing rule or the
+	 * pseudonymisation posture, this test fails with a clear "missing
+	 * marker" message.
+	 *
+	 * Also pins a minimum length to catch a regression to the pre-feature
+	 * one-line description, which would silently re-empty the model's
+	 * preloaded routing context.
+	 */
+	public function test_woocommerce_claude_server_ships_instructions_block() {
+		$server       = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
+		$instructions = $server->get_server_description();
+
+		$this->assertGreaterThan(
+			1500,
+			strlen( $instructions ),
+			'Server description (delivered as MCP `instructions`) must be a guidance block, not a one-line summary.'
+		);
+
+		$required_markers = array(
+			// Routing: query_analytics is the antidote to "tool can't show specifics".
+			'query_analytics',
+			// Privacy posture: pseudonymisation is the rule clients keep refusing without this guidance.
+			'pseudonymised',
+			'Customer #N',
+			// 365-day gate handshake.
+			'extended_range_required',
+			'confirmation_token',
+			'wc-analytics-confirm-large-range',
+			// Privacy posture explicit instruction.
+			'Do not refuse',
+		);
+
+		foreach ( $required_markers as $marker ) {
+			$this->assertStringContainsString(
+				$marker,
+				$instructions,
+				"Instructions block must mention `{$marker}` — that guidance is what stops Claude from making the routing or privacy mistake the marker addresses."
+			);
+		}
+	}
 }

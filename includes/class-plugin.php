@@ -418,7 +418,7 @@ class Plugin {
 				self::MCP_SERVER_NS,
 				self::MCP_SERVER_ROUTE,
 				__( 'WooCommerce for Claude MCP Server', 'woocommerce-claude' ),
-				__( 'AI-accessible WooCommerce store analytics, knowledge, and prompts via MCP.', 'woocommerce-claude' ),
+				$this->mcp_server_instructions(),
 				WOOCOMMERCE_CLAUDE_VERSION,
 				array( \WP\MCP\Transport\HttpTransport::class ),
 				\WP\MCP\Infrastructure\ErrorHandling\ErrorLogMcpErrorHandler::class,
@@ -443,6 +443,114 @@ class Plugin {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Server-level guidance shipped to MCP clients on `initialize`.
+	 *
+	 * The WP MCP adapter's `InitializeHandler::handle()` puts this string in
+	 * the `instructions` field of the JSON-RPC response — the slot the MCP
+	 * spec defines for "instructions describing how to use the server and
+	 * its features." Every Claude session that connects to this connector
+	 * receives this block as preloaded context, with no merchant action
+	 * required.
+	 *
+	 * The adapter's `create_server()` parameter is unfortunately named
+	 * `server_description`, but the only consumers that read it are the
+	 * `instructions` slot above and the WP-CLI `wp mcp server list` output —
+	 * there is no separate short-summary slot in the adapter's surface, so
+	 * this string serves both jobs.
+	 *
+	 * What earns its place here:
+	 *   - Routing decisions across the eleven analytics types — the model
+	 *     can't infer "use query_analytics for 'show me the actual records'"
+	 *     from individual tool descriptions read in isolation.
+	 *   - The privacy-mode posture (pseudonymised customer rows, never
+	 *     real names/emails). Without this, sessions sometimes refuse the
+	 *     question entirely instead of returning the pseudonymised rows
+	 *     the connector is happy to provide.
+	 *   - The 365-day gate handshake. A confirmation_token is minted on
+	 *     the error and must be passed back to confirm-large-range, then
+	 *     the original call retried — autonomous use of the token defeats
+	 *     the merchant-consent purpose.
+	 *
+	 * What does NOT belong here: anything already covered by individual
+	 * tool descriptions or by `wc-analytics/describe`'s per-type docs —
+	 * duplicating those bloats the per-session token cost without changing
+	 * model behaviour. Keep this block focused on cross-tool decisions and
+	 * connector-level posture.
+	 *
+	 * Not translated via `__()` — this is consumed by the model, not the
+	 * merchant, and the model is best at parsing English.
+	 *
+	 * @return string
+	 */
+	private function mcp_server_instructions() {
+		return <<<'INSTRUCTIONS'
+You are connected to a live WooCommerce store via the WooCommerce for Claude MCP server. Read this once at session start.
+
+## Tool families
+
+Two families of tools are exposed:
+
+1. Analytics — eleven analytics types accessed through one router tool, `wc-analytics-get-data`. Always call `wc-analytics-describe` for a `type` before using it for the first time in a session — that is where parameter shape, narrative guidance, and per-type privacy rules live.
+2. Store knowledge — `woocommerce-claude-get-store-profile`, `woocommerce-claude-search-products`, `woocommerce-claude-get-product-details`, `woocommerce-claude-get-readiness-score`, `woocommerce-claude-get-recommendations`, `woocommerce-claude-suggest-improvements`. Call `woocommerce-claude-get-store-profile` once early in any session that touches store data — it returns currency, payment setup, shipping zones, and locale.
+
+## Picking the right analytics type
+
+`wc-analytics-get-data` accepts these eleven `type` values. Pick by question shape, not by keyword match.
+
+Headline aggregates — for "how much / how many" questions:
+- `revenue_summary` — net sales, AOV, totals for a period.
+- `orders_summary` — order count, status mix, value distribution, when-customers-buy heatmap.
+- `customer_overview` — new vs returning counts, repeat rate, per-segment AOV.
+- `product_performance` — top products by revenue or units.
+- `customer_value` — top customers by lifetime value, cohort retention.
+- `tax_summary`, `refund_analysis`, `coupon_performance` — domain-specific roll-ups.
+
+Slicing aggregates — for "broken down by X" questions:
+- `attribution` — channel, source, campaign, device, or keyword breakdown. Also the canonical channel-scoped pipeline diagnostic.
+- `revenue_breakdown` — by category, country, or payment method.
+
+Flexible filter engine — for "show me the actual records" questions:
+- `query_analytics` — `entity` is one of `orders`, `products`, `customers`; `mode` is `summary` (default) or `rows`. Returns either an aggregated summary or a row list. Reach for this BEFORE concluding that an aggregated tool "can't show specifics" — it almost always can.
+
+## Common routing mistakes — do not make these
+
+- "Which customers ordered?" → `query_analytics` (entity=customers, mode=rows). NOT `customer_overview`, which returns counts only.
+- "Show me the on-hold orders" → `query_analytics` (entity=orders, with a status filter). NOT `orders_summary`.
+- "Which products haven't sold this month?" → `query_analytics` (entity=products, with a sales-velocity filter).
+- "Is one channel filling my on-hold pipeline?" → `attribution` with `group_by=channel`. The `pipeline_over_index_points` field per row is the answer.
+- "Is one payment gateway failing?" → `orders_summary`, then read its `pipeline.payment_methods` diagnostic.
+
+## Privacy model — surface it, do not refuse
+
+This connector returns aggregated metrics and pseudonymised customer rows. It does NOT return real names, emails, or full street addresses, by design. When the merchant asks for individual customer details:
+
+1. Call `query_analytics` with `entity=customers`, `mode=rows`. You receive pseudonymised IDs in the form `Customer #N`, lifetime stats, country / city / postcode, and a WP Admin URL on each row.
+2. Render the pseudonymised IDs as clickable markdown links to the row's `admin_url` — that is where the merchant resolves a pseudonym to a real identity.
+3. Do not refuse the question. The connector goes further than aggregated-tool documentation implies.
+
+## Date ranges over 365 days
+
+`wc-analytics-get-data` returns an `extended_range_required` error when the range exceeds 365 days. The error includes a `confirmation_token`. Flow:
+
+1. Show the cost estimate from the error to the merchant.
+2. Wait for explicit approval — never use the token autonomously.
+3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, and the token.
+4. Retry `wc-analytics-get-data` with the same params.
+
+Do not split the range into smaller chunks to bypass the gate — that defeats its purpose.
+
+## Merchant-facing language
+
+The reader is a shop owner, not a developer. In responses to the merchant:
+
+- Never name internal tool identifiers (`get-attribution`, `query_analytics`), parameter names (`group_by`, `mode`, `match`), or storage slugs (`bacs`, `wc-on-hold`).
+- Phrase follow-ups as questions ("Want me to break this down by product?"), not tool invocations.
+- Use plain-English revenue framing — "collected revenue", "pending revenue", "the dashboard-matching figure" — not internal field paths.
+- Never sum the three revenue views — they overlap.
+INSTRUCTIONS;
 	}
 
 	/**
