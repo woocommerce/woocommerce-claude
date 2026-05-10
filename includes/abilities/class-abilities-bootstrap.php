@@ -60,6 +60,13 @@ class AbilitiesBootstrap {
 		DescribeAbility::register();
 		GetDataAbility::register();
 		ConfirmLargeRangeAbility::register();
+		// Verb-shaped tools — totals/breakdown/series/rows. Land alongside
+		// the legacy 11-type get-data router during the transition; PR 3
+		// of the surface pivot removes the legacy abilities.
+		AnalyticsTotalsAbility::register();
+		AnalyticsBreakdownAbility::register();
+		AnalyticsSeriesAbility::register();
+		AnalyticsRowsAbility::register();
 		GetRevenueSummaryAbility::register();
 		GetOrdersSummaryAbility::register();
 		GetProductPerformanceAbility::register();
