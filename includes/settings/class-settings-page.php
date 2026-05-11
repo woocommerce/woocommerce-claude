@@ -114,11 +114,7 @@ class SettingsPage extends \WC_Settings_Page {
 		global $current_section;
 
 		if ( 'setup' === $current_section ) {
-			SetupPage::render_setup_view(); // enqueues 'woocommerce-claude-setup' handle
-			wp_add_inline_style(
-				'woocommerce-claude-setup',
-				'#mainform > p.submit { display: none; }'
-			);
+			SetupPage::render_setup_view();
 			return;
 		}
 

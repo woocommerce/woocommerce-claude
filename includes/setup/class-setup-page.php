@@ -453,6 +453,11 @@ class SetupPage {
 		wp_enqueue_style( 'woocommerce-claude-setup', $base_url . 'setup.css', array(), $css_ver );
 		wp_enqueue_script( 'woocommerce-claude-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$sec = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
+		if ( 'setup' === $sec ) {
+			wp_add_inline_style( 'woocommerce-claude-setup', '#mainform > p.submit { display: none; }' );
+		}
 	}
 
 	/**
