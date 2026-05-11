@@ -20,6 +20,13 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	protected $server;
 
 	/**
+	 * Admin user ID used by tests that need user-scoped transients.
+	 *
+	 * @var int
+	 */
+	protected $admin_user_id = 0;
+
+	/**
 	 * Set up a REST server for each test.
 	 */
 	public function set_up() {
@@ -36,20 +43,38 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Tear down: remove API key option.
 	 */
 	public function tear_down() {
-		parent::tear_down();
+		remove_all_filters( 'pre_http_request' );
 		delete_option( 'hey_woo_anthropic_api_key' );
+		if ( $this->admin_user_id ) {
+			delete_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id );
+		}
+		parent::tear_down();
 	}
 
 	// ── Route registration ────────────────────────────────────────────────────
 
 	/**
-	 * Both DIFM routes are registered.
+	 * The chat route is registered and the unused browser key-validation route is not.
 	 */
 	public function test_routes_are_registered() {
 		$routes = $this->server->get_routes();
 
 		$this->assertArrayHasKey( '/hey-woo/v1/difm/chat', $routes );
-		$this->assertArrayHasKey( '/hey-woo/v1/difm/key/validate', $routes );
+		$this->assertArrayNotHasKey( '/hey-woo/v1/difm/key/validate', $routes );
+	}
+
+	/**
+	 * The DIFM tool allowlist must stay in sync with registered abilities.
+	 */
+	public function test_tool_allowlist_matches_registered_abilities() {
+		$map = DifmRestController::get_tool_ability_map();
+
+		$this->assertCount( 17, $map );
+		$this->assertArrayNotHasKey( 'confirm_large_range', $map );
+
+		foreach ( $map as $ability_id ) {
+			$this->assertTrue( wp_has_ability( $ability_id ), "Missing registered ability: {$ability_id}" );
+		}
 	}
 
 	// ── Permission callbacks ──────────────────────────────────────────────────
@@ -60,17 +85,6 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	public function test_chat_requires_manage_woocommerce() {
 		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
 		$request->set_param( 'message', 'Hello' );
-		$response = $this->server->dispatch( $request );
-
-		$this->assertSame( 403, $response->get_status() );
-	}
-
-	/**
-	 * Unauthenticated requests to POST /difm/key/validate receive a 403.
-	 */
-	public function test_validate_key_requires_manage_woocommerce() {
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/key/validate' );
-		$request->set_param( 'key', 'sk-ant-test' );
 		$response = $this->server->dispatch( $request );
 
 		$this->assertSame( 403, $response->get_status() );
@@ -202,61 +216,35 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'And now?', $captured_body['messages'][2]['content'] );
 	}
 
-	// ── POST /difm/key/validate ───────────────────────────────────────────────
-
 	/**
-	 * POST /difm/key/validate with a mocked successful Anthropic response
-	 * returns {'valid':true}.
+	 * Chat sends the Anthropic tools derived from ability metadata.
 	 */
-	public function test_validate_key_returns_valid_true_on_success() {
-		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+	public function test_chat_sends_metadata_derived_tool_definitions_to_api() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
 
+		$captured_body     = null;
+		$captured_raw_body = '';
 		add_filter(
 			'pre_http_request',
-			static function () {
+			static function ( $preempt, $parsed_args ) use ( &$captured_body, &$captured_raw_body ) {
+				$captured_raw_body = isset( $parsed_args['body'] ) ? (string) $parsed_args['body'] : '';
+				$captured_body     = json_decode( $captured_raw_body, true );
 				return array(
 					'response' => array(
 						'code'    => 200,
 						'message' => 'OK',
 					),
-					'body'     => wp_json_encode( array( 'type' => 'message' ) ),
-					'headers'  => array(),
-				);
-			},
-			10,
-			3
-		);
-
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/key/validate' );
-		$request->set_param( 'key', 'sk-ant-valid' );
-		$response = $this->server->dispatch( $request );
-		$data     = $response->get_data();
-
-		remove_all_filters( 'pre_http_request' );
-
-		$this->assertSame( 200, $response->get_status() );
-		$this->assertTrue( $data['valid'] );
-	}
-
-	/**
-	 * POST /difm/key/validate with a 401 Anthropic response returns
-	 * {'valid':false, 'message':'...'}.
-	 */
-	public function test_validate_key_returns_valid_false_on_401() {
-		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
-
-		add_filter(
-			'pre_http_request',
-			static function () {
-				return array(
-					'response' => array(
-						'code'    => 401,
-						'message' => 'Unauthorized',
-					),
 					'body'     => wp_json_encode(
 						array(
-							'type'  => 'error',
-							'error' => array( 'message' => 'Invalid API key.' ),
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Done.',
+								),
+							),
 						)
 					),
 					'headers'  => array(),
@@ -266,16 +254,35 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/key/validate' );
-		$request->set_param( 'key', 'sk-ant-bad' );
-		$response = $this->server->dispatch( $request );
-		$data     = $response->get_data();
+		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request->set_param( 'message', 'What can you answer?' );
+		$this->server->dispatch( $request );
 
 		remove_all_filters( 'pre_http_request' );
 
-		$this->assertSame( 200, $response->get_status() );
-		$this->assertFalse( $data['valid'] );
-		$this->assertArrayHasKey( 'message', $data );
+		$this->assertNotNull( $captured_body );
+		$this->assertArrayHasKey( 'tools', $captured_body );
+		$this->assertCount( 17, $captured_body['tools'] );
+
+		$tool_names = wp_list_pluck( $captured_body['tools'], 'name' );
+		$this->assertNotContains( 'confirm_large_range', $tool_names );
+		$this->assertContains( 'query_analytics', $tool_names );
+
+		$query_tool = null;
+		foreach ( $captured_body['tools'] as $tool ) {
+			if ( 'query_analytics' === $tool['name'] ) {
+				$query_tool = $tool;
+				break;
+			}
+		}
+
+		$this->assertNotNull( $query_tool );
+		$this->assertStringContainsString( 'ENTITIES + FIELD REGISTRIES', $query_tool['description'] );
+		$this->assertArrayHasKey( 'input_schema', $query_tool );
+		$this->assertStringContainsString( '"name":"get_store_profile"', $captured_raw_body );
+		$this->assertStringContainsString( '"input_schema":{"type":"object","properties":{}}', $captured_raw_body );
+		$this->assertStringContainsString( 'last two weeks', $captured_body['system'] );
+		$this->assertStringContainsString( 'not period=last_7_days', $captured_body['system'] );
 	}
 
 	// ── POST /difm/chat — history capping ────────────────────────────────────
@@ -472,5 +479,258 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'ok', $data['status'] );
 		$this->assertSame( 'Your revenue last week was great.', $data['reply'] );
+	}
+
+	// ── POST /difm/chat — large-range confirmation ───────────────────────────
+
+	/**
+	 * A large-range tool error stops the current tool loop and asks for approval.
+	 */
+	public function test_large_range_tool_error_returns_confirmation_without_second_anthropic_call() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'tool_use',
+							'content'     => array(
+								array(
+									'type'  => 'tool_use',
+									'id'    => 'toolu_large',
+									'name'  => 'get_product_performance',
+									'input' => array(
+										'date_start' => '2024-01-01',
+										'date_end'   => '2026-01-15',
+										'interval'   => 'day',
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Show product performance since 2024.' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 1, $call_count );
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertStringContainsString( 'yes, proceed', $data['reply'] );
+
+		$pending = get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id );
+		$this->assertIsArray( $pending );
+		$this->assertSame( 'get_product_performance', $pending['tool_name'] );
+		$this->assertSame( 'wc-analytics/get-product-performance', $pending['ability_id'] );
+		$this->assertArrayHasKey( 'confirmation_token', $pending['error_data'] );
+	}
+
+	/**
+	 * A following affirmative merchant reply executes the stored request server-side.
+	 */
+	public function test_affirmative_large_range_reply_executes_pending_request() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+		$this->create_pending_large_range_request();
+
+		$call_count    = 0;
+		$captured_body = null;
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $parsed_args ) use ( &$call_count, &$captured_body ) {
+				++$call_count;
+				$captured_body = json_decode( $parsed_args['body'], true );
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Here is the full range.',
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'yes, proceed' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 1, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Here is the full range.', $data['reply'] );
+		$this->assertFalse( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
+		$this->assertNotNull( $captured_body );
+		$this->assertArrayNotHasKey( 'tools', $captured_body );
+		$messages     = $captured_body['messages'];
+		$last_message = end( $messages );
+		$this->assertStringContainsString( 'explicitly confirmed', $last_message['content'] );
+	}
+
+	/**
+	 * Negative and ambiguous replies do not execute the pending request.
+	 */
+	public function test_negative_large_range_reply_does_not_execute_pending_request() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+		$this->create_pending_large_range_request();
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+				return new \WP_Error( 'unexpected_http_call', 'Unexpected Anthropic call.' );
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'no thanks' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 0, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertStringContainsString( 'will not load', $data['reply'] );
+		$this->assertFalse( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
+	}
+
+	/**
+	 * Ambiguous replies preserve the pending request and ask for explicit consent.
+	 */
+	public function test_ambiguous_large_range_reply_preserves_pending_request() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+		$this->create_pending_large_range_request();
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+				return new \WP_Error( 'unexpected_http_call', 'Unexpected Anthropic call.' );
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'what does that mean?' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 0, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertStringContainsString( 'explicit confirmation', $data['reply'] );
+		$this->assertIsArray( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
+	}
+
+	/**
+	 * Set a store-admin user for the current test.
+	 *
+	 * @return void
+	 */
+	private function set_admin_user() {
+		$this->admin_user_id = $this->factory()->user->create( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $this->admin_user_id );
+	}
+
+	/**
+	 * Dispatch a chat request.
+	 *
+	 * @param string $message Merchant message.
+	 * @param array  $history Optional chat history.
+	 * @return \WP_REST_Response
+	 */
+	private function dispatch_chat( $message, array $history = array() ) {
+		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request->set_param( 'message', $message );
+		if ( ! empty( $history ) ) {
+			$request->set_param( 'history', $history );
+		}
+		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Create a pending large-range request by letting Claude request a gated tool.
+	 *
+	 * @return void
+	 */
+	private function create_pending_large_range_request() {
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'tool_use',
+							'content'     => array(
+								array(
+									'type'  => 'tool_use',
+									'id'    => 'toolu_large',
+									'name'  => 'get_product_performance',
+									'input' => array(
+										'date_start' => '2024-01-01',
+										'date_end'   => '2026-01-15',
+										'interval'   => 'day',
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Show product performance since 2024.' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 1, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertIsArray( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
 	}
 }

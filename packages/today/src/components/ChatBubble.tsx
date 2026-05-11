@@ -2,6 +2,7 @@
  * ChatBubble — a single message bubble in the conversation.
  */
 import type { ChatMessage } from '../types';
+import { MarkdownContent } from './MarkdownContent';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
@@ -19,7 +20,13 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 			<span className="hey-woo-bubble__role">
 				{ isUser ? 'You' : 'Hey Woo' }
 			</span>
-			<p className="hey-woo-bubble__content">{ message.content }</p>
+			{ isUser ? (
+				<p className="hey-woo-bubble__content hey-woo-bubble__content--plain">
+					{ message.content }
+				</p>
+			) : (
+				<MarkdownContent content={ message.content } />
+			) }
 		</div>
 	);
 }
