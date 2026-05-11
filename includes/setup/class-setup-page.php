@@ -10,8 +10,8 @@ namespace WooCommerce\Claude\Setup;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude tab
- * (default section). Walks a store owner through connecting WooCommerce for Claude
+ * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude
+ * Setup section. Walks a store owner through connecting WooCommerce for Claude
  * to Claude Desktop (one-click .mcpb download with the API key
  * embedded) or to other MCP clients via a copy-paste JSON snippet.
  *
@@ -84,8 +84,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude, default
-	 * section).
+	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude → Setup).
 	 *
 	 * @param array<string,string|int> $args Extra query args.
 	 * @return string
@@ -94,8 +93,9 @@ class SetupPage {
 		return add_query_arg(
 			array_merge(
 				array(
-					'page' => 'wc-settings',
-					'tab'  => self::SETTINGS_TAB,
+					'page'    => 'wc-settings',
+					'tab'     => self::SETTINGS_TAB,
+					'section' => 'setup',
 				),
 				$args
 			),
@@ -192,7 +192,7 @@ class SetupPage {
 
 	/**
 	 * Render the setup view. Called by SettingsPage::output() when the
-	 * default section is active. Outputs HTML directly.
+	 * Setup section is active. Outputs HTML directly.
 	 *
 	 * Computes `$is_owner` — whether the current user is the WP user
 	 * the WC API key is bound to. WC API keys authenticate as their
