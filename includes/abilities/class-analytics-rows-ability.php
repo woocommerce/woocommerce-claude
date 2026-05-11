@@ -8,7 +8,6 @@
 namespace WooCommerce\Claude\Abilities;
 
 use WooCommerce\Claude\API\AnalyticsController;
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -281,25 +280,19 @@ DESCRIPTION,
 		$orderby    = isset( $input['orderby'] ) ? (string) $input['orderby'] : '';
 		$order      = isset( $input['order'] ) ? (string) $input['order'] : 'DESC';
 
-		SkillTelemetry::suppress_dispatch();
 		$start_ms = microtime( true );
-
-		try {
-			$result = AnalyticsController::fetch_query_analytics(
-				$entity,
-				$filters,
-				$match,
-				$period,
-				$date_start,
-				$date_end,
-				$mode,
-				$limit,
-				$orderby,
-				$order
-			);
-		} finally {
-			SkillTelemetry::resume_dispatch();
-		}
+		$result   = AnalyticsController::fetch_query_analytics(
+			$entity,
+			$filters,
+			$match,
+			$period,
+			$date_start,
+			$date_end,
+			$mode,
+			$limit,
+			$orderby,
+			$order
+		);
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
