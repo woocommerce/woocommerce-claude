@@ -765,11 +765,27 @@ class DifmRestController {
 	 * @return string
 	 */
 	private function large_range_type_for_tool( $tool_name, array $input = array() ) {
-		if ( in_array( $tool_name, array( 'analytics_totals', 'analytics_breakdown', 'analytics_series' ), true ) ) {
-			return isset( $input['subject'] ) ? (string) $input['subject'] : '';
+		// Verb tools tool-prefix the subject when they call the gate (totals:revenue,
+		// breakdown:revenue, series:customers, etc.) so approvals minted by one verb
+		// tool cannot be consumed by another tool sharing the same subject — see
+		// includes/abilities/class-analytics-{totals,breakdown,series}-ability.php
+		// and the cross-tool collision regression test in
+		// tests/integration/test-large-range-gate.php. DIFM's approve_scan call must
+		// pass the same prefixed value or the transient lookup misses.
+		$verb_prefix_map = array(
+			'analytics_totals'    => 'totals',
+			'analytics_breakdown' => 'breakdown',
+			'analytics_series'    => 'series',
+		);
+		if ( isset( $verb_prefix_map[ $tool_name ] ) ) {
+			$subject = isset( $input['subject'] ) ? (string) $input['subject'] : '';
+			return '' === $subject ? '' : $verb_prefix_map[ $tool_name ] . ':' . $subject;
 		}
 
 		if ( 'analytics_rows' === $tool_name ) {
+			// Rows does not gate today (see mcp_server_instructions), so this branch
+			// is unreachable from the approve path. Keep it returning the entity for
+			// symmetry if rows ever gains gating.
 			return isset( $input['entity'] ) ? (string) $input['entity'] : '';
 		}
 
