@@ -3,9 +3,11 @@
  * `wc-analytics/confirm-large-range` ability.
  *
  * Mandatory approval checkpoint before a large date range analytics query
- * runs via wc-analytics/get-data. Takes the date range and type — no opaque
- * token. The server matches the confirmation to the pending session transient
- * that check_run() minted when the gate fired.
+ * runs via wc-analytics-totals / wc-analytics-breakdown / wc-analytics-series
+ * (the three verb tools that call LargeRangeGate::check_run). Takes the date
+ * range and the tool-prefixed type discriminator (e.g. `totals:revenue`) —
+ * no opaque token. The server matches the confirmation to the pending
+ * session transient that check_run() minted when the gate fired.
  *
  * @package WooCommerce\Claude
  */

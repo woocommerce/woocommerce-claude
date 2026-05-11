@@ -86,19 +86,18 @@ If your MCP client supports HTTP transport natively (some do, many don't), you c
 
 You now have these tools available (plus the nine built-in `woocommerce-*` CRUD tools from WC core):
 
-| Tool                                   | What it does                                           |
-| -------------------------------------- | ------------------------------------------------------ |
-| `woocommerce-claude-search-products`              | Search the catalog with enriched metadata              |
-| `woocommerce-claude-get-product-details`          | Full product data with completeness scores             |
-| `woocommerce-claude-get-readiness-score`          | AI readiness score (0-100) with factor breakdown       |
-| `woocommerce-claude-get-recommendations`          | Prioritised improvements for AI readiness              |
-| `woocommerce-claude-suggest-improvements`         | Specific improvements for a product or the whole store |
-| `wc-analytics-get-revenue-summary`     | Revenue summary with three-view reconciliation         |
-| `wc-analytics-get-orders-summary`      | Order counts, AOV, status breakdown, heatmap           |
-| `wc-analytics-get-product-performance` | Top products with catalogue coverage + time series     |
-| `wc-analytics-get-customer-overview`   | New vs returning split, repeat rate, pipeline          |
-| `wc-analytics-get-customer-value`      | Lifetime value, cohort retention, top customers        |
-| `wc-analytics-get-attribution`         | Revenue by channel, source, medium, campaign, device   |
+| Tool                                       | What it does                                                                                              |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `woocommerce-claude-search-products`       | Search the catalog with enriched metadata                                                                 |
+| `woocommerce-claude-get-product-details`   | Full product data with completeness scores                                                                |
+| `woocommerce-claude-get-readiness-score`   | AI readiness score (0-100) with factor breakdown                                                          |
+| `woocommerce-claude-get-recommendations`   | Prioritised improvements for AI readiness                                                                 |
+| `woocommerce-claude-suggest-improvements`  | Specific improvements for a product or the whole store                                                    |
+| `wc-analytics-totals`                      | Headline aggregates by subject: revenue, orders, customers, customer_value, tax, refunds                  |
+| `wc-analytics-breakdown`                   | Grouped aggregates by subject + dimension: revenue, attribution, products, refunds, tax, coupons          |
+| `wc-analytics-series`                      | Time-series by subject + interval (day / week / month / auto): customers, products                        |
+| `wc-analytics-rows`                        | Flexible filter engine across orders / products / customers; aggregate-or-rows mode; pseudonymised rows   |
+| `wc-analytics-confirm-large-range`         | Approve a >365-day range query after presenting the cost estimate (the gate-handshake helper)             |
 
 Plus three resources (`store://profile`, `store://catalog-schema`, `store://policies`) and two prompts (`wc-prompts-catalog-audit`, `wc-prompts-product-improve`).
 

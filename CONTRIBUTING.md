@@ -103,54 +103,46 @@ npx @wordpress/env start  # if not already running
 
 The script mirrors `.github/workflows/ci.yml` line-for-line, so the same checks run in CI on every push.
 
-## Adding a new analytics Skill
+## Extending the analytics surface
 
-The high-level shape every skill follows:
+The MCP surface is four verb-shaped tools: `wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`. Most new analytics work means adding a `subject` to one of those tools (and the corresponding `fetch_*` helper on `AnalyticsController`), not minting a new top-level tool.
 
-1. **Questions first** — write 5-10 questions a merchant might ask the new skill before planning the SQL. The questions drive the response shape, not the other way around. If a planned response doesn't answer the questions, the response shape is wrong.
+The high-level shape:
 
-2. **Register the ability** — in `includes/abilities/`, add a class using `wp_register_ability()` on the `wp_abilities_api_init` hook:
-   - Use a namespaced ID (`wc-analytics/get-skill-name`)
-   - Define JSON Schema for inputs and outputs
-   - Put SQL + response assembly in a `public static fetch_*` helper on `AnalyticsController` (or inline in the ability — match the nearest sibling)
-   - Set `permission_callback` to `current_user_can('manage_woocommerce')`
-   - Include `'meta' => ['show_in_rest' => true]`
-   - Add the new class to `AbilitiesBootstrap::register_abilities()`
-   - `require_once` it from `class-plugin.php`
+1. **Questions first** — write 5-10 questions a merchant might ask before planning the SQL. The questions drive the response shape, not the other way around. If a planned response doesn't answer the questions, the response shape is wrong.
 
-3. **Add the new ability ID to `Plugin::mcp_tool_ability_ids()`** in `class-plugin.php` so it's exposed as a tool on `/wp-json/woocommerce-claude/mcp` — only top-level routing tools (`get-data`, `describe`, `confirm-large-range`) and curated `woocommerce-claude/*` tools are exposed; analytics sub-skills stay registered in the Abilities API but hidden from the MCP tool list, since `wc-analytics/describe` reads their docs.
+2. **Pick the verb tool by question shape**:
+   - "How much / how many" → `wc-analytics-totals`
+   - "Broken down by X" → `wc-analytics-breakdown`
+   - "Over time" → `wc-analytics-series`
+   - "Show me the actual records" → `wc-analytics-rows`
 
-4. **Verify** — compare the endpoint output against direct SQL (or the WC Analytics REST API) for the same date range.
+3. **Add the data layer to `AnalyticsController`** — a `public static fetch_<subject>()` helper with SQL + response assembly. Mirror the parameter shape of an existing sibling (e.g. `fetch_revenue_summary` for new totals subjects).
 
-5. **Pre-compute anything the AI would otherwise derive by hand.** Comparisons, deltas, percentages — and *ratios between any two returned fields* too. If a demo shows the AI computing `field_a / field_b` from the response to answer a question, that division should live in the endpoint. Every arithmetic step the AI does is a hallucination risk.
+4. **Wire it into the verb tool** — extend the `subject` enum in the matching `class-analytics-<verb>-ability.php` schema, add a dispatch arm in `dispatch()`, extend the consolidated describe heredoc with a new `SUBJECT = <name>` section. For breakdown, also extend `validate_dimension()` and `default_dimension_for()`.
 
-6. **Mandatory PHPUnit integration test** — `tests/integration/test-<slug>.php`. The coverage guard in `tests/integration/test-ability-registration.php` fails `./bin/check` if the test file doesn't exist or contains zero `test_*` methods.
+5. **Tool-prefix the gate type** — verb tools pass `'<verb>:<subject>'` (e.g. `'totals:revenue'`) to `LargeRangeGate::check_run()` so approvals don't collide across tools sharing a subject. Mirror the existing pattern.
 
-### What every test file looks like
+6. **Pre-compute anything the AI would otherwise derive by hand.** Comparisons, deltas, percentages — and *ratios between any two returned fields* too. If a demo shows the AI computing `field_a / field_b` from the response to answer a question, that division should live in the endpoint. Every arithmetic step the AI does is a hallucination risk.
 
-Pattern-match an existing one — the closest sibling to your skill is the right template:
+7. **Mandatory PHPUnit integration tests** — `tests/integration/test-<verb>.php` already exists; extend its data provider with the new subject and add per-subject assertions for the data layer. The coverage guard in `tests/integration/test-ability-registration.php` is per-verb-tool, not per-subject.
 
-| Template file | When to copy it |
-|---|---|
-| `test-get-revenue-summary.php` | Simple fetch + comparison-period shape |
-| `test-get-orders-summary.php` | Three-view (metrics / pipeline / admin_equivalent) |
-| `test-get-product-performance.php` | Group-by dimensions + time-series interval |
-| `test-get-attribution.php` | Group-by + unassigned + device/source dimensions |
-| `test-get-customer-overview.php` | New vs returning splits + interval trends |
-| `test-get-customer-value.php` | LTV / cohort / hybrid-frame shape |
+### What every test extension looks like
 
-Shared shape every test file follows:
+For data-layer assertions, look at the existing per-subject integration tests in `tests/integration/` — they call `AnalyticsController::fetch_*` directly and pin response invariants against fixture data. For verb-tool wiring (schema validation, dispatch routing, telemetry payload), extend the matching `test-<verb>.php` file's subject-routing data provider and add per-subject assertions on the result.
+
+Shared shape every per-subject data-layer test follows:
 
 1. **File-level docblock** pinning the invariants this test class guards.
 2. **`use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;`** — provides `seed_customer()`, `seed_paid_order()`, `seed_refund_order()`, etc.
 3. **`set_up()`** seeds the deterministic fixture for all tests in the class.
-4. **`run_ability( array $input )` helper** — one-line wrapper over `wp_get_ability( 'wc-analytics/…' )->execute(…)`.
+4. **Direct `AnalyticsController::fetch_<subject>(...)` calls** — verb-tool wiring is exercised separately in `test-<verb>.php`.
 5. **One `test_*` method per invariant** — one assertion cluster per question the merchant will ask.
 
-Also update two static-sweep constants:
+Also update two static-sweep constants when adding any new MCP tool:
 
 - Add the new ability ID to `Test_Ability_Registration::EXPECTED_ABILITY_IDS`.
-- Add the new skill's snake-case name to `Test_Ability_Description_Guardrails::REGISTERED_TOOL_REFERENCES` so any existing description that references the new skill as a follow-up passes the drill-down validation sweep.
+- Add the new tool's name to `Test_Ability_Description_Guardrails::REGISTERED_TOOL_REFERENCES` if any existing describe references it via a `→` follow-up arrow.
 
 Run `./bin/check` before the second commit to confirm the full PHPUnit suite passes.
 

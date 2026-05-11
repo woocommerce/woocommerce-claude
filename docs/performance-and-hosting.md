@@ -34,9 +34,9 @@ Six query shapes account for almost all the risk. Each row below: what makes it 
 
 **What to do:** prefer the built-in period values (`last_30_days`, `last_90_days`, `this_year`) or keep custom date ranges under 12 months. Chunk longer windows year-by-year if needed.
 
-### 2. High-cardinality `group_by`
+### 2. High-cardinality dimensions on breakdown
 
-**Why it's expensive:** even though every skill caps returned rows at 50, the underlying `GROUP BY` still aggregates across every distinct value before the top-N slice. `get_attribution group_by=term` on a store with thousands of organic search terms is the classic case.
+**Why it's expensive:** even though every dimension caps returned rows at 50, the underlying `GROUP BY` still aggregates across every distinct value before the top-N slice. `wc-analytics-breakdown` `subject=attribution, dimension=term` on a store with thousands of organic search terms is the classic case.
 
 **Who's most at risk:** stores with heavy organic / paid search traffic, wide geographic spread (100+ countries), or high-cardinality UTM content dimensions.
 
@@ -44,7 +44,7 @@ Six query shapes account for almost all the risk. Each row below: what makes it 
 
 ### 3. Product-level grouping on large catalogues
 
-**Why it's expensive:** `get_product_performance` and `get_refund_analysis group_by=product` scan the product lookup table, which is joined to order lines. A 50k-SKU store with 500k+ orders is a big join.
+**Why it's expensive:** `wc-analytics-breakdown` `subject=products` and `subject=refunds, dimension=product` scan the product lookup table, which is joined to order lines. A 50k-SKU store with 500k+ orders is a big join.
 
 **Who's most at risk:** large catalogues on shared hosting without an object cache.
 
@@ -68,7 +68,7 @@ Six query shapes account for almost all the risk. Each row below: what makes it 
 
 ### 6. Rapid-fire AI chains
 
-**Why it's expensive:** Claude sometimes fires several tools in sequence to answer one question — e.g. "how did I do this quarter?" might trigger `get_revenue_summary`, `get_orders_summary`, and `get_attribution` back-to-back. First call of each hits SQL; subsequent identical calls are cached.
+**Why it's expensive:** Claude sometimes fires several tools in sequence to answer one question — e.g. "how did I do this quarter?" might trigger `wc-analytics-totals` (subject=revenue), `wc-analytics-totals` (subject=orders), and `wc-analytics-breakdown` (subject=attribution) back-to-back. First call of each hits SQL; subsequent identical calls are cached.
 
 **Who's most at risk:** no one structurally — this is bounded by the tool count per skill. Worth being aware of if server response times already feel tight.
 
