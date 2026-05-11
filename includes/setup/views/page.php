@@ -33,11 +33,11 @@ defined( 'ABSPATH' ) || exit;
 use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
-$credential        = $key_state['credential'] ?? '';
-$has_key           = null !== $key_state;
-$server_slug       = SetupPage::server_slug();
-$remote_pkg        = SetupPage::REMOTE_PACKAGE;
-$default_key_desc  = RestApiKey::KEY_DESCRIPTION;
+$credential       = $key_state['credential'] ?? '';
+$has_key          = null !== $key_state;
+$server_slug      = SetupPage::server_slug();
+$remote_pkg       = SetupPage::REMOTE_PACKAGE;
+$default_key_desc = RestApiKey::KEY_DESCRIPTION;
 
 list( $api_username, $api_password ) = '' === $credential
 	? array( 'ck_xxx', 'cs_xxx' )
@@ -70,13 +70,13 @@ $claude_code_command = sprintf(
 );
 
 $notices = array(
-	'key_generated'      => array( 'success', __( 'API key generated and ready to use with Claude.', 'woocommerce-claude' ) ),
-	'key_exists'         => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
-	'key_required'       => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'woocommerce-claude' ) ),
-	'key_regenerated'    => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
-	'key_failed'         => array( 'error', __( 'Could not provision the API key. Check the error log.', 'woocommerce-claude' ) ),
-	'disconnected'       => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
-	'ownership_changed'  => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
+	'key_generated'     => array( 'success', __( 'API key generated and ready to use with Claude.', 'woocommerce-claude' ) ),
+	'key_exists'        => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
+	'key_required'      => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'woocommerce-claude' ) ),
+	'key_regenerated'   => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
+	'key_failed'        => array( 'error', __( 'Could not provision the API key. Check the error log.', 'woocommerce-claude' ) ),
+	'disconnected'      => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
+	'ownership_changed' => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
 );
 
 $download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
