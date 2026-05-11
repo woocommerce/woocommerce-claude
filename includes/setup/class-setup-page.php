@@ -474,7 +474,7 @@ class SetupPage {
 		$sec  = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && '' === $sec;
+		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && ( '' === $sec || 'setup' === $sec );
 	}
 
 	/**
