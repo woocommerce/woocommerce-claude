@@ -1,5 +1,5 @@
 /**
- * Shared TypeScript interfaces for the Hey Woo conversational assistant.
+ * Shared TypeScript interfaces for the WooCommerce for Claude conversational assistant.
  */
 
 /**
@@ -12,7 +12,7 @@ export interface ChatMessage {
 }
 
 /**
- * Top-level response shape from POST /hey-woo/v1/difm/chat.
+ * Top-level response shape from POST /woocommerce-claude/v1/difm/chat.
  */
 export type ChatResponse =
 	| { status: 'ok'; reply: string }
@@ -21,7 +21,7 @@ export type ChatResponse =
 
 /**
  * Page-load data passed from PHP via wp_localize_script()
- * and read from window.heyWooTodayData (see src/data.ts).
+ * and read from window.woocommerceClaudeTodayData (see src/data.ts).
  */
 export interface ModuleData {
 	nonce: string;

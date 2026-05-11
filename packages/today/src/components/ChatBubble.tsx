@@ -18,7 +18,7 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 			aria-label={ isUser ? 'You' : 'Assistant' }
 		>
 			<span className="hey-woo-bubble__role">
-				{ isUser ? 'You' : 'Hey Woo' }
+				{ isUser ? 'You' : 'WooCommerce for Claude' }
 			</span>
 			{ isUser ? (
 				<p className="hey-woo-bubble__content hey-woo-bubble__content--plain">

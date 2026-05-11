@@ -13,7 +13,7 @@ export function Error( { message, onRetry }: ErrorProps ) {
 		<div className="hey-woo-state hey-woo-state--error">
 			<div className="hey-woo-state__icon" aria-hidden="true">⚠</div>
 			<h2 className="hey-woo-state__heading">
-				{ __( 'Something went wrong', 'hey-woo' ) }
+				{ __( 'Something went wrong', 'woocommerce-claude' ) }
 			</h2>
 			{ message && (
 				<p className="hey-woo-state__detail">{ message }</p>
@@ -23,7 +23,7 @@ export function Error( { message, onRetry }: ErrorProps ) {
 				className="button button-secondary hey-woo-state__cta"
 				onClick={ onRetry }
 			>
-				{ __( 'Try again', 'hey-woo' ) }
+				{ __( 'Try again', 'woocommerce-claude' ) }
 			</button>
 		</div>
 	);

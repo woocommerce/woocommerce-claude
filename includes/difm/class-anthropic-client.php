@@ -1,16 +1,16 @@
 <?php
 /**
- * Thin Anthropic API client for Hey Woo DIFM tier.
+ * Thin Anthropic API client for WooCommerce for Claude AI Insights.
  *
  * Uses `wp_remote_post()` directly — no SDK dependency. The abstraction
  * boundary is intentionally here: if WordPress ships a first-party AI client
  * (`wp_ai_client_prompt`) in a future release, swapping to it is a
  * one-file change.
  *
- * @package HeyWoo\Difm
+ * @package WooCommerce\Claude\Difm
  */
 
-namespace HeyWoo\Difm;
+namespace WooCommerce\Claude\Difm;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -32,9 +32,9 @@ class AnthropicClient {
 	const API_VERSION = '2023-06-01';
 
 	/**
-	 * Default model used for all Hey Woo DIFM calls.
+	 * Default model used for all WooCommerce for Claude AI Insights calls.
 	 *
-	 * Override via the `hey_woo_difm_model` filter.
+	 * Override via the `woocommerce_claude_difm_model` filter.
 	 */
 	const MODEL = 'claude-sonnet-4-5';
 
@@ -50,14 +50,23 @@ class AnthropicClient {
 	 * Return the Anthropic API key in use.
 	 *
 	 * Priority:
-	 *   1. `HEY_WOO_ANTHROPIC_KEY` PHP constant (key never touches the DB)
-	 *   2. `hey_woo_anthropic_api_key` wp_options value
+	 *   1. `WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY` PHP constant (key never touches the DB)
+	 *   2. `woocommerce_claude_anthropic_api_key` wp_options value
 	 *
 	 * @return string Empty string when no key is configured.
 	 */
 	public static function get_api_key() {
+		if ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) ) {
+			return (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY;
+		}
+
 		if ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) ) {
 			return (string) HEY_WOO_ANTHROPIC_KEY;
+		}
+
+		$current_key = (string) get_option( 'woocommerce_claude_anthropic_api_key', '' );
+		if ( '' !== $current_key ) {
+			return $current_key;
 		}
 
 		return (string) get_option( 'hey_woo_anthropic_api_key', '' );
@@ -84,17 +93,17 @@ class AnthropicClient {
 	public function messages( array $messages, $system = '', array $tools = array(), $max_tokens = 4096 ) {
 		$api_key = self::get_api_key();
 		if ( '' === $api_key ) {
-			return new \WP_Error( 'no_api_key', __( 'No Anthropic API key is configured.', 'hey-woo' ) );
+			return new \WP_Error( 'no_api_key', __( 'No Anthropic API key is configured.', 'woocommerce-claude' ) );
 		}
 
 		/**
-		 * Filter the model used for Hey Woo DIFM inference calls.
+		 * Filter the model used for WooCommerce for Claude AI Insights calls.
 		 *
 		 * @since 0.2.0
 		 *
 		 * @param string $model Anthropic model identifier.
 		 */
-		$model = (string) apply_filters( 'hey_woo_difm_model', self::MODEL );
+		$model = (string) apply_filters( 'woocommerce_claude_difm_model', self::MODEL );
 
 		$body = array(
 			'model'      => $model,
@@ -134,7 +143,7 @@ class AnthropicClient {
 		if ( ! is_array( $decoded_body ) ) {
 			return new \WP_Error(
 				'invalid_response',
-				__( 'Anthropic returned an unexpected response format.', 'hey-woo' )
+				__( 'Anthropic returned an unexpected response format.', 'woocommerce-claude' )
 			);
 		}
 
@@ -143,7 +152,7 @@ class AnthropicClient {
 		if ( isset( $decoded_body['type'] ) && 'error' === $decoded_body['type'] ) {
 			$error_message = isset( $decoded_body['error']['message'] )
 				? (string) $decoded_body['error']['message']
-				: __( 'Unknown Anthropic error.', 'hey-woo' );
+				: __( 'Unknown Anthropic error.', 'woocommerce-claude' );
 
 			return new \WP_Error(
 				'anthropic_error',
@@ -157,7 +166,7 @@ class AnthropicClient {
 				'http_error',
 				sprintf(
 					/* translators: %d: HTTP status code */
-					__( 'Anthropic API returned HTTP %d.', 'hey-woo' ),
+					__( 'Anthropic API returned HTTP %d.', 'woocommerce-claude' ),
 					$status_code
 				),
 				array( 'status' => $status_code )
@@ -178,7 +187,7 @@ class AnthropicClient {
 	public static function validate_key( $key ) {
 		$key = (string) $key;
 		if ( '' === $key ) {
-			return new \WP_Error( 'empty_key', __( 'API key must not be empty.', 'hey-woo' ) );
+			return new \WP_Error( 'empty_key', __( 'API key must not be empty.', 'woocommerce-claude' ) );
 		}
 
 		$response = wp_remote_post(
@@ -216,14 +225,14 @@ class AnthropicClient {
 		if ( 401 === $status_code ) {
 			return new \WP_Error(
 				'invalid_key',
-				__( 'Invalid API key — Anthropic returned 401.', 'hey-woo' )
+				__( 'Invalid API key — Anthropic returned 401.', 'woocommerce-claude' )
 			);
 		}
 
 		if ( is_array( $decoded_body ) && isset( $decoded_body['type'] ) && 'error' === $decoded_body['type'] ) {
 			$error_message = isset( $decoded_body['error']['message'] )
 				? (string) $decoded_body['error']['message']
-				: __( 'Unknown Anthropic error.', 'hey-woo' );
+				: __( 'Unknown Anthropic error.', 'woocommerce-claude' );
 
 			return new \WP_Error( 'anthropic_error', $error_message );
 		}
@@ -238,7 +247,7 @@ class AnthropicClient {
 			'http_error',
 			sprintf(
 				/* translators: %d: HTTP status code */
-				__( 'Anthropic API returned HTTP %d.', 'hey-woo' ),
+				__( 'Anthropic API returned HTTP %d.', 'woocommerce-claude' ),
 				$status_code
 			)
 		);

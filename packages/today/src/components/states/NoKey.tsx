@@ -11,19 +11,19 @@ export function NoKey() {
 		<div className="hey-woo-state hey-woo-state--no-key">
 			<div className="hey-woo-state__icon" aria-hidden="true">🔑</div>
 			<h2 className="hey-woo-state__heading">
-				{ __( 'Add your Anthropic API key to get started', 'hey-woo' ) }
+				{ __( 'Add your Anthropic API key to get started', 'woocommerce-claude' ) }
 			</h2>
 			<p className="hey-woo-state__message">
 				{ __(
-					"Paste your Anthropic API key and Hey Woo will answer questions about your store's performance, orders, and customers — no Claude Desktop required.",
-					'hey-woo'
+					"Paste your Anthropic API key and WooCommerce for Claude will answer questions about your store's performance, orders, and customers — no Claude Desktop required.",
+					'woocommerce-claude'
 				) }
 			</p>
 			<a
 				href={ settingsUrl }
 				className="button button-primary hey-woo-state__cta"
 			>
-				{ __( 'Add API key in Settings', 'hey-woo' ) }
+				{ __( 'Add API key in Settings', 'woocommerce-claude' ) }
 			</a>
 		</div>
 	);

@@ -2,10 +2,10 @@
 /**
  * Integration tests for the DIFM settings field.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\Settings\SettingsPage;
+use WooCommerce\Claude\Settings\SettingsPage;
 
 /**
  * Tests for SettingsPage DIFM API-key handling.
@@ -28,9 +28,9 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$_POST = array();
 
 		if ( $this->settings_page ) {
-			remove_action( 'woocommerce_admin_field_hey_woo_api_key', array( $this->settings_page, 'render_api_key_field' ) );
+			remove_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this->settings_page, 'render_api_key_field' ) );
 			remove_filter( 'woocommerce_admin_settings_sanitize_option_' . SettingsPage::DIFM_API_KEY_OPTION, array( $this->settings_page, 'sanitize_api_key_option' ), 10 );
-			remove_action( 'woocommerce_settings_save_hey-woo', array( $this->settings_page, 'validate_api_key_on_save' ) );
+			remove_action( 'woocommerce_settings_save_woocommerce-claude', array( $this->settings_page, 'validate_api_key_on_save' ) );
 		}
 
 		parent::tear_down();

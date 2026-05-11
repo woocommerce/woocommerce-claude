@@ -9,10 +9,10 @@ export function Loading() {
 		<div className="hey-woo-state hey-woo-state--loading">
 			<Spinner />
 			<p className="hey-woo-state__message">
-				{ __( 'Generating your briefing…', 'hey-woo' ) }
+				{ __( 'Generating your briefing…', 'woocommerce-claude' ) }
 			</p>
 			<p className="hey-woo-state__sub">
-				{ __( 'This may take up to 20 seconds on the first visit of the day.', 'hey-woo' ) }
+				{ __( 'This may take up to 20 seconds on the first visit of the day.', 'woocommerce-claude' ) }
 			</p>
 		</div>
 	);

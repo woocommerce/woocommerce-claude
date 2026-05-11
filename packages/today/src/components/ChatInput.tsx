@@ -39,19 +39,19 @@ export function ChatInput( { onSend, disabled }: ChatInputProps ) {
 				value={ value }
 				onChange={ ( e ) => setValue( e.target.value ) }
 				onKeyDown={ handleKeyDown }
-				placeholder={ __( 'Ask about your store…', 'hey-woo' ) }
+				placeholder={ __( 'Ask about your store…', 'woocommerce-claude' ) }
 				rows={ 2 }
 				disabled={ disabled }
-				aria-label={ __( 'Chat message', 'hey-woo' ) }
+				aria-label={ __( 'Chat message', 'woocommerce-claude' ) }
 			/>
 			<button
 				type="button"
 				className="button button-primary hey-woo-input__send"
 				onClick={ handleSubmit }
 				disabled={ disabled || ! value.trim() }
-				aria-label={ __( 'Send message', 'hey-woo' ) }
+				aria-label={ __( 'Send message', 'woocommerce-claude' ) }
 			>
-				{ disabled ? __( '…', 'hey-woo' ) : __( 'Send', 'hey-woo' ) }
+				{ disabled ? __( '…', 'woocommerce-claude' ) : __( 'Send', 'woocommerce-claude' ) }
 			</button>
 		</div>
 	);

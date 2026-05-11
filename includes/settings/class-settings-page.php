@@ -36,6 +36,11 @@ class SettingsPage extends \WC_Settings_Page {
 	const DIFM_API_KEY_CLEAR_FIELD = 'woocommerce_claude_anthropic_api_key_clear';
 
 	/**
+	 * Legacy option name from the pre-rename branch.
+	 */
+	const LEGACY_DIFM_API_KEY_OPTION = 'hey_woo_anthropic_api_key';
+
+	/**
 	 * Server constant name for the Anthropic key.
 	 */
 	const DIFM_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY';
@@ -132,7 +137,7 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	public function render_api_key_field( $value ) {
 		$has_constant = '' !== $this->get_api_key_constant_name();
-		$stored_key   = (string) get_option( self::DIFM_API_KEY_OPTION, '' );
+		$stored_key   = $this->get_saved_api_key();
 		$field_value  = ( ! $has_constant && '' !== $stored_key ) ? self::DIFM_API_KEY_SENTINEL : '';
 		$field_id     = isset( $value['id'] ) ? $value['id'] : self::DIFM_API_KEY_OPTION;
 		$field_name   = isset( $value['field_name'] ) ? $value['field_name'] : $field_id;
@@ -205,10 +210,11 @@ class SettingsPage extends \WC_Settings_Page {
 
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
+			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 			return null;
 		}
 
-		$current_key   = (string) get_option( self::DIFM_API_KEY_OPTION, '' );
+		$current_key   = $this->get_saved_api_key();
 		$submitted_key = is_string( $raw_value ) ? trim( $raw_value ) : '';
 
 		if ( '' === $submitted_key || self::DIFM_API_KEY_SENTINEL === $submitted_key ) {
@@ -245,6 +251,7 @@ class SettingsPage extends \WC_Settings_Page {
 
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
+			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 			return;
 		}
 
@@ -302,5 +309,19 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Return the saved API key, including the pre-rename option fallback.
+	 *
+	 * @return string Saved API key, or empty string.
+	 */
+	private function get_saved_api_key() {
+		$current_key = (string) get_option( self::DIFM_API_KEY_OPTION, '' );
+		if ( '' !== $current_key ) {
+			return $current_key;
+		}
+
+		return (string) get_option( self::LEGACY_DIFM_API_KEY_OPTION, '' );
 	}
 }

@@ -66,7 +66,7 @@ export function useChat() {
 				setState( ( prev ) => ( {
 					...prev,
 					status: 'error',
-					errorMessage: __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' ),
+					errorMessage: __( 'Something went wrong. Please check your connection and try again.', 'woocommerce-claude' ),
 				} ) );
 				return;
 			}
@@ -106,8 +106,8 @@ export function useChat() {
 				...prev,
 				status: 'error',
 				errorMessage: isAbort
-					? __( 'The request timed out — please try again.', 'hey-woo' )
-					: __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' ),
+					? __( 'The request timed out — please try again.', 'woocommerce-claude' )
+					: __( 'Something went wrong. Please check your connection and try again.', 'woocommerce-claude' ),
 			} ) );
 		}
 	}, [ state.messages ] );

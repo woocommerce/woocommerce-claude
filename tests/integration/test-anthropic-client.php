@@ -2,10 +2,10 @@
 /**
  * Integration tests for AnthropicClient.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\Difm\AnthropicClient;
+use WooCommerce\Claude\Difm\AnthropicClient;
 
 /**
  * Tests for AnthropicClient.
@@ -17,6 +17,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		parent::tear_down();
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		delete_option( 'hey_woo_anthropic_api_key' );
 	}
 
@@ -26,6 +27,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Returns empty string when no key is configured.
 	 */
 	public function test_get_api_key_returns_empty_string_by_default() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		delete_option( 'hey_woo_anthropic_api_key' );
 		$this->assertSame( '', AnthropicClient::get_api_key() );
 	}
@@ -34,7 +36,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Returns the option value when no constant is defined.
 	 */
 	public function test_get_api_key_returns_option_value() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-option-key' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-option-key' );
 		$this->assertSame( 'sk-ant-option-key', AnthropicClient::get_api_key() );
 	}
 
@@ -42,6 +44,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Asserts has_api_key() returns false when no key is set.
 	 */
 	public function test_has_api_key_returns_false_without_key() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		delete_option( 'hey_woo_anthropic_api_key' );
 		$this->assertFalse( AnthropicClient::has_api_key() );
 	}
@@ -50,7 +53,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Asserts has_api_key() returns true when the option is set.
 	 */
 	public function test_has_api_key_returns_true_with_option() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->assertTrue( AnthropicClient::has_api_key() );
 	}
 
@@ -60,6 +63,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Asserts messages() returns WP_Error when no key is configured.
 	 */
 	public function test_messages_returns_wp_error_without_key() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		delete_option( 'hey_woo_anthropic_api_key' );
 		$client = new AnthropicClient();
 		$result = $client->messages(
@@ -81,7 +85,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Asserts messages() returns the decoded response on a 200 success.
 	 */
 	public function test_messages_returns_decoded_response_on_success() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 
 		$mock_response = array(
 			'id'      => 'msg_123',
@@ -131,7 +135,7 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	 * Asserts messages() returns WP_Error when Anthropic returns an error type.
 	 */
 	public function test_messages_returns_wp_error_on_anthropic_error_type() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 
 		$error_body = array(
 			'type'  => 'error',

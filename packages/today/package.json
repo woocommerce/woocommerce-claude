@@ -1,5 +1,5 @@
 {
-  "name": "@hey-woo/today",
+  "name": "@woocommerce-claude/today",
   "version": "1.0.0",
   "private": true,
   "wpScriptModuleExports": "./src/index.tsx",

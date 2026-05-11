@@ -1,5 +1,5 @@
 /**
- * App — root component for the Hey Woo conversational assistant.
+ * App — root component for the WooCommerce for Claude conversational assistant.
  *
  * Renders the full-height chat interface: a scrollable message history
  * above a fixed compose bar. Routes between no-key, error, and chat states.
@@ -34,10 +34,10 @@ export function App() {
 		<div className="hey-woo-page hey-woo-page--chat">
 			<header className="hey-woo-chat-header">
 				<h1 className="hey-woo-chat-header__title">
-					{ __( 'Hey Woo!', 'hey-woo' ) }
+					{ __( 'AI Insights', 'woocommerce-claude' ) }
 				</h1>
 				<p className="hey-woo-chat-header__subtitle">
-					{ __( 'Ask anything about your store', 'hey-woo' ) }
+					{ __( 'Ask anything about your store', 'woocommerce-claude' ) }
 				</p>
 			</header>
 
@@ -46,7 +46,7 @@ export function App() {
 					<p className="hey-woo-messages__empty">
 						{ __(
 							'Ask about revenue, orders, products, customers, or anything else about your store.',
-							'hey-woo'
+							'woocommerce-claude'
 						) }
 					</p>
 				) }
@@ -57,7 +57,7 @@ export function App() {
 
 				{ isSending && (
 					<div className="hey-woo-bubble hey-woo-bubble--assistant hey-woo-bubble--typing" aria-label="Thinking">
-						<span className="hey-woo-bubble__role">Hey Woo</span>
+						<span className="hey-woo-bubble__role">WooCommerce for Claude</span>
 						<span className="hey-woo-typing-indicator" aria-hidden="true">
 							<span />
 							<span />
@@ -68,13 +68,13 @@ export function App() {
 
 				{ state.status === 'error' && (
 					<div className="hey-woo-error-bar" role="alert">
-						<span>{ state.errorMessage || __( 'Something went wrong.', 'hey-woo' ) }</span>
+						<span>{ state.errorMessage || __( 'Something went wrong.', 'woocommerce-claude' ) }</span>
 						<button
 							type="button"
 							className="hey-woo-error-bar__dismiss"
 							onClick={ clearError }
 						>
-							{ __( 'Dismiss', 'hey-woo' ) }
+							{ __( 'Dismiss', 'woocommerce-claude' ) }
 						</button>
 					</div>
 				) }

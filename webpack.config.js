@@ -1,5 +1,5 @@
 /**
- * webpack configuration for the Hey Woo DIFM "Today" page.
+ * webpack configuration for the WooCommerce for Claude DIFM "Today" page.
  *
  * Extends the default @wordpress/scripts config and points the entry at the
  * Today package source, with output landing in build/today/ (the same path

@@ -2,10 +2,10 @@
 /**
  * Integration tests for DifmRestController.
  *
- * @package HeyWoo\Tests
+ * @package WooCommerce\Claude\Tests
  */
 
-use HeyWoo\Difm\DifmRestController;
+use WooCommerce\Claude\Difm\DifmRestController;
 
 /**
  * Tests for DifmRestController.
@@ -44,7 +44,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
-		delete_option( 'hey_woo_anthropic_api_key' );
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		if ( $this->admin_user_id ) {
 			delete_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id );
 		}
@@ -59,8 +59,8 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	public function test_routes_are_registered() {
 		$routes = $this->server->get_routes();
 
-		$this->assertArrayHasKey( '/hey-woo/v1/difm/chat', $routes );
-		$this->assertArrayNotHasKey( '/hey-woo/v1/difm/key/validate', $routes );
+		$this->assertArrayHasKey( '/woocommerce-claude/v1/difm/chat', $routes );
+		$this->assertArrayNotHasKey( '/woocommerce-claude/v1/difm/key/validate', $routes );
 	}
 
 	/**
@@ -83,7 +83,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Unauthenticated requests to POST /difm/chat receive a 403.
 	 */
 	public function test_chat_requires_manage_woocommerce() {
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'Hello' );
 		$response = $this->server->dispatch( $request );
 
@@ -96,11 +96,11 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * POST /difm/chat returns {'status':'no_key'} when no API key is configured.
 	 */
 	public function test_chat_returns_no_key_when_unconfigured() {
-		delete_option( 'hey_woo_anthropic_api_key' );
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
 
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'Hello' );
 		$response = $this->server->dispatch( $request );
 		$data     = $response->get_data();
@@ -115,7 +115,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * POST /difm/chat with a mocked Anthropic response returns {'status':'ok','reply':'...'}.
 	 */
 	public function test_chat_returns_reply_on_success() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		add_filter(
@@ -144,7 +144,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'Hi there' );
 		$response = $this->server->dispatch( $request );
 		$data     = $response->get_data();
@@ -160,7 +160,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * POST /difm/chat passes conversation history to the API.
 	 */
 	public function test_chat_passes_history_to_api() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		$captured_body = null;
@@ -191,7 +191,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'And now?' );
 		$request->set_param(
 			'history',
@@ -220,7 +220,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Chat sends the Anthropic tools derived from ability metadata.
 	 */
 	public function test_chat_sends_metadata_derived_tool_definitions_to_api() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 
 		$captured_body     = null;
@@ -254,7 +254,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'What can you answer?' );
 		$this->server->dispatch( $request );
 
@@ -291,7 +291,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * POST /difm/chat caps conversation history to MAX_HISTORY_TURNS * 2 messages.
 	 */
 	public function test_chat_caps_history_to_max_turns() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		$captured_body = null;
@@ -332,7 +332,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			);
 		}
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'Final question' );
 		$request->set_param( 'history', $history );
 		$this->server->dispatch( $request );
@@ -352,7 +352,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Anthropic rejects the request, rather than an HTTP 500.
 	 */
 	public function test_chat_returns_json_error_on_anthropic_failure() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		add_filter(
@@ -376,7 +376,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'Hello' );
 		$response = $this->server->dispatch( $request );
 		$data     = $response->get_data();
@@ -395,7 +395,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * returns tool_use, PHP executes the tool, second call returns the final reply.
 	 */
 	public function test_chat_executes_tool_use_loop() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		$call_count       = 0;
@@ -457,7 +457,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			3
 		);
 
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', 'What were my sales last week?' );
 		$response = $this->server->dispatch( $request );
 		$data     = $response->get_data();
@@ -487,7 +487,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * A large-range tool error stops the current tool loop and asks for approval.
 	 */
 	public function test_large_range_tool_error_returns_confirmation_without_second_anthropic_call() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 
 		$call_count = 0;
@@ -546,7 +546,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * A following affirmative merchant reply executes the stored request server-side.
 	 */
 	public function test_affirmative_large_range_reply_executes_pending_request() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 		$this->create_pending_large_range_request();
 
@@ -601,7 +601,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Negative and ambiguous replies do not execute the pending request.
 	 */
 	public function test_negative_large_range_reply_does_not_execute_pending_request() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 		$this->create_pending_large_range_request();
 
@@ -631,7 +631,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * Ambiguous replies preserve the pending request and ask for explicit consent.
 	 */
 	public function test_ambiguous_large_range_reply_preserves_pending_request() {
-		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-test' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 		$this->create_pending_large_range_request();
 
@@ -675,7 +675,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	 * @return \WP_REST_Response
 	 */
 	private function dispatch_chat( $message, array $history = array() ) {
-		$request = new \WP_REST_Request( 'POST', '/hey-woo/v1/difm/chat' );
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/chat' );
 		$request->set_param( 'message', $message );
 		if ( ! empty( $history ) ) {
 			$request->set_param( 'history', $history );

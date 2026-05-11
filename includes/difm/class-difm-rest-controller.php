@@ -1,16 +1,16 @@
 <?php
 /**
- * REST controller for Hey Woo DIFM (Do It For Me) endpoints.
+ * REST controller for WooCommerce for Claude AI Insights endpoints.
  *
  * Routes:
- *   POST /hey-woo/v1/difm/chat — Send a chat message; returns Claude's reply.
+ *   POST /woocommerce-claude/v1/difm/chat — Send a chat message; returns Claude's reply.
  *
- * @package HeyWoo\Difm
+ * @package WooCommerce\Claude\Difm
  */
 
-namespace HeyWoo\Difm;
+namespace WooCommerce\Claude\Difm;
 
-use HeyWoo\Abilities\ConfirmLargeRangeAbility;
+use WooCommerce\Claude\Abilities\ConfirmLargeRangeAbility;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -24,7 +24,7 @@ class DifmRestController {
 	/**
 	 * REST namespace.
 	 */
-	const NAMESPACE = 'hey-woo/v1';
+	const NAMESPACE = 'woocommerce-claude/v1';
 
 	/**
 	 * Chat route.
@@ -47,7 +47,7 @@ class DifmRestController {
 	/**
 	 * Transient prefix for pending large-range confirmations.
 	 */
-	const PENDING_LARGE_RANGE_PREFIX = 'hey_woo_difm_large_range_';
+	const PENDING_LARGE_RANGE_PREFIX = 'woocommerce_claude_difm_large_range_';
 
 	/**
 	 * Anthropic-visible tool names mapped to registered WordPress abilities.
@@ -67,12 +67,12 @@ class DifmRestController {
 		'get_tax_summary'         => 'wc-analytics/get-tax-summary',
 		'get_customer_value'      => 'wc-analytics/get-customer-value',
 		'query_analytics'         => 'wc-analytics/query-analytics',
-		'get_product_details'     => 'hey-woo/get-product-details',
-		'search_products'         => 'hey-woo/search-products',
-		'get_store_profile'       => 'hey-woo/get-store-profile',
-		'get_readiness_score'     => 'hey-woo/get-readiness-score',
-		'get_recommendations'     => 'hey-woo/get-recommendations',
-		'suggest_improvements'    => 'hey-woo/suggest-improvements',
+		'get_product_details'     => 'woocommerce-claude/get-product-details',
+		'search_products'         => 'woocommerce-claude/search-products',
+		'get_store_profile'       => 'woocommerce-claude/get-store-profile',
+		'get_readiness_score'     => 'woocommerce-claude/get-readiness-score',
+		'get_recommendations'     => 'woocommerce-claude/get-recommendations',
+		'suggest_improvements'    => 'woocommerce-claude/suggest-improvements',
 	);
 
 	/**
@@ -148,7 +148,7 @@ class DifmRestController {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Permission denied.', 'hey-woo' ),
+				__( 'Permission denied.', 'woocommerce-claude' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -157,13 +157,13 @@ class DifmRestController {
 	}
 
 	/**
-	 * POST /hey-woo/v1/difm/chat — send a message and return Claude's reply.
+	 * POST /woocommerce-claude/v1/difm/chat — send a message and return Claude's reply.
 	 *
 	 * @param \WP_REST_Request $request Incoming request.
 	 * @return \WP_REST_Response
 	 */
 	public function send_chat_message( \WP_REST_Request $request ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		if ( ! AnthropicClient::has_api_key() ) {
 			return rest_ensure_response( array( 'status' => 'no_key' ) );
@@ -181,7 +181,7 @@ class DifmRestController {
 				return rest_ensure_response(
 					array(
 						'status' => 'ok',
-						'reply'  => __( 'No problem — I will not load the larger range. Ask me again with a shorter date range whenever you are ready.', 'hey-woo' ),
+						'reply'  => __( 'No problem — I will not load the larger range. Ask me again with a shorter date range whenever you are ready.', 'woocommerce-claude' ),
 					)
 				);
 			}
@@ -193,7 +193,7 @@ class DifmRestController {
 			return rest_ensure_response(
 				array(
 					'status' => 'ok',
-					'reply'  => __( 'I still need an explicit confirmation before loading the larger range. Reply with "yes, proceed" to continue, or ask for a shorter date range.', 'hey-woo' ),
+					'reply'  => __( 'I still need an explicit confirmation before loading the larger range. Reply with "yes, proceed" to continue, or ask for a shorter date range.', 'woocommerce-claude' ),
 				)
 			);
 		}
@@ -287,7 +287,7 @@ class DifmRestController {
 		return rest_ensure_response(
 			array(
 				'status'  => 'error',
-				'message' => __( 'The assistant took too many steps — please try again.', 'hey-woo' ),
+				'message' => __( 'The assistant took too many steps — please try again.', 'woocommerce-claude' ),
 			)
 		);
 	}
@@ -384,7 +384,7 @@ class DifmRestController {
 				'unknown_tool',
 				sprintf(
 					/* translators: %s: tool name */
-					__( 'Unknown DIFM tool: %s', 'hey-woo' ),
+					__( 'Unknown DIFM tool: %s', 'woocommerce-claude' ),
 					$name
 				),
 				array( 'status' => 400 )
@@ -399,7 +399,7 @@ class DifmRestController {
 				'missing_ability',
 				sprintf(
 					/* translators: %s: ability ID */
-					__( 'The DIFM tool bridge is missing ability metadata for %s.', 'hey-woo' ),
+					__( 'The DIFM tool bridge is missing ability metadata for %s.', 'woocommerce-claude' ),
 					$ability_id
 				),
 				array( 'status' => 500 )
@@ -411,7 +411,7 @@ class DifmRestController {
 		} catch ( \Throwable $e ) {
 			return new \WP_Error(
 				'tool_execution_failed',
-				__( 'Tool execution failed.', 'hey-woo' ),
+				__( 'Tool execution failed.', 'woocommerce-claude' ),
 				array( 'status' => 500 )
 			);
 		}
@@ -439,7 +439,7 @@ class DifmRestController {
 					'missing_ability',
 					sprintf(
 						/* translators: %s: ability ID */
-						__( 'The DIFM tool bridge is missing ability metadata for %s.', 'hey-woo' ),
+						__( 'The DIFM tool bridge is missing ability metadata for %s.', 'woocommerce-claude' ),
 						$ability_id
 					),
 					array( 'status' => 500 )
@@ -451,7 +451,7 @@ class DifmRestController {
 					'invalid_ability_metadata',
 					sprintf(
 						/* translators: %s: ability ID */
-						__( 'The DIFM tool bridge cannot read metadata for %s.', 'hey-woo' ),
+						__( 'The DIFM tool bridge cannot read metadata for %s.', 'woocommerce-claude' ),
 						$ability_id
 					),
 					array( 'status' => 500 )
@@ -609,14 +609,14 @@ class DifmRestController {
 		if ( isset( $estimate['range_days'], $estimate['months'], $estimate['threshold'] ) ) {
 			return sprintf(
 				/* translators: 1: days, 2: months, 3: threshold days */
-				__( 'That request covers %1$d days (%2$d months), which is larger than the usual %3$d-day safety limit and may briefly affect site performance. Reply "yes, proceed" to load the full range, or ask me for a shorter date range.', 'hey-woo' ),
+				__( 'That request covers %1$d days (%2$d months), which is larger than the usual %3$d-day safety limit and may briefly affect site performance. Reply "yes, proceed" to load the full range, or ask me for a shorter date range.', 'woocommerce-claude' ),
 				(int) $estimate['range_days'],
 				(int) $estimate['months'],
 				(int) $estimate['threshold']
 			);
 		}
 
-		return __( 'That request covers a larger range than usual and may briefly affect site performance. Reply "yes, proceed" to load the full range, or ask me for a shorter date range.', 'hey-woo' );
+		return __( 'That request covers a larger range than usual and may briefly affect site performance. Reply "yes, proceed" to load the full range, or ask me for a shorter date range.', 'woocommerce-claude' );
 	}
 
 	/**
@@ -659,7 +659,7 @@ class DifmRestController {
 			return rest_ensure_response(
 				array(
 					'status' => 'ok',
-					'reply'  => __( 'The previous large-range request could not be safely restored. Please ask again with the date range you want.', 'hey-woo' ),
+					'reply'  => __( 'The previous large-range request could not be safely restored. Please ask again with the date range you want.', 'woocommerce-claude' ),
 				)
 			);
 		}
@@ -671,7 +671,7 @@ class DifmRestController {
 			return rest_ensure_response(
 				array(
 					'status' => 'ok',
-					'reply'  => __( 'The approval window has expired. Please ask again and I will show a fresh estimate before loading the larger range.', 'hey-woo' ),
+					'reply'  => __( 'The approval window has expired. Please ask again and I will show a fresh estimate before loading the larger range.', 'woocommerce-claude' ),
 				)
 			);
 		}
@@ -725,7 +725,7 @@ class DifmRestController {
 		return rest_ensure_response(
 			array(
 				'status' => 'ok',
-				'reply'  => '' === $reply ? __( 'I loaded the full range, but could not summarise the result. Please try again.', 'hey-woo' ) : $reply,
+				'reply'  => '' === $reply ? __( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' ) : $reply,
 			)
 		);
 	}
