@@ -23,7 +23,6 @@
  */
 
 use WooCommerce\Claude\Abilities\LargeRangeGate;
-use WooCommerce\Claude\Abilities\GetDataAbility;
 use WooCommerce\Claude\Abilities\ConfirmLargeRangeAbility;
 use WooCommerce\Claude\API\AnalyticsController;
 
@@ -473,98 +472,9 @@ class Test_Large_Range_Gate extends WP_UnitTestCase {
 		$this->assertTrue( $approved, 'approve_scan with date-only strings should find the pending transient.' );
 	}
 
-	// ─── End-to-end via GetDataAbility ───────────────────────────────
-
-	/**
-	 * GetDataAbility: long range fires extended_range_required with session gate shape.
-	 */
-	public function test_get_data_ability_long_range_fires_gate() {
-		$result = GetDataAbility::execute(
-			array(
-				'type'   => 'product_performance',
-				'params' => array(
-					'date_start' => '2022-01-01',
-					'date_end'   => '2024-12-31',
-				),
-			)
-		);
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'extended_range_required', $result->get_error_code() );
-
-		$data = $result->get_error_data();
-		$this->assertTrue( $data['confirmation_required'] );
-		// Session gate must not leak a confirmation_token.
-		$this->assertArrayNotHasKey( 'confirmation_token', $data );
-	}
-
-	/**
-	 * GetDataAbility: after approve_scan, the gate passes and data is returned.
-	 */
-	public function test_get_data_ability_passes_after_approval() {
-		$start = '2022-01-01';
-		$end   = '2024-12-31';
-
-		// Trigger gate (mints pending transient).
-		GetDataAbility::execute(
-			array(
-				'type'   => 'product_performance',
-				'params' => array(
-					'date_start' => $start,
-					'date_end'   => $end,
-				),
-			)
-		);
-
-		// Approve (as confirm-large-range would — must pass the same type).
-		LargeRangeGate::approve_scan( $start, $end, 'product_performance' );
-
-		// Retry — gate should pass and return data.
-		$result = GetDataAbility::execute(
-			array(
-				'type'   => 'product_performance',
-				'params' => array(
-					'date_start' => $start,
-					'date_end'   => $end,
-				),
-			)
-		);
-
-		$this->assertFalse( is_wp_error( $result ), 'After approval, get-data should return data, not WP_Error.' );
-		$this->assertIsArray( $result );
-		$this->assertArrayHasKey( 'period', $result );
-	}
-
-	/**
-	 * GetDataAbility: short range (≤ 365 days) never fires the gate.
-	 */
-	public function test_get_data_ability_short_range_never_gated() {
-		$result = GetDataAbility::execute(
-			array(
-				'type'   => 'orders_summary',
-				'params' => array(
-					'date_start' => '2025-01-01',
-					'date_end'   => '2025-12-31',
-				),
-			)
-		);
-
-		$this->assertFalse( is_wp_error( $result ), 'Short range via get-data should not be gated.' );
-		$this->assertIsArray( $result );
-	}
-
-	/**
-	 * GetDataAbility: unknown type returns invalid_analytics_type error.
-	 */
-	public function test_get_data_ability_unknown_type_returns_error() {
-		$result = GetDataAbility::execute(
-			array(
-				'type'   => 'not_a_real_type',
-				'params' => array(),
-			)
-		);
-
-		$this->assertWPError( $result );
-		$this->assertSame( 'invalid_analytics_type', $result->get_error_code() );
-	}
+	// End-to-end gate coverage through the verb-tool surface lives in
+	// tests/integration/test-analytics-{totals,breakdown,series}.php and
+	// the cross-tool collision regression a few methods above. The legacy
+	// router (GetDataAbility) and its dedicated end-to-end tests were
+	// removed at 0.2.0.
 }

@@ -77,15 +77,12 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			'woocommerce-claude-get-product-details',
 			'woocommerce-claude-search-products',
 			'woocommerce-claude-suggest-improvements',
-			// Verb-shaped analytics tools — primary surface.
+			// Verb-shaped analytics tools + the gate-confirmation helper.
 			'wc-analytics-totals',
 			'wc-analytics-breakdown',
 			'wc-analytics-series',
 			'wc-analytics-rows',
-			// Helpers + legacy router (still registered during the transitional surface).
-			'wc-analytics-describe',
 			'wc-analytics-confirm-large-range',
-			'wc-analytics-get-data',
 		);
 
 		foreach ( $expected as $tool_name ) {

@@ -71,21 +71,7 @@ class Test_Ability_Description_Guardrails extends WP_UnitTestCase {
 	 * @var array<int, string>
 	 */
 	const REGISTERED_TOOL_REFERENCES = array(
-		// wc-analytics/* — snake-case as referenced in follow-up blocks.
-		'get_data',
-		'confirm_large_range',
-		'get_revenue_summary',
-		'get_orders_summary',
-		'get_product_performance',
-		'get_customer_overview',
-		'get_customer_value',
-		'get_attribution',
-		'get_revenue_breakdown',
-		'get_coupon_performance',
-		'get_refund_analysis',
-		'get_tax_summary',
-		'query_analytics',
-		// woocommerce-claude/*.
+		// woocommerce-claude/* — snake_case as referenced in follow-up blocks.
 		'get_store_profile',
 		'search_products',
 		'get_product_details',

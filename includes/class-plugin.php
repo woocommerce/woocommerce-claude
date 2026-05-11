@@ -84,26 +84,11 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-large-range-gate.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-confirm-large-range-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-describe-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-data-ability.php';
-		// Verb-shaped tools — totals/breakdown/series/rows. Live alongside the
-		// legacy 11-type get-data router; PR 3 of the surface pivot removes
-		// the legacy abilities and bumps to 0.2.0.
+		// Verb-shaped analytics tools — totals / breakdown / series / rows.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-totals-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-breakdown-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-series-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-rows-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-revenue-summary-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-orders-summary-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-product-performance-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-customer-overview-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-attribution-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-customer-value-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-revenue-breakdown-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-coupon-performance-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-refund-analysis-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-get-tax-summary-ability.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-query-analytics-ability.php';
 
 		// External-integration abilities (woocommerce-claude-integrations/*) — dev/local only.
 		// The GA4 ability is a prototype scaffold; only register it in local and
@@ -571,11 +556,9 @@ INSTRUCTIONS;
 	/**
 	 * Tool ability IDs to expose on our MCP server.
 	 *
-	 * Curated rather than namespace-derived: only the three top-level
-	 * `wc-analytics/*` routing tools (get-data, describe, confirm-large-range)
-	 * are exposed; the individual analytics abilities remain registered in
-	 * the WP Abilities API so `wc-analytics/describe` can read their
-	 * documentation, but are intentionally hidden from the MCP tool list.
+	 * The four verb-shaped analytics tools (totals / breakdown / series /
+	 * rows) plus the confirmation helper for the 365-day gate. The legacy
+	 * 11-type get-data router was retired at 0.2.0.
 	 *
 	 * @return array<int, string>
 	 */
@@ -588,18 +571,12 @@ INSTRUCTIONS;
 			Abilities\GetProductDetailsAbility::ABILITY_NAME,
 			Abilities\SearchProductsAbility::ABILITY_NAME,
 			Abilities\SuggestImprovementsAbility::ABILITY_NAME,
-			// wc-analytics/* — three top-level routing tools.
-			Abilities\GetDataAbility::ABILITY_NAME,
-			Abilities\DescribeAbility::ABILITY_NAME,
-			Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
-			// Verb-shaped tools, additive in PR 1 of the surface pivot.
-			// Models will see seven analytics tools during the transition;
-			// PR 3 removes the legacy four (get-data, get-revenue-summary,
-			// etc.) and leaves the four below + describe + confirm.
+			// wc-analytics/* — four verb-shaped tools + confirm-large-range.
 			Abilities\AnalyticsTotalsAbility::ABILITY_NAME,
 			Abilities\AnalyticsBreakdownAbility::ABILITY_NAME,
 			Abilities\AnalyticsSeriesAbility::ABILITY_NAME,
 			Abilities\AnalyticsRowsAbility::ABILITY_NAME,
+			Abilities\ConfirmLargeRangeAbility::ABILITY_NAME,
 		);
 
 		// woocommerce-claude-integrations/* — dev/local only. The class is loaded under

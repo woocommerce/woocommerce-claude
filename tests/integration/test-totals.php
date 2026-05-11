@@ -34,7 +34,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/totals verb-shaped ability.
  */
-class Test_Analytics_Totals extends WP_UnitTestCase {
+class Test_Totals extends WP_UnitTestCase {
 
 	/**
 	 * Direct `add_action` listener — captures every emission of

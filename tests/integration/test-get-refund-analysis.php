@@ -358,13 +358,18 @@ class Test_Get_Refund_Analysis extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-refund-analysis' );
-		$this->assertNotNull( $ability, 'get-refund-analysis ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_refund_analysis(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'],
+			$input['group_by'],
+			$input['limit'],
+			$input['include_unassigned']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_refund_analysis returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

@@ -185,22 +185,30 @@ class Test_Query_Analytics_Engine_Regressions extends WP_UnitTestCase {
 	private function run_ability( array $input = array() ) {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$this->assertNotNull( $ability, 'query-analytics ability not registered' );
+		$input = array_merge(
+			array(
+				'entity'     => 'orders',
+				'date_start' => $this->period_start,
+				'date_end'   => $this->period_end,
+			),
+			$input
+		);
 
-		$result = $ability->execute(
-			array_merge(
-				array(
-					'entity'     => 'orders',
-					'date_start' => $this->period_start,
-					'date_end'   => $this->period_end,
-				),
-				$input
-			)
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			$input['entity'],
+			$input['filters'] ?? array(),
+			$input['match'] ?? 'all',
+			$input['period'] ?? 'last_30_days',
+			$input['date_start'] ?? null,
+			$input['date_end'] ?? null,
+			$input['mode'] ?? 'aggregate',
+			$input['limit'] ?? 25,
+			$input['orderby'] ?? '',
+			$input['order'] ?? 'DESC'
 		);
 
 		if ( is_wp_error( $result ) ) {
-			$this->fail( 'query-analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
+			$this->fail( 'fetch_query_analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
 		}
 
 		return $result;
@@ -362,20 +370,23 @@ class Test_Query_Analytics_Engine_Regressions extends WP_UnitTestCase {
 	public function test_untranslatable_filter_surfaces_as_wp_error() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$result  = $ability->execute(
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			'orders',
 			array(
-				'entity'     => 'orders',
-				'date_start' => $this->period_start,
-				'date_end'   => $this->period_end,
-				'filters'    => array(
-					array(
-						'field'    => 'product_id',
-						'operator' => 'between',
-						'value'    => array( $this->p1, $this->p2 ),
-					),
+				array(
+					'field'    => 'product_id',
+					'operator' => 'between',
+					'value'    => array( $this->p1, $this->p2 ),
 				),
-			)
+			),
+			'all',
+			'last_30_days',
+			$this->period_start,
+			$this->period_end,
+			'aggregate',
+			25,
+			'',
+			'DESC'
 		);
 
 		$this->assertInstanceOf(

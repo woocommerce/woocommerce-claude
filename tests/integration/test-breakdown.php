@@ -33,7 +33,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/breakdown verb-shaped ability.
  */
-class Test_Analytics_Breakdown extends WP_UnitTestCase {
+class Test_Breakdown extends WP_UnitTestCase {
 
 	/**
 	 * Direct listener — sees legacy + enriched.

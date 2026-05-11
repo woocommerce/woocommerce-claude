@@ -57,27 +57,12 @@ class AbilitiesBootstrap {
 			return;
 		}
 
-		DescribeAbility::register();
-		GetDataAbility::register();
+		// Verb-shaped analytics tools — totals / breakdown / series / rows.
 		ConfirmLargeRangeAbility::register();
-		// Verb-shaped tools — totals/breakdown/series/rows. Land alongside
-		// the legacy 11-type get-data router during the transition; PR 3
-		// of the surface pivot removes the legacy abilities.
 		AnalyticsTotalsAbility::register();
 		AnalyticsBreakdownAbility::register();
 		AnalyticsSeriesAbility::register();
 		AnalyticsRowsAbility::register();
-		GetRevenueSummaryAbility::register();
-		GetOrdersSummaryAbility::register();
-		GetProductPerformanceAbility::register();
-		GetCustomerOverviewAbility::register();
-		GetAttributionAbility::register();
-		GetCustomerValueAbility::register();
-		GetRevenueBreakdownAbility::register();
-		GetCouponPerformanceAbility::register();
-		GetRefundAnalysisAbility::register();
-		GetTaxSummaryAbility::register();
-		QueryAnalyticsAbility::register();
 
 		// External integrations (woocommerce-claude-integrations/*) — dev/local only.
 		// Prototype scaffold; only register in local/development so merchants

@@ -31,7 +31,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/series verb-shaped ability.
  */
-class Test_Analytics_Series extends WP_UnitTestCase {
+class Test_Series extends WP_UnitTestCase {
 
 	/**
 	 * Direct listener — sees legacy + enriched.
