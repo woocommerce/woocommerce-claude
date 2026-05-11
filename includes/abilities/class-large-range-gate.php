@@ -177,11 +177,11 @@ class LargeRangeGate {
 			'extended_range_required',
 			"This request covers a large date range — {$range_days} days ({$months} months) — and may temporarily impact your site's performance while the query runs.\n\n"
 			. "STOP. Present the cost estimate below and ask the merchant which option they prefer:\n\n"
-			. "(1) Load the full {$months}-month history: call confirm_large_range with date_start, date_end, and type, then call wc-analytics/get-data again with the same params.\n"
+			. "(1) Load the full {$months}-month history: call wc-analytics-confirm-large-range with the same date_start, date_end, and type as the failing call, then re-run the same analytics call (verb tool or legacy router) with the same params.\n"
 			. "(2) Narrow to a shorter range: ask the merchant to pick a start date within the last 12 months.\n\n"
 			. 'ANTI-SPLITTING RULE: Do NOT split this date range into yearly, quarterly, or monthly chunks to avoid the gate. '
-			. "Call confirm_large_range for the full intended range instead.\n\n"
-			. 'IMPORTANT: Do NOT call confirm_large_range autonomously. It must only be called after the merchant says yes.',
+			. "Confirm and re-run for the full intended range instead.\n\n"
+			. 'IMPORTANT: Do NOT call wc-analytics-confirm-large-range autonomously. It must only be called after the merchant says yes.',
 			array(
 				'status'                => 400,
 				'confirmation_required' => true,
