@@ -27,7 +27,7 @@ namespace WooCommerce\Claude\API;
 
 defined( 'ABSPATH' ) || exit;
 
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Every $wpdb->prepare() call in this file builds variable-length IN-clause placeholders dynamically with $ph = implode(',', array_fill(0, count($values), '%s')) and supplies the matching values through array_merge() into the second arg. The interpolated $ph variables only ever contain %s tokens, never user input. PHPCS doesn't recognise this standard pattern for IN-clause prepares.
+// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- Every $wpdb->prepare() call in this file builds variable-length IN-clause placeholders dynamically with $ph = implode(',', array_fill(0, count($values), '%s')) and supplies the matching values through array_merge() into the second arg. The interpolated $ph variables only ever contain %s tokens, never user input. PHPCS doesn't recognise this standard pattern for IN-clause prepares.
 
 /**
  * Shared analytics data-access layer.
@@ -121,6 +121,16 @@ class AnalyticsController {
 	 * Cache TTL in seconds (1 hour).
 	 */
 	const CACHE_TTL = HOUR_IN_SECONDS;
+
+	/**
+	 * Customer value cache TTL in seconds (1 hour).
+	 */
+	const CUSTOMER_VALUE_CACHE_TTL = HOUR_IN_SECONDS;
+
+	/**
+	 * Months after acquisition before a cohort is treated as mature.
+	 */
+	const MATURITY_THRESHOLD_MONTHS = 2;
 
 	/**
 	 * Count the primary variable-length rows in a result payload.
@@ -3968,6 +3978,895 @@ class AnalyticsController {
 			'percent'   => $percent,
 			'direction' => $direction,
 		);
+	}
+
+	// Customer Value.
+
+	/**
+	 * Fetch the customer-value payload. Backs the
+	 * `wc-analytics/get-customer-value` ability.
+	 *
+	 * @param string      $period          Period shortcut.
+	 * @param string|null $date_start      Custom start date — overrides period.
+	 * @param string|null $date_end        Custom end date — overrides period.
+	 * @param bool        $compare         Include previous-period comparison.
+	 * @param int         $limit           Number of top customers to return.
+	 * @param bool        $include_cohorts Include cohort-retention matrix.
+	 * @return array Response payload.
+	 */
+	public static function fetch_customer_value( $period, $date_start, $date_end, $compare, $limit, $include_cohorts ) {
+		$start = microtime( true );
+
+		/**
+		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
+		 *
+		 * @since 0.1.0
+		 */
+		do_action(
+			'woocommerce_claude_skill_called',
+			'get_customer_value',
+			array(
+				'period'          => $period,
+				'date_start'      => $date_start,
+				'date_end'        => $date_end,
+				'compare'         => $compare,
+				'limit'           => $limit,
+				'include_cohorts' => $include_cohorts,
+			)
+		);
+
+		$dates = self::resolve_dates( $period, $date_start, $date_end );
+
+		$cache_key = 'woocommerce_claude_customer_value_' . md5(
+			$dates['start'] . '_' . $dates['end']
+			. '_' . ( $compare ? '1' : '0' )
+			. '_' . $limit
+			. '_' . ( $include_cohorts ? '1' : '0' )
+			. '_' . self::get_date_column()
+			. '_' . implode( ',', self::get_paid_statuses() )
+		);
+		$cached    = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			/**
+			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
+			 *
+			 * @since 0.1.0
+			 */
+			do_action(
+				'woocommerce_claude_skill_executed',
+				'get_customer_value',
+				array(
+					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
+					'cache_hit'     => true,
+					'rows_returned' => count( $cached['top_customers'] ?? array() ),
+					'date_start'    => $dates['start'],
+					'date_end'      => $dates['end'],
+					'interval'      => null,
+					'bucket_count'  => null,
+				)
+			);
+			return $cached;
+		}
+
+		$rows = self::query_lifetime_aggregates( $dates['start'], $dates['end'] );
+
+		$metrics       = self::compute_metrics( $rows );
+		$segments      = self::compute_segments( $rows );
+		$opportunities = self::compute_opportunities( $segments );
+		$items         = self::compute_items_histogram( $rows );
+
+		$customer_ids  = array_map(
+			function ( $row ) {
+				return (int) $row['customer_id'];
+			},
+			$rows
+		);
+		$top_customers = self::build_top_customers( $rows, $limit );
+		$time_between  = self::query_time_between_orders( $customer_ids );
+
+		$cohorts = null;
+		if ( $include_cohorts ) {
+			$cohorts = self::query_cohort_retention( $dates['start'], $dates['end'] );
+		}
+
+		$result = array(
+			'period'              => array(
+				'start' => $dates['start'],
+				'end'   => $dates['end'],
+				'label' => $dates['label'],
+			),
+			'currency'            => get_woocommerce_currency(),
+			'privacy_mode'        => 'pseudonymised',
+			'metrics'             => $metrics,
+			'segments'            => $segments,
+			'opportunities'       => $opportunities,
+			'top_customers'       => $top_customers,
+			'items_over_lifetime' => $items,
+			'cohorts'             => $cohorts,
+			'time_between_orders' => $time_between,
+			'comparison'          => null,
+			'note'                => null,
+			'privacy_note'        => 'Top customers are pseudonymised (Customer #N). Real names and emails are never returned — the merchant looks up the identity behind a `Customer #N` in WP Admin > WooCommerce > Customers.',
+		);
+
+		if ( 0 === $metrics['active_customers'] ) {
+			$result['note'] = 'No paid orders found for this date range — no active-customer base to summarise.';
+		}
+
+		if ( $compare ) {
+			$prev_dates    = self::get_previous_period( $dates['start'], $dates['end'] );
+			$prev_rows     = self::query_lifetime_aggregates( $prev_dates['start'], $prev_dates['end'] );
+			$prev_metrics  = self::compute_metrics( $prev_rows );
+			$prev_segments = self::compute_segments( $prev_rows );
+			$changes       = self::calculate_customer_value_changes( $metrics, $prev_metrics );
+
+			$result['comparison'] = array(
+				'period'   => array(
+					'start' => $prev_dates['start'],
+					'end'   => $prev_dates['end'],
+				),
+				'metrics'  => $prev_metrics,
+				'segments' => $prev_segments,
+				'changes'  => $changes,
+			);
+		}
+
+		set_transient( $cache_key, $result, self::CUSTOMER_VALUE_CACHE_TTL );
+
+		/**
+		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
+		 *
+		 * @since 0.1.0
+		 */
+		do_action(
+			'woocommerce_claude_skill_executed',
+			'get_customer_value',
+			array(
+				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
+				'cache_hit'     => false,
+				'rows_returned' => count( $result['top_customers'] ?? array() ),
+				'date_start'    => $dates['start'],
+				'date_end'      => $dates['end'],
+				'interval'      => null,
+				'bucket_count'  => null,
+			)
+		);
+
+		return $result;
+	}
+
+	/**
+	 * Query per-customer lifetime aggregates for customers active in the
+	 * period. Each row = one customer × their full lifetime history of
+	 * paid orders.
+	 *
+	 * @param string $date_start YYYY-MM-DD.
+	 * @param string $date_end   YYYY-MM-DD.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function query_lifetime_aggregates( $date_start, $date_end ) {
+		global $wpdb;
+
+		$table       = $wpdb->prefix . 'wc_order_stats';
+		$statuses    = self::get_paid_statuses();
+		$status_ph   = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
+		$date_column = self::get_date_column();
+
+		// Inner subquery identifies customers active in the period.
+		// Outer query sums lifetime stats for those customers across
+		// their entire paid order history (not filtered to the period).
+		$sql = $wpdb->prepare(
+			"SELECT
+				os.customer_id,
+				SUM(os.net_total) AS lifetime_spend,
+				COUNT(DISTINCT os.order_id) AS lifetime_orders,
+				SUM(os.num_items_sold) AS lifetime_items,
+				MIN(os.{$date_column}) AS first_order,
+				MAX(os.{$date_column}) AS last_order
+			FROM {$table} os
+			WHERE os.parent_id = 0
+				AND os.status IN ({$status_ph})
+				AND os.customer_id > 0
+				AND os.customer_id IN (
+					SELECT DISTINCT customer_id
+					FROM {$table}
+					WHERE {$date_column} >= %s
+						AND {$date_column} <= %s
+						AND parent_id = 0
+						AND status IN ({$status_ph})
+						AND customer_id > 0
+				)
+			GROUP BY os.customer_id",
+			array_merge(
+				$statuses, // outer IN.
+				array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' ),
+				$statuses  // inner IN.
+			)
+		);
+
+		$rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Roll up metrics from per-customer lifetime rows.
+	 *
+	 * @param array $rows Per-customer lifetime rows from the active-base query.
+	 * @return array
+	 */
+	private static function compute_metrics( $rows ) {
+		$count = count( $rows );
+
+		if ( 0 === $count ) {
+			return array(
+				'active_customers'        => 0,
+				'avg_lifetime_spend'      => 0.00,
+				'median_lifetime_spend'   => 0.00,
+				'max_lifetime_spend'      => 0.00,
+				'avg_lifetime_orders'     => 0.0,
+				'avg_lifetime_items'      => 0.0,
+				'avg_days_between_orders' => null,
+				'definition'              => 'Lifetime metrics for customers with at least one paid order in this period. Lifetime spend = SUM(net_total) across every paid order that customer has ever placed (completed + processing only; refund sub-orders excluded). Based on wc_get_is_paid_statuses() — matches the headline paid view in other skills.',
+			);
+		}
+
+		$spends = array();
+		$orders = array();
+		$items  = array();
+
+		foreach ( $rows as $row ) {
+			$spends[] = (float) $row['lifetime_spend'];
+			$orders[] = (int) $row['lifetime_orders'];
+			$items[]  = (int) $row['lifetime_items'];
+		}
+
+		sort( $spends );
+		$mid    = (int) floor( $count / 2 );
+		$median = ( 0 === $count % 2 )
+			? ( ( $spends[ $mid - 1 ] + $spends[ $mid ] ) / 2 )
+			: $spends[ $mid ];
+
+		$avg_orders = array_sum( $orders ) / $count;
+		$avg_items  = array_sum( $items ) / $count;
+
+		// avg_days_between_orders is computed from the time-between-orders
+		// query and pasted into metrics there — here we default to null so
+		// the block stays self-consistent when the query fails.
+		return array(
+			'active_customers'        => $count,
+			'avg_lifetime_spend'      => round( array_sum( $spends ) / $count, 2 ),
+			'median_lifetime_spend'   => round( $median, 2 ),
+			'max_lifetime_spend'      => round( max( $spends ), 2 ),
+			'avg_lifetime_orders'     => round( $avg_orders, 2 ),
+			'avg_lifetime_items'      => round( $avg_items, 2 ),
+			'avg_days_between_orders' => null,
+			'definition'              => 'Lifetime metrics for customers with at least one paid order in this period. Lifetime spend = SUM(net_total) across every paid order that customer has ever placed (completed + processing only; refund sub-orders excluded). Based on wc_get_is_paid_statuses() — matches the headline paid view in other skills.',
+		);
+	}
+
+	/**
+	 * Split active-base into one-time vs repeat lifetime segments.
+	 *
+	 * @param array $rows Per-customer lifetime rows from the active-base query.
+	 * @return array
+	 */
+	private static function compute_segments( $rows ) {
+		$one_time = array(
+			'customers'            => 0,
+			'share_percent'        => 0.0,
+			'total_lifetime_spend' => 0.00,
+			'avg_lifetime_spend'   => 0.00,
+			'avg_order_value'      => 0.00,
+			'avg_lifetime_orders'  => 1.0,
+			'definition'           => 'Customers whose full lifetime history consists of a single paid order (across all time, not just this period).',
+		);
+		$repeat   = array(
+			'customers'            => 0,
+			'share_percent'        => 0.0,
+			'total_lifetime_spend' => 0.00,
+			'avg_lifetime_spend'   => 0.00,
+			'avg_order_value'      => 0.00,
+			'avg_lifetime_orders'  => 0.0,
+			'definition'           => 'Customers with two or more paid orders over their full lifetime. AOV here = total lifetime spend / total lifetime orders (per-order average within the segment).',
+		);
+
+		$one_time_spend  = 0.0;
+		$repeat_spend    = 0.0;
+		$repeat_orders   = 0;
+		$total_customers = count( $rows );
+
+		foreach ( $rows as $row ) {
+			if ( 1 === (int) $row['lifetime_orders'] ) {
+				++$one_time['customers'];
+				$one_time_spend += (float) $row['lifetime_spend'];
+			} else {
+				++$repeat['customers'];
+				$repeat_spend  += (float) $row['lifetime_spend'];
+				$repeat_orders += (int) $row['lifetime_orders'];
+			}
+		}
+
+		if ( $one_time['customers'] > 0 ) {
+			$one_time['total_lifetime_spend'] = round( $one_time_spend, 2 );
+			$one_time['avg_lifetime_spend']   = round( $one_time_spend / $one_time['customers'], 2 );
+			$one_time['avg_order_value']      = $one_time['avg_lifetime_spend'];
+		}
+		if ( $repeat['customers'] > 0 ) {
+			$repeat['total_lifetime_spend'] = round( $repeat_spend, 2 );
+			$repeat['avg_lifetime_spend']   = round( $repeat_spend / $repeat['customers'], 2 );
+			$repeat['avg_lifetime_orders']  = round( $repeat_orders / $repeat['customers'], 2 );
+			$repeat['avg_order_value']      = $repeat_orders > 0 ? round( $repeat_spend / $repeat_orders, 2 ) : 0.00;
+		}
+		if ( $total_customers > 0 ) {
+			$one_time['share_percent'] = round( $one_time['customers'] * 100 / $total_customers, 1 );
+			$repeat['share_percent']   = round( $repeat['customers'] * 100 / $total_customers, 1 );
+		}
+
+		return array(
+			'one_time' => $one_time,
+			'repeat'   => $repeat,
+		);
+	}
+
+	/**
+	 * Pre-computed lever table so Claude reports uplift scenarios rather
+	 * than deriving them from `segments.one_time` / `segments.repeat` by
+	 * hand. Single arithmetic step per scenario; zero free-hand maths.
+	 *
+	 * `uplift_per_conversion` can be negative on stores where the
+	 * currently-active one-time base happens to have spent more on their
+	 * single order than the repeat segment has on each of theirs. Return
+	 * the block anyway — Claude can read the sign and frame it as
+	 * "no lever here" rather than guessing.
+	 *
+	 * @param array $segments Output of compute_segments().
+	 * @return array
+	 */
+	private static function compute_opportunities( $segments ) {
+		$stranded        = (int) ( $segments['one_time']['customers'] ?? 0 );
+		$stranded_avg    = (float) ( $segments['one_time']['avg_lifetime_spend'] ?? 0.0 );
+		$repeat_avg      = (float) ( $segments['repeat']['avg_lifetime_spend'] ?? 0.0 );
+		$uplift_per_conv = round( $repeat_avg - $stranded_avg, 2 );
+		$rates           = array( 10, 25, 50 );
+		$scenarios       = array();
+
+		foreach ( $rates as $rate ) {
+			$conversions = (int) round( $stranded * ( $rate / 100 ) );
+			$scenarios[] = array(
+				'conversion_rate_percent' => $rate,
+				'conversions'             => $conversions,
+				'estimated_uplift'        => round( $conversions * $uplift_per_conv, 2 ),
+			);
+		}
+
+		return array(
+			'one_to_repeat_conversion' => array(
+				'stranded_customers'    => $stranded,
+				'stranded_avg_lifetime' => round( $stranded_avg, 2 ),
+				'repeat_avg_lifetime'   => round( $repeat_avg, 2 ),
+				'uplift_per_conversion' => $uplift_per_conv,
+				'scenarios'             => $scenarios,
+				'definition'            => 'Pre-computed scenario table for converting one-time buyers to repeaters. conversions = round(stranded_customers × conversion_rate_percent / 100); estimated_uplift = conversions × uplift_per_conversion. Uplift can be negative when the active one-time base has out-spent the repeat segment on average — report the sign honestly; do not recompute.',
+			),
+		);
+	}
+
+	/**
+	 * Build the top_customers list. Sorted by lifetime_spend desc. Always
+	 * pseudonymised — real names / emails are never surfaced.
+	 *
+	 * @param array $rows  Per-customer lifetime rows from the active-base query.
+	 * @param int   $limit Number of rows to return.
+	 * @return array
+	 */
+	private static function build_top_customers( $rows, $limit ) {
+		if ( empty( $rows ) ) {
+			return array();
+		}
+
+		// Sort by lifetime_spend desc.
+		usort(
+			$rows,
+			function ( $a, $b ) {
+				return (float) $b['lifetime_spend'] <=> (float) $a['lifetime_spend'];
+			}
+		);
+
+		$top = array_slice( $rows, 0, $limit );
+
+		// Hydrate country (not PII — country is fine for analytics narratives).
+		$customer_ids = array_map(
+			function ( $row ) {
+				return (int) $row['customer_id'];
+			},
+			$top
+		);
+		$lookups      = self::fetch_customer_lookup( $customer_ids );
+
+		$result = array();
+		foreach ( $top as $row ) {
+			$cid      = (int) $row['customer_id'];
+			$lifetime = (float) $row['lifetime_spend'];
+			$orders   = (int) $row['lifetime_orders'];
+			$aov      = $orders > 0 ? round( $lifetime / $orders, 2 ) : 0.00;
+			$lookup   = $lookups[ $cid ] ?? array();
+
+			$result[] = array(
+				'id'              => 'Customer #' . $cid,
+				'admin_url'       => self::customer_admin_url( $cid ),
+				'lifetime_orders' => $orders,
+				'lifetime_spend'  => round( $lifetime, 2 ),
+				'avg_order_value' => $aov,
+				'first_order'     => self::format_date( $row['first_order'] ),
+				'last_order'      => self::format_date( $row['last_order'] ),
+				'country'         => $lookup['country'] ?? null,
+			);
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Fetch country from wc_customer_lookup for a set of customer ids.
+	 * Returns a map keyed by customer_id. PII columns (first_name,
+	 * last_name, email) are never selected.
+	 *
+	 * @param int[] $customer_ids Customer IDs to hydrate.
+	 * @return array
+	 */
+	private static function fetch_customer_lookup( $customer_ids ) {
+		if ( empty( $customer_ids ) ) {
+			return array();
+		}
+
+		global $wpdb;
+		$table  = $wpdb->prefix . 'wc_customer_lookup';
+		$ids_ph = implode( ', ', array_fill( 0, count( $customer_ids ), '%d' ) );
+
+		$sql = $wpdb->prepare(
+			"SELECT customer_id, country
+			FROM {$table}
+			WHERE customer_id IN ({$ids_ph})",
+			$customer_ids
+		);
+
+		$rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$map = array();
+		foreach ( $rows as $row ) {
+			$map[ (int) $row['customer_id'] ] = $row;
+		}
+		return $map;
+	}
+
+	/**
+	 * Items-over-lifetime histogram. Buckets per-customer total items sold.
+	 *
+	 * @param array $rows Per-customer lifetime rows from the active-base query.
+	 * @return array
+	 */
+	private static function compute_items_histogram( $rows ) {
+		$buckets = array(
+			'1 item'      => array(
+				'min' => 0,
+				'max' => 1,
+			),
+			'2-3 items'   => array(
+				'min' => 2,
+				'max' => 3,
+			),
+			'4-5 items'   => array(
+				'min' => 4,
+				'max' => 5,
+			),
+			'6-10 items'  => array(
+				'min' => 6,
+				'max' => 10,
+			),
+			'11-20 items' => array(
+				'min' => 11,
+				'max' => 20,
+			),
+			'20+ items'   => array(
+				'min' => 21,
+				'max' => PHP_INT_MAX,
+			),
+		);
+
+		$result = array();
+		foreach ( array_keys( $buckets ) as $label ) {
+			$result[] = array(
+				'bucket'          => $label,
+				'customers_count' => 0,
+				'avg_items'       => 0.0,
+				'avg_spend'       => 0.00,
+				'share_percent'   => 0.0,
+			);
+		}
+
+		$total    = count( $rows );
+		$by_label = array();
+		foreach ( $buckets as $label => $_ ) {
+			$by_label[ $label ] = array(
+				'items' => array(),
+				'spend' => array(),
+			);
+		}
+
+		foreach ( $rows as $row ) {
+			$items = (int) $row['lifetime_items'];
+			foreach ( $buckets as $label => $range ) {
+				if ( $items >= $range['min'] && $items <= $range['max'] ) {
+					$by_label[ $label ]['items'][] = $items;
+					$by_label[ $label ]['spend'][] = (float) $row['lifetime_spend'];
+					break;
+				}
+			}
+		}
+
+		$i = 0;
+		foreach ( $buckets as $label => $_ ) {
+			$bucket_rows                     = $by_label[ $label ];
+			$count                           = count( $bucket_rows['items'] );
+			$result[ $i ]['customers_count'] = $count;
+			$result[ $i ]['avg_items']       = $count > 0 ? round( array_sum( $bucket_rows['items'] ) / $count, 1 ) : 0.0;
+			$result[ $i ]['avg_spend']       = $count > 0 ? round( array_sum( $bucket_rows['spend'] ) / $count, 2 ) : 0.00;
+			$result[ $i ]['share_percent']   = $total > 0 ? round( $count * 100 / $total, 1 ) : 0.0;
+			++$i;
+		}
+
+		return array(
+			'buckets'    => $result,
+			'definition' => 'Distribution of customers in the active base by total items purchased across their full lifetime (sum of num_items_sold across every paid order).',
+		);
+	}
+
+	/**
+	 * Time between consecutive paid orders for active-base repeaters.
+	 * Uses LAG() window function (MySQL 8+ / MariaDB 10.2+).
+	 *
+	 * @param int[] $customer_ids Active-base customer IDs to compute gaps for.
+	 * @return array
+	 */
+	private static function query_time_between_orders( $customer_ids ) {
+		$empty = array(
+			'avg_days'    => null,
+			'repeat_gaps' => 0,
+			'buckets'     => array(),
+			'definition'  => 'Gaps between consecutive paid orders, per customer, for repeaters in the active base. Bucketed. Uses the LAG window function — requires MySQL 8+ or MariaDB 10.2+.',
+		);
+
+		if ( empty( $customer_ids ) ) {
+			return $empty;
+		}
+
+		global $wpdb;
+		$table       = $wpdb->prefix . 'wc_order_stats';
+		$statuses    = self::get_paid_statuses();
+		$status_ph   = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
+		$ids_ph      = implode( ', ', array_fill( 0, count( $customer_ids ), '%d' ) );
+		$date_column = self::get_date_column();
+
+		$sql = $wpdb->prepare(
+			"SELECT days_between
+			FROM (
+				SELECT DATEDIFF(
+					{$date_column},
+					LAG({$date_column}) OVER (PARTITION BY customer_id ORDER BY {$date_column})
+				) AS days_between
+				FROM {$table}
+				WHERE parent_id = 0
+					AND status IN ({$status_ph})
+					AND customer_id > 0
+					AND customer_id IN ({$ids_ph})
+			) gaps
+			WHERE days_between IS NOT NULL",
+			array_merge( $statuses, $customer_ids )
+		);
+
+		$rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! is_array( $rows ) || empty( $rows ) ) {
+			return $empty;
+		}
+
+		$bucket_defs = array(
+			'Under 1 week' => array( 'max' => 6 ),
+			'1-4 weeks'    => array( 'max' => 29 ),
+			'1-3 months'   => array( 'max' => 89 ),
+			'3-6 months'   => array( 'max' => 179 ),
+			'6-12 months'  => array( 'max' => 364 ),
+			'12+ months'   => array( 'max' => PHP_INT_MAX ),
+		);
+
+		$counts     = array_fill_keys( array_keys( $bucket_defs ), 0 );
+		$sum_days   = array_fill_keys( array_keys( $bucket_defs ), 0 );
+		$total_gaps = 0;
+		$total_days = 0;
+
+		foreach ( $rows as $row ) {
+			$days = (int) $row['days_between'];
+			++$total_gaps;
+			$total_days += $days;
+
+			foreach ( $bucket_defs as $label => $def ) {
+				if ( $days <= $def['max'] ) {
+					++$counts[ $label ];
+					$sum_days[ $label ] += $days;
+					break;
+				}
+			}
+		}
+
+		$buckets = array();
+		foreach ( $bucket_defs as $label => $_ ) {
+			$c         = $counts[ $label ];
+			$buckets[] = array(
+				'bucket'        => $label,
+				'repeat_gaps'   => $c,
+				'avg_days'      => $c > 0 ? round( $sum_days[ $label ] / $c, 1 ) : 0.0,
+				'share_percent' => $total_gaps > 0 ? round( $c * 100 / $total_gaps, 1 ) : 0.0,
+			);
+		}
+
+		return array(
+			'avg_days'    => $total_gaps > 0 ? round( $total_days / $total_gaps, 1 ) : null,
+			'repeat_gaps' => $total_gaps,
+			'buckets'     => $buckets,
+			'definition'  => 'Gaps between consecutive paid orders, per customer, for repeaters in the active base. avg_days is the mean across all gaps. Each gap is one customer moving from order N to order N+1. A customer with 3 orders contributes 2 gaps.',
+		);
+	}
+
+	/**
+	 * Cohort retention matrix — customers whose first paid order lands in
+	 * the period, tracked forward through time.
+	 *
+	 * @param string $date_start YYYY-MM-DD start date.
+	 * @param string $date_end   YYYY-MM-DD end date.
+	 * @return array
+	 */
+	private static function query_cohort_retention( $date_start, $date_end ) {
+		global $wpdb;
+
+		$table       = $wpdb->prefix . 'wc_order_stats';
+		$statuses    = self::get_paid_statuses();
+		$status_ph   = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
+		$date_column = self::get_date_column();
+
+		// Cohort sizes: customers whose first paid order falls in the period,
+		// grouped by YYYY-MM of first order. This is the denominator for
+		// retention percentages at each offset. `lifetime_repeaters` counts
+		// cohort members who have ever returned (≥ 2 paid orders in their
+		// full lifetime) — feeds the per-cohort `lifetime_retention_percent`
+		// ("ever returned") without an additional query pass.
+		$sizes_sql = $wpdb->prepare(
+			"SELECT DATE_FORMAT(first_order, '%%Y-%%m') AS cohort_month,
+				COUNT(*) AS cohort_size,
+				MIN(first_order) AS cohort_first_order,
+				SUM(CASE WHEN lifetime_orders > 1 THEN 1 ELSE 0 END) AS lifetime_repeaters
+			FROM (
+				SELECT customer_id,
+					MIN({$date_column}) AS first_order,
+					COUNT(*) AS lifetime_orders
+				FROM {$table}
+				WHERE parent_id = 0 AND status IN ({$status_ph}) AND customer_id > 0
+				GROUP BY customer_id
+				HAVING MIN({$date_column}) >= %s AND MIN({$date_column}) <= %s
+			) first_orders
+			GROUP BY cohort_month
+			ORDER BY cohort_month",
+			array_merge( $statuses, array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' ) )
+		);
+
+		$sizes = $wpdb->get_results( $sizes_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( empty( $sizes ) ) {
+			return array();
+		}
+
+		// Retention matrix: for customers in each cohort, count orders at
+		// each month offset from their first order. month=0 will always
+		// equal the cohort size (the first order itself).
+		$matrix_sql = $wpdb->prepare(
+			"SELECT
+				DATE_FORMAT(cohorts.first_order, '%%Y-%%m') AS cohort_month,
+				TIMESTAMPDIFF(MONTH, cohorts.first_order, os.{$date_column}) AS months_since,
+				COUNT(DISTINCT os.customer_id) AS customers_retained,
+				SUM(os.net_total) AS revenue
+			FROM {$table} os
+			JOIN (
+				SELECT customer_id, MIN({$date_column}) AS first_order
+				FROM {$table}
+				WHERE parent_id = 0 AND status IN ({$status_ph}) AND customer_id > 0
+				GROUP BY customer_id
+				HAVING MIN({$date_column}) >= %s AND MIN({$date_column}) <= %s
+			) cohorts ON cohorts.customer_id = os.customer_id
+			WHERE os.parent_id = 0 AND os.status IN ({$status_ph})
+			GROUP BY cohort_month, months_since
+			ORDER BY cohort_month, months_since",
+			array_merge( $statuses, array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' ), $statuses )
+		);
+
+		$matrix = $wpdb->get_results( $matrix_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! is_array( $matrix ) ) {
+			$matrix = array();
+		}
+
+		/*
+		 * Assemble the nested shape. Each cohort carries:
+		 * - `months_since_acquisition` — months elapsed between the cohort's
+		 *   month anchor (first-of-month) and today. Stable across customers
+		 *   in the same cohort regardless of their exact first-order day.
+		 * - `maturity` — "mature" once month-1 retention has had time to
+		 *   fully land (≥ 2 months since anchor), otherwise "ongoing".
+		 *   Teaches Claude to call out incomplete cohorts without guessing
+		 *   the cutoff.
+		 * - `lifetime_retention_percent` — share of the cohort that has
+		 *   ever returned (≥ 2 lifetime paid orders), cumulative across the
+		 *   entire customer lifetime. Cleanest longitudinal retention number,
+		 *   not affected by month-N slicing.
+		 */
+		$by_cohort = array();
+		$now       = new \DateTime( 'now' );
+		foreach ( $sizes as $row ) {
+			$cohort                   = $row['cohort_month'];
+			$size                     = (int) $row['cohort_size'];
+			$repeaters                = (int) $row['lifetime_repeaters'];
+			$months_since_acquisition = self::months_between( $cohort . '-01', $now );
+			$maturity                 = $months_since_acquisition >= self::MATURITY_THRESHOLD_MONTHS
+				? 'mature'
+				: 'ongoing';
+
+			// `flips_to_mature_on` pre-computes the exact date an ongoing
+			// cohort reaches the maturity threshold. Kills the off-by-a-month
+			// narration that surfaces when Claude derives flip timing by
+			// hand ("end of April" / "mid-June" rather than the structural
+			// YYYY-MM-01 anchor).
+			$flips_on = null;
+			if ( 'ongoing' === $maturity ) {
+				$flip_dt = \DateTime::createFromFormat( 'Y-m-d', $cohort . '-01' );
+				if ( $flip_dt ) {
+					$flip_dt->modify( '+' . self::MATURITY_THRESHOLD_MONTHS . ' months' );
+					$flips_on = $flip_dt->format( 'Y-m-d' );
+				}
+			}
+
+			$by_cohort[ $cohort ] = array(
+				'cohort'                     => $cohort,
+				'size'                       => $size,
+				'months_since_acquisition'   => $months_since_acquisition,
+				'maturity'                   => $maturity,
+				'maturity_threshold_months'  => self::MATURITY_THRESHOLD_MONTHS,
+				'flips_to_mature_on'         => $flips_on,
+				'lifetime_retention_percent' => $size > 0 ? round( $repeaters * 100 / $size, 1 ) : 0.0,
+				'offsets'                    => array(),
+			);
+		}
+
+		$cum_revenue = array();
+		foreach ( $matrix as $row ) {
+			$cohort = $row['cohort_month'];
+			if ( ! isset( $by_cohort[ $cohort ] ) ) {
+				continue;
+			}
+			$month    = (int) $row['months_since'];
+			$retained = (int) $row['customers_retained'];
+			$revenue  = (float) $row['revenue'];
+			$size     = $by_cohort[ $cohort ]['size'];
+
+			$cum_revenue[ $cohort ] = ( $cum_revenue[ $cohort ] ?? 0 ) + $revenue;
+			$retention_percent      = $size > 0 ? round( $retained * 100 / $size, 1 ) : 0.0;
+			$cumulative_avg_ltv     = $size > 0 ? round( $cum_revenue[ $cohort ] / $size, 2 ) : 0.00;
+
+			$by_cohort[ $cohort ]['offsets'][] = array(
+				'month'              => $month,
+				'customers'          => $retained,
+				'retention_percent'  => $retention_percent,
+				'revenue'            => round( $revenue, 2 ),
+				'cumulative_revenue' => round( $cum_revenue[ $cohort ], 2 ),
+				'cumulative_avg_ltv' => $cumulative_avg_ltv,
+			);
+		}
+
+		return array_values( $by_cohort );
+	}
+
+	/**
+	 * Calculate pre-computed deltas on the skill's headline metrics.
+	 *
+	 * @param array $current  Current-period response payload.
+	 * @param array $previous Previous-period response payload (same shape).
+	 * @return array
+	 */
+	private static function calculate_customer_value_changes( $current, $previous ) {
+		$keys = array(
+			'active_customers',
+			'avg_lifetime_spend',
+			'median_lifetime_spend',
+			'max_lifetime_spend',
+			'avg_lifetime_orders',
+			'avg_lifetime_items',
+		);
+
+		$changes = array();
+		foreach ( $keys as $key ) {
+			$curr = (float) ( $current[ $key ] ?? 0 );
+			$prev = (float) ( $previous[ $key ] ?? 0 );
+			$diff = $curr - $prev;
+
+			if ( 0.0 === $prev ) {
+				$percent = ( $curr > 0 ) ? 100.0 : 0.0;
+			} else {
+				$percent = round( ( $diff / $prev ) * 100, 1 );
+			}
+
+			if ( $diff > 0 ) {
+				$direction = 'up';
+			} elseif ( $diff < 0 ) {
+				$direction = 'down';
+			} else {
+				$direction = 'flat';
+			}
+
+			$changes[ $key ] = array(
+				'amount'    => round( $diff, 2 ),
+				'percent'   => $percent,
+				'direction' => $direction,
+			);
+		}
+
+		return $changes;
+	}
+
+	/**
+	 * Whole months elapsed between a `YYYY-MM-DD` anchor and a DateTime.
+	 * Both operands are normalised to their first-of-month at midnight
+	 * before diffing so a cohort's "age" is stable regardless of which
+	 * day in the month its earliest first_order landed on.
+	 *
+	 * @param string    $anchor YYYY-MM-DD (typically cohort-month + '-01').
+	 * @param \DateTime $now    Reference "now" for the comparison.
+	 * @return int
+	 */
+	private static function months_between( $anchor, $now ) {
+		$anchor_dt = \DateTime::createFromFormat( 'Y-m-d', $anchor );
+		if ( ! $anchor_dt ) {
+			return 0;
+		}
+		$anchor_dt->setTime( 0, 0, 0 );
+		$anchor_dt->modify( 'first day of this month' );
+
+		$now_dt = clone $now;
+		$now_dt->setTime( 0, 0, 0 );
+		$now_dt->modify( 'first day of this month' );
+
+		if ( $now_dt < $anchor_dt ) {
+			return 0;
+		}
+
+		$diff = $anchor_dt->diff( $now_dt );
+		return (int) ( $diff->y * 12 + $diff->m );
+	}
+
+	/**
+	 * Normalise a wc_order_stats DATETIME to YYYY-MM-DD or null.
+	 *
+	 * @param string|null $value Raw DATETIME string from wc_order_stats.
+	 * @return string|null
+	 */
+	private static function format_date( $value ) {
+		if ( empty( $value ) ) {
+			return null;
+		}
+		// wc_order_stats stores DATETIME. Return the date portion for
+		// stability — time of day is meaningless at this analytical level.
+		$dt = \DateTime::createFromFormat( 'Y-m-d H:i:s', $value );
+		if ( ! $dt ) {
+			return $value;
+		}
+		return $dt->format( 'Y-m-d' );
 	}
 
 	// ─── Revenue Breakdown ────────────────────────────────────────
