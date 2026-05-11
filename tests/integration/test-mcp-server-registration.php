@@ -77,9 +77,15 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			'woocommerce-claude-get-product-details',
 			'woocommerce-claude-search-products',
 			'woocommerce-claude-suggest-improvements',
-			'wc-analytics-get-data',
+			// Verb-shaped analytics tools — primary surface.
+			'wc-analytics-totals',
+			'wc-analytics-breakdown',
+			'wc-analytics-series',
+			'wc-analytics-rows',
+			// Helpers + legacy router (still registered during the transitional surface).
 			'wc-analytics-describe',
 			'wc-analytics-confirm-large-range',
+			'wc-analytics-get-data',
 		);
 
 		foreach ( $expected as $tool_name ) {
@@ -153,18 +159,25 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 		);
 
 		$required_markers = array(
-			// Routing: query_analytics is the antidote to "tool can't show specifics".
-			'query_analytics',
+			// Routing: wc-analytics-rows is the antidote to "tool can't show specifics".
+			// Replaces the legacy `query_analytics` marker — same routing role under the
+			// verb-shape surface; the legacy router is still registered but is no longer
+			// the primary recommendation in the connector preamble.
+			'wc-analytics-rows',
+			// All four verb tools must be named in the preamble so routing decisions
+			// can be made from this block alone, without round-tripping describe.
+			'wc-analytics-totals',
+			'wc-analytics-breakdown',
+			'wc-analytics-series',
 			// Privacy posture: pseudonymisation is the rule clients keep refusing without this guidance.
 			'pseudonymised',
 			'Customer #N',
 			// 365-day gate handshake — names the trigger error and the confirm-large-range tool.
 			'extended_range_required',
 			'wc-analytics-confirm-large-range',
-			// query_analytics mode enum value — must read 'aggregate', not 'summary'
-			// (the actual ConfirmLargeRangeAbility schema took 'aggregate' before this
-			// instructions block existed; a regression to 'summary' would route the model
-			// to a non-existent enum value).
+			// Rows tool mode enum value — must read 'aggregate', not 'summary' (the
+			// rows tool's mode schema took 'aggregate'; a regression to 'summary' would
+			// route the model to a non-existent enum value).
 			'aggregate',
 			// Privacy posture explicit instruction.
 			'Do not refuse',

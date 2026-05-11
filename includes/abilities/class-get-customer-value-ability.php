@@ -53,6 +53,8 @@ class GetCustomerValueAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=customer_value. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get LIFETIME customer value — LTV stats, one-time vs repeat segmentation, top customers, cohort retention, items-over-lifetime histogram, and time between orders. The period parameter filters which customers are summarised; the metrics are lifetime aggregates.
 
 TWO INCLUSION FRAMES IN ONE RESPONSE — teach the merchant which block answers which question:
@@ -97,9 +99,9 @@ WHAT THIS CAN'T ANSWER:
 When a merchant asks for any of these, say plainly what we can and can't see and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only ones we can deliver today):
-- "How did my store do overall this period?" → get_revenue_summary
-- "Who's buying right now (period-scoped, new vs returning)?" → get_customer_overview
-- "What channels acquired these customers?" → get_attribution (already splits new-vs-returning per channel)
+- "How did my store do overall this period?" → wc-analytics-totals subject=revenue
+- "Who's buying right now (period-scoped, new vs returning)?" → wc-analytics-totals subject=customers
+- "What channels acquired these customers?" → wc-analytics-breakdown subject=attribution, dimension=channel (already splits new-vs-returning per channel)
 - "Compare to a different period" → re-run with custom date_start / date_end or different period
 
 DO NOT SUGGEST:

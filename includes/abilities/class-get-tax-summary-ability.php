@@ -32,6 +32,8 @@ class GetTaxSummaryAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=tax (headline + reconciliation) OR wc-analytics-breakdown subject=tax (per-rate). This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the matching verb tool, which carries the consolidated per-subject describe inline.
+
 Get tax collected for a period — total tax, order tax vs shipping tax, refunded tax, the net-tax figure that maps to a VAT / sales-tax return, and a per-rate breakdown. Three-view pattern (paid / pipeline / admin_equivalent) so collected tax, on-hold tax (collected at checkout but not yet paid), and dashboard reconciliation totals stay distinct. Aggregated only — no per-order tax detail (privacy boundary).
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:
@@ -128,10 +130,10 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, the merchant's accountant, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Want a country breakdown of revenue?" → get_revenue_breakdown with group_by=country
+- "Want a country breakdown of revenue?" → wc-analytics-breakdown subject=revenue, dimension=country
 - "Compare to last quarter?" → compare=true or recall with different dates
-- "What got refunded?" → get_refund_analysis for full refund context
-- "Where's the rest of revenue coming from?" → get_revenue_summary
+- "What got refunded?" → wc-analytics-totals subject=refunds for full refund context
+- "Where's the rest of revenue coming from?" → wc-analytics-totals subject=revenue
 
 DO NOT SUGGEST:
 - Per-order tax detail via this skill — aggregated only, point at WP Admin Reports > Tax

@@ -33,6 +33,8 @@ class GetAttributionAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=attribution. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get order attribution — what channels, sources, campaigns, and devices drove revenue AND contribute to on-hold pipeline for a time period. Groups orders by the chosen dimension and returns per-group paid revenue, orders, AOV, items sold, new/returning customer split, share of total revenue, AND pipeline fields (revenue on-hold, orders on-hold, pipeline customers, share of pipeline, pipeline over-index points). Includes comparison to previous period with pre-computed deltas and a dropped_out array of groups that fell out of the top results.
 
 USE THIS SKILL WHEN the merchant asks any of:
@@ -137,7 +139,7 @@ GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we c
 - "Which paid keywords drove Paid Search revenue?" → group_by=term (paid only; mention organic is never available)
 - "Which ad creative or A/B variant converted?" → group_by=content
 - "Compare to previous period?" → compare=true
-- "What's my real ROAS?" → get_attribution + a Google Ads / Meta Ads MCP (cross-tool)
+- "What's my real ROAS?" → wc-analytics-breakdown subject=attribution + a Google Ads / Meta Ads MCP (cross-tool — combine the revenue side here with ad-spend from the other MCP)
 
 DO NOT SUGGEST:
 - "Which organic search terms drove this?" — Google anonymises these, never per-order available

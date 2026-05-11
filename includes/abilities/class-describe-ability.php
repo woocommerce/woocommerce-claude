@@ -46,7 +46,7 @@ class DescribeAbility {
 			self::ABILITY_NAME,
 			array(
 				'label'               => __( 'Describe analytics type', 'woocommerce-claude' ),
-				'description'         => __( 'Returns the full documentation for a specific analytics type — narrative guidance, what it can and cannot answer, and parameter reference. Call this before using wc-analytics/get-data with a type you have not used before in this session.', 'woocommerce-claude' ),
+				'description'         => __( 'TRANSITIONAL — the verb-shaped tools (wc-analytics-totals, wc-analytics-breakdown, wc-analytics-series, wc-analytics-rows) carry their consolidated describe docs inline; for the verb tools you do NOT need to call this helper. This helper remains for backwards compatibility with the legacy wc-analytics-get-data router — it returns the per-type narrative guidance, what each analytics type can and cannot answer, and the parameter reference. Call this only before using wc-analytics-get-data with a legacy type you have not used before in this session.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),
@@ -131,10 +131,12 @@ class DescribeAbility {
 
 		$ability_name = self::ABILITY_MAP[ $type ];
 
-		// Prepend a context note so that any gate/token instructions inside the
-		// underlying ability description (written for direct REST callers) cannot
-		// confuse a model that is reading them in a get-data session.
-		$gate_note = "CONTEXT — USING VIA get-data: You are reading this documentation because you called wc-analytics/describe. When you execute this type through wc-analytics/get-data the large date range gate is managed by get-data before any routing — you never call this individual ability directly.\n\nIf wc-analytics/get-data returns extended_range_required: call wc-analytics/confirm-large-range with date_start, date_end, and type, then call wc-analytics/get-data again with the same params. Do NOT pass a confirmation_token to get-data. Any section in the documentation below that mentions a confirmation_token or re-calling this specific tool directly applies only to direct REST calls — ignore it when using wc-analytics/get-data.\n\n---\n\n";
+		// Prepend a context note that steers the reader toward the verb-shaped
+		// tools and overrides legacy token-based gate instructions that some
+		// per-type bodies still carry (those instructions were written for
+		// direct REST callers against the individual ability and don't apply
+		// to either the verb tools or the legacy wc-analytics-get-data router).
+		$gate_note = "CONTEXT — TRANSITIONAL: The verb-shaped tools (wc-analytics-totals, wc-analytics-breakdown, wc-analytics-series, wc-analytics-rows) carry their consolidated describes inline; for any new call route to the verb tool named in the TRANSITIONAL prologue at the top of the documentation below. The large-range gate handshake is uniform across both surfaces — pass cost_estimate.type from the error verbatim to wc-analytics-confirm-large-range, then re-run the same analytics call. Any section in the documentation below referencing confirmation_token or token-based flow applies only to direct REST calls against this specific per-type ability — ignore it when using the verb tools or wc-analytics-get-data.\n\n---\n\n";
 
 		if ( function_exists( 'wp_get_abilities' ) ) {
 			foreach ( wp_get_abilities() as $ability ) {

@@ -489,7 +489,8 @@ DESCRIPTION,
 			return $dimension_check;
 		}
 		$dates = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
-		$gate  = LargeRangeGate::check_run( $dates['start'], $dates['end'], $subject );
+		// Tool-prefixed type — see totals ability for the rationale.
+		$gate = LargeRangeGate::check_run( $dates['start'], $dates['end'], 'breakdown:' . $subject );
 		if ( is_wp_error( $gate ) ) {
 			return $gate;
 		}

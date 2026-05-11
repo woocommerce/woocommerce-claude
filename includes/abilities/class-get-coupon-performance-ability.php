@@ -33,6 +33,8 @@ class GetCouponPerformanceAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=coupons. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get per-coupon performance — usage, discount given away, revenue driven, refund rate per coupon, plus store-wide coupon attachment rate and with-coupon vs without-coupon AOV. Each top_groups row returns paid revenue, orders, AOV, items sold, discount amount, refunds, plus pipeline (on-hold) + admin_equivalent sibling figures for reconciliation. Per-row share_of_coupon_revenue_percent, share_of_total_discount_percent, new_customer_share_percent, avg_discount_per_order, and refund_rate_percent are pre-computed so you never divide manually. Each top_groups row also includes an admin_url pointing at the coupon's WP Admin edit screen — render the coupon code as a clickable markdown link (e.g. `[SAVE15](https://example.com/wp-admin/...)`) so the merchant can jump straight to the coupon in WooCommerce.
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:
@@ -112,11 +114,11 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Which orders used the top coupon?" → get_orders_summary
-- "Who redeemed the top coupon?" → get_customer_overview
+- "Which orders used the top coupon?" → wc-analytics-rows entity=orders with a coupon_code filter
+- "Who redeemed the top coupon?" → wc-analytics-totals subject=customers (or wc-analytics-rows entity=customers for the row list)
 - "Compare to a different period?" → compare=true or recall with different dates
 - "Trend over time?" → recall with period=last_month vs this_month (no native time series on this skill)
-- "How did coupon-using customers' lifetime spend compare?" → get_customer_value
+- "How did coupon-using customers' lifetime spend compare?" → wc-analytics-totals subject=customer_value
 
 DO NOT SUGGEST:
 - Creating or editing coupons via this skill — read-only

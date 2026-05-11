@@ -32,6 +32,8 @@ class GetRefundAnalysisAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=refunds (group_by=none) OR wc-analytics-breakdown subject=refunds, dimension=product|country (grouped). This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the matching verb tool, which carries the consolidated per-subject describe inline.
+
 Get refund metrics for a period — how much was refunded, how many refunds were issued, how many distinct orders were touched, the refund rate against paid gross revenue, days between order and refund, partial vs full split, and (optionally) top refunded products or countries. Every ratio that Claude would otherwise derive is pre-computed server-side.
 
 PERIOD SEMANTICS — REFUND-ISSUED, NOT ORDER-PLACED:
@@ -90,12 +92,12 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Which products inside the top refunded country are driving the refunds?" → get_refund_analysis with group_by=product
-- "How does the top refunded product's sales volume look?" → get_product_performance
+- "Which products inside the top refunded country are driving the refunds?" → wc-analytics-breakdown subject=refunds, dimension=product
+- "How does the top refunded product's sales volume look?" → wc-analytics-breakdown subject=products
 - "Compare to the previous period?" → compare=true or recall with different dates
 - "Is refund rate trending up month over month?" → recall with period=last_month vs this_month
-- "Break down refunds by country instead?" → group_by=country
-- "What's the headline revenue for this period?" → get_revenue_summary
+- "Break down refunds by country instead?" → wc-analytics-breakdown subject=refunds, dimension=country
+- "What's the headline revenue for this period?" → wc-analytics-totals subject=revenue
 
 DO NOT SUGGEST:
 - Asking why refunds happen via this tool — the reason field isn't surfaced

@@ -39,7 +39,7 @@ UNIVERSAL RULES (the connector instructions carry these in full — repeated her
 - Never sum across the three views (paid / pipeline / admin_equivalent) — they overlap.
 - Never name internal tool identifiers, parameter names, or storage slugs in merchant-facing output. Phrase follow-ups as questions ("Want me to break this down by product?"), not invocations.
 - Never propose new skills, endpoints, or features as a fix for a gap. The reader is a merchant, not the plugin developer.
-- The 365-day extended-range gate applies to subjects where the underlying fetch carries it (customers, customer_value with cohorts). When the gate fires, present the cost estimate to the merchant, wait for approval, then re-run — see the connector instructions for the full handshake.
+- The 365-day extended-range gate fires on every totals call (all six subjects), at this ability's level — before dispatch to the underlying fetch. When the gate fires, present the cost estimate to the merchant, wait for approval, then re-run with the same params. The error data's cost_estimate.type carries the literal value to pass to wc-analytics-confirm-large-range (totals-prefixed for verb-tool calls — e.g. totals:revenue — so approvals do not collide with breakdown or series calls sharing the same subject). See the connector instructions for the full handshake.
 
 ================================================================================
 SUBJECT = revenue  → headline net/total sales, orders, AOV, items sold, refunds, taxes, shipping, plus three-view reconciliation. Period filters paid orders; comparison block carries pre-computed deltas.
@@ -450,7 +450,11 @@ DESCRIPTION,
 
 		$dates = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
 
-		$gate_result = LargeRangeGate::check_run( $dates['start'], $dates['end'], $subject );
+		// Prefix the subject with the verb-tool slug so approvals minted by one
+		// verb tool don't get consumed by another tool sharing the same subject
+		// (e.g. totals subject=revenue vs breakdown subject=revenue). The legacy
+		// router stays unprefixed because its per-type slugs are already unique.
+		$gate_result = LargeRangeGate::check_run( $dates['start'], $dates['end'], 'totals:' . $subject );
 		if ( is_wp_error( $gate_result ) ) {
 			return $gate_result;
 		}

@@ -32,6 +32,30 @@ class GetDataAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER THE VERB-SHAPED TOOLS. This router is registered for backwards compatibility while the verb-shape pivot rolls out and will be removed at 0.2.0. For any new call, route to one of the four verb tools instead — they carry consolidated describe docs inline and don't need a separate `wc-analytics-describe` round-trip:
+- wc-analytics-totals — headline aggregates by subject (revenue / orders / customers / customer_value / tax / refunds).
+- wc-analytics-breakdown — grouped aggregates by subject + dimension (e.g. subject=attribution, dimension=channel).
+- wc-analytics-series — time series by subject + interval (customers, products).
+- wc-analytics-rows — flexible filter engine across orders / products / customers, aggregate or rows mode.
+
+Legacy type-slug → verb-tool routing map:
+- revenue_summary → wc-analytics-totals subject=revenue
+- orders_summary → wc-analytics-totals subject=orders
+- customer_overview (no interval) → wc-analytics-totals subject=customers
+- customer_overview (with interval) → wc-analytics-series subject=customers
+- customer_value → wc-analytics-totals subject=customer_value
+- tax_summary → wc-analytics-totals subject=tax (or breakdown subject=tax for per-rate)
+- refund_analysis (group_by=none) → wc-analytics-totals subject=refunds
+- refund_analysis (group_by=product|country) → wc-analytics-breakdown subject=refunds, dimension=product|country
+- coupon_performance → wc-analytics-breakdown subject=coupons
+- attribution → wc-analytics-breakdown subject=attribution
+- revenue_breakdown → wc-analytics-breakdown subject=revenue
+- product_performance (no interval) → wc-analytics-breakdown subject=products
+- product_performance (with interval) → wc-analytics-series subject=products
+- query_analytics → wc-analytics-rows
+
+If you do call this router (legacy compatibility only), the rest of this description still applies:
+
 Single entry point for all WooCommerce analytics. Routes to one of eleven analytics types.
 
 BEFORE CALLING — if this is your first time using a specific type in this session, call wc-analytics/describe with that type first to get the full documentation, parameter reference, and narrative guidance for it. Analytics types: revenue_summary, orders_summary, product_performance, customer_overview, attribution, customer_value, revenue_breakdown, coupon_performance, refund_analysis, tax_summary, query_analytics.
