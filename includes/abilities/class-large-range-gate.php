@@ -177,7 +177,7 @@ class LargeRangeGate {
 			'extended_range_required',
 			"This request covers a large date range — {$range_days} days ({$months} months) — and may temporarily impact your site's performance while the query runs.\n\n"
 			. "STOP. Present the cost estimate below and ask the merchant which option they prefer:\n\n"
-			. "(1) Load the full {$months}-month history: call wc-analytics-confirm-large-range with the same date_start, date_end, and type as the failing call, then re-run the same analytics call (verb tool or legacy router) with the same params.\n"
+			. "(1) Load the full {$months}-month history: call wc-analytics-confirm-large-range with date_start='{$date_start}', date_end='{$date_end}', type='{$type}' (copy these values verbatim — verb-tool types include a tool prefix like 'totals:revenue' that disambiguates approvals across tools sharing a subject). Then re-run the same analytics call (verb tool or legacy router) with the same params.\n"
 			. "(2) Narrow to a shorter range: ask the merchant to pick a start date within the last 12 months.\n\n"
 			. 'ANTI-SPLITTING RULE: Do NOT split this date range into yearly, quarterly, or monthly chunks to avoid the gate. '
 			. "Confirm and re-run for the full intended range instead.\n\n"
@@ -190,6 +190,10 @@ class LargeRangeGate {
 					'range_days' => $range_days,
 					'months'     => $months,
 					'threshold'  => self::GATE_THRESHOLD_DAYS,
+					// Machine-readable type value the model must pass verbatim to
+					// confirm-large-range. Includes the tool prefix when set
+					// (verb tools); legacy router callers see the bare type slug.
+					'type'       => $type,
 				),
 			)
 		);

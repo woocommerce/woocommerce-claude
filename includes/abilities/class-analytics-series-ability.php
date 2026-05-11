@@ -47,7 +47,7 @@ INTERVAL — auto-resolution and series cap:
 - One absolute rule: always use the granularity the merchant asked for. Never switch from daily to weekly or monthly to try to avoid the gate; the merchant decides the tradeoff, not you.
 
 365-DAY EXTENDED-RANGE GATE — applies to ALL calls (series and aggregate alike):
-When the date range spans more than 365 days this tool returns an extended_range_required error (HTTP 400) before any SQL runs — queries that large may temporarily impact site performance. STOP. Do not call any more tools until the merchant explicitly replies. Present the cost_estimate from the error to the merchant and ask for their approval. When the merchant confirms, call the confirm-large-range tool with the same date_start, date_end, and a description of the query, then call this tool again. There is no other bypass — do not skip the gate by omitting or altering parameters.
+When the date range spans more than 365 days this tool returns an extended_range_required error (HTTP 400) before any SQL runs — queries that large may temporarily impact site performance. STOP. Do not call any more tools until the merchant explicitly replies. Present the cost_estimate from the error to the merchant and ask for their approval. When the merchant confirms, call wc-analytics-confirm-large-range with the same date_start, date_end, the literal type from cost_estimate.type (series-prefixed — e.g. series:customers — so approvals do not collide with totals or breakdown calls on the same subject), and a description of the query, then call this tool again. There is no other bypass — do not skip the gate by omitting or altering parameters.
 
 ANTI-SPLITTING RULE — ABSOLUTE:
 Do NOT split a large date range into smaller chunks (yearly, quarterly, monthly) to avoid the gate. If the merchant asks for 3 years of customer data, pull once for the full range, let the gate fire, present the cost estimate, wait for the merchant's reply, confirm-large-range, then call again. Splitting without the merchant's knowledge is the same violation as passing approval autonomously.
@@ -285,8 +285,9 @@ DESCRIPTION,
 				array( 'status' => 400 )
 			);
 		}
-		$dates       = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
-		$gate_result = LargeRangeGate::check_run( $dates['start'], $dates['end'], $subject );
+		$dates = AnalyticsController::resolve_dates( $period, $date_start, $date_end );
+		// Tool-prefixed type — see totals ability for the rationale.
+		$gate_result = LargeRangeGate::check_run( $dates['start'], $dates['end'], 'series:' . $subject );
 		if ( is_wp_error( $gate_result ) ) {
 			return $gate_result;
 		}

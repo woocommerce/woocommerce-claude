@@ -94,43 +94,16 @@ DESCRIPTION,
 				'date_start'  => array(
 					'type'        => 'string',
 					'pattern'     => '^\\d{4}-\\d{2}-\\d{2}$',
-					'description' => 'Start date of the query being approved (YYYY-MM-DD). Must match the date_start in the get-data params that triggered the gate.',
+					'description' => 'Start date of the query being approved (YYYY-MM-DD). Must match the date_start in the params of the analytics call that triggered the gate (verb tool or legacy router).',
 				),
 				'date_end'    => array(
 					'type'        => 'string',
 					'pattern'     => '^\\d{4}-\\d{2}-\\d{2}$',
-					'description' => 'End date of the query being approved (YYYY-MM-DD). Must match the date_end in the get-data params that triggered the gate.',
+					'description' => 'End date of the query being approved (YYYY-MM-DD). Must match the date_end in the params of the analytics call that triggered the gate (verb tool or legacy router).',
 				),
 				'type'        => array(
 					'type'        => 'string',
-					'enum'        => array(
-						// Legacy per-type slugs (passed by wc-analytics-get-data's router).
-						// These coexist with the verb-tool subject slugs below during the
-						// transitional surface where both routing shapes are exposed; PR 3
-						// of the verb-shape pivot removes the legacy entries when the
-						// router itself is retired.
-						'revenue_summary',
-						'orders_summary',
-						'product_performance',
-						'customer_overview',
-						'attribution',
-						'customer_value',
-						'revenue_breakdown',
-						'coupon_performance',
-						'refund_analysis',
-						'tax_summary',
-						'query_analytics',
-						// Verb-tool subject slugs (passed by wc-analytics-totals /
-						// wc-analytics-breakdown / wc-analytics-series).
-						'revenue',
-						'orders',
-						'customers',
-						'tax',
-						'refunds',
-						'coupons',
-						'products',
-					),
-					'description' => 'The third argument the failing analytics call passed to the gate. Verb tools (wc-analytics-totals / wc-analytics-breakdown / wc-analytics-series) pass their `subject` (revenue / products / etc.); the legacy router (wc-analytics-get-data) passes the per-type slug (revenue_summary / product_performance / etc.). Pass exactly the value the failing call used — the server matches the approval against the pending session transient keyed on that string.',
+					'description' => 'The literal type discriminator from the failing call. Read this directly from the error response: cost_estimate.type carries the exact string to pass. Verb-tool failures emit a tool-prefixed value (totals:revenue, breakdown:revenue, series:customers, etc.) so approvals minted by one tool cannot be consumed by another tool sharing the same subject. The legacy wc-analytics-get-data router emits a bare per-type slug (revenue_summary, product_performance, etc.). The schema accepts any string; mismatches surface as no_pending_query so a careful copy from cost_estimate.type is always the right move.',
 				),
 				'description' => array(
 					'type'        => 'string',
@@ -178,14 +151,14 @@ DESCRIPTION,
 		if ( ! LargeRangeGate::approve_scan( $date_start, $date_end, $type ) ) {
 			return new \WP_Error(
 				'no_pending_query',
-				'No pending query found for this date range — the approval window may have expired (5 minutes). Call wc-analytics/get-data again to get a fresh cost estimate, present it to the merchant, and wait for their reply.',
+				'No pending query found for this date range and type — the approval window may have expired (5 minutes) or the type value does not match what the failing call passed to the gate. Re-run the original analytics call (verb tool or legacy router) to mint a fresh cost estimate, copy cost_estimate.type from the error verbatim, present the estimate to the merchant, and wait for their reply.',
 				array( 'status' => 400 )
 			);
 		}
 
 		return array(
 			'confirmed' => true,
-			'message'   => 'Query approved. Call wc-analytics/get-data again with the same params to retrieve the data.',
+			'message'   => 'Query approved. Re-run the original analytics call (verb tool or legacy router) with the same params to retrieve the data.',
 		);
 	}
 }

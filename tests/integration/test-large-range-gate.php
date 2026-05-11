@@ -409,6 +409,57 @@ class Test_Large_Range_Gate extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Approvals minted by one verb tool cannot be consumed by another verb tool
+	 * that happens to share the same subject.
+	 *
+	 * Pre-fix the gate keyed transients on bare type strings, so verb tools that
+	 * passed only `$subject` would collide whenever two of them dispatched on
+	 * the same subject + overlapping date range (e.g. totals subject=revenue
+	 * vs breakdown subject=revenue; totals subject=customers vs series
+	 * subject=customers). A model approving a totals call could silently
+	 * consume that approval from inside breakdown, producing the wrong
+	 * response shape under the same merchant confirmation.
+	 *
+	 * Post-fix each verb tool prefixes its subject with its own slug
+	 * (totals:revenue, breakdown:revenue, series:customers) before calling
+	 * check_run, so the transient keys are disjoint.
+	 */
+	public function test_verb_tool_approvals_do_not_collide_across_tools_sharing_a_subject() {
+		$start = self::LONG_START;
+		$end   = self::LONG_END;
+
+		// Mint + approve a totals subject=revenue scan.
+		LargeRangeGate::check_run( $start, $end, 'totals:revenue' );
+		LargeRangeGate::approve_scan( $start, $end, 'totals:revenue' );
+
+		// A breakdown subject=revenue retry on the same dates must NOT consume
+		// the totals approval — gate fires again with its own pending mint.
+		$breakdown_result = LargeRangeGate::check_run( $start, $end, 'breakdown:revenue' );
+		$this->assertWPError(
+			$breakdown_result,
+			'breakdown:revenue must not consume an approval minted under totals:revenue.'
+		);
+		$this->assertSame( 'extended_range_required', $breakdown_result->get_error_code() );
+
+		// The totals approval must still be consumable by totals.
+		$totals_result = LargeRangeGate::check_run( $start, $end, 'totals:revenue' );
+		$this->assertIsInt(
+			$totals_result,
+			'totals:revenue must still consume its own approval after a non-matching breakdown retry.'
+		);
+
+		// Sanity: same shape for series subject=customers vs totals subject=customers.
+		LargeRangeGate::check_run( $start, $end, 'totals:customers' );
+		LargeRangeGate::approve_scan( $start, $end, 'totals:customers' );
+
+		$series_result = LargeRangeGate::check_run( $start, $end, 'series:customers' );
+		$this->assertWPError(
+			$series_result,
+			'series:customers must not consume an approval minted under totals:customers.'
+		);
+	}
+
+	/**
 	 * Session key normalises date+time to date-only so H:i:s suffix does not break matching.
 	 */
 	public function test_session_key_normalises_datetime_to_date() {

@@ -548,11 +548,11 @@ This connector returns aggregated metrics and pseudonymised customer rows. It do
 
 ## Date ranges over 365 days
 
-Any analytics call whose range exceeds 365 days returns an `extended_range_required` error. The error includes a `cost_estimate` showing the range in days and months. Flow:
+`wc-analytics-totals`, `wc-analytics-breakdown`, and `wc-analytics-series` (and the legacy `wc-analytics-get-data` router) fire a gate when the range exceeds 365 days, returning an `extended_range_required` error. `wc-analytics-rows` does NOT fire the gate today — long-range row queries pass through. The error includes a `cost_estimate` block with `range_days`, `months`, and a `type` field. Flow:
 
 1. Show the cost estimate from the error to the merchant.
 2. Wait for explicit approval — never call `wc-analytics-confirm-large-range` autonomously.
-3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, plus a `description` field (a one-line plain-English summary of the query the merchant just approved — e.g. "3-year customer overview, monthly granularity"). The `type` value MUST match what the failing call passed to the gate — verb tools pass their `subject` (revenue / products / customers / etc.); the legacy router passes the per-type slug (revenue_summary / product_performance / etc.).
+3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, and the LITERAL `type` value from `cost_estimate.type` in the error (verb-tool types include a tool prefix like `totals:revenue` / `breakdown:revenue` / `series:customers` so approvals minted by one tool don't collide with another tool sharing the same subject; the legacy router uses bare per-type slugs like `revenue_summary`). Add a `description` field — a one-line plain-English summary of the query the merchant just approved (e.g. "3-year customer overview, monthly granularity").
 4. Re-run the same analytics call (verb tool or legacy router) with the same params.
 
 Do not split the range into smaller chunks to bypass the gate — that defeats its purpose.
