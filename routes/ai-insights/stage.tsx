@@ -1,9 +1,10 @@
 /**
- * App — root component for the WooCommerce for Claude conversational assistant.
+ * AI Insights stage — root component for the WooCommerce for Claude chat interface.
  *
- * Renders the full-height chat interface: a scrollable message history
- * above a fixed compose bar. Routes between no-key, error, and chat states.
+ * Exported as `stage` following the @wordpress/boot route convention.
+ * Rendered by the boot router when the user visits the AI Insights page.
  */
+import './style.scss';
 import { useEffect, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { useChat } from './hooks/useChat';
@@ -11,7 +12,7 @@ import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
 
-export function App() {
+export function stage() {
 	const { state, sendMessage, clearError } = useChat();
 	const bottomRef = useRef< HTMLDivElement >( null );
 

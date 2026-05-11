@@ -1,7 +1,7 @@
 /**
  * WooCommerce for Claude conversational assistant — admin page styles.
  *
- * Scoped to .hey-woo-page to avoid leaking into WP admin chrome.
+ * Scoped to .hey-woo-page to avoid leaking into the boot shell chrome.
  */
 
 // ── Page shell ──────────────────────────────────────────────────────────────
@@ -9,7 +9,7 @@
 .hey-woo-page {
 	display: flex;
 	flex-direction: column;
-	height: calc(100vh - 32px); // 32px = WP admin bar height.
+	height: 100vh;
 	max-width: 860px;
 	margin: 0 auto;
 	padding: 0 16px;
