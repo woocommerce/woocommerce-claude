@@ -64,12 +64,15 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Single-section tab — no sub-nav.
+	 * Sub-navigation sections for the WooCommerce for Claude tab.
 	 *
 	 * @return array<string,string>
 	 */
 	public function get_sections() {
-		return array();
+		return array(
+			''      => __( 'AI Insights', 'woocommerce-claude' ),
+			'setup' => __( 'Setup', 'woocommerce-claude' ),
+		);
 	}
 
 	/**
@@ -101,10 +104,24 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Render the setup view and the AI Insights key settings.
+	 * Render the current section.
+	 *
+	 * The Setup section shows the Claude Desktop connection wizard and hides
+	 * WC's Save button (no form fields, all actions are link-based).
+	 * The default AI Insights section renders the Anthropic API key field.
 	 */
 	public function output() {
-		SetupPage::render_setup_view();
+		global $current_section;
+
+		if ( 'setup' === $current_section ) {
+			SetupPage::render_setup_view(); // enqueues 'woocommerce-claude-setup' handle
+			wp_add_inline_style(
+				'woocommerce-claude-setup',
+				'#mainform > p.submit { display: none; }'
+			);
+			return;
+		}
+
 		\WC_Admin_Settings::output_fields( $this->get_settings_for_default_section() );
 	}
 
