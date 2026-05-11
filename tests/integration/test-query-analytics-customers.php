@@ -210,12 +210,20 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 		);
 		$input    = array_merge( $defaults, $input );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$this->assertNotNull( $ability, 'query-analytics ability not registered' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			$input['entity'],
+			$input['filters'] ?? array(),
+			$input['match'] ?? 'all',
+			$input['period'] ?? 'last_30_days',
+			$input['date_start'] ?? null,
+			$input['date_end'] ?? null,
+			$input['mode'] ?? 'aggregate',
+			$input['limit'] ?? 25,
+			$input['orderby'] ?? '',
+			$input['order'] ?? 'DESC'
+		);
 		if ( is_wp_error( $result ) ) {
-			$this->fail( 'query-analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
+			$this->fail( 'fetch_query_analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
 		}
 
 		return $result;
@@ -443,18 +451,23 @@ class Test_Query_Analytics_Customers extends WP_UnitTestCase {
 	 */
 	public function test_email_not_filterable() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$result  = $ability->execute(
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			'customers',
 			array(
-				'entity'  => 'customers',
-				'filters' => array(
-					array(
-						'field'    => 'email',
-						'operator' => 'is',
-						'value'    => 'c1@example.test',
-					),
+				array(
+					'field'    => 'email',
+					'operator' => 'is',
+					'value'    => 'c1@example.test',
 				),
-			)
+			),
+			'all',
+			'last_30_days',
+			null,
+			null,
+			'aggregate',
+			25,
+			'',
+			'DESC'
 		);
 
 		$this->assertWPError( $result );

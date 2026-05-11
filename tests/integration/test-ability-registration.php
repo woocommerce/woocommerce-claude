@@ -33,17 +33,21 @@ class Test_Ability_Registration extends WP_UnitTestCase {
 	 * @var array<int, string>
 	 */
 	const EXPECTED_ABILITY_IDS = array(
-		'wc-analytics/get-revenue-summary',
-		'wc-analytics/get-orders-summary',
-		'wc-analytics/get-product-performance',
-		'wc-analytics/get-customer-overview',
-		'wc-analytics/get-attribution',
-		'wc-analytics/get-customer-value',
-		'wc-analytics/get-revenue-breakdown',
-		'wc-analytics/get-coupon-performance',
-		'wc-analytics/get-refund-analysis',
-		'wc-analytics/get-tax-summary',
-		'wc-analytics/query-analytics',
+		'wc-analytics/totals',
+		'wc-analytics/breakdown',
+		'wc-analytics/series',
+		'wc-analytics/rows',
+	);
+
+	/**
+	 * Abilities exercised via shared test files rather than a dedicated
+	 * `test-<slug>.php`. The registration check still applies; the
+	 * has-test-file check is satisfied by the named file instead.
+	 *
+	 * @var array<string, string>
+	 */
+	const SHARED_TEST_FILES = array(
+		'wc-analytics/confirm-large-range' => 'test-large-range-gate.php',
 	);
 
 	/**
@@ -53,11 +57,12 @@ class Test_Ability_Registration extends WP_UnitTestCase {
 	 * @return array<int, array<int, string>>
 	 */
 	public function ability_id_provider() {
+		$ids = array_merge( self::EXPECTED_ABILITY_IDS, array_keys( self::SHARED_TEST_FILES ) );
 		return array_map(
 			static function ( $id ) {
 				return array( $id );
 			},
-			self::EXPECTED_ABILITY_IDS
+			$ids
 		);
 	}
 
@@ -93,8 +98,12 @@ class Test_Ability_Registration extends WP_UnitTestCase {
 	 * @param string $ability_id Fully-qualified ability ID (`namespace/name`).
 	 */
 	public function test_ability_has_test_file( $ability_id ) {
-		$slug      = substr( $ability_id, strlen( 'wc-analytics/' ) );
-		$test_file = dirname( __DIR__ ) . '/integration/test-' . $slug . '.php';
+		$slug = substr( $ability_id, strlen( 'wc-analytics/' ) );
+		if ( isset( self::SHARED_TEST_FILES[ $ability_id ] ) ) {
+			$test_file = dirname( __DIR__ ) . '/integration/' . self::SHARED_TEST_FILES[ $ability_id ];
+		} else {
+			$test_file = dirname( __DIR__ ) . '/integration/test-' . $slug . '.php';
+		}
 
 		$this->assertFileExists(
 			$test_file,

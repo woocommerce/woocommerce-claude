@@ -439,13 +439,17 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-coupon-performance' );
-		$this->assertNotNull( $ability, 'get-coupon-performance ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_coupon_performance(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'],
+			$input['limit'],
+			$input['orderby']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_coupon_performance returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

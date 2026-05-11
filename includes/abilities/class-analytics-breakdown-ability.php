@@ -11,7 +11,6 @@ namespace WooCommerce\Claude\Abilities;
 
 use WooCommerce\Claude\Abilities\LargeRangeGate;
 use WooCommerce\Claude\API\AnalyticsController;
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -495,13 +494,8 @@ DESCRIPTION,
 			return $gate;
 		}
 		$series_cap = $gate;
-		SkillTelemetry::suppress_dispatch();
-		$start_ms = microtime( true );
-		try {
-				$result = self::dispatch( $subject, $dimension, $period, $date_start, $date_end, $compare, $limit, $orderby, $include_unassigned, $series_cap );
-		} finally {
-			SkillTelemetry::resume_dispatch();
-		}
+		$start_ms   = microtime( true );
+		$result     = self::dispatch( $subject, $dimension, $period, $date_start, $date_end, $compare, $limit, $orderby, $include_unassigned, $series_cap );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}

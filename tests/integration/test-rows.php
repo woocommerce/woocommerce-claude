@@ -40,7 +40,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/rows verb-shaped ability.
  */
-class Test_Analytics_Rows extends WP_UnitTestCase {
+class Test_Rows extends WP_UnitTestCase {
 
 	/**
 	 * Direct listener — sees legacy + enriched.
@@ -158,9 +158,8 @@ class Test_Analytics_Rows extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Each (entity, mode) pair routes to fetch_query_analytics, the
-	 * dispatcher sees one enriched event with shape matching the mode,
-	 * and the legacy `query_analytics` emission fires inside the fetch.
+	 * Each (entity, mode) pair routes to fetch_query_analytics and emits
+	 * exactly one enriched event with shape matching the mode.
 	 *
 	 * @dataProvider entity_mode_provider
 	 *
@@ -186,18 +185,20 @@ class Test_Analytics_Rows extends WP_UnitTestCase {
 		$this->assertSame( $entity, $result['entity'] );
 		$this->assertSame( $mode, $result['mode'] );
 
-		$direct_skills = array_column( $this->direct_events, 'skill' );
-		$this->assertContains(
-			'query_analytics',
-			$direct_skills,
-			'Direct listener must see the legacy `query_analytics` emission fired from inside fetch_query_analytics().'
+		// After the 0.2.0 cutover the verb tool's own do_action is the only
+		// emission point — legacy fetch-level emissions inside
+		// fetch_query_analytics were removed.
+		$this->assertCount(
+			1,
+			$this->direct_events,
+			'Direct add_action listener must see exactly one emission per execute call.'
 		);
-		$this->assertContains( 'wc-analytics/rows', $direct_skills );
+		$this->assertSame( 'wc-analytics/rows', $this->direct_events[0]['skill'] );
 
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call (suppress_dispatch gates the legacy emission).'
+			'SkillTelemetry handler must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/rows', $event['skill'] );
@@ -249,11 +250,10 @@ class Test_Analytics_Rows extends WP_UnitTestCase {
 		$this->assertWPError( $result );
 		$this->assertSame( 'unknown_field', $result->get_error_code() );
 
-		// Direct listener saw the legacy emission only if fetch_query_analytics
-		// got far enough to fire it. With unknown_field surfacing during
-		// filter parsing the fetch short-circuits and never fires the
-		// post-execute action, so neither the legacy nor enriched event
-		// reaches any listener.
+		// The verb tool emits its enriched event only on the success path
+		// (after the fetch returns a non-error result). A filter validation
+		// failure short-circuits before that emission, so neither the direct
+		// listener nor the SkillTelemetry handler sees an event.
 		$this->assertSame( array(), array_column( $this->direct_events, 'skill' ) );
 		$this->assertCount( 0, $this->spy_handler->events );
 	}

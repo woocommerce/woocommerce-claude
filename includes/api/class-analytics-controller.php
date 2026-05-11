@@ -197,26 +197,6 @@ class AnalyticsController {
 	public static function fetch_revenue_summary( $period, $date_start, $date_end, $compare ) {
 		$start = microtime( true );
 
-		/**
-		 * Fires when an analytics skill is called. Used for telemetry (Tracks,
-		 * log files, remote insights panel). Listeners must be non-blocking.
-		 *
-		 * @since 0.1.0
-		 *
-		 * @param string $skill_name Skill identifier (e.g. 'get_revenue_summary').
-		 * @param array  $params     Resolved input parameters passed to the skill.
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_revenue_summary',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-			)
-		);
-
 		// Resolve date range.
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
@@ -228,41 +208,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * Fires after an analytics skill executes (cache hit or miss).
-			 *
-			 * Use this hook to route per-call telemetry to a log, Tracks, or any
-			 * other backend. Listeners must be non-blocking.
-			 *
-			 * @since 0.1.0
-			 *
-			 * @param string $skill_name  Skill identifier, e.g. 'get_revenue_summary'.
-			 * @param array  $data {
-			 *     @type int         $duration_ms   Wall-clock time from method entry to return, ms.
-			 *     @type bool        $cache_hit     True when the result was served from cache.
-			 *     @type int         $rows_returned Count of rows in the primary variable-length array,
-			 *                                     or 1 for scalar-result skills.
-			 *     @type string      $date_start    Resolved period start date (YYYY-MM-DD).
-			 *     @type string      $date_end      Resolved period end date (YYYY-MM-DD).
-			 *     @type string|null $interval      Time-series bucket size ('day', 'week', 'month'),
-			 *                                     or null for skills that don't return a series.
-			 *     @type int|null    $bucket_count  Number of time buckets in the period (days / interval
-			 *                                     size), or null when interval is null.
-			 * }
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_revenue_summary',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -315,25 +260,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_revenue_summary',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -522,22 +448,6 @@ class AnalyticsController {
 	public static function fetch_orders_summary( $period, $date_start, $date_end, $compare ) {
 		$start = microtime( true );
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_orders_summary',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_orders_' . md5(
@@ -547,24 +457,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_orders_summary',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -640,25 +532,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_orders_summary',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -1517,26 +1390,6 @@ class AnalyticsController {
 		$start = microtime( true );
 		$limit = (int) $limit;
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_product_performance',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-				'limit'      => $limit,
-				'orderby'    => $orderby,
-				'group_by'   => $group_by,
-				'interval'   => $interval,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		// Resolve auto interval based on date range length.
@@ -1571,24 +1424,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_product_performance',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => ! empty( $resolved_interval ) ? $resolved_interval : null,
-					'bucket_count'  => self::calculate_bucket_count( $resolved_interval, $dates['start'], $dates['end'] ),
-				)
-			);
 			return $cached;
 		}
 
@@ -1800,25 +1635,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_product_performance',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => ! empty( $resolved_interval ) ? $resolved_interval : null,
-				'bucket_count'  => self::calculate_bucket_count( $resolved_interval, $dates['start'], $dates['end'] ),
-			)
-		);
 
 		return $result;
 	}
@@ -2689,26 +2505,6 @@ class AnalyticsController {
 		$limit              = (int) $limit;
 		$include_unassigned = (bool) $include_unassigned;
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_attribution',
-			array(
-				'period'             => $period,
-				'date_start'         => $date_start,
-				'date_end'           => $date_end,
-				'compare'            => $compare,
-				'limit'              => $limit,
-				'orderby'            => $orderby,
-				'group_by'           => $group_by,
-				'include_unassigned' => $include_unassigned,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_attribution_' . md5(
@@ -2723,24 +2519,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_attribution',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -2913,25 +2691,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_attribution',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -3292,22 +3051,6 @@ class AnalyticsController {
 	 */
 	public static function fetch_customer_overview( $period, $date_start, $date_end, $compare, $interval, $confirmation_token = null, $series_cap_override = null ) {
 		$start = microtime( true );
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_customer_overview',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-				'interval'   => $interval,
-			)
-		);
 
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
@@ -3339,24 +3082,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_customer_overview',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => ! empty( $resolved_interval ) ? $resolved_interval : null,
-					'bucket_count'  => self::calculate_bucket_count( $resolved_interval, $dates['start'], $dates['end'] ),
-				)
-			);
 			return $cached;
 		}
 
@@ -3442,25 +3167,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_customer_overview',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => ! empty( $resolved_interval ) ? $resolved_interval : null,
-				'bucket_count'  => self::calculate_bucket_count( $resolved_interval, $dates['start'], $dates['end'] ),
-			)
-		);
 
 		return $result;
 	}
@@ -3997,24 +3703,6 @@ class AnalyticsController {
 	public static function fetch_customer_value( $period, $date_start, $date_end, $compare, $limit, $include_cohorts ) {
 		$start = microtime( true );
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_customer_value',
-			array(
-				'period'          => $period,
-				'date_start'      => $date_start,
-				'date_end'        => $date_end,
-				'compare'         => $compare,
-				'limit'           => $limit,
-				'include_cohorts' => $include_cohorts,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_customer_value_' . md5(
@@ -4027,24 +3715,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_customer_value',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => count( $cached['top_customers'] ?? array() ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -4112,25 +3782,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CUSTOMER_VALUE_CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_customer_value',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => count( $result['top_customers'] ?? array() ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -4903,26 +4554,6 @@ class AnalyticsController {
 		$limit              = (int) $limit;
 		$include_unassigned = (bool) $include_unassigned;
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_revenue_breakdown',
-			array(
-				'period'             => $period,
-				'date_start'         => $date_start,
-				'date_end'           => $date_end,
-				'compare'            => $compare,
-				'limit'              => $limit,
-				'orderby'            => $orderby,
-				'group_by'           => $group_by,
-				'include_unassigned' => $include_unassigned,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_revenue_breakdown_' . md5(
@@ -4937,24 +4568,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_revenue_breakdown',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -5095,25 +4708,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_revenue_breakdown',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -6009,24 +5603,6 @@ class AnalyticsController {
 		$start = microtime( true );
 		$limit = (int) $limit;
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_coupon_performance',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-				'limit'      => $limit,
-				'orderby'    => $orderby,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_coupon_performance_' . md5(
@@ -6039,24 +5615,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_coupon_performance',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -6196,25 +5754,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_coupon_performance',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -6705,25 +6244,6 @@ class AnalyticsController {
 		$limit              = (int) $limit;
 		$include_unassigned = (bool) $include_unassigned;
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_refund_analysis',
-			array(
-				'period'             => $period,
-				'date_start'         => $date_start,
-				'date_end'           => $date_end,
-				'compare'            => $compare,
-				'group_by'           => $group_by,
-				'limit'              => $limit,
-				'include_unassigned' => $include_unassigned,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_refund_analysis_' . md5(
@@ -6737,24 +6257,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_refund_analysis',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -6817,25 +6319,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_refund_analysis',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -7439,24 +6922,6 @@ class AnalyticsController {
 		$limit   = (int) $limit;
 		$orderby = self::tax_summary_orderby( $orderby );
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'get_tax_summary',
-			array(
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'compare'    => $compare,
-				'limit'      => $limit,
-				'orderby'    => $orderby,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_tax_summary_' . md5(
@@ -7469,24 +6934,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'get_tax_summary',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -7621,25 +7068,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'get_tax_summary',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}
@@ -8021,28 +7449,6 @@ class AnalyticsController {
 		$order      = ( 'ASC' === strtoupper( (string) $order ) ) ? 'ASC' : 'DESC';
 		$limit      = max( 1, min( 50, (int) $limit ) );
 
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_called',
-			'query_analytics',
-			array(
-				'entity'     => $entity,
-				'match'      => $match_mode,
-				'filters'    => $filters,
-				'period'     => $period,
-				'date_start' => $date_start,
-				'date_end'   => $date_end,
-				'mode'       => $mode,
-				'limit'      => $limit,
-				'orderby'    => $orderby,
-				'order'      => $order,
-			)
-		);
-
 		$dates = self::resolve_dates( $period, $date_start, $date_end );
 
 		$cache_key = 'woocommerce_claude_query_analytics_' . md5(
@@ -8059,24 +7465,6 @@ class AnalyticsController {
 		);
 		$cached    = get_transient( $cache_key );
 		if ( false !== $cached ) {
-			/**
-			 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-			 *
-			 * @since 0.1.0
-			 */
-			do_action(
-				'woocommerce_claude_skill_executed',
-				'query_analytics',
-				array(
-					'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-					'cache_hit'     => true,
-					'rows_returned' => self::count_result_rows( $cached ),
-					'date_start'    => $dates['start'],
-					'date_end'      => $dates['end'],
-					'interval'      => null,
-					'bucket_count'  => null,
-				)
-			);
 			return $cached;
 		}
 
@@ -8103,25 +7491,6 @@ class AnalyticsController {
 		}
 
 		set_transient( $cache_key, $result, self::CACHE_TTL );
-
-		/**
-		 * This action is documented in class-analytics-controller.php::fetch_revenue_summary().
-		 *
-		 * @since 0.1.0
-		 */
-		do_action(
-			'woocommerce_claude_skill_executed',
-			'query_analytics',
-			array(
-				'duration_ms'   => (int) round( ( microtime( true ) - $start ) * 1000 ),
-				'cache_hit'     => false,
-				'rows_returned' => self::count_result_rows( $result ),
-				'date_start'    => $dates['start'],
-				'date_end'      => $dates['end'],
-				'interval'      => null,
-				'bucket_count'  => null,
-			)
-		);
 
 		return $result;
 	}

@@ -2,9 +2,11 @@
 /**
  * Skill telemetry dispatcher.
  *
- * Listens on the woocommerce_claude_skill_executed action (fired by
- * AnalyticsController and GetCustomerValueAbility after every fetch)
- * and fans the payload out to registered handlers.
+ * Listens on the woocommerce_claude_skill_executed action (fired by the
+ * four verb-shaped analytics abilities — wc-analytics/totals,
+ * wc-analytics/breakdown, wc-analytics/series, wc-analytics/rows — at
+ * the end of every successful execute() call) and fans the payload out
+ * to registered handlers.
  *
  * Default handler set:
  *   - LogHandler: active on non-production environments (local/development/staging).
@@ -39,28 +41,6 @@ class SkillTelemetry {
 	 * @var TelemetryHandlerInterface[]
 	 */
 	private static $handlers = array();
-
-	/**
-	 * When true, `dispatch()` returns without invoking any handlers.
-	 *
-	 * Set by verb-tool abilities (wc-analytics-totals, wc-analytics-breakdown,
-	 * wc-analytics-series, wc-analytics-rows) around the inner `fetch_X()` call
-	 * they delegate to. The fetch method still fires its legacy
-	 * `woocommerce_claude_skill_executed` action — but with this flag set,
-	 * dispatch skips, so handlers never see the legacy payload. After the
-	 * fetch returns, the verb tool clears the flag and re-fires the action
-	 * with the enriched `(tool, subject, shape)` payload — that second
-	 * invocation propagates to handlers normally.
-	 *
-	 * Why this dance: direct callers of `AnalyticsController::fetch_X()`
-	 * (admin UIs, CLI, any future internal consumer) keep getting telemetry
-	 * automatically because the action still fires inside the fetch. Only
-	 * the verb-tool path, which knows it's about to re-emit with the
-	 * enriched shape, suppresses the inner emission.
-	 *
-	 * @var bool
-	 */
-	private static $suppress_dispatch = false;
 
 	/**
 	 * Wire up the action listener and build the default handler set.
@@ -106,49 +86,18 @@ class SkillTelemetry {
 	/**
 	 * Dispatch a skill-execution event to all registered handlers.
 	 *
-	 * Hooked on woocommerce_claude_skill_executed at priority 10.
+	 * Hooked on woocommerce_claude_skill_executed at priority 10. The
+	 * verb-tool abilities (wc-analytics-totals / breakdown / series / rows)
+	 * are the only emission points, so each tool call produces exactly one
+	 * event with the `(tool, subject, shape)` envelope on the payload.
 	 *
 	 * @param string $skill_name Skill identifier.
 	 * @param array  $data       Telemetry payload.
 	 */
 	public static function dispatch( $skill_name, $data ) {
-		if ( self::$suppress_dispatch ) {
-			return;
-		}
 		foreach ( self::$handlers as $handler ) {
 			$handler->record( $skill_name, $data );
 		}
-	}
-
-	/**
-	 * Begin a window during which `dispatch()` is a no-op.
-	 *
-	 * Verb-tool abilities call this before delegating to a `fetch_X()`
-	 * method, then call `resume_dispatch()` immediately after the fetch
-	 * returns. Within the window, the inner fetch's legacy
-	 * `woocommerce_claude_skill_executed` action still fires — its
-	 * payload just doesn't reach handlers via this dispatcher.
-	 *
-	 * Other listeners on `woocommerce_claude_skill_executed` (debug
-	 * plugins, third-party code) still see the action in both forms
-	 * (legacy from inside the fetch, enriched from the verb tool). The
-	 * suppression is scoped to this dispatcher only.
-	 *
-	 * Idempotent — calling twice in a row is harmless. Always pair with
-	 * `resume_dispatch()` (in a try/finally) to avoid wedging the
-	 * dispatcher closed if a fetch throws.
-	 */
-	public static function suppress_dispatch() {
-		self::$suppress_dispatch = true;
-	}
-
-	/**
-	 * End the suppression window opened by `suppress_dispatch()`.
-	 *
-	 * Safe to call even if no suppression is active.
-	 */
-	public static function resume_dispatch() {
-		self::$suppress_dispatch = false;
 	}
 
 	/**

@@ -31,7 +31,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/series verb-shaped ability.
  */
-class Test_Analytics_Series extends WP_UnitTestCase {
+class Test_Series extends WP_UnitTestCase {
 
 	/**
 	 * Direct listener — sees legacy + enriched.
@@ -178,11 +178,10 @@ class Test_Analytics_Series extends WP_UnitTestCase {
 	 *
 	 * @dataProvider subject_routing_provider
 	 *
-	 * @param string $subject               Subject value.
-	 * @param string $interval              Interval value passed to the ability.
-	 * @param string $expected_legacy_skill Legacy skill name fired by the inner fetch.
+	 * @param string $subject  Subject value.
+	 * @param string $interval Interval value passed to the ability.
 	 */
-	public function test_subject_routes_and_emits_enriched_telemetry( $subject, $interval, $expected_legacy_skill ) {
+	public function test_subject_routes_and_emits_enriched_telemetry( $subject, $interval ) {
 		$result = $this->invoke_ability(
 			array(
 				'subject'    => $subject,
@@ -203,18 +202,19 @@ class Test_Analytics_Series extends WP_UnitTestCase {
 		$this->assertSame( $subject, $result['subject'] );
 		$this->assertSame( $interval, $result['interval'] );
 
-		$direct_skills = array_column( $this->direct_events, 'skill' );
-		$this->assertContains(
-			$expected_legacy_skill,
-			$direct_skills,
-			"Direct listener must see the legacy '{$expected_legacy_skill}' emission fired inside the fetch."
+		// After the 0.2.0 cutover the verb tool's own do_action is the only
+		// emission point — legacy fetch-level emissions were removed.
+		$this->assertCount(
+			1,
+			$this->direct_events,
+			'Direct add_action listener must see exactly one emission per execute call.'
 		);
-		$this->assertContains( 'wc-analytics/series', $direct_skills );
+		$this->assertSame( 'wc-analytics/series', $this->direct_events[0]['skill'] );
 
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call (suppress_dispatch gates the legacy emission).'
+			'SkillTelemetry handler must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/series', $event['skill'] );
@@ -233,12 +233,12 @@ class Test_Analytics_Series extends WP_UnitTestCase {
 	/**
 	 * Subject + interval pairs covering every value of the series enum.
 	 *
-	 * @return array<string, array{0: string, 1: string, 2: string}>
+	 * @return array<string, array{0: string, 1: string}>
 	 */
 	public function subject_routing_provider() {
 		return array(
-			'customers_with_month_interval' => array( 'customers', 'month', 'get_customer_overview' ),
-			'products_with_day_interval'    => array( 'products', 'day', 'get_product_performance' ),
+			'customers_with_month_interval' => array( 'customers', 'month' ),
+			'products_with_day_interval'    => array( 'products', 'day' ),
 		);
 	}
 }

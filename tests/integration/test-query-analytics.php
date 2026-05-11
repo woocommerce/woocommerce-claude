@@ -302,12 +302,20 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 		);
 		$input    = array_merge( $defaults, $input );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$this->assertNotNull( $ability, 'query-analytics ability not registered' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			$input['entity'],
+			$input['filters'] ?? array(),
+			$input['match'] ?? 'all',
+			$input['period'] ?? 'last_30_days',
+			$input['date_start'] ?? null,
+			$input['date_end'] ?? null,
+			$input['mode'] ?? 'aggregate',
+			$input['limit'] ?? 25,
+			$input['orderby'] ?? '',
+			$input['order'] ?? 'DESC'
+		);
 		if ( is_wp_error( $result ) ) {
-			$this->fail( 'query-analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
+			$this->fail( 'fetch_query_analytics returned WP_Error: ' . $result->get_error_code() . ' — ' . $result->get_error_message() );
 		}
 
 		return $result;
@@ -711,18 +719,23 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 	public function test_unknown_field_returns_wp_error() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$result  = $ability->execute(
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			'orders',
 			array(
-				'entity'  => 'orders',
-				'filters' => array(
-					array(
-						'field'    => 'this_field_does_not_exist',
-						'operator' => 'is',
-						'value'    => 'x',
-					),
+				array(
+					'field'    => 'this_field_does_not_exist',
+					'operator' => 'is',
+					'value'    => 'x',
 				),
-			)
+			),
+			'all',
+			'last_30_days',
+			null,
+			null,
+			'aggregate',
+			25,
+			'',
+			'DESC'
 		);
 
 		$this->assertWPError( $result );
@@ -741,18 +754,23 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 	public function test_invalid_operator_for_type_returns_wp_error() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$ability = wp_get_ability( 'wc-analytics/query-analytics' );
-		$result  = $ability->execute(
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_query_analytics(
+			'orders',
 			array(
-				'entity'  => 'orders',
-				'filters' => array(
-					array(
-						'field'    => 'order_total',
-						'operator' => 'contains',
-						'value'    => 'foo',
-					),
+				array(
+					'field'    => 'order_total',
+					'operator' => 'contains',
+					'value'    => 'foo',
 				),
-			)
+			),
+			'all',
+			'last_30_days',
+			null,
+			null,
+			'aggregate',
+			25,
+			'',
+			'DESC'
 		);
 
 		$this->assertWPError( $result );

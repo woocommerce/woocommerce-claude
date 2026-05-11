@@ -77,15 +77,12 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			'woocommerce-claude-get-product-details',
 			'woocommerce-claude-search-products',
 			'woocommerce-claude-suggest-improvements',
-			// Verb-shaped analytics tools — primary surface.
+			// Verb-shaped analytics tools + the gate-confirmation helper.
 			'wc-analytics-totals',
 			'wc-analytics-breakdown',
 			'wc-analytics-series',
 			'wc-analytics-rows',
-			// Helpers + legacy router (still registered during the transitional surface).
-			'wc-analytics-describe',
 			'wc-analytics-confirm-large-range',
-			'wc-analytics-get-data',
 		);
 
 		foreach ( $expected as $tool_name ) {
@@ -160,9 +157,6 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 
 		$required_markers = array(
 			// Routing: wc-analytics-rows is the antidote to "tool can't show specifics".
-			// Replaces the legacy `query_analytics` marker — same routing role under the
-			// verb-shape surface; the legacy router is still registered but is no longer
-			// the primary recommendation in the connector preamble.
 			'wc-analytics-rows',
 			// All four verb tools must be named in the preamble so routing decisions
 			// can be made from this block alone, without round-tripping describe.

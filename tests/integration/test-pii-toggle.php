@@ -96,23 +96,18 @@ class Test_Pii_Toggle extends WP_UnitTestCase {
 	private function run_ability() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$ability = wp_get_ability( 'wc-analytics/get-customer-value' );
-		$this->assertNotNull( $ability, 'get-customer-value ability was not registered.' );
-
-		$result = $ability->execute(
-			array(
-				'period'          => 'last_30_days',
-				'date_start'      => $this->period_start,
-				'date_end'        => $this->period_end,
-				'compare'         => false,
-				'limit'           => 10,
-				'include_cohorts' => false,
-			)
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_customer_value(
+			'last_30_days',
+			$this->period_start,
+			$this->period_end,
+			false,
+			10,
+			false
 		);
 
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_customer_value returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

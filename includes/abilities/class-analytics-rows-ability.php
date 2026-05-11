@@ -8,7 +8,6 @@
 namespace WooCommerce\Claude\Abilities;
 
 use WooCommerce\Claude\API\AnalyticsController;
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -26,7 +25,7 @@ class AnalyticsRowsAbility {
 			self::ABILITY_NAME,
 			array(
 				'label'               => __( 'Get analytics rows', 'woocommerce-claude' ),
-				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Consolidated narrative ported from the query-analytics ability (verb-shape pivot).
+				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB filter-engine narrative — wrapping in __() is tracked separately.
 				'description'         => __(
 					<<<'DESCRIPTION'
 Flexible filter engine across three entities — orders, products, customers. Translates a merchant's natural-language question (e.g. "orders over £100 from Germany last month using a coupon", "products priced over £50 that haven't sold in 30 days", "customers in Germany with lifetime spend over £500") into a filter spec and returns either an aggregated summary (default) or a row list. The merchant never sees the filter JSON; you do the translation silently and narrate back in plain English.
@@ -281,25 +280,19 @@ DESCRIPTION,
 		$orderby    = isset( $input['orderby'] ) ? (string) $input['orderby'] : '';
 		$order      = isset( $input['order'] ) ? (string) $input['order'] : 'DESC';
 
-		SkillTelemetry::suppress_dispatch();
 		$start_ms = microtime( true );
-
-		try {
-			$result = AnalyticsController::fetch_query_analytics(
-				$entity,
-				$filters,
-				$match,
-				$period,
-				$date_start,
-				$date_end,
-				$mode,
-				$limit,
-				$orderby,
-				$order
-			);
-		} finally {
-			SkillTelemetry::resume_dispatch();
-		}
+		$result   = AnalyticsController::fetch_query_analytics(
+			$entity,
+			$filters,
+			$match,
+			$period,
+			$date_start,
+			$date_end,
+			$mode,
+			$limit,
+			$orderby,
+			$order
+		);
 
 		if ( is_wp_error( $result ) ) {
 			return $result;

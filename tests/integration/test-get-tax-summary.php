@@ -314,10 +314,17 @@ class Test_Get_Tax_Summary extends WP_UnitTestCase {
 	private function run_ability( array $input ) {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 
-		$result = wp_get_ability( 'wc-analytics/get-tax-summary' )->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_tax_summary(
+			$input['period'] ?? 'custom',
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'] ?? false,
+			$input['limit'] ?? 10,
+			$input['orderby'] ?? 'total_tax'
+		);
 
 		if ( is_wp_error( $result ) ) {
-			$this->fail( 'tax-summary ability returned WP_Error: ' . $result->get_error_message() );
+			$this->fail( 'fetch_tax_summary returned WP_Error: ' . $result->get_error_message() );
 		}
 
 		return $result;

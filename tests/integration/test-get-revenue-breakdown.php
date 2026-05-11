@@ -395,13 +395,19 @@ class Test_Get_Revenue_Breakdown extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-revenue-breakdown' );
-		$this->assertNotNull( $ability, 'get-revenue-breakdown ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_revenue_breakdown(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'],
+			$input['limit'],
+			$input['orderby'],
+			$input['group_by'],
+			$input['include_unassigned']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_revenue_breakdown returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

@@ -1,12 +1,10 @@
 <?php
 /**
- * Integration tests — wc-analytics/totals (verb-shape pivot, PR 1).
+ * Integration tests — wc-analytics/totals.
  *
  * Pins the verb-tool contract — schema validation on `subject`, dispatch
- * routing to each underlying `AnalyticsController::fetch_X()` method, the
- * enriched telemetry payload, and the SkillTelemetry suppress/resume window
- * that gates the legacy inner emission from reaching dispatcher-routed
- * handlers.
+ * routing to each underlying `AnalyticsController::fetch_X()` method, and
+ * the enriched telemetry payload emitted at the verb-tool boundary.
  *
  * What's pinned:
  *
@@ -17,15 +15,15 @@
  *     first; testing it would require bypassing schema validation, so
  *     the schema-layer rejection is the meaningful pin.
  *   - Each enum value reaches the matching `fetch_X()` — verified via the
- *     legacy skill name fired from inside that fetch (it leaks through to
- *     direct `woocommerce_claude_skill_executed` listeners regardless of
- *     suppress_dispatch, since suppression scopes only to the dispatcher).
- *   - The verb tool re-fires the action with `tool` / `subject` /
- *     `shape='aggregate'` populated — and only that enriched event reaches
- *     handlers registered via `SkillTelemetry::add_handler()`.
- *   - Dispatcher-routed handlers see exactly ONE event per execute call
- *     (not two), because suppress/resume gates the legacy emission inside
- *     the fetch.
+ *     response envelope (`subject` echoed back) plus the
+ *     `woocommerce_claude_skill_executed` event the verb tool emits.
+ *   - The verb tool fires the action with `tool` / `subject` /
+ *     `shape='aggregate'` populated on the payload. After the 0.2.0
+ *     cutover this is the only emission point — legacy fetch-level
+ *     `do_action` calls inside `AnalyticsController::fetch_X` were
+ *     removed, so both direct `add_action` listeners and
+ *     `SkillTelemetry::add_handler()` handlers see exactly one event
+ *     per execute call.
  *
  * @package WooCommerce\Claude\Tests
  */
@@ -36,11 +34,13 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/totals verb-shaped ability.
  */
-class Test_Analytics_Totals extends WP_UnitTestCase {
+class Test_Totals extends WP_UnitTestCase {
 
 	/**
-	 * Direct `add_action` listener — captures both legacy + enriched events
-	 * because `suppress_dispatch` only scopes to SkillTelemetry::dispatch().
+	 * Direct `add_action` listener — captures every emission of
+	 * `woocommerce_claude_skill_executed`. After the 0.2.0 cutover the
+	 * verb tool's own `do_action` at the end of `execute()` is the only
+	 * call, so the listener sees exactly one event per execute.
 	 *
 	 * @var array<int, array{skill: string, data: array}>
 	 */
@@ -54,8 +54,7 @@ class Test_Analytics_Totals extends WP_UnitTestCase {
 	private $direct_listener;
 
 	/**
-	 * Spy handler registered via SkillTelemetry::add_handler() — receives
-	 * only events that pass the suppress_dispatch gate.
+	 * Spy handler registered via SkillTelemetry::add_handler().
 	 *
 	 * @var TelemetryHandlerInterface
 	 */
@@ -163,17 +162,13 @@ class Test_Analytics_Totals extends WP_UnitTestCase {
 
 	/**
 	 * Each subject routes to the matching `AnalyticsController::fetch_X()`
-	 * method, the dispatcher sees exactly one enriched event, and the
-	 * direct listener sees both legacy + enriched.
-	 *
-	 * Data provider rows: [subject, expected_legacy_skill_name].
+	 * method and emits exactly one enriched telemetry event.
 	 *
 	 * @dataProvider subject_routing_provider
 	 *
-	 * @param string $subject              Analytics subject value.
-	 * @param string $expected_legacy_skill Legacy skill name fired by the inner fetch.
+	 * @param string $subject Analytics subject value.
 	 */
-	public function test_subject_routes_and_emits_enriched_telemetry( $subject, $expected_legacy_skill ) {
+	public function test_subject_routes_and_emits_enriched_telemetry( $subject ) {
 		$result = $this->invoke_ability( $this->empty_period_input( $subject ) );
 
 		$this->assertNotInstanceOf(
@@ -184,22 +179,22 @@ class Test_Analytics_Totals extends WP_UnitTestCase {
 		);
 		$this->assertSame( $subject, $result['subject'] );
 
-		$direct_skills = array_column( $this->direct_events, 'skill' );
-		$this->assertContains(
-			$expected_legacy_skill,
-			$direct_skills,
-			"Direct listener must see the legacy '{$expected_legacy_skill}' emission fired inside the fetch."
+		// After the 0.2.0 cutover the verb tool's own do_action at the end
+		// of execute() is the only emission point — legacy fetch-level
+		// emissions inside AnalyticsController::fetch_X were removed.
+		// Direct listeners and SkillTelemetry-routed handlers each see
+		// exactly one event per execute call.
+		$this->assertCount(
+			1,
+			$this->direct_events,
+			'Direct add_action listener must see exactly one emission per execute call.'
 		);
-		$this->assertContains(
-			'wc-analytics/totals',
-			$direct_skills,
-			'Direct listener must see the enriched verb-tool emission re-fired by the ability.'
-		);
+		$this->assertSame( 'wc-analytics/totals', $this->direct_events[0]['skill'] );
 
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event — suppress_dispatch gates the legacy emission.'
+			'SkillTelemetry handler must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/totals', $event['skill'] );
@@ -211,20 +206,20 @@ class Test_Analytics_Totals extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Subject → legacy-skill-name pairs covering every value of the totals
-	 * enum. Adding a new subject is a one-row change; dropping one fails
-	 * loudly here before the dispatch dies silently.
+	 * Subjects covering every value of the totals enum. Adding a new
+	 * subject is a one-row change; dropping one fails loudly here before
+	 * the dispatch dies silently.
 	 *
-	 * @return array<string, array{0: string, 1: string}>
+	 * @return array<string, array{0: string}>
 	 */
 	public function subject_routing_provider() {
 		return array(
-			'revenue_routes_to_revenue_summary'       => array( 'revenue', 'get_revenue_summary' ),
-			'orders_routes_to_orders_summary'         => array( 'orders', 'get_orders_summary' ),
-			'customers_routes_to_customer_overview'   => array( 'customers', 'get_customer_overview' ),
-			'customer_value_routes_to_customer_value' => array( 'customer_value', 'get_customer_value' ),
-			'tax_routes_to_tax_summary'               => array( 'tax', 'get_tax_summary' ),
-			'refunds_routes_to_refund_analysis'       => array( 'refunds', 'get_refund_analysis' ),
+			'revenue'        => array( 'revenue' ),
+			'orders'         => array( 'orders' ),
+			'customers'      => array( 'customers' ),
+			'customer_value' => array( 'customer_value' ),
+			'tax'            => array( 'tax' ),
+			'refunds'        => array( 'refunds' ),
 		);
 	}
 }

@@ -29,19 +29,15 @@ class LogHandler implements TelemetryHandlerInterface {
 	/**
 	 * Write the event to the WC logger at INFO level.
 	 *
-	 * Always emits the legacy `skill=<name>` field for backwards compatibility
-	 * with dashboards reading the original schema. When the payload carries
-	 * the verb-tool envelope (`tool` / `subject` / `shape`), those fields are
-	 * appended so log readers can pivot on the new vocabulary. Legacy
-	 * emissions (fetch_X called outside a verb tool) log with the new fields
-	 * as `null` — same schema, narrower content.
+	 * Verb-tool emissions carry `tool` / `subject` / `shape` alongside the
+	 * `skill_name` arg (which is the verb-tool ability ID). The `skill=`
+	 * column in the log line stays for downstream tooling that aggregates
+	 * on it; it reads as the verb-tool ability ID for every event.
 	 *
-	 * @param string $skill_name Skill identifier (legacy slug for legacy emissions,
-	 *                          verb-tool ability ID for verb-tool emissions).
-	 * @param array  $data       Telemetry payload. Legacy keys: duration_ms,
-	 *                          cache_hit, rows_returned, date_start, date_end,
-	 *                          interval, bucket_count. Verb-tool keys add:
-	 *                          tool, subject, shape.
+	 * @param string $skill_name Verb-tool ability ID (the action's first arg).
+	 * @param array  $data       Telemetry payload — tool / subject / shape /
+	 *                          duration_ms / cache_hit / rows_returned /
+	 *                          date_start / date_end / interval / bucket_count.
 	 */
 	public function record( $skill_name, $data ) {
 		if ( ! function_exists( 'wc_get_logger' ) ) {

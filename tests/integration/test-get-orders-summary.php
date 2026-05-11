@@ -256,13 +256,15 @@ class Test_Get_Orders_Summary extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-orders-summary' );
-		$this->assertNotNull( $ability, 'get-orders-summary ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_orders_summary(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_orders_summary returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

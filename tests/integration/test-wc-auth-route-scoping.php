@@ -295,7 +295,7 @@ class Test_WC_Auth_Route_Scoping extends WP_UnitTestCase {
 	public function test_app_password_auth_passes_through_for_non_mcp_routes() {
 		$plugin = \WooCommerce\Claude\Plugin::instance();
 
-		foreach ( array( '/woocommerce-claude/v1/store/profile', '/wp/v2/posts', '/wc/v3/orders', '/wp-abilities/v1/abilities/wc-analytics/get-revenue-summary/run' ) as $route ) {
+		foreach ( array( '/woocommerce-claude/v1/store/profile', '/wp/v2/posts', '/wc/v3/orders', '/wp-abilities/v1/abilities/wc-analytics/totals/run' ) as $route ) {
 			$this->set_pretty_permalink_request( $route );
 			$this->assertTrue(
 				$plugin->exclude_mcp_route_from_app_password_auth( true ),

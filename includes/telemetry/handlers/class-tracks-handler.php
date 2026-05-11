@@ -29,21 +29,15 @@ class TracksHandler implements TelemetryHandlerInterface {
 	/**
 	 * Send the event to Tracks.
 	 *
-	 * Always emits the legacy `skill` property for backwards compatibility with
-	 * dashboards aggregating on `wcadmin_woocommerce_claude_skill_executed.skill`.
-	 * When the payload carries the verb-tool envelope (`tool` / `subject` /
-	 * `shape`), those properties are added so new dashboards can pivot on the
-	 * (tool, subject, shape) triple. Legacy emissions (fetch_X called outside
-	 * a verb tool) send `null` for the new properties — schema-stable, narrower
-	 * content. PR 3 will drop the legacy `skill` property when the legacy
-	 * fetch-level hook firing is removed.
+	 * Verb-tool emissions carry `tool` / `subject` / `shape` alongside the
+	 * `skill_name` arg. Tracks events surface both: dashboards can aggregate
+	 * on `skill` (the verb-tool ability ID) or pivot on the `(tool, subject,
+	 * shape)` triple, depending on the granularity they need.
 	 *
-	 * @param string $skill_name Skill identifier (legacy slug for legacy emissions,
-	 *                          verb-tool ability ID for verb-tool emissions).
-	 * @param array  $data       Telemetry payload. Legacy keys: duration_ms,
-	 *                          cache_hit, rows_returned, date_start, date_end,
-	 *                          interval, bucket_count. Verb-tool keys add:
-	 *                          tool, subject, shape.
+	 * @param string $skill_name Verb-tool ability ID (the action's first arg).
+	 * @param array  $data       Telemetry payload — tool / subject / shape /
+	 *                          duration_ms / cache_hit / rows_returned /
+	 *                          date_start / date_end / interval / bucket_count.
 	 */
 	public function record( $skill_name, $data ) {
 		if ( ! class_exists( 'WC_Tracks' ) ) {

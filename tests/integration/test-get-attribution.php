@@ -379,13 +379,19 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-attribution' );
-		$this->assertNotNull( $ability, 'get-attribution ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_attribution(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'],
+			$input['limit'],
+			$input['orderby'],
+			$input['group_by'],
+			$input['include_unassigned']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_attribution returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;

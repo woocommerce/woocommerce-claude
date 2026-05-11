@@ -20,8 +20,9 @@
  *     `AnalyticsController::fetch_X()` method (verified via the legacy
  *     skill name leaking through to the direct listener).
  *   - Enriched telemetry: `tool / subject / shape='groups'` populated;
- *     the dispatcher sees exactly ONE event per execute call (suppress/
- *     resume gates the legacy emission inside the fetch).
+ *     the dispatcher sees exactly ONE event per execute call. After the
+ *     0.2.0 cutover the verb tool's `do_action` is the only emission
+ *     point — legacy fetch-level emissions were removed.
  *
  * @package WooCommerce\Claude\Tests
  */
@@ -32,7 +33,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 /**
  * Integration tests for the wc-analytics/breakdown verb-shaped ability.
  */
-class Test_Analytics_Breakdown extends WP_UnitTestCase {
+class Test_Breakdown extends WP_UnitTestCase {
 
 	/**
 	 * Direct listener — sees legacy + enriched.
@@ -49,7 +50,7 @@ class Test_Analytics_Breakdown extends WP_UnitTestCase {
 	private $direct_listener;
 
 	/**
-	 * Spy handler — sees only enriched (suppress_dispatch gates the rest).
+	 * Spy handler registered via SkillTelemetry::add_handler().
 	 *
 	 * @var TelemetryHandlerInterface
 	 */
@@ -182,7 +183,7 @@ class Test_Analytics_Breakdown extends WP_UnitTestCase {
 
 	/**
 	 * Each `(subject, dimension)` pair routes to the matching
-	 * `fetch_X()` and emits one enriched event with shape='groups'.
+	 * `fetch_X()` and emits exactly one enriched event with shape='groups'.
 	 *
 	 * The pairs use each subject's default dimension so the test exercises
 	 * both the dispatch arm AND the per-subject `default_dimension_for()`
@@ -190,11 +191,10 @@ class Test_Analytics_Breakdown extends WP_UnitTestCase {
 	 *
 	 * @dataProvider subject_routing_provider
 	 *
-	 * @param string      $subject               Subject value.
-	 * @param string|null $dimension             Dimension override (null lets the ability pick the default).
-	 * @param string      $expected_legacy_skill Legacy skill name fired by the inner fetch.
+	 * @param string      $subject   Subject value.
+	 * @param string|null $dimension Dimension override (null lets the ability pick the default).
 	 */
-	public function test_subject_routes_and_emits_enriched_telemetry( $subject, $dimension, $expected_legacy_skill ) {
+	public function test_subject_routes_and_emits_enriched_telemetry( $subject, $dimension ) {
 		$result = $this->invoke_ability( $this->empty_period_input( $subject, $dimension ) );
 
 		$this->assertNotInstanceOf(
@@ -206,18 +206,19 @@ class Test_Analytics_Breakdown extends WP_UnitTestCase {
 		$this->assertSame( $subject, $result['subject'] );
 		$this->assertArrayHasKey( 'dimension', $result, 'Verb tool decorates response with the resolved dimension.' );
 
-		$direct_skills = array_column( $this->direct_events, 'skill' );
-		$this->assertContains(
-			$expected_legacy_skill,
-			$direct_skills,
-			"Direct listener must see the legacy '{$expected_legacy_skill}' emission fired inside the fetch."
+		// After the 0.2.0 cutover the verb tool's own do_action is the only
+		// emission point — legacy fetch-level emissions were removed.
+		$this->assertCount(
+			1,
+			$this->direct_events,
+			'Direct add_action listener must see exactly one emission per execute call.'
 		);
-		$this->assertContains( 'wc-analytics/breakdown', $direct_skills );
+		$this->assertSame( 'wc-analytics/breakdown', $this->direct_events[0]['skill'] );
 
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call (suppress_dispatch gates the legacy emission).'
+			'SkillTelemetry handler must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/breakdown', $event['skill'] );
@@ -227,21 +228,21 @@ class Test_Analytics_Breakdown extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Subject → (dimension, legacy-skill) coverage for every value of the
-	 * breakdown enum. Mix of explicit dimensions (revenue, attribution,
-	 * coupons) and null-let-the-ability-default (products, refunds, tax)
-	 * so the per-subject default-dimension fallback is exercised too.
+	 * (Subject, dimension) coverage for every value of the breakdown enum.
+	 * Mix of explicit dimensions (revenue, attribution) and null-let-the-
+	 * ability-default (products, refunds, tax, coupons) so the per-subject
+	 * default-dimension fallback is exercised too.
 	 *
-	 * @return array<string, array{0: string, 1: ?string, 2: string}>
+	 * @return array<string, array{0: string, 1: ?string}>
 	 */
 	public function subject_routing_provider() {
 		return array(
-			'revenue_with_explicit_dimension'   => array( 'revenue', 'category', 'get_revenue_breakdown' ),
-			'attribution_with_explicit_channel' => array( 'attribution', 'channel', 'get_attribution' ),
-			'products_with_default_dimension'   => array( 'products', null, 'get_product_performance' ),
-			'refunds_with_default_dimension'    => array( 'refunds', null, 'get_refund_analysis' ),
-			'tax_with_default_dimension'        => array( 'tax', null, 'get_tax_summary' ),
-			'coupons_with_default_dimension'    => array( 'coupons', null, 'get_coupon_performance' ),
+			'revenue_with_explicit_dimension'   => array( 'revenue', 'category' ),
+			'attribution_with_explicit_channel' => array( 'attribution', 'channel' ),
+			'products_with_default_dimension'   => array( 'products', null ),
+			'refunds_with_default_dimension'    => array( 'refunds', null ),
+			'tax_with_default_dimension'        => array( 'tax', null ),
+			'coupons_with_default_dimension'    => array( 'coupons', null ),
 		);
 	}
 }

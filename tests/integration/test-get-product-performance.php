@@ -325,13 +325,19 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 			$overrides
 		);
 
-		$ability = wp_get_ability( 'wc-analytics/get-product-performance' );
-		$this->assertNotNull( $ability, 'get-product-performance ability was not registered.' );
-
-		$result = $ability->execute( $input );
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_product_performance(
+			$input['period'],
+			$input['date_start'],
+			$input['date_end'],
+			$input['compare'],
+			$input['limit'],
+			$input['orderby'],
+			$input['group_by'],
+			$input['interval']
+		);
 		$this->assertFalse(
 			is_wp_error( $result ),
-			'Ability returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
+			'fetch_product_performance returned WP_Error: ' . ( is_wp_error( $result ) ? $result->get_error_message() : '' )
 		);
 
 		return $result;
@@ -771,15 +777,15 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 
 		// 731-day range → heavy-scan gate fires (threshold is 365 days).
 		// No fixture data needed — the gate fires before any SQL runs.
-		$ability = wp_get_ability( 'wc-analytics/get-product-performance' );
-		$this->assertNotNull( $ability );
-
-		$result = $ability->execute(
-			array(
-				'date_start' => '2023-01-01',
-				'date_end'   => '2025-01-01',
-				'interval'   => 'day',
-			)
+		$result = \WooCommerce\Claude\API\AnalyticsController::fetch_product_performance(
+			'custom',
+			'2023-01-01',
+			'2025-01-01',
+			false,
+			10,
+			'net_revenue',
+			'product',
+			'day'
 		);
 
 		$this->assertTrue( is_wp_error( $result ), 'Expected WP_Error when date range exceeds 365-day threshold.' );

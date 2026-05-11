@@ -10,7 +10,6 @@
 namespace WooCommerce\Claude\Abilities;
 
 use WooCommerce\Claude\API\AnalyticsController;
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -292,24 +291,19 @@ DESCRIPTION,
 			return $gate_result;
 		}
 		$series_cap = $gate_result;
-		SkillTelemetry::suppress_dispatch();
-		$start_ms = microtime( true );
-		try {
-			$result = self::dispatch(
-				$subject,
-				$interval,
-				$period,
-				$date_start,
-				$date_end,
-				$compare,
-				$limit,
-				$orderby,
-				$group_by,
-				$series_cap
-			);
-		} finally {
-			SkillTelemetry::resume_dispatch();
-		}
+		$start_ms   = microtime( true );
+		$result     = self::dispatch(
+			$subject,
+			$interval,
+			$period,
+			$date_start,
+			$date_end,
+			$compare,
+			$limit,
+			$orderby,
+			$group_by,
+			$series_cap
+		);
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
