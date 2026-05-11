@@ -52,27 +52,24 @@ class DifmRestController {
 	/**
 	 * Anthropic-visible tool names mapped to registered WordPress abilities.
 	 *
+	 * DIFM exposes the verb-shaped analytics surface rather than the legacy
+	 * one-ability-per-report tools. The four analytics tools carry the richer
+	 * subject/dimension/series/rows descriptions from ability metadata.
+	 *
 	 * The confirm-large-range ability is intentionally absent. Large-range
 	 * approval is a controller-level merchant consent flow, not a model tool.
 	 */
 	private const TOOL_ABILITY_MAP = array(
-		'get_revenue_summary'     => 'wc-analytics/get-revenue-summary',
-		'get_orders_summary'      => 'wc-analytics/get-orders-summary',
-		'get_refund_analysis'     => 'wc-analytics/get-refund-analysis',
-		'get_customer_overview'   => 'wc-analytics/get-customer-overview',
-		'get_product_performance' => 'wc-analytics/get-product-performance',
-		'get_attribution'         => 'wc-analytics/get-attribution',
-		'get_coupon_performance'  => 'wc-analytics/get-coupon-performance',
-		'get_revenue_breakdown'   => 'wc-analytics/get-revenue-breakdown',
-		'get_tax_summary'         => 'wc-analytics/get-tax-summary',
-		'get_customer_value'      => 'wc-analytics/get-customer-value',
-		'query_analytics'         => 'wc-analytics/query-analytics',
-		'get_product_details'     => 'woocommerce-claude/get-product-details',
-		'search_products'         => 'woocommerce-claude/search-products',
-		'get_store_profile'       => 'woocommerce-claude/get-store-profile',
-		'get_readiness_score'     => 'woocommerce-claude/get-readiness-score',
-		'get_recommendations'     => 'woocommerce-claude/get-recommendations',
-		'suggest_improvements'    => 'woocommerce-claude/suggest-improvements',
+		'analytics_totals'     => 'wc-analytics/totals',
+		'analytics_breakdown'  => 'wc-analytics/breakdown',
+		'analytics_series'     => 'wc-analytics/series',
+		'analytics_rows'       => 'wc-analytics/rows',
+		'get_product_details'  => 'woocommerce-claude/get-product-details',
+		'search_products'      => 'woocommerce-claude/search-products',
+		'get_store_profile'    => 'woocommerce-claude/get-store-profile',
+		'get_readiness_score'  => 'woocommerce-claude/get-readiness-score',
+		'get_recommendations'  => 'woocommerce-claude/get-recommendations',
+		'suggest_improvements' => 'woocommerce-claude/suggest-improvements',
 	);
 
 	/**
@@ -311,6 +308,7 @@ class DifmRestController {
 			. 'Today is %3$s. The store uses %4$s as its currency. '
 			. 'Use the available tools to fetch live store data — always call the relevant '
 			. 'tool before answering data questions rather than guessing. '
+			. 'Analytics tool choice: use analytics_totals for headline aggregates, analytics_breakdown for grouped cuts, analytics_series for time trends, and analytics_rows for filtered rows or arbitrary segment questions. '
 			. 'Date range rule: honour the merchant wording exactly. If they ask for "last two weeks", "past two weeks", or "last 14 days", call tools with date_start=%5$s and date_end=%6$s, not period=last_7_days. If a requested range is not one of the period enum values, use date_start/date_end rather than the nearest enum period. '
 			. 'Be concise, direct, and focused on actionable insights. '
 			. 'Do not suggest building new features, plugins, or API endpoints — the merchant cannot action that. '
@@ -742,7 +740,7 @@ class DifmRestController {
 			return false;
 		}
 
-		$type = $this->large_range_type_for_tool( $tool_name );
+		$type = $this->large_range_type_for_tool( $tool_name, $input );
 		if ( '' === $type ) {
 			return false;
 		}
@@ -752,7 +750,7 @@ class DifmRestController {
 				'date_start'  => (string) $input['date_start'],
 				'date_end'    => (string) $input['date_end'],
 				'type'        => $type,
-				'description' => $tool_name,
+				'description' => $this->large_range_description_for_tool( $tool_name, $input ),
 			)
 		);
 
@@ -763,10 +761,19 @@ class DifmRestController {
 	 * Convert a DIFM tool name to the large-range gate type slug.
 	 *
 	 * @param string $tool_name Tool name.
+	 * @param array  $input     Original tool input.
 	 * @return string
 	 */
-	private function large_range_type_for_tool( $tool_name ) {
-		$map = array(
+	private function large_range_type_for_tool( $tool_name, array $input = array() ) {
+		if ( in_array( $tool_name, array( 'analytics_totals', 'analytics_breakdown', 'analytics_series' ), true ) ) {
+			return isset( $input['subject'] ) ? (string) $input['subject'] : '';
+		}
+
+		if ( 'analytics_rows' === $tool_name ) {
+			return isset( $input['entity'] ) ? (string) $input['entity'] : '';
+		}
+
+		$legacy_map = array(
 			'get_revenue_summary'     => 'revenue_summary',
 			'get_orders_summary'      => 'orders_summary',
 			'get_refund_analysis'     => 'refund_analysis',
@@ -780,6 +787,26 @@ class DifmRestController {
 			'query_analytics'         => 'query_analytics',
 		);
 
-		return isset( $map[ $tool_name ] ) ? $map[ $tool_name ] : '';
+		return isset( $legacy_map[ $tool_name ] ) ? $legacy_map[ $tool_name ] : '';
+	}
+
+	/**
+	 * Build a short description for a controller-approved large-range request.
+	 *
+	 * @param string $tool_name Tool name.
+	 * @param array  $input     Original tool input.
+	 * @return string
+	 */
+	private function large_range_description_for_tool( $tool_name, array $input ) {
+		$shape = isset( $input['subject'] ) ? (string) $input['subject'] : '';
+		if ( '' === $shape && isset( $input['entity'] ) ) {
+			$shape = (string) $input['entity'];
+		}
+
+		if ( '' === $shape ) {
+			return $tool_name;
+		}
+
+		return $tool_name . ' for ' . $shape;
 	}
 }

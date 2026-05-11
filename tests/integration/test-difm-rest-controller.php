@@ -69,8 +69,25 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	public function test_tool_allowlist_matches_registered_abilities() {
 		$map = DifmRestController::get_tool_ability_map();
 
-		$this->assertCount( 17, $map );
+		$this->assertCount( 10, $map );
+		$this->assertSame(
+			array(
+				'analytics_totals',
+				'analytics_breakdown',
+				'analytics_series',
+				'analytics_rows',
+				'get_product_details',
+				'search_products',
+				'get_store_profile',
+				'get_readiness_score',
+				'get_recommendations',
+				'suggest_improvements',
+			),
+			array_keys( $map )
+		);
 		$this->assertArrayNotHasKey( 'confirm_large_range', $map );
+		$this->assertArrayNotHasKey( 'get_revenue_summary', $map );
+		$this->assertArrayNotHasKey( 'query_analytics', $map );
 
 		foreach ( $map as $ability_id ) {
 			$this->assertTrue( wp_has_ability( $ability_id ), "Missing registered ability: {$ability_id}" );
@@ -262,25 +279,31 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 
 		$this->assertNotNull( $captured_body );
 		$this->assertArrayHasKey( 'tools', $captured_body );
-		$this->assertCount( 17, $captured_body['tools'] );
+		$this->assertCount( 10, $captured_body['tools'] );
 
 		$tool_names = wp_list_pluck( $captured_body['tools'], 'name' );
 		$this->assertNotContains( 'confirm_large_range', $tool_names );
-		$this->assertContains( 'query_analytics', $tool_names );
+		$this->assertNotContains( 'get_revenue_summary', $tool_names );
+		$this->assertNotContains( 'query_analytics', $tool_names );
+		$this->assertContains( 'analytics_totals', $tool_names );
+		$this->assertContains( 'analytics_breakdown', $tool_names );
+		$this->assertContains( 'analytics_series', $tool_names );
+		$this->assertContains( 'analytics_rows', $tool_names );
 
-		$query_tool = null;
+		$rows_tool = null;
 		foreach ( $captured_body['tools'] as $tool ) {
-			if ( 'query_analytics' === $tool['name'] ) {
-				$query_tool = $tool;
+			if ( 'analytics_rows' === $tool['name'] ) {
+				$rows_tool = $tool;
 				break;
 			}
 		}
 
-		$this->assertNotNull( $query_tool );
-		$this->assertStringContainsString( 'ENTITIES + FIELD REGISTRIES', $query_tool['description'] );
-		$this->assertArrayHasKey( 'input_schema', $query_tool );
+		$this->assertNotNull( $rows_tool );
+		$this->assertStringContainsString( 'ENTITIES + FIELD REGISTRIES', $rows_tool['description'] );
+		$this->assertArrayHasKey( 'input_schema', $rows_tool );
 		$this->assertStringContainsString( '"name":"get_store_profile"', $captured_raw_body );
 		$this->assertStringContainsString( '"input_schema":{"type":"object","properties":{}}', $captured_raw_body );
+		$this->assertStringContainsString( 'analytics_series', $captured_body['system'] );
 		$this->assertStringContainsString( 'last two weeks', $captured_body['system'] );
 		$this->assertStringContainsString( 'not period=last_7_days', $captured_body['system'] );
 	}
@@ -421,8 +444,11 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 									array(
 										'type'  => 'tool_use',
 										'id'    => 'toolu_01',
-										'name'  => 'get_revenue_summary',
-										'input' => array( 'period' => 'last_7_days' ),
+										'name'  => 'analytics_totals',
+										'input' => array(
+											'subject' => 'revenue',
+											'period'  => 'last_7_days',
+										),
 									),
 								),
 							)
@@ -508,8 +534,9 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 								array(
 									'type'  => 'tool_use',
 									'id'    => 'toolu_large',
-									'name'  => 'get_product_performance',
+									'name'  => 'analytics_series',
 									'input' => array(
+										'subject'    => 'products',
 										'date_start' => '2024-01-01',
 										'date_end'   => '2026-01-15',
 										'interval'   => 'day',
@@ -537,9 +564,10 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 
 		$pending = get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id );
 		$this->assertIsArray( $pending );
-		$this->assertSame( 'get_product_performance', $pending['tool_name'] );
-		$this->assertSame( 'wc-analytics/get-product-performance', $pending['ability_id'] );
-		$this->assertArrayHasKey( 'confirmation_token', $pending['error_data'] );
+		$this->assertSame( 'analytics_series', $pending['tool_name'] );
+		$this->assertSame( 'wc-analytics/series', $pending['ability_id'] );
+		$this->assertSame( 'products', $pending['input']['subject'] );
+		$this->assertArrayHasKey( 'cost_estimate', $pending['error_data'] );
 	}
 
 	/**
@@ -707,8 +735,9 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 								array(
 									'type'  => 'tool_use',
 									'id'    => 'toolu_large',
-									'name'  => 'get_product_performance',
+									'name'  => 'analytics_series',
 									'input' => array(
+										'subject'    => 'products',
 										'date_start' => '2024-01-01',
 										'date_end'   => '2026-01-15',
 										'interval'   => 'day',
