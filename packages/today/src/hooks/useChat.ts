@@ -27,7 +27,13 @@ export function useChat() {
 	// Stable counter for generating unique message IDs.
 	const nextId = useRef( 0 );
 
+	// Always-current reference to the message list, so sendMessage never closes over stale state.
+	const messagesRef = useRef< ChatMessage[] >( [] );
+	messagesRef.current = state.messages;
+
 	const sendMessage = useCallback( async ( text: string ) => {
+		const history = messagesRef.current; // Snapshot history before appending the new message.
+
 		const userMessage: ChatMessage = {
 			id: nextId.current++,
 			role: 'user',
@@ -46,7 +52,6 @@ export function useChat() {
 		const timeoutId = setTimeout( () => controller.abort(), REQUEST_TIMEOUT_MS );
 
 		try {
-			const history = state.messages; // history before new message.
 			const response = await fetch( moduleData.restBase + '/chat', {
 				method: 'POST',
 				headers: {
@@ -110,7 +115,7 @@ export function useChat() {
 					: __( 'Something went wrong. Please check your connection and try again.', 'woocommerce-claude' ),
 			} ) );
 		}
-	}, [ state.messages ] );
+	}, [] );
 
 	const clearError = useCallback( () => {
 		setState( ( prev ) => ( { ...prev, status: 'idle', errorMessage: '' } ) );

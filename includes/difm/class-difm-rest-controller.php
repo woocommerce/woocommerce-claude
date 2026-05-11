@@ -340,7 +340,7 @@ class DifmRestController {
 			if ( in_array( $role, array( 'user', 'assistant' ), true ) && '' !== $content ) {
 				$messages[] = array(
 					'role'    => $role,
-					'content' => sanitize_text_field( $content ),
+					'content' => 'user' === $role ? sanitize_text_field( $content ) : $content,
 				);
 			}
 		}

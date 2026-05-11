@@ -1,6 +1,7 @@
 /**
  * ChatBubble — a single message bubble in the conversation.
  */
+import { __ } from '@wordpress/i18n';
 import type { ChatMessage } from '../types';
 import { MarkdownContent } from './MarkdownContent';
 
@@ -15,10 +16,10 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 		<div
 			className={ `hey-woo-bubble hey-woo-bubble--${ message.role }` }
 			role="article"
-			aria-label={ isUser ? 'You' : 'Assistant' }
+			aria-label={ isUser ? __( 'You', 'woocommerce-claude' ) : __( 'Assistant', 'woocommerce-claude' ) }
 		>
 			<span className="hey-woo-bubble__role">
-				{ isUser ? 'You' : 'WooCommerce for Claude' }
+				{ isUser ? __( 'You', 'woocommerce-claude' ) : __( 'WooCommerce for Claude', 'woocommerce-claude' ) }
 			</span>
 			{ isUser ? (
 				<p className="hey-woo-bubble__content hey-woo-bubble__content--plain">
