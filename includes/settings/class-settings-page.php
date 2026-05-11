@@ -75,9 +75,20 @@ class SettingsPage extends \WC_Settings_Page {
 	/**
 	 * The default section contains the AI Insights key fields.
 	 *
+	 * The AI Insights section configures the Anthropic API key DIFM
+	 * (Do-It-For-Me) uses for server-side AI calls. It's gated behind
+	 * `Plugin::is_difm_enabled()` so a production install with the DIFM
+	 * surface still in development doesn't expose the field. The setup
+	 * wizard (rendered by `output()`) stays visible — it's about
+	 * connecting Claude Desktop to the MCP server, not DIFM.
+	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	protected function get_settings_for_default_section() {
+		if ( ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
+			return array();
+		}
+
 		return array(
 			array(
 				'type'  => 'title',
