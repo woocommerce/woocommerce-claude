@@ -481,23 +481,24 @@ class Plugin {
 	 * this string serves both jobs.
 	 *
 	 * What earns its place here:
-	 *   - Routing decisions across the eleven analytics types — the model
-	 *     can't infer "use query_analytics for 'show me the actual records'"
-	 *     from individual tool descriptions read in isolation.
+	 *   - Routing decisions across the four verb-shaped analytics tools
+	 *     (totals / breakdown / series / rows) — the model can't infer
+	 *     "use wc-analytics-rows for 'show me the actual records'" from
+	 *     individual tool descriptions read in isolation.
 	 *   - The privacy-mode posture (pseudonymised customer rows, never
 	 *     real names/emails). Without this, sessions sometimes refuse the
 	 *     question entirely instead of returning the pseudonymised rows
 	 *     the connector is happy to provide.
-	 *   - The 365-day gate handshake. A confirmation_token is minted on
-	 *     the error and must be passed back to confirm-large-range, then
-	 *     the original call retried — autonomous use of the token defeats
-	 *     the merchant-consent purpose.
+	 *   - The 365-day gate handshake. The gate fires with a session-keyed
+	 *     pending record and must be approved via wc-analytics-confirm-large-
+	 *     range, then the original call retried — autonomous approval
+	 *     defeats the merchant-consent purpose.
 	 *
 	 * What does NOT belong here: anything already covered by individual
-	 * tool descriptions or by `wc-analytics/describe`'s per-type docs —
-	 * duplicating those bloats the per-session token cost without changing
-	 * model behaviour. Keep this block focused on cross-tool decisions and
-	 * connector-level posture.
+	 * tool descriptions — the verb tools each carry a consolidated
+	 * per-subject describe doc inline, so the connector instructions
+	 * should not duplicate per-subject narrative. Keep this block focused
+	 * on cross-tool decisions and connector-level posture.
 	 *
 	 * Not translated via `__()` — this is consumed by the model, not the
 	 * merchant, and the model is best at parsing English.
@@ -512,52 +513,47 @@ You are connected to a live WooCommerce store via the WooCommerce for Claude MCP
 
 Two families of tools are exposed:
 
-1. Analytics — eleven analytics types accessed through one router tool, `wc-analytics-get-data`. Always call `wc-analytics-describe` for a `type` before using it for the first time in a session — that is where parameter shape, narrative guidance, and per-type privacy rules live.
+1. Analytics — four verb-shaped tools (`wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`) plus two helpers (`wc-analytics-describe`, `wc-analytics-confirm-large-range`). A legacy router (`wc-analytics-get-data`) is still registered during the transitional surface for backwards compatibility — prefer the verb tools for any new call. The verb tools each carry a consolidated describe doc inline, so you do not need to call `wc-analytics-describe` before using them.
 2. Store knowledge — `woocommerce-claude-get-store-profile`, `woocommerce-claude-search-products`, `woocommerce-claude-get-product-details`, `woocommerce-claude-get-readiness-score`, `woocommerce-claude-get-recommendations`, `woocommerce-claude-suggest-improvements`. Call `woocommerce-claude-get-store-profile` once early in any session that touches store data — it returns currency, payment setup, shipping zones, and locale.
 
-## Picking the right analytics type
+## Picking the right analytics tool — by question shape
 
-`wc-analytics-get-data` accepts these eleven `type` values. Pick by question shape, not by keyword match.
+The four verb tools differ by SHAPE, not by topic. Pick the tool by the shape of the merchant's question, then pick the `subject` (and `dimension` / `interval` where relevant).
 
-Headline aggregates — for "how much / how many" questions:
-- `revenue_summary` — net sales, AOV, totals for a period.
-- `orders_summary` — order count, status mix, value distribution, when-customers-buy heatmap.
-- `customer_overview` — new vs returning counts, repeat rate, per-segment AOV.
-- `product_performance` — top products by revenue or units.
-- `customer_value` — top customers by lifetime value, cohort retention.
-- `tax_summary`, `refund_analysis`, `coupon_performance` — domain-specific roll-ups.
+`wc-analytics-totals` — headline aggregates, "how much / how many" questions. One scalar-shaped response per subject. `subject` ∈ {revenue, orders, customers, customer_value, tax, refunds}.
 
-Slicing aggregates — for "broken down by X" questions:
-- `attribution` — channel, source, campaign, device, or keyword breakdown. Also the canonical channel-scoped pipeline diagnostic.
-- `revenue_breakdown` — by category, country, or payment method.
+`wc-analytics-breakdown` — "broken down by X" questions. One subject × one dimension per call; the dimension space varies by subject. `subject` ∈ {revenue, attribution, products, refunds, tax, coupons}. Examples of subject→dimensions: revenue→{category, country, payment_method, shipping_method}; attribution→{channel, source, medium, campaign, term, content, device, channel_source}; products→{product, variation}.
 
-Flexible filter engine — for "show me the actual records" questions:
-- `query_analytics` — `entity` is one of `orders`, `products`, `customers`; `mode` is `aggregate` (default) or `rows`. Returns either an aggregated summary or a row list. Reach for this BEFORE concluding that an aggregated tool "can't show specifics" — it almost always can.
+`wc-analytics-series` — trend questions, "how is X changing over time". `subject` ∈ {customers, products}; `interval` ∈ {day, week, month, auto}. Each row in the series carries the same per-subject metrics for that bucket.
+
+`wc-analytics-rows` — "show me the actual records" questions. Flexible filter engine across three entities. `entity` ∈ {orders, products, customers}; `mode` ∈ {aggregate, rows}; `filters` is an array of `{field, operator, value}`. Reach for this BEFORE concluding an aggregated tool "can't show specifics" — it almost always can.
 
 ## Common routing mistakes — do not make these
 
-- "Which customers ordered?" → `query_analytics` (entity=customers, mode=rows). NOT `customer_overview` — it surfaces aggregates (new vs returning split, repeat rate, segment-level AOV), not per-customer rows.
-- "Show me the on-hold orders" → `query_analytics` (entity=orders, with a status filter). NOT `orders_summary`.
-- "Which products haven't sold this month?" → `query_analytics` (entity=products, with a sales-velocity filter).
-- "Is one channel filling my on-hold pipeline?" → `attribution` with `group_by=channel`. The `pipeline_over_index_points` field per row is the answer.
-- "Is one payment gateway failing?" → `orders_summary`, then read its `pipeline.payment_methods` diagnostic.
+- "Which customers ordered?" → `wc-analytics-rows` (entity=customers, mode=rows). NOT `wc-analytics-totals` subject=customers — that returns aggregates (new vs returning split, repeat rate, segment-level AOV), not per-customer rows.
+- "Show me the on-hold orders" → `wc-analytics-rows` (entity=orders, with a status filter). NOT `wc-analytics-totals` subject=orders.
+- "Which products haven't sold this month?" → `wc-analytics-rows` (entity=products, with a sales-velocity filter).
+- "Is one channel filling my on-hold pipeline?" → `wc-analytics-breakdown` subject=attribution, dimension=channel. The `pipeline_over_index_points` field per row is the answer.
+- "Is one payment gateway failing?" → `wc-analytics-totals` subject=orders, then read its `pipeline.payment_methods` diagnostic.
+- "How is repeat rate trending month over month?" → `wc-analytics-series` subject=customers, interval=month. NOT `wc-analytics-totals` subject=customers — that's aggregate-only.
+- "Top customers by lifetime spend" → `wc-analytics-totals` subject=customer_value. For the list of customer rows, follow up with `wc-analytics-rows` entity=customers, mode=rows.
 
 ## Privacy model — surface it, do not refuse
 
 This connector returns aggregated metrics and pseudonymised customer rows. It does NOT return real names, emails, or full street addresses, by design. When the merchant asks for individual customer details:
 
-1. Call `query_analytics` with `entity=customers`, `mode=rows`. You receive pseudonymised IDs in the form `Customer #N`, lifetime stats, country / city / postcode, and a WP Admin URL on each row.
+1. Call `wc-analytics-rows` with `entity=customers`, `mode=rows`. You receive pseudonymised IDs in the form `Customer #N`, lifetime stats, country / city / postcode, and a WP Admin URL on each row.
 2. Render the pseudonymised IDs as clickable markdown links to the row's `admin_url` — that is where the merchant resolves a pseudonym to a real identity.
 3. Do not refuse the question. The connector goes further than aggregated-tool documentation implies.
 
 ## Date ranges over 365 days
 
-`wc-analytics-get-data` returns an `extended_range_required` error when the range exceeds 365 days. The error includes a `cost_estimate` showing the range in days and months. Flow:
+Any analytics call whose range exceeds 365 days returns an `extended_range_required` error. The error includes a `cost_estimate` showing the range in days and months. Flow:
 
 1. Show the cost estimate from the error to the merchant.
 2. Wait for explicit approval — never call `wc-analytics-confirm-large-range` autonomously.
-3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, plus a `description` field (a one-line plain-English summary of the query the merchant just approved — e.g. "3-year customer overview, monthly granularity"). Approval is session-keyed server-side; no token round-trips through the request.
-4. Retry `wc-analytics-get-data` with the same params.
+3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, `type`, plus a `description` field (a one-line plain-English summary of the query the merchant just approved — e.g. "3-year customer overview, monthly granularity"). The `type` value MUST match what the failing call passed to the gate — verb tools pass their `subject` (revenue / products / customers / etc.); the legacy router passes the per-type slug (revenue_summary / product_performance / etc.).
+4. Re-run the same analytics call (verb tool or legacy router) with the same params.
 
 Do not split the range into smaller chunks to bypass the gate — that defeats its purpose.
 
@@ -565,7 +561,7 @@ Do not split the range into smaller chunks to bypass the gate — that defeats i
 
 The reader is a shop owner, not a developer. In responses to the merchant:
 
-- Never name internal tool identifiers (`get-attribution`, `query_analytics`), parameter names (`group_by`, `mode`, `match`), or storage slugs (`bacs`, `wc-on-hold`).
+- Never name internal tool identifiers (`wc-analytics-breakdown`, `wc-analytics-rows`), parameter names (`subject`, `dimension`, `mode`, `match`), or storage slugs (`bacs`, `wc-on-hold`).
 - Phrase follow-ups as questions ("Want me to break this down by product?"), not tool invocations.
 - Use plain-English revenue framing — "collected revenue", "pending revenue", "the dashboard-matching figure" — not internal field paths.
 - Never sum the three revenue views — they overlap.
