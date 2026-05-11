@@ -1,6 +1,7 @@
 node_modules/
 
 # Build artifacts
+build/
 *.zip
 .wp-env/
 .wp-env.override.json

@@ -52,7 +52,7 @@ fi
 
 step "PHPUnit (integration, inside tests-cli container)"
 npx @wordpress/env run tests-cli \
-	--env-cwd=wp-content/plugins/hey-woo-tests \
+	--env-cwd=wp-content/plugins/woocommerce-claude-tests \
 	-- php vendor/bin/phpunit --colors=always
 
 # 5. WCA Data Consistency Checker. Runs against the dev cli container (where

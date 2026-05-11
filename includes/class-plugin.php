@@ -134,6 +134,14 @@ class Plugin {
 		// the download handler since it's only used on that one path.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
+
+		// DIFM — AI Insights (Bring Your Own Key). The admin page, REST
+		// controller, and Anthropic client are loaded lazily by the hooks they
+		// register, so we only require the class files here and let the hooks
+		// instantiate as needed.
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
 	}
 
 	/**
@@ -160,6 +168,10 @@ class Plugin {
 
 		// WooCommerce Settings tab.
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
+
+		// DIFM admin page + REST controller.
+		( new Difm\DifmAdminPage() )->register();
+		( new Difm\DifmRestController() )->register();
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.

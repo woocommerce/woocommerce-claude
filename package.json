@@ -4,6 +4,8 @@
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
   "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
     "plugin-zip": "wp-scripts plugin-zip"
   },
   "devDependencies": {

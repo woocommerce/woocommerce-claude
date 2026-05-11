@@ -24,6 +24,7 @@
 
 use WooCommerce\Claude\Abilities\LargeRangeGate;
 use WooCommerce\Claude\Abilities\GetDataAbility;
+use WooCommerce\Claude\Abilities\ConfirmLargeRangeAbility;
 use WooCommerce\Claude\API\AnalyticsController;
 
 /**
@@ -341,6 +342,29 @@ class Test_Large_Range_Gate extends WP_UnitTestCase {
 		$range_days = (int) ( new DateTime( self::LONG_START ) )
 			->diff( new DateTime( self::LONG_END ) )->days + 1;
 		$this->assertSame( $range_days + 1, $result, 'Confirmed cap should be range_days + 1.' );
+	}
+
+	/**
+	 * ConfirmLargeRangeAbility accepts verb-shaped subject types.
+	 */
+	public function test_confirm_large_range_accepts_verb_subject_type() {
+		$type = 'products';
+
+		$gate = LargeRangeGate::check_run( self::LONG_START, self::LONG_END, $type );
+		$this->assertWPError( $gate );
+
+		$approval = ConfirmLargeRangeAbility::execute(
+			array(
+				'date_start'  => '2023-01-01',
+				'date_end'    => '2025-01-01',
+				'type'        => $type,
+				'description' => 'Long product series',
+			)
+		);
+		$this->assertFalse( is_wp_error( $approval ), 'Verb-shaped subject approval should be accepted.' );
+
+		$result = LargeRangeGate::check_run( self::LONG_START, self::LONG_END, $type );
+		$this->assertIsInt( $result, 'Approved verb-shaped subject should consume the session approval.' );
 	}
 
 	/**
