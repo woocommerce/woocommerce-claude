@@ -453,14 +453,6 @@ class SetupPage {
 		wp_enqueue_style( 'woocommerce-claude-setup', $base_url . 'setup.css', array(), $css_ver );
 		wp_enqueue_script( 'woocommerce-claude-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
-		// Hide WC's outer Save Changes button on this section — the
-		// setup view has its own actioned controls and nothing to
-		// "save". Scoped to #mainform > .submit so it only suppresses
-		// the WC-emitted save row, not anything inside our cards.
-		wp_add_inline_style(
-			'woocommerce-claude-setup',
-			'#mainform > p.submit { display: none; }'
-		);
 	}
 
 	/**
