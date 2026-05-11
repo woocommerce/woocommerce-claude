@@ -33,6 +33,8 @@ class GetCouponPerformanceAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=coupons. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get per-coupon performance — usage, discount given away, revenue driven, refund rate per coupon, plus store-wide coupon attachment rate and with-coupon vs without-coupon AOV. Each top_groups row returns paid revenue, orders, AOV, items sold, discount amount, refunds, plus pipeline (on-hold) + admin_equivalent sibling figures for reconciliation. Per-row share_of_coupon_revenue_percent, share_of_total_discount_percent, new_customer_share_percent, avg_discount_per_order, and refund_rate_percent are pre-computed so you never divide manually. Each top_groups row also includes an admin_url pointing at the coupon's WP Admin edit screen — render the coupon code as a clickable markdown link (e.g. `[SAVE15](https://example.com/wp-admin/...)`) so the merchant can jump straight to the coupon in WooCommerce.
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:

@@ -53,6 +53,8 @@ class GetCustomerValueAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=customer_value. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get LIFETIME customer value — LTV stats, one-time vs repeat segmentation, top customers, cohort retention, items-over-lifetime histogram, and time between orders. The period parameter filters which customers are summarised; the metrics are lifetime aggregates.
 
 TWO INCLUSION FRAMES IN ONE RESPONSE — teach the merchant which block answers which question:

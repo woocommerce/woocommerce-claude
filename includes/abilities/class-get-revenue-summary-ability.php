@@ -33,6 +33,8 @@ class GetRevenueSummaryAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=revenue. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get revenue summary for a time period — net/total sales, orders, AOV, items sold, refunds, taxes, shipping. Includes comparison to previous period with pre-computed percentage changes.
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:

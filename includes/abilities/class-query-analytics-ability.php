@@ -37,6 +37,8 @@ class QueryAnalyticsAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-rows. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated describe inline (the filter-engine surface is identical — same entities, same operators, same modes).
+
 Flexible filter engine across three entities — orders, products, customers. Translates a merchant's natural-language question (e.g. "orders over £100 from Germany last month using a coupon", "products priced over £50 that haven't sold in 30 days", "customers in Germany with lifetime spend over £500") into a filter spec and returns either an aggregated summary (default) or a row list. The merchant never sees the filter JSON; you do the translation silently and narrate back in plain English.
 
 WHEN TO USE THIS TOOL vs siblings:

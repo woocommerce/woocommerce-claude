@@ -33,6 +33,8 @@ class GetAttributionAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=attribution. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get order attribution — what channels, sources, campaigns, and devices drove revenue AND contribute to on-hold pipeline for a time period. Groups orders by the chosen dimension and returns per-group paid revenue, orders, AOV, items sold, new/returning customer split, share of total revenue, AND pipeline fields (revenue on-hold, orders on-hold, pipeline customers, share of pipeline, pipeline over-index points). Includes comparison to previous period with pre-computed deltas and a dropped_out array of groups that fell out of the top results.
 
 USE THIS SKILL WHEN the merchant asks any of:

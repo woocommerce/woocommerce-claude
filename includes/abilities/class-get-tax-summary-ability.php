@@ -32,6 +32,8 @@ class GetTaxSummaryAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=tax (headline + reconciliation) OR wc-analytics-breakdown subject=tax (per-rate). This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the matching verb tool, which carries the consolidated per-subject describe inline.
+
 Get tax collected for a period — total tax, order tax vs shipping tax, refunded tax, the net-tax figure that maps to a VAT / sales-tax return, and a per-rate breakdown. Three-view pattern (paid / pipeline / admin_equivalent) so collected tax, on-hold tax (collected at checkout but not yet paid), and dashboard reconciliation totals stay distinct. Aggregated only — no per-order tax detail (privacy boundary).
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:

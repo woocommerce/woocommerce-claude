@@ -32,6 +32,8 @@ class GetRefundAnalysisAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=refunds (group_by=none) OR wc-analytics-breakdown subject=refunds, dimension=product|country (grouped). This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the matching verb tool, which carries the consolidated per-subject describe inline.
+
 Get refund metrics for a period — how much was refunded, how many refunds were issued, how many distinct orders were touched, the refund rate against paid gross revenue, days between order and refund, partial vs full split, and (optionally) top refunded products or countries. Every ratio that Claude would otherwise derive is pre-computed server-side.
 
 PERIOD SEMANTICS — REFUND-ISSUED, NOT ORDER-PLACED:

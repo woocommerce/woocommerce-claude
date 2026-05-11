@@ -32,6 +32,8 @@ class GetRevenueBreakdownAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=revenue. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get revenue broken down by one of four dimensions — product category, billing country, payment method, or shipping method. Each top_groups row returns paid revenue, orders, AOV, items sold, refunds, plus pipeline (on-hold) + admin_equivalent sibling figures for reconciliation. Per-group share_of_revenue_percent is pre-computed so you never divide manually.
 
 GROUPING DIMENSIONS:

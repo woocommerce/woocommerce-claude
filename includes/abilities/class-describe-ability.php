@@ -46,7 +46,7 @@ class DescribeAbility {
 			self::ABILITY_NAME,
 			array(
 				'label'               => __( 'Describe analytics type', 'woocommerce-claude' ),
-				'description'         => __( 'Returns the full documentation for a specific analytics type — narrative guidance, what it can and cannot answer, and parameter reference. Call this before using wc-analytics/get-data with a type you have not used before in this session.', 'woocommerce-claude' ),
+				'description'         => __( 'TRANSITIONAL — the verb-shaped tools (wc-analytics-totals, wc-analytics-breakdown, wc-analytics-series, wc-analytics-rows) carry their consolidated describe docs inline; for the verb tools you do NOT need to call this helper. This helper remains for backwards compatibility with the legacy wc-analytics-get-data router — it returns the per-type narrative guidance, what each analytics type can and cannot answer, and the parameter reference. Call this only before using wc-analytics-get-data with a legacy type you have not used before in this session.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => self::input_schema(),
 				'output_schema'       => self::output_schema(),

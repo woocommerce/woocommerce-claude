@@ -33,6 +33,8 @@ class GetProductPerformanceAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-breakdown subject=products (no interval) OR wc-analytics-series subject=products (with interval). This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the matching verb tool, which carries the consolidated per-subject describe inline.
+
 Get top-selling products for a time period with revenue, quantity, orders, refunds, stock status, and (optionally) per-product time series. Also returns catalogue-wide totals, top categories by revenue, and per-product comparison to the previous period including products that dropped out of the top results. Use group_by="variation" to see top variations (e.g. red vs blue T-shirts) instead of parent products. Each product includes an admin_url — render the product name as a clickable markdown link to that URL so the merchant can jump straight to it in WooCommerce.
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:

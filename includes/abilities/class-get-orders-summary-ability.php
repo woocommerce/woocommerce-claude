@@ -33,6 +33,8 @@ class GetOrdersSummaryAbility {
 				// phpcs:disable WordPress.WP.I18n.NonSingularStringLiteralText -- Multi-KB prompt literal; wrapping multi-KB prompts in __() is an open question tracked in docs/handoff-mcp-abilities-migration.md.
 				'description'         => __(
 					<<<'DESCRIPTION'
+TRANSITIONAL — PREFER wc-analytics-totals subject=orders. This per-type narrative remains as the source of the legacy describe text returned by wc-analytics-describe; for any new call route to the verb tool, which carries the consolidated per-subject describe inline.
+
 Get orders summary for a time period — order count, AOV, items per order, status breakdown, value distribution, day-and-hour heatmap (when customers buy), and multi-currency detection. Includes comparison to previous period with pre-computed percentage changes.
 
 THREE VIEWS — UNDERSTAND BEFORE QUOTING NUMBERS:
