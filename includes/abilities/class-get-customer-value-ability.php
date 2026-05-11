@@ -99,9 +99,9 @@ WHAT THIS CAN'T ANSWER:
 When a merchant asks for any of these, say plainly what we can and can't see and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only ones we can deliver today):
-- "How did my store do overall this period?" → get_revenue_summary
-- "Who's buying right now (period-scoped, new vs returning)?" → get_customer_overview
-- "What channels acquired these customers?" → get_attribution (already splits new-vs-returning per channel)
+- "How did my store do overall this period?" → wc-analytics-totals subject=revenue
+- "Who's buying right now (period-scoped, new vs returning)?" → wc-analytics-totals subject=customers
+- "What channels acquired these customers?" → wc-analytics-breakdown subject=attribution, dimension=channel (already splits new-vs-returning per channel)
 - "Compare to a different period" → re-run with custom date_start / date_end or different period
 
 DO NOT SUGGEST:

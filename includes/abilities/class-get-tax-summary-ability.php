@@ -130,10 +130,10 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, the merchant's accountant, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Want a country breakdown of revenue?" → get_revenue_breakdown with group_by=country
+- "Want a country breakdown of revenue?" → wc-analytics-breakdown subject=revenue, dimension=country
 - "Compare to last quarter?" → compare=true or recall with different dates
-- "What got refunded?" → get_refund_analysis for full refund context
-- "Where's the rest of revenue coming from?" → get_revenue_summary
+- "What got refunded?" → wc-analytics-totals subject=refunds for full refund context
+- "Where's the rest of revenue coming from?" → wc-analytics-totals subject=revenue
 
 DO NOT SUGGEST:
 - Per-order tax detail via this skill — aggregated only, point at WP Admin Reports > Tax

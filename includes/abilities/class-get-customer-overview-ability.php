@@ -83,7 +83,7 @@ Don't sum bucket counts across the series to get a period total — a customer a
 
 WHAT THIS CAN'T ANSWER:
 - Individual customer names, emails, addresses, or contact info. Privacy rule — aggregated data only. Point the merchant at WP Admin > WooCommerce > Customers for individual lookup.
-- Lifetime customer value, cohort retention, time-between-orders, lifetime order count per customer. These are lifetime metrics, not period-scoped — they belong to get_customer_value (not yet shipped). When asked, say so directly and point at that skill.
+- Lifetime customer value, cohort retention, time-between-orders, lifetime order count per customer. These are lifetime metrics, not period-scoped — they belong to wc-analytics-totals subject=customer_value. When asked, say so directly and route to that subject.
 - Customers broken down by country, state, city, zip, or company. Not currently exposed. If the merchant asks, say it's not available — do not propose building it.
 - Customers by role (registered-user role). Not currently exposed.
 - Customers by first-order coupon, product, or category. Not currently exposed.
@@ -95,7 +95,7 @@ If the merchant asks for any of these, say what you can and can't see directly a
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
 - "Compare to the previous period" → compare=true (on by default)
 - "How has this changed month over month?" → interval=month (or week / day / auto for other ranges)
-- "What channels brought new customers?" → get_attribution (already splits new vs returning per channel)
+- "What channels brought new customers?" → wc-analytics-breakdown subject=attribution, dimension=channel (already splits new vs returning per channel)
 - "Show me specific orders from new customers" → woocommerce-orders-list (no new/returning filter today, but returns dates/totals)
 
 DO NOT SUGGEST AS A FOLLOW-UP (even if adjacent in merchant intent):

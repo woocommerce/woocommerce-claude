@@ -536,7 +536,7 @@ The four verb tools differ by SHAPE, not by topic. Pick the tool by the shape of
 - "Is one channel filling my on-hold pipeline?" → `wc-analytics-breakdown` subject=attribution, dimension=channel. The `pipeline_over_index_points` field per row is the answer.
 - "Is one payment gateway failing?" → `wc-analytics-totals` subject=orders, then read its `pipeline.payment_methods` diagnostic.
 - "How is repeat rate trending month over month?" → `wc-analytics-series` subject=customers, interval=month. NOT `wc-analytics-totals` subject=customers — that's aggregate-only.
-- "Top customers by lifetime spend" → `wc-analytics-totals` subject=customer_value. For the list of customer rows, follow up with `wc-analytics-rows` entity=customers, mode=rows.
+- "Top customers by lifetime spend" → `wc-analytics-totals` subject=customer_value. For the list of customer rows, follow up with `wc-analytics-rows` entity=customers, mode=rows. Both tools use the active-base frame (customers with ≥1 paid order in the selected period, summarised by their full lifetime). When the merchant asks about "best ever" customers, widen the period (e.g. last 12 months) and call out the frame in the response — otherwise inactive customers are silently excluded.
 
 ## Privacy model — surface it, do not refuse
 

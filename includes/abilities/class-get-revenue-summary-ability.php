@@ -78,17 +78,17 @@ Don't fire when:
 Always hedge: "if you're trading above £90k annualised, UK VAT registration becomes mandatory — worth checking with your accountant" — never state a compliance conclusion. Annualising mid-year is back-of-envelope; the merchant's accountant knows the exact tax year and the exact rules. If threshold context is relevant, offer to pull the tax summary — that's where collected-tax figures live.
 
 WHAT THIS CAN'T ANSWER:
-- Revenue broken down by channel, product, or customer — those are separate tools (get_attribution, get_product_performance, get_customer_overview when shipped). Suggest them as drill-downs.
+- Revenue broken down by channel, product, or customer — those are separate tools (wc-analytics-breakdown subject=attribution / subject=products, wc-analytics-totals subject=customers). Suggest them as drill-downs.
 - Revenue forecasts or projections. Report actuals only.
 - Net profit or margin. No COGS data available.
 If the merchant asks for any of these, say what you can and can't see and suggest the right tool. Do NOT suggest that a new Skill, endpoint, or feature be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Break this down by product" → get_product_performance
-- "Break it down by category / country / payment method" → get_revenue_breakdown
-- "What channels drove this?" → get_attribution
-- "Who's buying?" → get_customer_overview
-- "Show me the orders behind this" → get_orders_summary
+- "Break this down by product" → wc-analytics-breakdown subject=products
+- "Break it down by category / country / payment method" → wc-analytics-breakdown subject=revenue, dimension=category|country|payment_method
+- "What channels drove this?" → wc-analytics-breakdown subject=attribution, dimension=channel
+- "Who's buying?" → wc-analytics-totals subject=customers
+- "Show me the orders behind this" → wc-analytics-rows entity=orders
 - "Compare to a different period" → re-run with custom dates
 
 NEVER NAME INTERNAL FILES OR UNSHIPPED TOOL NAMES IN THE RESPONSE:

@@ -137,9 +137,9 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Which products inside the top category are the sellers?" → get_product_performance
-- "What channels drove the top country's orders?" → get_attribution
-- "Who's buying from the top country?" → get_customer_overview
+- "Which products inside the top category are the sellers?" → wc-analytics-breakdown subject=products
+- "What channels drove the top country's orders?" → wc-analytics-breakdown subject=attribution, dimension=channel
+- "Who's buying from the top country?" → wc-analytics-totals subject=customers
 - "Compare to a different period?" → compare=true or recall with different dates
 - "Trend over time?" → recall with period=last_month vs this_month (no native time series on this skill)
 - "Break down by a different dimension?" → re-run with group_by=country / payment_method / shipping_method

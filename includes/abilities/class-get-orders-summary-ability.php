@@ -79,11 +79,11 @@ WHAT THIS CAN'T ANSWER:
 If the merchant asks for any of these, say so directly and point at the right place. Do NOT suggest that a new Skill, endpoint, or feature be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "What products were in those orders?" → get_product_performance
-- "What channels drove them?" → get_attribution
-- "Is one channel driving a disproportionate share of the pipeline?" → get_attribution — this is the canonical channel-scoped pipeline diagnostic; reach for attribution whenever a merchant asks about pipeline by acquisition source. attribution's top_groups rows carry pipeline_over_index_points sibling to this skill's payment-method over-index. Pair the two when over-index fires on both axes for a full "which traffic source hitting which gateway" diagnosis.
-- "Who placed them?" → get_customer_overview
-- "Show me the specific on-hold orders" → woocommerce-orders-list
+- "What products were in those orders?" → wc-analytics-breakdown subject=products
+- "What channels drove them?" → wc-analytics-breakdown subject=attribution, dimension=channel
+- "Is one channel driving a disproportionate share of the pipeline?" → wc-analytics-breakdown subject=attribution, dimension=channel — this is the canonical channel-scoped pipeline diagnostic; reach for attribution whenever a merchant asks about pipeline by acquisition source. attribution's top_groups rows carry pipeline_over_index_points sibling to this skill's payment-method over-index. Pair the two when over-index fires on both axes for a full "which traffic source hitting which gateway" diagnosis.
+- "Who placed them?" → wc-analytics-totals subject=customers
+- "Show me the specific on-hold orders" → wc-analytics-rows entity=orders with a status filter
 
 NEVER NAME INTERNAL FILES OR UNSHIPPED TOOL NAMES IN THE RESPONSE:
 - Do not reference internal planning docs by filename or offer to help spec future skills. The reader is a merchant, not a developer.

@@ -139,7 +139,7 @@ GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we c
 - "Which paid keywords drove Paid Search revenue?" → group_by=term (paid only; mention organic is never available)
 - "Which ad creative or A/B variant converted?" → group_by=content
 - "Compare to previous period?" → compare=true
-- "What's my real ROAS?" → get_attribution + a Google Ads / Meta Ads MCP (cross-tool)
+- "What's my real ROAS?" → wc-analytics-breakdown subject=attribution + a Google Ads / Meta Ads MCP (cross-tool — combine the revenue side here with ad-spend from the other MCP)
 
 DO NOT SUGGEST:
 - "Which organic search terms drove this?" — Google anonymises these, never per-order available

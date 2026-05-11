@@ -92,12 +92,12 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Which products inside the top refunded country are driving the refunds?" → get_refund_analysis with group_by=product
-- "How does the top refunded product's sales volume look?" → get_product_performance
+- "Which products inside the top refunded country are driving the refunds?" → wc-analytics-breakdown subject=refunds, dimension=product
+- "How does the top refunded product's sales volume look?" → wc-analytics-breakdown subject=products
 - "Compare to the previous period?" → compare=true or recall with different dates
 - "Is refund rate trending up month over month?" → recall with period=last_month vs this_month
-- "Break down refunds by country instead?" → group_by=country
-- "What's the headline revenue for this period?" → get_revenue_summary
+- "Break down refunds by country instead?" → wc-analytics-breakdown subject=refunds, dimension=country
+- "What's the headline revenue for this period?" → wc-analytics-totals subject=revenue
 
 DO NOT SUGGEST:
 - Asking why refunds happen via this tool — the reason field isn't surfaced

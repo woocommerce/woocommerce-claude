@@ -114,11 +114,11 @@ WHAT THIS CAN'T ANSWER (critical — do NOT suggest drill-downs into these):
 When a merchant asks for any of these, say plainly what we can and can't see, and point at the WP Admin workflow, a setting, or the connector that would answer it. Do NOT suggest that a new Skill, feature, or endpoint be built — the merchant can't action that.
 
 GOOD FOLLOW-UP SUGGESTIONS (only suggest these — only suggest drill-downs we can deliver *today* with an existing tool, never an unshipped one):
-- "Which orders used the top coupon?" → get_orders_summary
-- "Who redeemed the top coupon?" → get_customer_overview
+- "Which orders used the top coupon?" → wc-analytics-rows entity=orders with a coupon_code filter
+- "Who redeemed the top coupon?" → wc-analytics-totals subject=customers (or wc-analytics-rows entity=customers for the row list)
 - "Compare to a different period?" → compare=true or recall with different dates
 - "Trend over time?" → recall with period=last_month vs this_month (no native time series on this skill)
-- "How did coupon-using customers' lifetime spend compare?" → get_customer_value
+- "How did coupon-using customers' lifetime spend compare?" → wc-analytics-totals subject=customer_value
 
 DO NOT SUGGEST:
 - Creating or editing coupons via this skill — read-only

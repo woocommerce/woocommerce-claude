@@ -42,7 +42,7 @@ TRANSITIONAL — PREFER wc-analytics-rows. This per-type narrative remains as th
 Flexible filter engine across three entities — orders, products, customers. Translates a merchant's natural-language question (e.g. "orders over £100 from Germany last month using a coupon", "products priced over £50 that haven't sold in 30 days", "customers in Germany with lifetime spend over £500") into a filter spec and returns either an aggregated summary (default) or a row list. The merchant never sees the filter JSON; you do the translation silently and narrate back in plain English.
 
 WHEN TO USE THIS TOOL vs siblings:
-- Use this when the merchant's question has a SHAPE you can't answer with group-by alone — arbitrary AND/OR combinations of attributes, like "DE + returning customer + has coupon". If a single group_by on a sibling skill answers the question (e.g. "top channels" → get_attribution group_by=channel), use that skill instead — its response is purpose-built and richer per dimension.
+- Use this when the merchant's question has a SHAPE you can't answer with group-by alone — arbitrary AND/OR combinations of attributes, like "DE + returning customer + has coupon". If a single group_by on a sibling skill answers the question (e.g. "top channels" → wc-analytics-breakdown subject=attribution, dimension=channel), use that skill instead — its response is purpose-built and richer per dimension.
 - Use the products entity for catalog-plus-sales-velocity questions ("priced right but not moving", "out-of-stock but had sales last week") that no other skill covers.
 - Use the customers entity for lifetime-attribute filtering ("Germany + LTV > £500 + hasn't ordered in 90 days") that goes beyond the top-N shapes in the customer-value / customer-overview skills.
 
