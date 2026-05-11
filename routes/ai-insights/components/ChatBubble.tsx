@@ -4,6 +4,7 @@
 import { __ } from '@wordpress/i18n';
 import type { ChatMessage } from '../types';
 import { MarkdownContent } from './MarkdownContent';
+import { ChatChart } from './ChatChart';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
@@ -26,7 +27,12 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 					{ message.content }
 				</p>
 			) : (
-				<MarkdownContent content={ message.content } />
+				<>
+					<MarkdownContent content={ message.content } />
+					{ message.charts?.map( ( spec, i ) => (
+						<ChatChart key={ i } spec={ spec } />
+					) ) }
+				</>
 			) }
 		</div>
 	);

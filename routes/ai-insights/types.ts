@@ -2,6 +2,24 @@
  * Shared TypeScript interfaces for the WooCommerce for Claude conversational assistant.
  */
 
+export interface ChartDataPoint {
+	x: string;
+	y: number;
+}
+
+export interface ChartSeries {
+	name: string;
+	data: ChartDataPoint[];
+}
+
+export interface ChartSpec {
+	type: 'line' | 'bar' | 'pie';
+	title: string;
+	x_label?: string;
+	y_label?: string;
+	series: ChartSeries[];
+}
+
 /**
  * A single chat message — either from the merchant or from Claude.
  */
@@ -9,13 +27,14 @@ export interface ChatMessage {
 	id: number;
 	role: 'user' | 'assistant';
 	content: string;
+	charts?: ChartSpec[];
 }
 
 /**
  * Top-level response shape from POST /woocommerce-claude/v1/difm/chat.
  */
 export type ChatResponse =
-	| { status: 'ok'; reply: string }
+	| { status: 'ok'; reply: string; charts?: ChartSpec[] }
 	| { status: 'no_key' }
 	| { status: 'error'; message: string };
 

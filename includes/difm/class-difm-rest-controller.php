@@ -37,6 +37,13 @@ class DifmRestController {
 	const MAX_HISTORY_TURNS = 20;
 
 	/**
+	 * Pseudo-tool name for chart rendering declarations.
+	 *
+	 * Not in TOOL_ABILITY_MAP — captured client-side rather than executed.
+	 */
+	const RENDER_CHART_TOOL = 'render_chart';
+
+	/**
 	 * Maximum number of Anthropic API calls per chat request (including tool-use rounds).
 	 *
 	 * Each tool-use round costs one API call. Five iterations allows for four rounds
@@ -195,8 +202,9 @@ class DifmRestController {
 			);
 		}
 
-		$messages = $this->build_conversation_messages( $raw_history, $user_message );
-		$tools    = $this->build_tool_definitions();
+		$messages    = $this->build_conversation_messages( $raw_history, $user_message );
+		$tools       = $this->build_tool_definitions();
+		$chart_specs = array();
 
 		if ( is_wp_error( $tools ) ) {
 			return rest_ensure_response(
@@ -225,12 +233,16 @@ class DifmRestController {
 			$content     = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
 
 			if ( 'tool_use' !== $stop_reason ) {
-				return rest_ensure_response(
-					array(
-						'status' => 'ok',
-						'reply'  => $this->extract_text_reply( $content ),
-					)
+				$response = array(
+					'status' => 'ok',
+					'reply'  => $this->extract_text_reply( $content ),
 				);
+
+				if ( ! empty( $chart_specs ) ) {
+					$response['charts'] = array_values( $chart_specs );
+				}
+
+				return rest_ensure_response( $response );
 			}
 
 			$tool_results = array();
@@ -239,8 +251,20 @@ class DifmRestController {
 					continue;
 				}
 
-				$tool_name   = isset( $block['name'] ) ? (string) $block['name'] : '';
-				$tool_input  = isset( $block['input'] ) && is_array( $block['input'] ) ? $block['input'] : array();
+				$tool_name  = isset( $block['name'] ) ? (string) $block['name'] : '';
+				$tool_input = isset( $block['input'] ) && is_array( $block['input'] ) ? $block['input'] : array();
+				$tool_id    = isset( $block['id'] ) ? (string) $block['id'] : '';
+
+				if ( self::RENDER_CHART_TOOL === $tool_name ) {
+					$chart_specs[] = $this->sanitise_chart_spec( $tool_input );
+					$tool_results[] = array(
+						'type'        => 'tool_result',
+						'tool_use_id' => $tool_id,
+						'content'     => '{"ok":true}',
+					);
+					continue;
+				}
+
 				$tool_output = $this->execute_tool( $tool_name, $tool_input );
 
 				if ( is_wp_error( $tool_output ) ) {
@@ -260,7 +284,7 @@ class DifmRestController {
 
 				$tool_results[] = array(
 					'type'        => 'tool_result',
-					'tool_use_id' => isset( $block['id'] ) ? (string) $block['id'] : '',
+					'tool_use_id' => $tool_id,
 					'content'     => wp_json_encode( $tool_output ),
 				);
 			}
@@ -313,7 +337,8 @@ class DifmRestController {
 			. 'Be concise, direct, and focused on actionable insights. '
 			. 'Do not suggest building new features, plugins, or API endpoints — the merchant cannot action that. '
 			. 'Never expose internal field names (e.g. metrics.net_sales) in your responses — use plain English only. '
-			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow.',
+			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow. '
+				. 'Chart rendering: when you answer using time-series data (analytics_series) or breakdown data (analytics_breakdown), call render_chart once after writing your text reply. Populate series.data directly from the tool result you already have — do not fetch data again. Use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. Do not call render_chart for totals-only answers or when no numeric series data was retrieved.',
 			esc_html( $store_name ),
 			esc_url( $store_url ),
 			esc_html( $date ),
@@ -472,7 +497,127 @@ class DifmRestController {
 			);
 		}
 
+		$tools[] = $this->build_render_chart_tool_definition();
+
 		return $tools;
+	}
+
+	/**
+	 * Return the Anthropic tool definition for the render_chart pseudo-tool.
+	 *
+	 * This tool is never executed server-side; the controller captures the spec
+	 * and forwards it to the frontend as part of the response payload.
+	 *
+	 * @return array
+	 */
+	private function build_render_chart_tool_definition() {
+		return array(
+			'name'         => self::RENDER_CHART_TOOL,
+			'description'  => 'Render a chart in the chat UI to visualise store data you have already fetched. Call this once per response when time-series or breakdown data would be clearer as a visual. Populate series.data directly from the analytics tool result already in your context — do not call an analytics tool again just to chart it.',
+			'input_schema' => array(
+				'type'       => 'object',
+				'required'   => array( 'type', 'title', 'series' ),
+				'properties' => array(
+					'type'    => array(
+						'type'        => 'string',
+						'enum'        => array( 'line', 'bar', 'pie' ),
+						'description' => "Chart type. Use 'line' for trends over time, 'bar' for comparisons across categories or products, 'pie' for proportional breakdowns with 6 or fewer slices.",
+					),
+					'title'   => array(
+						'type'        => 'string',
+						'description' => "Short descriptive title, e.g. 'Net Sales — Last 30 Days'.",
+					),
+					'x_label' => array(
+						'type'        => 'string',
+						'description' => 'Label for the x axis (optional).',
+					),
+					'y_label' => array(
+						'type'        => 'string',
+						'description' => 'Label for the y axis (optional).',
+					),
+					'series'  => array(
+						'type'        => 'array',
+						'description' => "Data series. For line/bar: one entry per metric. For pie: one entry per slice with a single data point each.",
+						'items'       => array(
+							'type'       => 'object',
+							'required'   => array( 'name', 'data' ),
+							'properties' => array(
+								'name' => array(
+									'type'        => 'string',
+									'description' => "Series label, e.g. 'Net Sales'.",
+								),
+								'data' => array(
+									'type'        => 'array',
+									'description' => "Data points. Time-series: {x: 'YYYY-MM-DD', y: number}. Categorical: {x: 'Category', y: number}.",
+									'items'       => array(
+										'type'       => 'object',
+										'required'   => array( 'x', 'y' ),
+										'properties' => array(
+											'x' => array( 'type' => 'string' ),
+											'y' => array( 'type' => 'number' ),
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Sanitise a raw render_chart input before forwarding it to the frontend.
+	 *
+	 * @param array $spec Raw tool input from Claude.
+	 * @return array
+	 */
+	private function sanitise_chart_spec( array $spec ) {
+		$allowed_types = array( 'line', 'bar', 'pie' );
+		$type          = isset( $spec['type'] ) && in_array( $spec['type'], $allowed_types, true ) ? $spec['type'] : 'bar';
+
+		$sanitised = array(
+			'type'  => $type,
+			'title' => isset( $spec['title'] ) ? sanitize_text_field( (string) $spec['title'] ) : '',
+		);
+
+		if ( ! empty( $spec['x_label'] ) ) {
+			$sanitised['x_label'] = sanitize_text_field( (string) $spec['x_label'] );
+		}
+
+		if ( ! empty( $spec['y_label'] ) ) {
+			$sanitised['y_label'] = sanitize_text_field( (string) $spec['y_label'] );
+		}
+
+		$sanitised['series'] = array();
+		$raw_series          = isset( $spec['series'] ) && is_array( $spec['series'] ) ? $spec['series'] : array();
+
+		foreach ( $raw_series as $s ) {
+			if ( ! is_array( $s ) ) {
+				continue;
+			}
+
+			$series_name = isset( $s['name'] ) ? sanitize_text_field( (string) $s['name'] ) : '';
+			$raw_data    = isset( $s['data'] ) && is_array( $s['data'] ) ? $s['data'] : array();
+			$data_points = array();
+
+			foreach ( $raw_data as $point ) {
+				if ( ! is_array( $point ) ) {
+					continue;
+				}
+				$data_points[] = array(
+					'x' => isset( $point['x'] ) ? sanitize_text_field( (string) $point['x'] ) : '',
+					'y' => isset( $point['y'] ) ? (float) $point['y'] : 0.0,
+				);
+			}
+
+			$sanitised['series'][] = array(
+				'name' => $series_name,
+				'data' => $data_points,
+			);
+		}
+
+		return $sanitised;
 	}
 
 	/**

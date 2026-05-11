@@ -298,3 +298,28 @@
 		margin-top: 8px;
 	}
 }
+
+// ── Inline charts ────────────────────────────────────────────────────────────
+
+.hey-woo-chart {
+	margin: 12px 0 4px;
+	padding: 0;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	overflow: hidden;
+	background: #fff;
+
+	&__title {
+		padding: 10px 14px 4px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #3c434a;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+	}
+
+	&__canvas {
+		height: 260px;
+		padding: 4px 8px 8px;
+	}
+}

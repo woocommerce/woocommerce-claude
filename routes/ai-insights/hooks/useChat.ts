@@ -97,6 +97,7 @@ export function useChat() {
 				id: nextId.current++,
 				role: 'assistant',
 				content: json.reply,
+				...( json.charts?.length ? { charts: json.charts } : {} ),
 			};
 			setState( ( prev ) => ( {
 				...prev,
