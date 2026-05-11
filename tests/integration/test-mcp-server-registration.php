@@ -157,9 +157,6 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 
 		$required_markers = array(
 			// Routing: wc-analytics-rows is the antidote to "tool can't show specifics".
-			// Replaces the legacy `query_analytics` marker — same routing role under the
-			// verb-shape surface; the legacy router is still registered but is no longer
-			// the primary recommendation in the connector preamble.
 			'wc-analytics-rows',
 			// All four verb tools must be named in the preamble so routing decisions
 			// can be made from this block alone, without round-tripping describe.

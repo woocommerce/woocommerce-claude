@@ -498,7 +498,7 @@ You are connected to a live WooCommerce store via the WooCommerce for Claude MCP
 
 Two families of tools are exposed:
 
-1. Analytics — four verb-shaped tools (`wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`) plus two helpers (`wc-analytics-describe`, `wc-analytics-confirm-large-range`). A legacy router (`wc-analytics-get-data`) is still registered during the transitional surface for backwards compatibility — prefer the verb tools for any new call. The verb tools each carry a consolidated describe doc inline, so you do not need to call `wc-analytics-describe` before using them.
+1. Analytics — four verb-shaped tools (`wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`) plus `wc-analytics-confirm-large-range` (the gate-approval helper). The verb tools each carry a consolidated describe doc inline — read the tool's own description for parameter shape, narrative guidance, and per-subject privacy rules.
 2. Store knowledge — `woocommerce-claude-get-store-profile`, `woocommerce-claude-search-products`, `woocommerce-claude-get-product-details`, `woocommerce-claude-get-readiness-score`, `woocommerce-claude-get-recommendations`, `woocommerce-claude-suggest-improvements`. Call `woocommerce-claude-get-store-profile` once early in any session that touches store data — it returns currency, payment setup, shipping zones, and locale.
 
 ## Picking the right analytics tool — by question shape
@@ -533,12 +533,12 @@ This connector returns aggregated metrics and pseudonymised customer rows. It do
 
 ## Date ranges over 365 days
 
-`wc-analytics-totals`, `wc-analytics-breakdown`, and `wc-analytics-series` (and the legacy `wc-analytics-get-data` router) fire a gate when the range exceeds 365 days, returning an `extended_range_required` error. `wc-analytics-rows` does NOT fire the gate today — long-range row queries pass through. The error includes a `cost_estimate` block with `range_days`, `months`, and a `type` field. Flow:
+`wc-analytics-totals`, `wc-analytics-breakdown`, and `wc-analytics-series` fire a gate when the range exceeds 365 days, returning an `extended_range_required` error. `wc-analytics-rows` does NOT fire the gate — long-range row queries pass through. The error includes a `cost_estimate` block with `range_days`, `months`, and a `type` field. Flow:
 
 1. Show the cost estimate from the error to the merchant.
 2. Wait for explicit approval — never call `wc-analytics-confirm-large-range` autonomously.
-3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, and the LITERAL `type` value from `cost_estimate.type` in the error (verb-tool types include a tool prefix like `totals:revenue` / `breakdown:revenue` / `series:customers` so approvals minted by one tool don't collide with another tool sharing the same subject; the legacy router uses bare per-type slugs like `revenue_summary`). Add a `description` field — a one-line plain-English summary of the query the merchant just approved (e.g. "3-year customer overview, monthly granularity").
-4. Re-run the same analytics call (verb tool or legacy router) with the same params.
+3. Call `wc-analytics-confirm-large-range` with the same `date_start`, `date_end`, and the LITERAL `type` value from `cost_estimate.type` in the error. Types are tool-prefixed (`totals:revenue` / `breakdown:revenue` / `series:customers`) so approvals minted by one verb tool don't collide with another tool sharing the same subject — pass the value verbatim, not a re-mapping. Add a `description` field — a one-line plain-English summary of the query the merchant just approved (e.g. "3-year customer overview, monthly granularity").
+4. Re-run the same analytics call with the same params.
 
 Do not split the range into smaller chunks to bypass the gate — that defeats its purpose.
 
@@ -557,8 +557,7 @@ INSTRUCTIONS;
 	 * Tool ability IDs to expose on our MCP server.
 	 *
 	 * The four verb-shaped analytics tools (totals / breakdown / series /
-	 * rows) plus the confirmation helper for the 365-day gate. The legacy
-	 * 11-type get-data router was retired at 0.2.0.
+	 * rows) plus the confirmation helper for the 365-day gate.
 	 *
 	 * @return array<int, string>
 	 */

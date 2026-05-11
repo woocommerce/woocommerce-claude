@@ -88,10 +88,8 @@ class SkillTelemetry {
 	 *
 	 * Hooked on woocommerce_claude_skill_executed at priority 10. The
 	 * verb-tool abilities (wc-analytics-totals / breakdown / series / rows)
-	 * are the only emission points after the 0.2.0 verb-shape cutover —
-	 * the legacy inner emissions inside `fetch_X()` have been removed, so
-	 * each tool call produces exactly one event with the
-	 * `(tool, subject, shape)` envelope on the payload.
+	 * are the only emission points, so each tool call produces exactly one
+	 * event with the `(tool, subject, shape)` envelope on the payload.
 	 *
 	 * @param string $skill_name Skill identifier.
 	 * @param array  $data       Telemetry payload.
