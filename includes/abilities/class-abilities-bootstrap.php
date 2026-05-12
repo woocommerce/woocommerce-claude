@@ -92,5 +92,6 @@ class AbilitiesBootstrap {
 		FailedOrderTriageAbility::register();
 		RefundTriageAbility::register();
 		RevenueDropTriageAbility::register();
+		CouponPerformanceTriageAbility::register();
 	}
 }

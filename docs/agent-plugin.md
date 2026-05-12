@@ -3,7 +3,7 @@
 WooCommerce for Claude has two installable pieces:
 
 - The WordPress plugin, installed on the WooCommerce store. It exposes the live MCP endpoint, tools, resources, prompts, auth flow, and setup UI.
-- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, failed-order triage, refund triage, catalog audits, and product content improvements.
+- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, coupon-performance triage, failed-order triage, refund triage, catalog audits, and product content improvements.
 
 This repository now includes the first-stage agent plugin manifests:
 
@@ -20,7 +20,7 @@ The agent plugin does not replace the WordPress plugin. The skills assume the st
 
 ## Slash commands
 
-Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:failed-order-triage`, and `/woocommerce-claude:refund-triage` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/failed-order-triage`, and `/refund-triage`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
+Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:coupon-performance-triage`, `/woocommerce-claude:failed-order-triage`, and `/woocommerce-claude:refund-triage` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/coupon-performance-triage`, `/failed-order-triage`, and `/refund-triage`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
 
 ## Test path
 
@@ -30,10 +30,12 @@ Installing the agent plugin may make client-level plugin commands available, suc
 4. Confirm the `weekly-store-review` skill triggers and the answer includes revenue, orders, customers, refunds, products, channels, watch list, and next actions.
 5. Ask: "Revenue is down this month. Triage what changed."
 6. Confirm the `revenue-drop-triage` skill triggers and the answer separates revenue movement, order volume, basket size, customers, refunds, products, channels, likely checks, and next actions without customer PII.
-7. Ask: "Triage my failed and on-hold orders."
-8. Confirm the `failed-order-triage` skill triggers and the answer separates on-hold payment pipeline from failed checkout risk, lists actionable order links without customer PII, and gives next actions.
-9. Ask: "Triage refunds from the last 30 days."
-10. Confirm the `refund-triage` skill triggers and the answer covers refund size, rate, timing, top refunded products/countries, likely checks, and next actions without customer PII.
+7. Ask: "Are my coupons working? Triage the last 30 days."
+8. Confirm the `coupon-performance-triage` skill triggers and the answer separates coupon usage, discount cost, AOV with/without coupons, refunds, new-customer signal, pipeline, likely checks, and next actions without customer PII.
+9. Ask: "Triage my failed and on-hold orders."
+10. Confirm the `failed-order-triage` skill triggers and the answer separates on-hold payment pipeline from failed checkout risk, lists actionable order links without customer PII, and gives next actions.
+11. Ask: "Triage refunds from the last 30 days."
+12. Confirm the `refund-triage` skill triggers and the answer covers refund size, rate, timing, top refunded products/countries, likely checks, and next actions without customer PII.
 
 ## Automated smoke test
 
@@ -137,6 +139,12 @@ or:
 or:
 
 ```text
+/woocommerce-claude:coupon-performance-triage
+```
+
+or:
+
+```text
 /woocommerce-claude:failed-order-triage
 ```
 
@@ -161,6 +169,12 @@ Revenue is down this month. Triage what changed.
 or:
 
 ```text
+Are my coupons working? Triage the last 30 days.
+```
+
+or:
+
+```text
 Triage my failed and on-hold orders.
 ```
 
@@ -180,6 +194,12 @@ or:
 
 ```text
 /revenue-drop-triage
+```
+
+or:
+
+```text
+/coupon-performance-triage
 ```
 
 or:

@@ -113,7 +113,7 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The six prompts (`wc-prompts/*`) are registered.
+	 * The seven prompts (`wc-prompts/*`) are registered.
 	 */
 	public function test_woocommerce_claude_server_exposes_expected_prompts() {
 		$server  = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
@@ -130,6 +130,7 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 		$this->assertContains( 'wc-prompts-failed-order-triage', $prompt_names );
 		$this->assertContains( 'wc-prompts-refund-triage', $prompt_names );
 		$this->assertContains( 'wc-prompts-revenue-drop-triage', $prompt_names );
+		$this->assertContains( 'wc-prompts-coupon-performance-triage', $prompt_names );
 	}
 
 	/**
@@ -192,6 +193,9 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			'revenue drop triage',
 			'Drop Drivers',
 			'Product and Channel Signals',
+			'coupon performance triage',
+			'Coupon Economics',
+			'Top Coupon Signals',
 		);
 
 		foreach ( $required_markers as $marker ) {

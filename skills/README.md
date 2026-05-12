@@ -10,6 +10,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | --- | --- |
 | `weekly-store-review` | A weekly performance review covering revenue, orders, customers, top products, channels, refunds, and next actions. Also exposed as the `wc-prompts-weekly-store-review` MCP prompt. |
 | `revenue-drop-triage` | A revenue-drop diagnostic separating order volume, AOV, customer mix, refunds, products, channels, pipeline, likely checks, and next actions. Also exposed as the `wc-prompts-revenue-drop-triage` MCP prompt. |
+| `coupon-performance-triage` | A coupon-performance diagnostic covering coupon usage, discount cost, with/without-coupon AOV, refunds, new-customer signal, pipeline, likely checks, and next actions. Also exposed as the `wc-prompts-coupon-performance-triage` MCP prompt. |
 | `failed-order-triage` | A payment-risk triage for failed orders, on-hold orders, stuck payments, gateway signals, and order follow-up queues. Also exposed as the `wc-prompts-failed-order-triage` MCP prompt. |
 | `refund-triage` | A refund diagnostic covering refund size, rate, timing, top refunded products/countries, likely checks, and next actions. Also exposed as the `wc-prompts-refund-triage` MCP prompt. |
 | `catalog-audit` | A broad AI-readiness audit of the product catalogue. |

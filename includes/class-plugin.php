@@ -118,6 +118,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-failed-order-triage-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-refund-triage-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-revenue-drop-triage-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-coupon-performance-triage-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
@@ -452,6 +453,7 @@ class Plugin {
 					Abilities\FailedOrderTriageAbility::ABILITY_NAME,
 					Abilities\RefundTriageAbility::ABILITY_NAME,
 					Abilities\RevenueDropTriageAbility::ABILITY_NAME,
+					Abilities\CouponPerformanceTriageAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
 			);
@@ -544,6 +546,10 @@ For "refund triage", "what is driving refunds?", "are returns/refunds getting wo
 ## Revenue drop triage intent
 
 For "why is revenue down?", "sales dropped", "revenue drop triage", "month-over-month revenue decline", "what changed in a soft period?", or similar revenue-decline requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` for revenue, orders, customers, and refunds, `wc-analytics-breakdown` for products by product, and `wc-analytics-breakdown` for attribution by channel. Lead with collected revenue and first decide whether it is actually down; if not, say so. Separate order volume, average order value, customer mix, refunds, pending/on-hold pipeline, product mix, and channel mix. Use returned comparison fields, dropped-out product/channel lists, and attribution coverage directly — do not compute deltas or claim ad spend, ROAS, sessions, conversion rate, competitor effects, stockouts, pricing changes, or seasonality unless the data or merchant supplies that signal. Final answer sections: Snapshot, Severity, Drop Drivers, Product and Channel Signals, Likely Checks, Next Actions.
+
+## Coupon performance triage intent
+
+For "are my coupons working?", "coupon performance triage", "which discount codes are performing?", "is discounting eating margin?", "what did the promotion cost?", "which coupons drive new customers?", or similar coupon-performance requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once and `wc-analytics-breakdown` with subject=coupons, dimension=code, limit=10, orderby=discount_amount, compare=true. Lead with coupon attachment rate, orders with coupons, coupon-order revenue, total discount amount, AOV with versus without coupons, and whether coupon use moved versus the comparison. Use returned effective campaign cost, refund rate, new-customer share, share fields, dropped-out coupon list, and pipeline fields directly — do not compute ratios, call a coupon profitable, claim ROAS/conversion/profit margin, or treat pending coupon revenue as collected. Final answer sections: Snapshot, Severity, Coupon Economics, Top Coupon Signals, Movement and Pipeline, Likely Checks, Next Actions.
 
 ## Common routing mistakes — do not make these
 

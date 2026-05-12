@@ -23,6 +23,7 @@ Something feels off — find out what.
 - *"Which products had the biggest movers up and down this month?"*
 - *"Are refunds or failed orders trending up vs. my baseline?"*
 - *"Revenue is down this month. Triage what changed across orders, AOV, products, channels, and refunds."*
+- *"Are my coupons working this month? Separate revenue, discount cost, refunds, and new-customer signal."*
 - *"Triage refunds from the last 30 days: what products or countries should I inspect first?"*
 - *"Revenue is down month-over-month. Walk me through the most likely causes using my actual data."*
 
@@ -33,6 +34,7 @@ Where to lean in.
 - *"Top 10 sellers this month with stock levels and revenue share."*
 - *"Which categories are pulling weight and which are dead weight?"*
 - *"Did my last promo lift revenue or just shift it from full-price?"*
+- *"Which coupon codes cost the most in discounts and refunds, and which ones brought first-time buyers?"*
 - *"How much of my revenue is from repeat buyers, and which products bring them back?"*
 
 ## 4. Find what needs attention now
