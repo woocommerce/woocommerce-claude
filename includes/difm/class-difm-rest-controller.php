@@ -37,6 +37,13 @@ class DifmRestController {
 	const MAX_HISTORY_TURNS = 20;
 
 	/**
+	 * Pseudo-tool name for chart rendering declarations.
+	 *
+	 * Not in TOOL_ABILITY_MAP — captured client-side rather than executed.
+	 */
+	const RENDER_CHART_TOOL = 'render_chart';
+
+	/**
 	 * Maximum number of Anthropic API calls per chat request (including tool-use rounds).
 	 *
 	 * Each tool-use round costs one API call. Five iterations allows for four rounds
@@ -207,7 +214,24 @@ class DifmRestController {
 			);
 		}
 
-		$iterations = 0;
+		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools, '', $this->merchant_requested_chart( $user_message ) );
+	}
+
+	/**
+	 * Run a chat completion with optional tool calls.
+	 *
+	 * @param AnthropicClient $client        Anthropic client.
+	 * @param string          $system_prompt System prompt.
+	 * @param array           $messages      Conversation messages.
+	 * @param array           $tools         Anthropic-format tool definitions.
+	 * @param string          $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @param bool            $chart_requested Whether the merchant explicitly asked for a chart.
+	 * @return \WP_REST_Response
+	 */
+	private function answer_with_tools( AnthropicClient $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '', $chart_requested = false ) {
+		$chart_specs           = array();
+		$chart_retry_attempted = false;
+		$iterations            = 0;
 
 		while ( $iterations < self::MAX_TOOL_ITERATIONS ) {
 			$result = $client->messages( $messages, $system_prompt, $tools );
@@ -225,23 +249,59 @@ class DifmRestController {
 			$content     = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
 
 			if ( 'tool_use' !== $stop_reason ) {
+				$reply = $this->extract_text_reply( $content );
+				if (
+					empty( $chart_specs )
+					&& ! $chart_retry_attempted
+					&& $this->has_render_chart_tool( $tools )
+					&& ( $chart_requested || $this->reply_claims_chart( $reply ) )
+				) {
+					$chart_retry_attempted = true;
+					$messages[]            = array(
+						'role'    => 'assistant',
+						'content' => $content,
+					);
+					$messages[]            = array(
+						'role'    => 'user',
+						'content' => 'The previous answer said or implied that a chart was shown, but no render_chart tool call was made. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
+					);
+					++$iterations;
+					continue;
+				}
+
 				return rest_ensure_response(
-					array(
-						'status' => 'ok',
-						'reply'  => $this->extract_text_reply( $content ),
-					)
+					$this->build_chat_response( $reply, $chart_specs, $empty_reply_fallback )
 				);
 			}
 
-			$tool_results = array();
+			$tool_results     = array();
+			$only_chart_tools = true;
 			foreach ( $content as $block ) {
 				if ( ! isset( $block['type'] ) || 'tool_use' !== $block['type'] ) {
 					continue;
 				}
 
-				$tool_name   = isset( $block['name'] ) ? (string) $block['name'] : '';
-				$tool_input  = isset( $block['input'] ) && is_array( $block['input'] ) ? $block['input'] : array();
-				$tool_output = $this->execute_tool( $tool_name, $tool_input );
+				$tool_name  = isset( $block['name'] ) ? (string) $block['name'] : '';
+				$tool_input = isset( $block['input'] ) && is_array( $block['input'] ) ? $block['input'] : array();
+				$tool_id    = isset( $block['id'] ) ? (string) $block['id'] : '';
+
+				if ( self::RENDER_CHART_TOOL === $tool_name ) {
+					$chart_specs[]  = $this->sanitise_chart_spec( $tool_input );
+					$tool_results[] = array(
+						'type'        => 'tool_result',
+						'tool_use_id' => $tool_id,
+						'content'     => wp_json_encode(
+							array(
+								'ok'   => true,
+								'next' => 'If your complete text answer was not included before this chart tool call, return that text answer now.',
+							)
+						),
+					);
+					continue;
+				}
+
+				$only_chart_tools = false;
+				$tool_output      = $this->execute_tool( $tool_name, $tool_input );
 
 				if ( is_wp_error( $tool_output ) ) {
 					if ( 'extended_range_required' === $tool_output->get_error_code() ) {
@@ -260,13 +320,20 @@ class DifmRestController {
 
 				$tool_results[] = array(
 					'type'        => 'tool_result',
-					'tool_use_id' => isset( $block['id'] ) ? (string) $block['id'] : '',
+					'tool_use_id' => $tool_id,
 					'content'     => wp_json_encode( $tool_output ),
 				);
 			}
 
 			if ( empty( $tool_results ) ) {
 				break;
+			}
+
+			if ( $only_chart_tools ) {
+				$reply = $this->extract_text_reply( $content );
+				if ( '' !== $reply ) {
+					return rest_ensure_response( $this->build_chat_response( $reply, $chart_specs, $empty_reply_fallback ) );
+				}
 			}
 
 			$messages[] = array(
@@ -286,6 +353,107 @@ class DifmRestController {
 				'status'  => 'error',
 				'message' => __( 'The assistant took too many steps — please try again.', 'woocommerce-claude' ),
 			)
+		);
+	}
+
+	/**
+	 * Build a normal chat response payload.
+	 *
+	 * @param string $reply       Assistant text reply.
+	 * @param array  $chart_specs Sanitised chart specs.
+	 * @param string $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @return array
+	 */
+	private function build_chat_response( $reply, array $chart_specs = array(), $empty_reply_fallback = '' ) {
+		$reply = (string) $reply;
+		if ( '' === trim( $reply ) && ! empty( $chart_specs ) ) {
+			$title = isset( $chart_specs[0]['title'] ) ? (string) $chart_specs[0]['title'] : '';
+			$reply = '' === $title
+				? __( 'I have added the chart below.', 'woocommerce-claude' )
+				: sprintf(
+					/* translators: %s: chart title */
+					__( 'I have added the %s chart below.', 'woocommerce-claude' ),
+					$title
+				);
+		}
+		if ( '' === trim( $reply ) && '' !== $empty_reply_fallback ) {
+			$reply = $empty_reply_fallback;
+		}
+
+		$response = array(
+			'status' => 'ok',
+			'reply'  => $reply,
+		);
+
+		if ( ! empty( $chart_specs ) ) {
+			$response['charts'] = array_values( $chart_specs );
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Whether the current tool set can render charts.
+	 *
+	 * @param array $tools Anthropic-format tool definitions.
+	 * @return bool
+	 */
+	private function has_render_chart_tool( array $tools ) {
+		foreach ( $tools as $tool ) {
+			if ( isset( $tool['name'] ) && self::RENDER_CHART_TOOL === $tool['name'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a merchant message explicitly asks for a chart or visual.
+	 *
+	 * @param string $message Merchant message.
+	 * @return bool
+	 */
+	private function merchant_requested_chart( $message ) {
+		return 1 === preg_match( '/\b(chart|charts|graph|graphs|plot|plots|visualise|visualize|visualisation|visualization)\b/i', (string) $message );
+	}
+
+	/**
+	 * Whether the current turn or latest user history asks for a chart.
+	 *
+	 * @param array  $raw_history  Raw history from the REST request.
+	 * @param string $user_message Current user message.
+	 * @return bool
+	 */
+	private function history_requested_chart( array $raw_history, $user_message ) {
+		if ( $this->merchant_requested_chart( $user_message ) ) {
+			return true;
+		}
+
+		$history = array_reverse( $raw_history );
+		foreach ( $history as $turn ) {
+			if ( ! is_array( $turn ) || ! isset( $turn['role'] ) || 'user' !== $turn['role'] ) {
+				continue;
+			}
+
+			return isset( $turn['content'] ) && $this->merchant_requested_chart( (string) $turn['content'] );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a text reply claims that a chart is already visible.
+	 *
+	 * @param string $reply Assistant reply text.
+	 * @return bool
+	 */
+	private function reply_claims_chart( $reply ) {
+		$reply = (string) $reply;
+
+		return 1 === preg_match(
+			'/\b(chart|graph|plot)\s+(above|below|shows|illustrates|compares)\b|\b(the|this|that|following)\s+(chart|graph|plot)\b|\bas shown in (the )?(chart|graph|plot)\b|\b(here is|here\'s|i have added|i\'ve added|i created|i\'ve created|i generated|i\'ve generated).{0,40}\b(chart|graph|plot)\b/i',
+			$reply
 		);
 	}
 
@@ -313,7 +481,13 @@ class DifmRestController {
 			. 'Be concise, direct, and focused on actionable insights. '
 			. 'Do not suggest building new features, plugins, or API endpoints — the merchant cannot action that. '
 			. 'Never expose internal field names (e.g. metrics.net_sales) in your responses — use plain English only. '
-			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow.',
+			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow. '
+				. 'Chart rendering rules — follow these exactly: '
+				. '(1) Always write your full text reply first, then call render_chart as your final action. Never call render_chart before finishing your text. '
+				. '(2) For any question about trends, daily/weekly/monthly performance, or comparisons across products/categories — always call render_chart. Charts complement your text; they do not replace it. Do not skip the chart because you already wrote a table — include both. '
+				. '(3) Populate series.data directly from the tool result already in your context — do not call an analytics tool again just to chart it. '
+				. '(4) Chart type: use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. '
+				. '(5) Skip render_chart only for single-scalar totals answers where no series or breakdown data was retrieved.',
 			esc_html( $store_name ),
 			esc_url( $store_url ),
 			esc_html( $date ),
@@ -472,7 +646,127 @@ class DifmRestController {
 			);
 		}
 
+		$tools[] = $this->build_render_chart_tool_definition();
+
 		return $tools;
+	}
+
+	/**
+	 * Return the Anthropic tool definition for the render_chart pseudo-tool.
+	 *
+	 * This tool is never executed server-side; the controller captures the spec
+	 * and forwards it to the frontend as part of the response payload.
+	 *
+	 * @return array
+	 */
+	private function build_render_chart_tool_definition() {
+		return array(
+			'name'         => self::RENDER_CHART_TOOL,
+			'description'  => 'Render a chart in the chat UI. IMPORTANT: call this as your FINAL action, only after your complete text reply is written — never before. Use it for any trend, daily/weekly/monthly performance, or category-comparison answer. Charts complement your text, they do not replace it. Populate series.data directly from the analytics tool result already in your context.',
+			'input_schema' => array(
+				'type'       => 'object',
+				'required'   => array( 'type', 'title', 'series' ),
+				'properties' => array(
+					'type'    => array(
+						'type'        => 'string',
+						'enum'        => array( 'line', 'bar', 'pie' ),
+						'description' => "Chart type. Use 'line' for trends over time, 'bar' for comparisons across categories or products, 'pie' for proportional breakdowns with 6 or fewer slices.",
+					),
+					'title'   => array(
+						'type'        => 'string',
+						'description' => "Short descriptive title, e.g. 'Net Sales — Last 30 Days'.",
+					),
+					'x_label' => array(
+						'type'        => 'string',
+						'description' => 'Label for the x axis (optional).',
+					),
+					'y_label' => array(
+						'type'        => 'string',
+						'description' => 'Label for the y axis (optional).',
+					),
+					'series'  => array(
+						'type'        => 'array',
+						'description' => 'Data series. For line/bar: one entry per metric. For pie: one entry per slice with a single data point each.',
+						'items'       => array(
+							'type'       => 'object',
+							'required'   => array( 'name', 'data' ),
+							'properties' => array(
+								'name' => array(
+									'type'        => 'string',
+									'description' => "Series label, e.g. 'Net Sales'.",
+								),
+								'data' => array(
+									'type'        => 'array',
+									'description' => "Data points. Time-series: {x: 'YYYY-MM-DD', y: number}. Categorical: {x: 'Category', y: number}.",
+									'items'       => array(
+										'type'       => 'object',
+										'required'   => array( 'x', 'y' ),
+										'properties' => array(
+											'x' => array( 'type' => 'string' ),
+											'y' => array( 'type' => 'number' ),
+										),
+									),
+								),
+							),
+						),
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Sanitise a raw render_chart input before forwarding it to the frontend.
+	 *
+	 * @param array $spec Raw tool input from Claude.
+	 * @return array
+	 */
+	private function sanitise_chart_spec( array $spec ) {
+		$allowed_types = array( 'line', 'bar', 'pie' );
+		$type          = isset( $spec['type'] ) && in_array( $spec['type'], $allowed_types, true ) ? $spec['type'] : 'bar';
+
+		$sanitised = array(
+			'type'  => $type,
+			'title' => isset( $spec['title'] ) ? sanitize_text_field( (string) $spec['title'] ) : '',
+		);
+
+		if ( ! empty( $spec['x_label'] ) ) {
+			$sanitised['x_label'] = sanitize_text_field( (string) $spec['x_label'] );
+		}
+
+		if ( ! empty( $spec['y_label'] ) ) {
+			$sanitised['y_label'] = sanitize_text_field( (string) $spec['y_label'] );
+		}
+
+		$sanitised['series'] = array();
+		$raw_series          = isset( $spec['series'] ) && is_array( $spec['series'] ) ? $spec['series'] : array();
+
+		foreach ( $raw_series as $s ) {
+			if ( ! is_array( $s ) ) {
+				continue;
+			}
+
+			$series_name = isset( $s['name'] ) ? sanitize_text_field( (string) $s['name'] ) : '';
+			$raw_data    = isset( $s['data'] ) && is_array( $s['data'] ) ? $s['data'] : array();
+			$data_points = array();
+
+			foreach ( $raw_data as $point ) {
+				if ( ! is_array( $point ) ) {
+					continue;
+				}
+				$data_points[] = array(
+					'x' => isset( $point['x'] ) ? sanitize_text_field( (string) $point['x'] ) : '',
+					'y' => isset( $point['y'] ) ? (float) $point['y'] : 0.0,
+				);
+			}
+
+			$sanitised['series'][] = array(
+				'name' => $series_name,
+				'data' => $data_points,
+			);
+		}
+
+		return $sanitised;
 	}
 
 	/**
@@ -700,31 +994,19 @@ class DifmRestController {
 		$messages[] = array(
 			'role'    => 'user',
 			'content' => sprintf(
-				'The merchant explicitly confirmed the larger date range. Answer their original question using this server-executed %1$s result. Do not expose internal field names. Result JSON: %2$s',
+				'The merchant explicitly confirmed the larger date range. Answer their original question using this server-executed %1$s result. Do not expose internal field names. If the original question asked for a chart or the result is trend/comparison data, use render_chart as your final action. Result JSON: %2$s',
 				$tool_name,
 				wp_json_encode( $tool_output )
 			),
 		);
 
-		$result = $client->messages( $messages, $system_prompt, array() );
-
-		if ( is_wp_error( $result ) ) {
-			return rest_ensure_response(
-				array(
-					'status'  => 'error',
-					'message' => $result->get_error_message(),
-				)
-			);
-		}
-
-		$content = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
-		$reply   = $this->extract_text_reply( $content );
-
-		return rest_ensure_response(
-			array(
-				'status' => 'ok',
-				'reply'  => '' === $reply ? __( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' ) : $reply,
-			)
+		return $this->answer_with_tools(
+			$client,
+			$system_prompt,
+			$messages,
+			array( $this->build_render_chart_tool_definition() ),
+			__( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' ),
+			$this->history_requested_chart( $raw_history, $user_message )
 		);
 	}
 
