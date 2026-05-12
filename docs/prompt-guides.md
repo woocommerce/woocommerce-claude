@@ -22,6 +22,7 @@ Something feels off — find out what.
 - *"My last 7 days look soft. What changed? Break it down by product, category, and time of day."*
 - *"Which products had the biggest movers up and down this month?"*
 - *"Are refunds or failed orders trending up vs. my baseline?"*
+- *"Triage refunds from the last 30 days: what products or countries should I inspect first?"*
 - *"Revenue is down month-over-month. Walk me through the most likely causes using my actual data."*
 
 ## 3. Find what's actually working
@@ -39,6 +40,7 @@ What's bleeding today.
 
 - *"Triage my failed and on-hold orders from the last 30 days — which ones should I chase first?"*
 - *"What's stuck in fulfillment? Show on-hold orders by age and any failed orders from the last 30 days."*
+- *"Which products are driving refunds, and are the refund rates high enough to act on?"*
 - *"Which top sellers are running low or out based on sales velocity?"*
 - *"Where's the leakage right now — biggest discounts, biggest refunds, and oldest on-hold or failed orders worth chasing?"*
 

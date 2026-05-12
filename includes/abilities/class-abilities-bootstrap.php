@@ -90,5 +90,6 @@ class AbilitiesBootstrap {
 		ProductImproveAbility::register();
 		WeeklyStoreReviewAbility::register();
 		FailedOrderTriageAbility::register();
+		RefundTriageAbility::register();
 	}
 }

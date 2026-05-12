@@ -116,6 +116,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-weekly-store-review-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-failed-order-triage-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-refund-triage-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
@@ -448,6 +449,7 @@ class Plugin {
 					Abilities\ProductImproveAbility::ABILITY_NAME,
 					Abilities\WeeklyStoreReviewAbility::ABILITY_NAME,
 					Abilities\FailedOrderTriageAbility::ABILITY_NAME,
+					Abilities\RefundTriageAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
 			);
@@ -532,6 +534,10 @@ For "weekly store review", "how did my store do this week?", or similar broad we
 ## Failed and on-hold order triage intent
 
 For "triage failed orders", "what orders are stuck?", "which unpaid orders should I chase?", "payment pipeline", "checkout failures", or similar payment-risk requests, start with `wc-analytics-totals` subject=orders and read `status_breakdown` plus the `pipeline` diagnostic. Use `wc-analytics-rows` entity=orders with explicit status filters for on-hold and failed orders; rows mode is appropriate when producing an actionable queue, but keep customer details pseudonymised. On-hold is payment pipeline, failed is checkout risk, and neither is confirmed lost revenue. If on-hold value is material or a card gateway appears in the pipeline payment-method diagnostic, use attribution breakdown by channel to see whether one channel over-indexes on pipeline.
+
+## Refund triage intent
+
+For "refund triage", "what is driving refunds?", "are returns/refunds getting worse?", "which products are being refunded?", or similar refund-diagnostic requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` with `subject=refunds`, `wc-analytics-breakdown` with `subject=refunds` by product, and `wc-analytics-breakdown` with `subject=refunds` by country. Refund periods mean refund-issued date, not original order date. Use returned refund-rate, timing, full/partial, and comparison fields directly — do not compute rates or shares yourself. Final answer sections: Snapshot, Severity, Refund Timing, Top Drivers, Likely Checks, Next Actions. Treat refund reasons and chargebacks as manual checks unless the merchant supplied them.
 
 ## Common routing mistakes — do not make these
 

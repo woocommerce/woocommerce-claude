@@ -9,7 +9,7 @@
 # Usage:
 #   ./bin/check-agent-workflows
 #   ./bin/check-agent-workflows --profile generic
-#   ./bin/check-agent-workflows --max-budget-usd 2
+#   ./bin/check-agent-workflows --max-budget-usd 3
 #
 
 set -euo pipefail
@@ -17,7 +17,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-WORKFLOW="failed-order-triage"
+WORKFLOW="refund-triage"
 PROFILE="iris-demo"
 PROMPT=""
 PLUGIN_DIR="$REPO_ROOT/agent-plugin"
@@ -43,7 +43,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run. Currently: failed-order-triage.
+  --workflow <name>       Workflow to run: refund-triage or failed-order-triage.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -119,6 +119,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$WORKFLOW" in
+	refund-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="Triage refunds from the last 6 months."
+		fi
+		;;
 	failed-order-triage)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:failed-order-triage"
@@ -208,11 +213,11 @@ assert_not_matches() {
 }
 
 assert_store_connected() {
-	if grep -Eiq -- "no WooCommerce store connected|can't run the triage|cannot run the triage|needs the store://profile resource|needs .*wc-analytics|no .*store MCP" "$OUTPUT_FILE"; then
+	if grep -Eiq -- "no WooCommerce store connected|can't run the triage|cannot run the triage|needs the store://profile resource|needs .*wc-analytics|no .*store MCP|I don't have access to your store|connect .*WooCommerce" "$OUTPUT_FILE"; then
 		fail "Claude ran the skill, but no WooCommerce for Claude MCP store is connected to this CLI session. Run 'claude mcp list' to confirm, add the store with the setup-page command, or pass --mcp-config."
 	fi
 
-	if grep -Eiq -- "need permission|please approve|approve the tool requests" "$OUTPUT_FILE"; then
+	if grep -Eiq -- "need permission|please approve|approve the tool requests|which would you prefer|if you say \"?go\"?|proceed with the full" "$OUTPUT_FILE"; then
 		fail "Claude stopped for interactive tool approval. Re-run with --permission-mode auto, or set CLAUDE_PERMISSION_MODE=auto."
 	fi
 }
@@ -287,7 +292,34 @@ assert_failed_order_triage() {
 	fi
 }
 
+assert_refund_triage() {
+	assert_store_connected
+
+	assert_contains "Refund Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "Refund Timing"
+	assert_contains "Top Drivers"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'per our guidance|per our thresholds|our own guidance|our thresholds|red[- ]flag zone per' 'threshold provenance leak'
+	assert_not_matches 'Changed mind|Defective product|Wrong size|Not as described|Arrived damaged|Late delivery' 'invented or leaked refund reason'
+	assert_not_matches 'refunds? (are|were) chargebacks|chargebacks? (are|were) refunds' 'chargebacks conflated with refunds'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 case "$WORKFLOW" in
+	refund-triage)
+		assert_refund_triage
+		;;
 	failed-order-triage)
 		assert_failed_order_triage
 		;;

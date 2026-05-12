@@ -113,7 +113,7 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The four prompts (`wc-prompts/*`) are registered.
+	 * The five prompts (`wc-prompts/*`) are registered.
 	 */
 	public function test_woocommerce_claude_server_exposes_expected_prompts() {
 		$server  = \WP\MCP\Core\McpAdapter::instance()->get_server( 'woocommerce-claude' );
@@ -128,6 +128,7 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 		$this->assertContains( 'wc-prompts-product-improve', $prompt_names );
 		$this->assertContains( 'wc-prompts-weekly-store-review', $prompt_names );
 		$this->assertContains( 'wc-prompts-failed-order-triage', $prompt_names );
+		$this->assertContains( 'wc-prompts-refund-triage', $prompt_names );
 	}
 
 	/**
@@ -184,6 +185,9 @@ class Test_MCP_Server_Registration extends WP_UnitTestCase {
 			'Failed and on-hold order value',
 			'failed orders',
 			'payment pipeline',
+			'refund triage',
+			'Refund Timing',
+			'refund-issued date',
 		);
 
 		foreach ( $required_markers as $marker ) {

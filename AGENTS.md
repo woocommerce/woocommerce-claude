@@ -46,6 +46,7 @@ woocommerce-claude/
 │   ├── README.md             # Skills index and tools-vs-skills guidance
 │   ├── weekly-store-review
 │   ├── failed-order-triage
+│   ├── refund-triage
 │   ├── catalog-audit
 │   ├── product-content-generator
 │   └── store-health-monitor

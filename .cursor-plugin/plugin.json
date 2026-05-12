@@ -1,7 +1,7 @@
 {
   "name": "woocommerce-claude",
-  "description": "WooCommerce for Claude agent skills for store analytics, order triage, catalog readiness, and MCP setup workflows",
-  "version": "0.2.1",
+  "description": "WooCommerce for Claude agent skills for store analytics, order and refund triage, catalog readiness, and MCP setup workflows",
+  "version": "0.2.2",
   "author": {
     "name": "WooCommerce"
   },

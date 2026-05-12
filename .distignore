@@ -16,6 +16,7 @@
 .distignore
 .editorconfig
 .DS_Store
+.agent-workflow-runs
 
 # Tests and dev scripts
 tests
