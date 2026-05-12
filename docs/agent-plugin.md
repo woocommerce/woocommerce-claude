@@ -39,7 +39,7 @@ For local demo-store regression testing, run the agent workflow through Claude C
 ./bin/check-agent-workflows
 ```
 
-The script loads `agent-plugin/` directly with `--plugin-dir`, so it tests the current branch without uninstalling, reinstalling, or reloading the marketplace plugin. It runs Claude Code in non-interactive permission mode, captures the transcript under `.agent-workflow-runs/`, checks the expected failed-order triage sections, and fails on the bad phrasing patterns we do not want to regress. This validates the agent-side workflow skill; it does not prove a remote demo store has the newest WordPress plugin zip installed.
+The script loads `agent-plugin/` directly with `--plugin-dir`, so it tests the current branch without uninstalling, reinstalling, or reloading the marketplace plugin. It runs Claude Code in `auto` permission mode, captures the transcript under `.agent-workflow-runs/`, checks the expected failed-order triage sections, and fails on the bad phrasing patterns we do not want to regress. This validates the agent-side workflow skill; it does not prove a remote demo store has the newest WordPress plugin zip installed.
 
 Before running it, confirm Claude Code has a WooCommerce for Claude MCP server configured:
 
