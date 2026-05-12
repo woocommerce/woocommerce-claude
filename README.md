@@ -103,6 +103,8 @@ Plus three resources (`store://profile`, `store://catalog-schema`, `store://poli
 
 The repository also includes reference agent Skills in [`skills/`](./skills/). These are workflow wrappers around the MCP tools — for example, `weekly-store-review` combines revenue, orders, customers, products, attribution, and refunds into one merchant-friendly weekly review. The MCP tools stay as stable data primitives; Skills carry the opinionated workflow guidance.
 
+For best results in clients that support agent plugins or skills, install the companion agent plugin metadata from this repository as well as connecting the store MCP server. See [docs/agent-plugin.md](./docs/agent-plugin.md). The WordPress plugin provides live store data; the agent plugin teaches the AI client how to use it reliably.
+
 ### What can you ask?
 
 A range of questions covering the store's catalogue, performance, customers, and AI readiness:

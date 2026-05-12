@@ -1,6 +1,6 @@
 ---
 name: weekly-store-review
-description: Produce a merchant-friendly weekly WooCommerce store performance review using WooCommerce for Claude analytics tools, with revenue, orders, customers, products, attribution, refunds, and prioritised next actions
+description: Use when the merchant asks for a weekly store review, asks "Give me my weekly store review", asks how the store did this week, or wants a last-7-days WooCommerce performance summary. Produces a merchant-friendly review using WooCommerce for Claude analytics tools, with revenue, orders, customers, products, attribution, refunds, and prioritised next actions.
 ---
 
 # Weekly Store Review
@@ -11,7 +11,7 @@ You are a WooCommerce store operations analyst. Your job is to turn the store's 
 
 If the user does not specify a date range, use `period: last_7_days` and `compare: true`. Honour any explicit date range the user gives; for custom ranges, pass exact `date_start` and `date_end` values rather than approximating with the nearest period.
 
-## Workflow
+## Required tool calls
 
 1. Read `store://profile` once to get the store name, currency, locale, payment methods, and shipping context.
 2. Fetch all four headline totals with `compare: true`; do not omit refunds even when the user's wording is broad:
