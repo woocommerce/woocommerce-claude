@@ -202,9 +202,8 @@ class DifmRestController {
 			);
 		}
 
-		$messages    = $this->build_conversation_messages( $raw_history, $user_message );
-		$tools       = $this->build_tool_definitions();
-		$chart_specs = array();
+		$messages = $this->build_conversation_messages( $raw_history, $user_message );
+		$tools    = $this->build_tool_definitions();
 
 		if ( is_wp_error( $tools ) ) {
 			return rest_ensure_response(
@@ -215,7 +214,22 @@ class DifmRestController {
 			);
 		}
 
-		$iterations = 0;
+		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools );
+	}
+
+	/**
+	 * Run a chat completion with optional tool calls.
+	 *
+	 * @param AnthropicClient $client        Anthropic client.
+	 * @param string          $system_prompt System prompt.
+	 * @param array           $messages      Conversation messages.
+	 * @param array           $tools         Anthropic-format tool definitions.
+	 * @param string          $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @return \WP_REST_Response
+	 */
+	private function answer_with_tools( AnthropicClient $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '' ) {
+		$chart_specs = array();
+		$iterations  = 0;
 
 		while ( $iterations < self::MAX_TOOL_ITERATIONS ) {
 			$result = $client->messages( $messages, $system_prompt, $tools );
@@ -233,19 +247,13 @@ class DifmRestController {
 			$content     = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
 
 			if ( 'tool_use' !== $stop_reason ) {
-				$response = array(
-					'status' => 'ok',
-					'reply'  => $this->extract_text_reply( $content ),
+				return rest_ensure_response(
+					$this->build_chat_response( $this->extract_text_reply( $content ), $chart_specs, $empty_reply_fallback )
 				);
-
-				if ( ! empty( $chart_specs ) ) {
-					$response['charts'] = array_values( $chart_specs );
-				}
-
-				return rest_ensure_response( $response );
 			}
 
-			$tool_results = array();
+			$tool_results     = array();
+			$only_chart_tools = true;
 			foreach ( $content as $block ) {
 				if ( ! isset( $block['type'] ) || 'tool_use' !== $block['type'] ) {
 					continue;
@@ -256,16 +264,22 @@ class DifmRestController {
 				$tool_id    = isset( $block['id'] ) ? (string) $block['id'] : '';
 
 				if ( self::RENDER_CHART_TOOL === $tool_name ) {
-					$chart_specs[] = $this->sanitise_chart_spec( $tool_input );
+					$chart_specs[]  = $this->sanitise_chart_spec( $tool_input );
 					$tool_results[] = array(
 						'type'        => 'tool_result',
 						'tool_use_id' => $tool_id,
-						'content'     => '{"ok":true}',
+						'content'     => wp_json_encode(
+							array(
+								'ok'   => true,
+								'next' => 'If your complete text answer was not included before this chart tool call, return that text answer now.',
+							)
+						),
 					);
 					continue;
 				}
 
-				$tool_output = $this->execute_tool( $tool_name, $tool_input );
+				$only_chart_tools = false;
+				$tool_output      = $this->execute_tool( $tool_name, $tool_input );
 
 				if ( is_wp_error( $tool_output ) ) {
 					if ( 'extended_range_required' === $tool_output->get_error_code() ) {
@@ -293,6 +307,13 @@ class DifmRestController {
 				break;
 			}
 
+			if ( $only_chart_tools ) {
+				$reply = $this->extract_text_reply( $content );
+				if ( '' !== $reply ) {
+					return rest_ensure_response( $this->build_chat_response( $reply, $chart_specs, $empty_reply_fallback ) );
+				}
+			}
+
 			$messages[] = array(
 				'role'    => 'assistant',
 				'content' => $content,
@@ -311,6 +332,42 @@ class DifmRestController {
 				'message' => __( 'The assistant took too many steps — please try again.', 'woocommerce-claude' ),
 			)
 		);
+	}
+
+	/**
+	 * Build a normal chat response payload.
+	 *
+	 * @param string $reply       Assistant text reply.
+	 * @param array  $chart_specs Sanitised chart specs.
+	 * @param string $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @return array
+	 */
+	private function build_chat_response( $reply, array $chart_specs = array(), $empty_reply_fallback = '' ) {
+		$reply = (string) $reply;
+		if ( '' === trim( $reply ) && ! empty( $chart_specs ) ) {
+			$title = isset( $chart_specs[0]['title'] ) ? (string) $chart_specs[0]['title'] : '';
+			$reply = '' === $title
+				? __( 'I have added the chart below.', 'woocommerce-claude' )
+				: sprintf(
+					/* translators: %s: chart title */
+					__( 'I have added the %s chart below.', 'woocommerce-claude' ),
+					$title
+				);
+		}
+		if ( '' === trim( $reply ) && '' !== $empty_reply_fallback ) {
+			$reply = $empty_reply_fallback;
+		}
+
+		$response = array(
+			'status' => 'ok',
+			'reply'  => $reply,
+		);
+
+		if ( ! empty( $chart_specs ) ) {
+			$response['charts'] = array_values( $chart_specs );
+		}
+
+		return $response;
 	}
 
 	/**
@@ -542,7 +599,7 @@ class DifmRestController {
 					),
 					'series'  => array(
 						'type'        => 'array',
-						'description' => "Data series. For line/bar: one entry per metric. For pie: one entry per slice with a single data point each.",
+						'description' => 'Data series. For line/bar: one entry per metric. For pie: one entry per slice with a single data point each.',
 						'items'       => array(
 							'type'       => 'object',
 							'required'   => array( 'name', 'data' ),
@@ -850,31 +907,18 @@ class DifmRestController {
 		$messages[] = array(
 			'role'    => 'user',
 			'content' => sprintf(
-				'The merchant explicitly confirmed the larger date range. Answer their original question using this server-executed %1$s result. Do not expose internal field names. Result JSON: %2$s',
+				'The merchant explicitly confirmed the larger date range. Answer their original question using this server-executed %1$s result. Do not expose internal field names. If the original question asked for a chart or the result is trend/comparison data, use render_chart as your final action. Result JSON: %2$s',
 				$tool_name,
 				wp_json_encode( $tool_output )
 			),
 		);
 
-		$result = $client->messages( $messages, $system_prompt, array() );
-
-		if ( is_wp_error( $result ) ) {
-			return rest_ensure_response(
-				array(
-					'status'  => 'error',
-					'message' => $result->get_error_message(),
-				)
-			);
-		}
-
-		$content = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
-		$reply   = $this->extract_text_reply( $content );
-
-		return rest_ensure_response(
-			array(
-				'status' => 'ok',
-				'reply'  => '' === $reply ? __( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' ) : $reply,
-			)
+		return $this->answer_with_tools(
+			$client,
+			$system_prompt,
+			$messages,
+			array( $this->build_render_chart_tool_definition() ),
+			__( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' )
 		);
 	}
 

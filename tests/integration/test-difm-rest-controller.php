@@ -279,7 +279,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 
 		$this->assertNotNull( $captured_body );
 		$this->assertArrayHasKey( 'tools', $captured_body );
-		$this->assertCount( 10, $captured_body['tools'] );
+		$this->assertCount( 11, $captured_body['tools'] );
 
 		$tool_names = wp_list_pluck( $captured_body['tools'], 'name' );
 		$this->assertNotContains( 'confirm_large_range', $tool_names );
@@ -289,6 +289,7 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertContains( 'analytics_breakdown', $tool_names );
 		$this->assertContains( 'analytics_series', $tool_names );
 		$this->assertContains( 'analytics_rows', $tool_names );
+		$this->assertContains( 'render_chart', $tool_names );
 
 		$rows_tool = null;
 		foreach ( $captured_body['tools'] as $tool ) {
@@ -507,6 +508,193 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'Your revenue last week was great.', $data['reply'] );
 	}
 
+	/**
+	 * Text written before the final render_chart tool call is returned with the chart.
+	 */
+	public function test_chat_returns_text_and_chart_from_final_render_chart_call() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+
+				if ( 1 === $call_count ) {
+					return array(
+						'response' => array(
+							'code'    => 200,
+							'message' => 'OK',
+						),
+						'body'     => wp_json_encode(
+							array(
+								'type'        => 'message',
+								'stop_reason' => 'tool_use',
+								'content'     => array(
+									array(
+										'type'  => 'tool_use',
+										'id'    => 'toolu_series',
+										'name'  => 'analytics_series',
+										'input' => array(
+											'subject'  => 'revenue',
+											'period'   => 'last_7_days',
+											'interval' => 'day',
+										),
+									),
+								),
+							)
+						),
+						'headers'  => array(),
+					);
+				}
+
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'tool_use',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Net sales were steady across the last week.',
+								),
+								array(
+									'type'  => 'tool_use',
+									'id'    => 'toolu_chart',
+									'name'  => 'render_chart',
+									'input' => array(
+										'type'    => 'line',
+										'title'   => 'Net Sales — Last 7 Days',
+										'series'  => array(
+											array(
+												'name' => 'Net Sales',
+												'data' => array(
+													array(
+														'x' => '2026-05-06',
+														'y' => 12.5,
+													),
+													array(
+														'x' => '2026-05-07',
+														'y' => 18.0,
+													),
+												),
+											),
+										),
+										'y_label' => 'Net sales',
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Show net sales by day for the last 7 days. Include a chart.' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 2, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Net sales were steady across the last week.', $data['reply'] );
+		$this->assertArrayHasKey( 'charts', $data );
+		$this->assertCount( 1, $data['charts'] );
+		$this->assertSame( 'line', $data['charts'][0]['type'] );
+		$this->assertSame( 'Net Sales — Last 7 Days', $data['charts'][0]['title'] );
+		$this->assertSame( 18.0, $data['charts'][0]['series'][0]['data'][1]['y'] );
+	}
+
+	/**
+	 * A chart-only model response still returns visible text instead of an empty bubble.
+	 */
+	public function test_chat_adds_fallback_text_when_render_chart_has_no_text() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+
+				if ( 1 === $call_count ) {
+					return array(
+						'response' => array(
+							'code'    => 200,
+							'message' => 'OK',
+						),
+						'body'     => wp_json_encode(
+							array(
+								'type'        => 'message',
+								'stop_reason' => 'tool_use',
+								'content'     => array(
+									array(
+										'type'  => 'tool_use',
+										'id'    => 'toolu_chart_only',
+										'name'  => 'render_chart',
+										'input' => array(
+											'type'   => 'line',
+											'title'  => 'Net Sales — Last 7 Days',
+											'series' => array(
+												array(
+													'name' => 'Net Sales',
+													'data' => array(
+														array(
+															'x' => '2026-05-06',
+															'y' => 12.5,
+														),
+													),
+												),
+											),
+										),
+									),
+								),
+							)
+						),
+						'headers'  => array(),
+					);
+				}
+
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Show net sales by day for the last 7 days. Include a chart.' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 2, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'I have added the Net Sales — Last 7 Days chart below.', $data['reply'] );
+		$this->assertArrayHasKey( 'charts', $data );
+		$this->assertSame( 'Net Sales — Last 7 Days', $data['charts'][0]['title'] );
+	}
+
 	// ── POST /difm/chat — large-range confirmation ───────────────────────────
 
 	/**
@@ -619,10 +807,81 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'Here is the full range.', $data['reply'] );
 		$this->assertFalse( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
 		$this->assertNotNull( $captured_body );
-		$this->assertArrayNotHasKey( 'tools', $captured_body );
+		$this->assertArrayHasKey( 'tools', $captured_body );
+		$this->assertSame( array( 'render_chart' ), wp_list_pluck( $captured_body['tools'], 'name' ) );
 		$messages     = $captured_body['messages'];
 		$last_message = end( $messages );
 		$this->assertStringContainsString( 'explicitly confirmed', $last_message['content'] );
+	}
+
+	/**
+	 * A confirmed large-range answer can return a chart as its final action.
+	 */
+	public function test_affirmative_large_range_reply_can_return_chart() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+		$this->create_pending_large_range_request();
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function () use ( &$call_count ) {
+				++$call_count;
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'tool_use',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Here is the full product trend.',
+								),
+								array(
+									'type'  => 'tool_use',
+									'id'    => 'toolu_large_chart',
+									'name'  => 'render_chart',
+									'input' => array(
+										'type'   => 'bar',
+										'title'  => 'Product Performance',
+										'series' => array(
+											array(
+												'name' => 'Net Sales',
+												'data' => array(
+													array(
+														'x' => 'Hoodie',
+														'y' => 42,
+													),
+												),
+											),
+										),
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'yes, proceed' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 1, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Here is the full product trend.', $data['reply'] );
+		$this->assertArrayHasKey( 'charts', $data );
+		$this->assertSame( 'Product Performance', $data['charts'][0]['title'] );
+		$this->assertFalse( get_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id ) );
 	}
 
 	/**
