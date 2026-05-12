@@ -31,6 +31,16 @@ export interface ChatMessage {
 }
 
 /**
+ * A persisted conversation stored in WordPress user meta.
+ */
+export interface StoredConversation {
+	id: string;
+	title: string;
+	messages: ChatMessage[];
+	updatedAt: number;
+}
+
+/**
  * Top-level response shape from POST /woocommerce-claude/v1/difm/chat.
  */
 export type ChatResponse =
@@ -49,4 +59,5 @@ export interface ModuleData {
 	userName: string;
 	currency: string;
 	hasKey: boolean;
+	conversations: StoredConversation[];
 }

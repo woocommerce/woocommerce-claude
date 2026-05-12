@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import moduleData from '../data';
-import type { ChatMessage, ChatResponse } from '../types';
+import type { ChatMessage, ChatResponse, StoredConversation } from '../types';
 
 /** Timeout for each chat request in milliseconds — slightly above the PHP server-side limit. */
 const REQUEST_TIMEOUT_MS = 95_000;
@@ -17,30 +17,82 @@ export interface ChatState {
 	errorMessage: string;
 }
 
-export function useChat() {
+export interface ConversationSaveOptions {
+	updateRoute?: boolean;
+}
+
+export interface UseChatOptions {
+	initialMessages?: ChatMessage[];
+	initialConversationId?: string;
+	initialTitle?: string;
+	onConversationSaved?: (
+		conv: StoredConversation,
+		options?: ConversationSaveOptions
+	) => void | Promise< void >;
+}
+
+function generateTitle( text: string ): string {
+	const trimmed = text.trim().replace( /\s+/g, ' ' );
+	if ( trimmed.length <= 50 ) {
+		return trimmed;
+	}
+	const truncated = trimmed.slice( 0, 50 );
+	const lastSpace = truncated.lastIndexOf( ' ' );
+	return ( lastSpace > 20 ? truncated.slice( 0, lastSpace ) : truncated ) + '…';
+}
+
+export function useChat( options: UseChatOptions = {} ) {
+	const {
+		initialMessages = [],
+		initialConversationId,
+		initialTitle,
+		onConversationSaved,
+	} = options;
+
 	const [ state, setState ] = useState< ChatState >( {
-		messages: [],
+		messages: initialMessages,
 		status: moduleData.hasKey ? 'idle' : 'no_key',
 		errorMessage: '',
 	} );
 
-	// Stable counter for generating unique message IDs.
-	const nextId = useRef( 0 );
+	// Conversation ID and title — set on first message, stable thereafter.
+	const [ conversationId, setConversationId ] = useState< string | undefined >(
+		initialConversationId
+	);
+	const conversationIdRef = useRef< string | undefined >( initialConversationId );
+	const titleRef = useRef< string | undefined >( initialTitle );
+
+	// Start the ID counter above any existing message IDs to avoid collisions.
+	const nextId = useRef(
+		initialMessages.length > 0
+			? Math.max( ...initialMessages.map( ( m ) => m.id ) ) + 1
+			: 0
+	);
 
 	// Always-current reference to the message list, so sendMessage never closes over stale state.
-	const messagesRef = useRef< ChatMessage[] >( [] );
+	const messagesRef = useRef< ChatMessage[] >( initialMessages );
 	messagesRef.current = state.messages;
 
 	const sendMessage = useCallback( async ( text: string ) => {
-		const history = messagesRef.current; // Snapshot history before appending the new message.
+		const history = messagesRef.current;
+
+		// Assign conversation ID and title on first send.
+		if ( ! conversationIdRef.current ) {
+			const newId = crypto.randomUUID();
+			conversationIdRef.current = newId;
+			setConversationId( newId );
+		}
+		if ( ! titleRef.current ) {
+			titleRef.current = generateTitle( text );
+		}
 
 		const userMessage: ChatMessage = {
 			id: nextId.current++,
 			role: 'user',
 			content: text,
 		};
+		const submittedMessages = [ ...history, userMessage ];
 
-		// Optimistically append the user message and set sending state.
 		setState( ( prev ) => ( {
 			...prev,
 			messages: [ ...prev.messages, userMessage ],
@@ -48,10 +100,21 @@ export function useChat() {
 			errorMessage: '',
 		} ) );
 
-		const controller = new AbortController();
-		const timeoutId = setTimeout( () => controller.abort(), REQUEST_TIMEOUT_MS );
+		let timeoutId: ReturnType< typeof setTimeout > | undefined;
 
 		try {
+			if ( onConversationSaved && conversationIdRef.current && titleRef.current ) {
+				await onConversationSaved( {
+					id: conversationIdRef.current,
+					title: titleRef.current,
+					messages: submittedMessages,
+					updatedAt: Date.now(),
+				}, { updateRoute: false } );
+			}
+
+			const controller = new AbortController();
+			timeoutId = setTimeout( () => controller.abort(), REQUEST_TIMEOUT_MS );
+
 			const response = await fetch( moduleData.restBase + '/chat', {
 				method: 'POST',
 				headers: {
@@ -92,20 +155,36 @@ export function useChat() {
 				return;
 			}
 
-			// Append Claude's reply.
 			const assistantMessage: ChatMessage = {
 				id: nextId.current++,
 				role: 'assistant',
 				content: json.reply,
 				...( json.charts?.length ? { charts: json.charts } : {} ),
 			};
+
+			// Compute the saved messages before calling setState so we can
+			// pass them to onConversationSaved without side-effects inside the
+			// setState updater (which React may call multiple times).
+			const savedMessages = [ ...submittedMessages, assistantMessage ];
+
+			if ( onConversationSaved && conversationIdRef.current && titleRef.current ) {
+				await onConversationSaved( {
+					id: conversationIdRef.current,
+					title: titleRef.current,
+					messages: savedMessages,
+					updatedAt: Date.now(),
+				}, { updateRoute: true } );
+			}
+
 			setState( ( prev ) => ( {
 				...prev,
 				messages: [ ...prev.messages, assistantMessage ],
 				status: 'idle',
 			} ) );
 		} catch ( err ) {
-			clearTimeout( timeoutId );
+			if ( timeoutId ) {
+				clearTimeout( timeoutId );
+			}
 
 			const isAbort = err instanceof Error && err.name === 'AbortError';
 			setState( ( prev ) => ( {
@@ -116,11 +195,11 @@ export function useChat() {
 					: __( 'Something went wrong. Please check your connection and try again.', 'woocommerce-claude' ),
 			} ) );
 		}
-	}, [] );
+	}, [ onConversationSaved ] );
 
 	const clearError = useCallback( () => {
 		setState( ( prev ) => ( { ...prev, status: 'idle', errorMessage: '' } ) );
 	}, [] );
 
-	return { state, sendMessage, clearError };
+	return { state, sendMessage, clearError, conversationId };
 }

@@ -1,29 +1,15 @@
 import { store as bootStore } from '@wordpress/boot';
 import { dispatch } from '@wordpress/data';
-import { commentAuthorAvatar } from '@wordpress/icons';
 import { __ } from '@wordpress/i18n';
+import type { StoredConversation } from './types';
 
 const MAX_CONVERSATIONS = 5;
-
-interface StoredConversation {
-	id: string;
-	title: string;
-	updatedAt: number;
-}
-
-declare global {
-	interface Window {
-		woocommerceClaudeTodayData?: {
-			conversations?: StoredConversation[];
-		};
-	}
-}
 
 function conversationRoute( conversationId: string ): string {
 	return `/?conversationId=${ encodeURIComponent( conversationId ) }`;
 }
 
-function syncConversationsToNav( conversations: StoredConversation[] ): void {
+export function syncConversationsToNav( conversations: StoredConversation[] ): void {
 	const recentConversations = conversations.slice( 0, MAX_CONVERSATIONS );
 
 	if ( ! recentConversations.length ) {
@@ -47,13 +33,4 @@ function syncConversationsToNav( conversations: StoredConversation[] ): void {
 			parent: 'ai-insights-recents',
 		} );
 	} );
-}
-
-export async function init(): Promise< void > {
-	dispatch( bootStore ).updateMenuItem( 'ai-insights', {
-		icon: commentAuthorAvatar,
-	} );
-
-	const conversations = window.woocommerceClaudeTodayData?.conversations ?? [];
-	syncConversationsToNav( conversations );
 }

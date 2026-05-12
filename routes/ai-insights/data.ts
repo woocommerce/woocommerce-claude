@@ -21,6 +21,7 @@ const DEFAULTS: ModuleData = {
 	userName: '',
 	currency: '',
 	hasKey: false,
+	conversations: [],
 };
 
 /** Singleton module data, populated by PHP via wp_add_inline_script(). */

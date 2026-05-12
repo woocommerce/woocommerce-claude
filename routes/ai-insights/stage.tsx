@@ -3,22 +3,99 @@
  *
  * Exported as `stage` following the @wordpress/boot route convention.
  * Rendered by the boot router when the user visits the AI Insights page.
+ *
+ * The outer `stage` reads the URL search params reactively via `useSearch` so
+ * that clicking a nav item (new chat or a recent conversation) causes the inner
+ * `ChatView` to fully re-mount rather than try to reconcile state in-place.
  */
 import './style.scss';
-import { useEffect, useRef } from '@wordpress/element';
+import { useCallback, useEffect, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
+import { useSearch } from '@wordpress/route';
 import { useChat } from './hooks/useChat';
+import { useConversations } from './hooks/useConversations';
 import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
+import { syncConversationsToNav } from '../../packages/conversations/src/index';
+import type { StoredConversation } from './types';
 
+function routePathForConversation( conversationId: string ): string {
+	return `/?conversationId=${ encodeURIComponent( conversationId ) }`;
+}
+
+function replaceCurrentRouteWithConversation( conversationId: string ): void {
+	const url = new URL( window.location.href );
+
+	url.searchParams.set( 'p', routePathForConversation( conversationId ) );
+	url.searchParams.delete( 'conversationId' );
+	window.history.replaceState( {}, '', url.toString() );
+}
+
+/** Outer shell — reads the URL reactively and re-mounts ChatView on ID change. */
 export function stage() {
-	const { state, sendMessage, clearError } = useChat();
+	const search = useSearch( { strict: false } ) as { conversationId?: string };
+	const urlConversationId = search.conversationId;
+	const { conversations, saveConversation } = useConversations();
+
+	// Keep the nav in sync whenever the conversation list changes.
+	useEffect( () => {
+		syncConversationsToNav( conversations );
+	}, [ conversations ] );
+
+	return (
+		<ChatView
+			key={ urlConversationId ?? 'new' }
+			urlConversationId={ urlConversationId }
+			conversations={ conversations }
+			onSaveConversation={ saveConversation }
+		/>
+	);
+}
+
+interface ChatViewProps {
+	urlConversationId?: string;
+	conversations: StoredConversation[];
+	onSaveConversation: ( conv: StoredConversation ) => Promise< void >;
+}
+
+interface SaveConversationOptions {
+	updateRoute?: boolean;
+}
+
+/** Inner view — owns all chat state. Re-mounts when conversationId changes. */
+function ChatView( { urlConversationId, conversations, onSaveConversation }: ChatViewProps ) {
+	const initialConversation = urlConversationId
+		? conversations.find( ( c ) => c.id === urlConversationId )
+		: undefined;
+
+	const handleConversationSaved = useCallback( async (
+		conversation: StoredConversation,
+		options: SaveConversationOptions = {}
+	) => {
+		await onSaveConversation( conversation );
+
+		if ( options.updateRoute && ! urlConversationId ) {
+			replaceCurrentRouteWithConversation( conversation.id );
+		}
+	}, [ onSaveConversation, urlConversationId ] );
+
+	const { state, sendMessage, clearError } = useChat( {
+		initialMessages: initialConversation?.messages,
+		initialConversationId: urlConversationId,
+		initialTitle: initialConversation?.title,
+		onConversationSaved: handleConversationSaved,
+	} );
+
 	const bottomRef = useRef< HTMLDivElement >( null );
 
 	// Scroll to the latest message whenever messages change.
+	// Use 'instant' on the first paint (loaded history) to avoid jarring animation.
+	const didInitialScrollRef = useRef( false );
 	useEffect( () => {
-		bottomRef.current?.scrollIntoView( { behavior: 'smooth' } );
+		const behavior = didInitialScrollRef.current ? 'smooth' : 'instant';
+		didInitialScrollRef.current = true;
+		bottomRef.current?.scrollIntoView( { behavior } );
 	}, [ state.messages ] );
 
 	if ( state.status === 'no_key' ) {
