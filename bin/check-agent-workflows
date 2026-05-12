@@ -11,6 +11,7 @@
 #   ./bin/check-agent-workflows --profile generic
 #   ./bin/check-agent-workflows --max-budget-usd 3
 #   ./bin/check-agent-workflows --workflow tax-reconciliation-smoke --profile generic
+#   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
 #
 
 set -euo pipefail
@@ -44,7 +45,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -125,6 +126,11 @@ case "$WORKFLOW" in
 	coupon-performance-triage)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:coupon-performance-triage"
+		fi
+		;;
+	customer-value-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:customer-value-review"
 		fi
 		;;
 	revenue-drop-triage)
@@ -384,6 +390,29 @@ assert_coupon_performance_triage() {
 	fi
 }
 
+assert_customer_value_review() {
+	assert_store_connected
+
+	assert_contains "Customer Value Review"
+	assert_contains "Snapshot"
+	assert_contains "Active Customer Value"
+	assert_contains "Repeat and Retention"
+	assert_contains "Top Customers"
+	assert_contains "Opportunities"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number|real customer identity' 'PII'
+	assert_not_matches 'will be worth|predicted LTV|future LTV|churn risk|likely to churn|at[- ]risk customers?|win[- ]back list|customer score' 'unsupported prediction or customer scoring'
+	assert_not_matches 'profit margin|ROAS|conversion rate|sessions|impressions|ad spend' 'unsupported commercial metric'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_tax_reconciliation_smoke() {
 	assert_store_connected
 
@@ -416,6 +445,9 @@ assert_tax_reconciliation_smoke() {
 case "$WORKFLOW" in
 	coupon-performance-triage)
 		assert_coupon_performance_triage
+		;;
+	customer-value-review)
+		assert_customer_value_review
 		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage

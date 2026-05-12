@@ -1,7 +1,7 @@
 {
   "name": "woocommerce-claude",
-  "version": "0.2.4",
-  "description": "WooCommerce for Claude agent skills for store analytics, tax reconciliation, revenue, coupon, order and refund triage, catalog readiness, and MCP setup workflows",
+  "version": "0.2.5",
+  "description": "WooCommerce for Claude agent skills for store analytics, customer value, tax reconciliation, revenue, coupon, order and refund triage, catalog readiness, and MCP setup workflows",
   "author": {
     "name": "WooCommerce"
   },
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "WooCommerce for Claude",
     "shortDescription": "Run WooCommerce store analytics workflows with Claude-ready MCP tools.",
-    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, revenue-drop triage, coupon-performance triage, failed-order triage, refund triage, tax reconciliation, catalog audits, product content improvements, and store health checks.",
+    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, revenue-drop triage, coupon-performance triage, customer value reviews, failed-order triage, refund triage, tax reconciliation, catalog audits, product content improvements, and store health checks.",
     "developerName": "WooCommerce",
     "category": "Productivity",
     "capabilities": [
@@ -30,6 +30,7 @@
       "Give me my weekly store review.",
       "Revenue is down this month. Triage what changed.",
       "Are my coupons working? Triage the last 30 days.",
+      "Review my customer value and repeat purchasing.",
       "Triage my failed and on-hold orders.",
       "Triage refunds from the last 30 days.",
       "Reconcile my tax collected in the last 30 days.",
