@@ -17,7 +17,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-WORKFLOW="revenue-drop-triage"
+WORKFLOW="coupon-performance-triage"
 PROFILE="iris-demo"
 PROMPT=""
 PLUGIN_DIR="$REPO_ROOT/agent-plugin"
@@ -43,7 +43,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: revenue-drop-triage, refund-triage, or failed-order-triage.
+  --workflow <name>       Workflow to run: coupon-performance-triage, revenue-drop-triage, refund-triage, or failed-order-triage.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -119,6 +119,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$WORKFLOW" in
+	coupon-performance-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:coupon-performance-triage"
+		fi
+		;;
 	revenue-drop-triage)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:revenue-drop-triage"
@@ -346,7 +351,35 @@ assert_revenue_drop_triage() {
 	fi
 }
 
+assert_coupon_performance_triage() {
+	assert_store_connected
+
+	assert_contains "Coupon Performance Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "Coupon Economics"
+	assert_contains "Top Coupon Signals"
+	assert_contains "Movement and Pipeline"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'profitable|unprofitable|profit margin|ROAS|conversion rate|impressions|ad spend' 'unsupported coupon economics claim'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue' 'pipeline described as lost revenue'
+	assert_not_matches 'denominator' 'analytics jargon'
+	assert_not_matches 'discounts? plus refunds|discount.*\+.*refund|effective campaign cost.*(is|=).*discount.*refund' 'effective-cost arithmetic narration'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 case "$WORKFLOW" in
+	coupon-performance-triage)
+		assert_coupon_performance_triage
+		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage
 		;;
