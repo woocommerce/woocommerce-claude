@@ -11,18 +11,18 @@ set -e
 echo "🏪 Seeding sample products..."
 
 # Create categories.
-npx wp-env run cli -- wp wc product_cat create --name="Clothing" --slug="clothing" --user=admin 2>/dev/null || true
-npx wp-env run cli -- wp wc product_cat create --name="T-Shirts" --slug="t-shirts" --parent=1 --user=admin 2>/dev/null || true
-npx wp-env run cli -- wp wc product_cat create --name="Electronics" --slug="electronics" --user=admin 2>/dev/null || true
-npx wp-env run cli -- wp wc product_cat create --name="Home & Garden" --slug="home-garden" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_cat create --name="Clothing" --slug="clothing" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_cat create --name="T-Shirts" --slug="t-shirts" --parent=1 --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_cat create --name="Electronics" --slug="electronics" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_cat create --name="Home & Garden" --slug="home-garden" --user=admin 2>/dev/null || true
 
 # Create product attributes.
-npx wp-env run cli -- wp wc product_attribute create --name="Size" --slug="size" --user=admin 2>/dev/null || true
-npx wp-env run cli -- wp wc product_attribute create --name="Colour" --slug="colour" --user=admin 2>/dev/null || true
-npx wp-env run cli -- wp wc product_attribute create --name="Material" --slug="material" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_attribute create --name="Size" --slug="size" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_attribute create --name="Colour" --slug="colour" --user=admin 2>/dev/null || true
+pnpm exec wp-env run cli -- wp wc product_attribute create --name="Material" --slug="material" --user=admin 2>/dev/null || true
 
 # Product 1: Well-documented product (should score high).
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Premium Organic Cotton T-Shirt" \
   --type=simple \
   --regular_price="29.99" \
@@ -36,7 +36,7 @@ npx wp-env run cli -- wp wc product create \
   --user=admin 2>/dev/null || true
 
 # Product 2: Sparse product (should score low).
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Blue Widget" \
   --type=simple \
   --regular_price="9.99" \
@@ -44,7 +44,7 @@ npx wp-env run cli -- wp wc product create \
   --user=admin 2>/dev/null || true
 
 # Product 3: Medium quality.
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Wireless Bluetooth Speaker" \
   --type=simple \
   --regular_price="49.99" \
@@ -58,7 +58,7 @@ npx wp-env run cli -- wp wc product create \
   --user=admin 2>/dev/null || true
 
 # Product 4: Missing description entirely.
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Garden Trowel" \
   --type=simple \
   --regular_price="12.50" \
@@ -68,7 +68,7 @@ npx wp-env run cli -- wp wc product create \
   --user=admin 2>/dev/null || true
 
 # Product 5: Out of stock, no image.
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Vintage Ceramic Mug" \
   --type=simple \
   --regular_price="18.00" \
@@ -78,14 +78,14 @@ npx wp-env run cli -- wp wc product create \
   --user=admin 2>/dev/null || true
 
 # Product 6: No price set.
-npx wp-env run cli -- wp wc product create \
+pnpm exec wp-env run cli -- wp wc product create \
   --name="Custom Leather Journal" \
   --type=simple \
   --description="<p>Hand-stitched leather journal with 200 pages of acid-free paper. Available in brown, black, and tan.</p>" \
   --user=admin 2>/dev/null || true
 
 # Create a shipping policy page.
-npx wp-env run cli -- wp post create \
+pnpm exec wp-env run cli -- wp post create \
   --post_type=page \
   --post_title="Shipping Policy" \
   --post_name="shipping-policy" \
@@ -94,7 +94,7 @@ npx wp-env run cli -- wp post create \
   --user=admin 2>/dev/null || true
 
 # Create a returns policy page.
-npx wp-env run cli -- wp post create \
+pnpm exec wp-env run cli -- wp post create \
   --post_type=page \
   --post_title="Returns Policy" \
   --post_name="refund-returns" \
@@ -105,7 +105,7 @@ npx wp-env run cli -- wp post create \
 # Generate WC REST API keys.
 echo ""
 echo "🔑 Creating REST API keys..."
-npx wp-env run cli -- wp wc customer_key create \
+pnpm exec wp-env run cli -- wp wc customer_key create \
   --user=admin \
   --description="Woo MCP Server" \
   --permissions=read 2>/dev/null || true
@@ -116,6 +116,6 @@ echo ""
 echo "Next steps:"
 echo "  1. Copy the consumer key and secret from above"
 echo "  2. Enable the WC core MCP feature:"
-echo "     npx @wordpress/env run cli -- wp option update woocommerce_feature_mcp_integration_enabled yes"
+echo "     pnpm exec wp-env run cli -- wp option update woocommerce_feature_mcp_integration_enabled yes"
 echo "  3. Point your MCP client at http://localhost:8888/wp-json/woocommerce/mcp"
 echo "     with header: X-MCP-API-Key: ck_...:cs_..."

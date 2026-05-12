@@ -58,23 +58,31 @@ if [ ! -f "$PLUGIN_DIR/wca-sanity-check.php" ]; then
 	skip "$PLUGIN_DIR/ exists but doesn't contain wca-sanity-check.php — expected the extracted plugin here"
 fi
 
+if ! command -v pnpm >/dev/null 2>&1; then
+	skip "pnpm is not available (enable it with: corepack enable)"
+fi
+
+if [ ! -f node_modules/.modules.yaml ] || [ ! -x node_modules/.bin/wp-env ]; then
+	skip "Node dependencies are not installed (run: pnpm install)"
+fi
+
 # 2. Dev env running?
 if ! docker ps --format '{{.Names}}' | grep -q 'cli'; then
-	skip "wp-env cli container is not running (start with: npx @wordpress/env start)"
+	skip "wp-env cli container is not running (start with: pnpm exec wp-env start)"
 fi
 
 # 3. Any order data in the dev store?
 # DCC over an empty store is CI theatre — zero-vs-zero compares always match.
 # `wp db query` emits result rows to stdout; `--skip-column-names` trims the header.
 order_count_raw="$(
-	npx @wordpress/env run cli -- \
+	pnpm exec wp-env run cli -- \
 		wp db query "SELECT COUNT(*) FROM wp_wc_order_stats WHERE parent_id = 0" \
 		--skip-column-names 2>/dev/null | tr -d ' \t\r\n' || echo "0"
 )"
 # Trim any wp-env wrapper lines that leaked into stdout (rare but seen in CI).
 order_count="$(printf '%s\n' "$order_count_raw" | grep -oE '[0-9]+' | tail -n1 || true)"
 if [ -z "$order_count" ] || [ "$order_count" = "0" ]; then
-	skip "wp_wc_order_stats is empty — run 'npx @wordpress/env run cli -- wp eval-file wp-content/plugins/hey-woo-tests/tools/seed-demo-store.php' to populate"
+	skip "wp_wc_order_stats is empty — run 'pnpm exec wp-env run cli -- wp eval-file wp-content/plugins/hey-woo-tests/tools/seed-demo-store.php' to populate"
 fi
 
 log "Dev store has $order_count order-stats rows — running DCC."
@@ -84,7 +92,7 @@ log "Dev store has $order_count order-stats rows — running DCC."
 # under there at $CONTAINER_REPO_PATH/vendor-plugins/wca-data-consistency/.
 # We copy (not symlink) so activation resolves a normal plugin path and
 # wp-cli's autoloader doesn't trip over a nested plugin-in-a-plugin layout.
-npx @wordpress/env run cli -- bash -c "
+pnpm exec wp-env run cli -- bash -c "
 	set -e
 	TARGET=wp-content/plugins/$PLUGIN_SLUG
 	SOURCE=$CONTAINER_REPO_PATH/$PLUGIN_DIR
@@ -95,7 +103,7 @@ npx @wordpress/env run cli -- bash -c "
 " >/dev/null
 
 # 5. Activate (idempotent — wp-cli prints 'plugin is already active' and exits 0).
-npx @wordpress/env run cli -- wp plugin activate "$PLUGIN_SLUG" --quiet >/dev/null 2>&1 \
+pnpm exec wp-env run cli -- wp plugin activate "$PLUGIN_SLUG" --quiet >/dev/null 2>&1 \
 	|| {
 		printf '\n\033[1;31m✖ Could not activate %s — check plugin compatibility.\033[0m\n' "$PLUGIN_SLUG" >&2
 		exit 1
@@ -120,7 +128,7 @@ npx @wordpress/env run cli -- wp plugin activate "$PLUGIN_SLUG" --quiet >/dev/nu
 # reliable and we have a corresponding ability to regress: orders_count,
 # net_revenue, gross_revenue, refunds. Add to the list as new skills land.
 DCC_OUTPUT="$(
-	npx @wordpress/env run cli -- \
+	pnpm exec wp-env run cli -- \
 		wp wca-data-consistency run \
 		--format=json \
 		--ranges=30 \
@@ -187,7 +195,7 @@ if fail:
           file=sys.stderr)
     print("  or the three-source schemas diverged after a WC / WC Analytics upgrade. Re-run locally",
           file=sys.stderr)
-    print("  with: npx @wordpress/env run cli -- wp wca-data-consistency run --format=ai", file=sys.stderr)
+    print("  with: pnpm exec wp-env run cli -- wp wca-data-consistency run --format=ai", file=sys.stderr)
     sys.exit(1)
 
 total = sum(len(r.get("metrics", [])) for r in data.get("ranges", []))

@@ -59,7 +59,8 @@ woocommerce-claude/
 ## Local dev
 
 ```bash
-npx @wordpress/env start          # boots WP 6.9 + WC + this plugin on http://localhost:8888
+pnpm install                      # first run only
+pnpm exec wp-env start            # boots WP 6.9 + WC + this plugin on http://localhost:8888
                                    # afterStart activates WC + WooCommerce for Claude, installs WC pages,
                                    # sets a UK store address (London / GBP)
 ./bin/check                        # full pre-push gate (PHPCS, composer audit, PHPUnit, DCC)
@@ -68,8 +69,8 @@ npx @wordpress/env start          # boots WP 6.9 + WC + this plugin on http://lo
 To seed a realistic demo store (deterministic — `mt_srand(42)`):
 
 ```bash
-npx @wordpress/env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
-npx @wordpress/env run cli -- wp eval-file /tmp/seed.php
+pnpm exec wp-env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
+pnpm exec wp-env run cli -- wp eval-file /tmp/seed.php
 ```
 
 ## Architecture decisions baked in
@@ -91,16 +92,17 @@ These are validated decisions. **MUST NOT** relitigate without strong new signal
 - **WooCommerce 10.6+** (tested up to 10.7)
 - **PHPCS:** `WordPress-Extra` + `WordPress-Docs` + `WooCommerce` rulesets via `dealerdirect/phpcodesniffer-composer-installer`
 - **PHPUnit 9.6** + `yoast/phpunit-polyfills` — runs *inside* the wp-env `tests-cli` container, not on host PHP
+- **pnpm 10.33.0** for Node tooling (`packageManager` is pinned in `package.json`)
 - **`@wordpress/scripts plugin-zip`** for release builds; CI tag (`v*`) triggers `.github/workflows/release.yml`
 
 ## Common pitfalls
 
 ### `./bin/check` requires the wp-env tests container
 
-Step 4 of the script (PHPUnit) shells into `npx @wordpress/env run tests-cli`. If wp-env isn't running, the script aborts with an explicit message before running PHPUnit. Start it once per session:
+Step 5 of the script (PHPUnit) shells into `pnpm exec wp-env run tests-cli`. If wp-env isn't running, the script aborts with an explicit message before running PHPUnit. Start it once per session:
 
 ```bash
-npx @wordpress/env start
+pnpm exec wp-env start
 ```
 
 The DCC step (`bin/check-dcc`) is gated — it auto-skips when `vendor-plugins/wca-data-consistency/` isn't present, or when the dev store has no orders. Don't try to "fix" the skip; the upstream plugin is privately distributed and there's no public install path yet.

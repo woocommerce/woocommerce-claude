@@ -7,9 +7,9 @@
 # Usage (from anywhere in the repo):
 #   ./bin/check
 #
-# First run installs composer dependencies; subsequent runs skip that.
+# First run installs composer and pnpm dependencies; subsequent runs skip that.
 # PHPUnit needs the wp-env tests-cli container running:
-#   npx @wordpress/env start
+#   pnpm exec wp-env start
 #
 
 set -euo pipefail
@@ -32,30 +32,41 @@ if [ ! -d vendor ]; then
 	composer install --no-progress --prefer-dist
 fi
 
-# 2. PHPCS.
+if ! command -v pnpm >/dev/null 2>&1; then
+	fail "pnpm is required for Node tooling. Enable it with: corepack enable"
+fi
+
+# 2. Node deps for the local wp-env runner. The .modules.yaml check catches
+#    stale npm-installed node_modules trees after the pnpm migration.
+if [ ! -f node_modules/.modules.yaml ] || [ ! -x node_modules/.bin/wp-env ]; then
+	step "Installing Node dev dependencies (pnpm install)"
+	pnpm install --frozen-lockfile --config.confirm-modules-purge=false
+fi
+
+# 3. PHPCS.
 step "PHPCS (WordPress-Extra + Docs + WooCommerce)"
 composer run phpcs
 
-# 3. Composer dependency audit. Respects config.audit.ignore in composer.json —
+# 4. Composer dependency audit. Respects config.audit.ignore in composer.json —
 #    PHPUnit advisories are test-only and pre-justified there. --no-dev would
 #    skip the audit entirely since there are no production PHP deps, so run
 #    the full audit and trust the ignore list.
 step "Composer: dependency audit"
 composer audit || fail "composer audit reported new vulnerabilities — fix or add a justified ignore to composer.json's config.audit.ignore."
 
-# 4. PHPUnit smoke test inside the wp-env tests-cli container.
+# 5. PHPUnit smoke test inside the wp-env tests-cli container.
 if ! docker ps --format '{{.Names}}' | grep -q 'tests-cli'; then
 	fail "wp-env tests environment is not running.
-  Start it with:  npx @wordpress/env start
+  Start it with:  pnpm exec wp-env start
   Then re-run:    ./bin/check"
 fi
 
 step "PHPUnit (integration, inside tests-cli container)"
-npx @wordpress/env run tests-cli \
+pnpm exec wp-env run tests-cli \
 	--env-cwd=wp-content/plugins/woocommerce-claude-tests \
 	-- php vendor/bin/phpunit --colors=always
 
-# 5. WCA Data Consistency Checker. Runs against the dev cli container (where
+# 6. WCA Data Consistency Checker. Runs against the dev cli container (where
 #    demo-store data lives) and fails on genuine local-vs-db drift across
 #    orders_count / net_revenue / gross_revenue / refunds. Auto-skips when
 #    the plugin isn't dropped into vendor-plugins/ or the dev store is

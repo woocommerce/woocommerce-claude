@@ -94,10 +94,11 @@ if ( false !== $cached ) {
 
 ## Pre-push checks: `./bin/check`
 
-Runs the full lint/test suite locally — PHPCS (WordPress + Docs), composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer deps; subsequent runs skip that.
+Runs the full lint/test suite locally — PHPCS (WordPress + Docs), composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
 
 ```bash
-npx @wordpress/env start  # if not already running
+pnpm install              # first run only
+pnpm exec wp-env start    # if not already running
 ./bin/check
 ```
 
