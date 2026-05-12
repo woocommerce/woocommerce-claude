@@ -116,12 +116,18 @@ class DifmConversationsController {
 	 * @return \WP_REST_Response
 	 */
 	public function save_conversation( $request ) {
-		$user_id = get_current_user_id();
+		$user_id         = get_current_user_id();
+		$raw_body_params = json_decode( $request->get_body(), true );
+		$messages        = $request['messages'];
+
+		if ( is_array( $raw_body_params ) && array_key_exists( 'messages', $raw_body_params ) ) {
+			$messages = $raw_body_params['messages'];
+		}
 
 		$incoming = array(
 			'id'        => $request['id'],
 			'title'     => $request['title'],
-			'messages'  => $request['messages'],
+			'messages'  => $messages,
 			'updatedAt' => (int) $request['updatedAt'],
 		);
 
@@ -149,7 +155,7 @@ class DifmConversationsController {
 		);
 		$conversations = array_slice( $conversations, 0, self::MAX_CONVERSATIONS );
 
-		update_user_meta( $user_id, self::USER_META_KEY, $conversations );
+		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
 
 		return rest_ensure_response( array( 'status' => 'ok' ) );
 	}
@@ -157,10 +163,18 @@ class DifmConversationsController {
 	/**
 	 * Permission check — require manage_woocommerce capability.
 	 *
-	 * @return bool
+	 * @return true|\WP_Error
 	 */
 	public function check_permission() {
-		return current_user_can( 'manage_woocommerce' );
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				__( 'Permission denied.', 'woocommerce-claude' ),
+				array( 'status' => 403 )
+			);
+		}
+
+		return true;
 	}
 
 	/**

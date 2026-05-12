@@ -158,9 +158,8 @@ class Test_Difm_Conversations_Controller extends WP_UnitTestCase {
 	 */
 	private function save_conversation( array $conversation ) {
 		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/conversations' );
-		foreach ( $conversation as $key => $value ) {
-			$request->set_param( $key, $value );
-		}
+		$request->set_header( 'Content-Type', 'application/json' );
+		$request->set_body( wp_json_encode( $conversation ) );
 
 		$response = $this->server->dispatch( $request );
 		$this->assertSame( 200, $response->get_status() );
