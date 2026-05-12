@@ -101,6 +101,8 @@ You now have these tools available (plus the nine built-in `woocommerce-*` CRUD 
 
 Plus three resources (`store://profile`, `store://catalog-schema`, `store://policies`) and two prompts (`wc-prompts-catalog-audit`, `wc-prompts-product-improve`).
 
+The repository also includes reference agent Skills in [`skills/`](./skills/). These are workflow wrappers around the MCP tools — for example, `weekly-store-review` combines revenue, orders, customers, products, attribution, and refunds into one merchant-friendly weekly review. The MCP tools stay as stable data primitives; Skills carry the opinionated workflow guidance.
+
 ### What can you ask?
 
 A range of questions covering the store's catalogue, performance, customers, and AI readiness:
@@ -108,6 +110,7 @@ A range of questions covering the store's catalogue, performance, customers, and
 **Store performance**
 
 - "How did my store do this week?"
+- "Give me my weekly store review"
 - "What's my AOV right now?"
 - "How does Q4 last year compare to this year?"
 - "What's my collected revenue vs my pending revenue?"

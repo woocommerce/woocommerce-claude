@@ -105,6 +105,8 @@ The script mirrors `.github/workflows/ci.yml` line-for-line, so the same checks 
 
 ## Extending the analytics surface
 
+Before adding a new MCP ability or analytics subject, ask whether the current tools already return the data. If the missing piece is an opinionated workflow over existing data — for example a weekly store review, refund triage, or catalogue cleanup plan — add or update an agent-side Skill under `skills/` instead. Abilities are data primitives; Skills are workflows.
+
 The MCP surface is four verb-shaped tools: `wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`. Most new analytics work means adding a `subject` to one of those tools (and the corresponding `fetch_*` helper on `AnalyticsController`), not minting a new top-level tool.
 
 The high-level shape:
