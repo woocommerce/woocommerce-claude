@@ -105,7 +105,7 @@ The repository also includes reference agent Skills in [`skills/`](./skills/). T
 
 For best results in clients that support agent plugins or skills, install the companion agent plugin metadata from this repository as well as connecting the store MCP server. See [docs/agent-plugin.md](./docs/agent-plugin.md). The WordPress plugin provides live store data; the agent plugin teaches the AI client how to use it reliably.
 
-In Claude Code, the branch can be tested Shopify-style with `/plugin marketplace add woocommerce/woocommerce-claude@codex-weekly-store-review-skill`, then `/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit`.
+In Claude Code, the branch can be tested Shopify-style with `/plugin marketplace add woocommerce/woocommerce-claude@codex-weekly-store-review-skill`, then `/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit`. After `/reload-plugins`, try `/weekly-store-review`.
 
 ### What can you ask?
 
