@@ -3,7 +3,7 @@
 WooCommerce for Claude has two installable pieces:
 
 - The WordPress plugin, installed on the WooCommerce store. It exposes the live MCP endpoint, tools, resources, prompts, auth flow, and setup UI.
-- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, coupon-performance triage, failed-order triage, refund triage, catalog audits, and product content improvements.
+- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, coupon-performance triage, failed-order triage, refund triage, tax reconciliation, catalog audits, and product content improvements.
 
 This repository now includes the first-stage agent plugin manifests:
 
@@ -20,7 +20,7 @@ The agent plugin does not replace the WordPress plugin. The skills assume the st
 
 ## Slash commands
 
-Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:coupon-performance-triage`, `/woocommerce-claude:failed-order-triage`, and `/woocommerce-claude:refund-triage` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/coupon-performance-triage`, `/failed-order-triage`, and `/refund-triage`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
+Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:coupon-performance-triage`, `/woocommerce-claude:failed-order-triage`, `/woocommerce-claude:refund-triage`, and `/woocommerce-claude:tax-reconciliation` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/coupon-performance-triage`, `/failed-order-triage`, `/refund-triage`, and `/tax-reconciliation`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
 
 ## Test path
 
@@ -36,6 +36,8 @@ Installing the agent plugin may make client-level plugin commands available, suc
 10. Confirm the `failed-order-triage` skill triggers and the answer separates on-hold payment pipeline from failed checkout risk, lists actionable order links without customer PII, and gives next actions.
 11. Ask: "Triage refunds from the last 30 days."
 12. Confirm the `refund-triage` skill triggers and the answer covers refund size, rate, timing, top refunded products/countries, likely checks, and next actions without customer PII.
+13. Ask: "Reconcile my tax collected in the last 30 days."
+14. Confirm the `tax-reconciliation` skill triggers and the answer separates collected paid tax, shipping tax, refunded tax, on-hold tax, the admin reconciliation view, top tax rates, and next actions without customer PII.
 
 ## Automated smoke test
 
@@ -157,6 +159,12 @@ or:
 or:
 
 ```text
+/woocommerce-claude:tax-reconciliation
+```
+
+or:
+
+```text
 Give me my weekly store review.
 ```
 
@@ -182,6 +190,12 @@ or:
 
 ```text
 Triage refunds from the last 30 days.
+```
+
+or:
+
+```text
+Reconcile my tax collected in the last 30 days.
 ```
 
 If your client shows shorter aliases, these should also work:
@@ -212,4 +226,10 @@ or:
 
 ```text
 /refund-triage
+```
+
+or:
+
+```text
+/tax-reconciliation
 ```
