@@ -29,9 +29,13 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 			) : (
 				<>
 					<MarkdownContent content={ message.content } />
-					{ message.charts?.map( ( spec, i ) => (
-						<ChatChart key={ i } spec={ spec } />
-					) ) }
+					{ message.charts && message.charts.length > 0 && (
+						<div className="hey-woo-charts">
+							{ message.charts.map( ( spec, i ) => (
+								<ChatChart key={ i } spec={ spec } />
+							) ) }
+						</div>
+					) }
 				</>
 			) }
 		</div>

@@ -338,7 +338,12 @@ class DifmRestController {
 			. 'Do not suggest building new features, plugins, or API endpoints — the merchant cannot action that. '
 			. 'Never expose internal field names (e.g. metrics.net_sales) in your responses — use plain English only. '
 			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow. '
-				. 'Chart rendering: when you answer using time-series data (analytics_series) or breakdown data (analytics_breakdown), call render_chart once after writing your text reply. Populate series.data directly from the tool result you already have — do not fetch data again. Use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. Do not call render_chart for totals-only answers or when no numeric series data was retrieved.',
+				. 'Chart rendering rules — follow these exactly: '
+				. '(1) Always write your full text reply first, then call render_chart as your final action. Never call render_chart before finishing your text. '
+				. '(2) For any question about trends, daily/weekly/monthly performance, or comparisons across products/categories — always call render_chart. Charts complement your text; they do not replace it. Do not skip the chart because you already wrote a table — include both. '
+				. '(3) Populate series.data directly from the tool result already in your context — do not call an analytics tool again just to chart it. '
+				. '(4) Chart type: use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. '
+				. '(5) Skip render_chart only for single-scalar totals answers where no series or breakdown data was retrieved.',
 			esc_html( $store_name ),
 			esc_url( $store_url ),
 			esc_html( $date ),
@@ -513,7 +518,7 @@ class DifmRestController {
 	private function build_render_chart_tool_definition() {
 		return array(
 			'name'         => self::RENDER_CHART_TOOL,
-			'description'  => 'Render a chart in the chat UI to visualise store data you have already fetched. Call this once per response when time-series or breakdown data would be clearer as a visual. Populate series.data directly from the analytics tool result already in your context — do not call an analytics tool again just to chart it.',
+			'description'  => 'Render a chart in the chat UI. IMPORTANT: call this as your FINAL action, only after your complete text reply is written — never before. Use it for any trend, daily/weekly/monthly performance, or category-comparison answer. Charts complement your text, they do not replace it. Populate series.data directly from the analytics tool result already in your context.',
 			'input_schema' => array(
 				'type'       => 'object',
 				'required'   => array( 'type', 'title', 'series' ),
