@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+#
+# Local smoke test for Claude Code agent-plugin workflows.
+#
+# This intentionally stays out of the default ./bin/check path because it
+# calls the live Claude model and the configured store MCP connection. Use it
+# for demo-store workflow regression testing after changing skills or prompt
+# wrappers.
+#
+# Usage:
+#   ./bin/check-agent-workflows
+#   ./bin/check-agent-workflows --profile generic
+#   ./bin/check-agent-workflows --max-budget-usd 3
+#
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+WORKFLOW="refund-triage"
+PROFILE="iris-demo"
+PROMPT=""
+PLUGIN_DIR="$REPO_ROOT/agent-plugin"
+OUT_ROOT="$REPO_ROOT/.agent-workflow-runs"
+MAX_BUDGET_USD="${CLAUDE_MAX_BUDGET_USD:-3}"
+MCP_CONFIG="${CLAUDE_MCP_CONFIG:-}"
+MODEL="${CLAUDE_MODEL:-}"
+PERMISSION_MODE="${CLAUDE_PERMISSION_MODE:-auto}"
+DRY_RUN=0
+PRINT_OUTPUT=0
+
+step() {
+	printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$1"
+}
+
+fail() {
+	printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
+	exit 1
+}
+
+usage() {
+	cat <<'USAGE'
+Usage: ./bin/check-agent-workflows [options]
+
+Options:
+  --workflow <name>       Workflow to run. Currently: refund-triage.
+  --profile <name>        Assertion profile: iris-demo (default) or generic.
+  --prompt <text>         Override the prompt/slash command sent to Claude.
+  --plugin-dir <path>     Plugin directory or zip to load for this run.
+  --mcp-config <path>     Optional MCP config path/JSON passed to Claude.
+  --max-budget-usd <n>    Claude CLI budget cap for this run (default: 3).
+  --model <model>         Optional Claude model override.
+  --permission-mode <m>   Claude permission mode (default: auto).
+  --out-dir <path>        Directory for captured transcripts.
+  --print-output          Print the captured answer after assertions pass.
+  --dry-run               Print the Claude command without running it.
+  -h, --help              Show this help.
+
+The iris-demo profile expects the deterministic seeded demo store used in
+manual testing. Use --profile generic for other stores; it only checks the
+answer shape and known bad phrasing.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--workflow)
+			WORKFLOW="${2:-}"
+			shift 2
+			;;
+		--profile)
+			PROFILE="${2:-}"
+			shift 2
+			;;
+		--prompt)
+			PROMPT="${2:-}"
+			shift 2
+			;;
+		--plugin-dir)
+			PLUGIN_DIR="${2:-}"
+			shift 2
+			;;
+		--mcp-config)
+			MCP_CONFIG="${2:-}"
+			shift 2
+			;;
+		--max-budget-usd)
+			MAX_BUDGET_USD="${2:-}"
+			shift 2
+			;;
+		--model)
+			MODEL="${2:-}"
+			shift 2
+			;;
+		--permission-mode)
+			PERMISSION_MODE="${2:-}"
+			shift 2
+			;;
+		--out-dir)
+			OUT_ROOT="${2:-}"
+			shift 2
+			;;
+		--print-output)
+			PRINT_OUTPUT=1
+			shift
+			;;
+		--dry-run)
+			DRY_RUN=1
+			shift
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		*)
+			fail "Unknown option: $1"
+			;;
+	esac
+done
+
+case "$WORKFLOW" in
+	refund-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="Triage refunds from the last 6 months."
+		fi
+		;;
+	*)
+		fail "Unsupported workflow: $WORKFLOW"
+		;;
+esac
+
+case "$PROFILE" in
+	iris-demo|generic)
+		;;
+	*)
+		fail "Unsupported profile: $PROFILE"
+		;;
+esac
+
+command -v claude >/dev/null 2>&1 || fail "Claude Code CLI not found on PATH."
+
+if [ ! -e "$PLUGIN_DIR" ]; then
+	fail "Plugin directory/zip not found: $PLUGIN_DIR"
+fi
+
+RUN_ID="$(date '+%Y%m%d-%H%M%S')"
+RUN_DIR="$OUT_ROOT/$RUN_ID-$WORKFLOW-$PROFILE"
+OUTPUT_FILE="$RUN_DIR/output.txt"
+STDERR_FILE="$RUN_DIR/stderr.txt"
+mkdir -p "$RUN_DIR"
+
+step "Validating agent plugin"
+claude plugin validate "$PLUGIN_DIR"
+
+CLAUDE_CMD=(
+	claude
+	-p
+	--plugin-dir "$PLUGIN_DIR"
+	--no-session-persistence
+	--output-format text
+	--max-budget-usd "$MAX_BUDGET_USD"
+	--permission-mode "$PERMISSION_MODE"
+)
+
+if [ -n "$MCP_CONFIG" ]; then
+	CLAUDE_CMD+=( --mcp-config "$MCP_CONFIG" )
+fi
+
+if [ -n "$MODEL" ]; then
+	CLAUDE_CMD+=( --model "$MODEL" )
+fi
+
+CLAUDE_CMD+=( "$PROMPT" )
+
+step "Running $WORKFLOW via Claude Code"
+printf 'Output: %s\n' "$OUTPUT_FILE"
+printf 'Command:'
+printf ' %q' "${CLAUDE_CMD[@]}"
+printf '\n'
+
+if [ "$DRY_RUN" -eq 1 ]; then
+	exit 0
+fi
+
+if ! "${CLAUDE_CMD[@]}" >"$OUTPUT_FILE" 2>"$STDERR_FILE"; then
+	if [ -s "$STDERR_FILE" ]; then
+		cat "$STDERR_FILE" >&2
+	fi
+	fail "Claude workflow run failed. See $OUTPUT_FILE and $STDERR_FILE."
+fi
+
+assert_contains() {
+	local needle="$1"
+	if ! grep -Fqi -- "$needle" "$OUTPUT_FILE"; then
+		fail "Expected output to contain: $needle"
+	fi
+}
+
+assert_not_matches() {
+	local pattern="$1"
+	local label="$2"
+	if grep -Eiq -- "$pattern" "$OUTPUT_FILE"; then
+		printf '\nMatched forbidden pattern (%s):\n' "$label" >&2
+		grep -Ein -- "$pattern" "$OUTPUT_FILE" >&2 || true
+		fail "Forbidden phrasing found: $label"
+	fi
+}
+
+assert_store_connected() {
+	if grep -Eiq -- "no WooCommerce store connected|can't run the triage|cannot run the triage|needs the store://profile resource|needs .*wc-analytics|no .*store MCP|I don't have access to your store|connect .*WooCommerce" "$OUTPUT_FILE"; then
+		fail "Claude ran the skill, but no WooCommerce for Claude MCP store is connected to this CLI session. Run 'claude mcp list' to confirm, add the store with the setup-page command, or pass --mcp-config."
+	fi
+
+	if grep -Eiq -- "need permission|please approve|approve the tool requests|which would you prefer|if you say \"?go\"?|proceed with the full" "$OUTPUT_FILE"; then
+		fail "Claude stopped for interactive tool approval. Re-run with --permission-mode auto, or set CLAUDE_PERMISSION_MODE=auto."
+	fi
+}
+
+assert_refund_triage() {
+	assert_store_connected
+
+	assert_contains "Refund Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "Refund Timing"
+	assert_contains "Top Drivers"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'per our guidance|per our thresholds|our own guidance|our thresholds|red[- ]flag zone per' 'threshold provenance leaked'
+	assert_not_matches 'Changed mind|Defective product|Wrong size|Not as described|Arrived damaged|Late delivery' 'invented or leaked refund reason labels'
+	assert_not_matches 'refunds? (are|were) chargebacks|chargebacks? (are|were) refunds' 'chargebacks conflated with refunds'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'customer PII request or exposure'
+	assert_not_matches 'denominator' 'analytics denominator jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
+case "$WORKFLOW" in
+	refund-triage)
+		assert_refund_triage
+		;;
+esac
+
+step "Agent workflow smoke test passed"
+printf 'Transcript: %s\n' "$OUTPUT_FILE"
+
+if [ "$PRINT_OUTPUT" -eq 1 ]; then
+	printf '\n'
+	cat "$OUTPUT_FILE"
+fi

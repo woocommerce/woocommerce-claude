@@ -115,6 +115,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-weekly-store-review-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-refund-triage-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
@@ -446,6 +447,7 @@ class Plugin {
 					Abilities\CatalogAuditAbility::ABILITY_NAME,
 					Abilities\ProductImproveAbility::ABILITY_NAME,
 					Abilities\WeeklyStoreReviewAbility::ABILITY_NAME,
+					Abilities\RefundTriageAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
 			);
@@ -526,6 +528,10 @@ The four verb tools differ by SHAPE, not by topic. Pick the tool by the shape of
 ## Weekly store review intent
 
 For "weekly store review", "how did my store do this week?", or similar broad weekly-performance requests, use this exact minimum data plan with `period=last_7_days` and `compare=true` unless the merchant gave explicit dates: call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` for revenue, orders, customers, and refunds (do not skip refunds), `wc-analytics-breakdown` for products by product, and `wc-analytics-breakdown` for attribution by channel. Use the tools quietly — do not tell the merchant you are loading schemas, selecting tools, or making parallel calls. Final answer sections: Headline, What changed, Products, Channels, Watch List, Next Actions. Failed and on-hold order value is checkout risk or payment pipeline, not confirmed lost revenue.
+
+## Refund triage intent
+
+For "refund triage", "what is driving refunds?", "are returns/refunds getting worse?", "which products are being refunded?", or similar refund-diagnostic requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` with `subject=refunds`, `wc-analytics-breakdown` with `subject=refunds` by product, and `wc-analytics-breakdown` with `subject=refunds` by country. Refund periods mean refund-issued date, not original order date. Use returned refund-rate, timing, full/partial, and comparison fields directly — do not compute rates or shares yourself. Final answer sections: Snapshot, Severity, Refund Timing, Top Drivers, Likely Checks, Next Actions. Treat refund reasons and chargebacks as manual checks unless the merchant supplied them.
 
 ## Common routing mistakes — do not make these
 
