@@ -12,6 +12,7 @@
 #   ./bin/check-agent-workflows --max-budget-usd 3
 #   ./bin/check-agent-workflows --workflow tax-reconciliation-smoke --profile generic
 #   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
+#   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
 #
 
 set -euo pipefail
@@ -45,7 +46,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -131,6 +132,11 @@ case "$WORKFLOW" in
 	customer-value-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:customer-value-review"
+		fi
+		;;
+	inventory-risk-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:inventory-risk-review"
 		fi
 		;;
 	revenue-drop-triage)
@@ -414,6 +420,35 @@ assert_customer_value_review() {
 	fi
 }
 
+assert_inventory_risk_review() {
+	assert_store_connected
+
+	assert_contains "Inventory Risk Review"
+	assert_contains "Snapshot"
+	assert_contains "Priority Stock Risks"
+	assert_contains "Restock or Watch"
+	assert_contains "Promotion Checks"
+	assert_contains "Slow Movers"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|stock_quantity|units_sold_in_period|revenue_in_period|orders_count_in_period' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'days? (of )?(cover|stock)|weeks? of stock|months? of stock|stock cover|coverage in days|run out in|sell out in|will run out|will sell out|likely to run out|expected to sell out|units per day|per[- ]day run rate' 'unsupported stock-cover or runout arithmetic'
+	assert_not_matches 'forecast demand|demand forecast|predicted demand|demand prediction|demand (is|has|was|up|down|rose|grew|increased|declined)|sell[- ]through|reorder point|safety stock|economic order quantity|EOQ' 'unsupported inventory forecasting'
+	assert_not_matches 'supplier lead|lead time|warehouse capacity|fulfilment capacity|COGS|cost of goods|profit margin|gross margin|carrying cost|holding cost|purchase order|refresh PO|place .*PO|PO (is|has|will|due|arrives)|reorder timing|replenishment timing' 'unsupported supplier, margin, or fulfilment claims'
+	assert_not_matches 'stockout caused|stock[- ]out caused|caused by (a )?stockout|run into .*stockout|avoid .*stockout|prevent .*stockout|stockout risk|move .*off-shelf|off-shelf|revenue at risk|lost sales|missed sales' 'unsupported stockout causation or lost-sales claim'
+	assert_not_matches 'went out of stock|was out of stock (on|during|for)|restocked (on|in)|stock (history|changed|movement over time)' 'unsupported stock history claim'
+	assert_not_matches 'is being advertised|still advertised|paid campaign|ad campaign|email campaign.*(promot|push)|homepage.*(promot|feature)|social.*(promot|push)' 'unsupported promotion-channel claim'
+	assert_not_matches 'widen .*assortment|expand .*assortment|assortment expansion|adding new SKUs|add new SKUs|new SKUs|room to expand|absorbing space|expand categories|product-development opportunity' 'unsupported assortment expansion claim'
+	assert_not_matches 'dead stock|obsolete stock' 'unsupported slow-mover conclusion'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_tax_reconciliation_smoke() {
 	assert_store_connected
 
@@ -449,6 +484,9 @@ case "$WORKFLOW" in
 		;;
 	customer-value-review)
 		assert_customer_value_review
+		;;
+	inventory-risk-review)
+		assert_inventory_risk_review
 		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage
