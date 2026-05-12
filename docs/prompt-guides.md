@@ -37,6 +37,7 @@ Where to lean in.
 
 What's bleeding today.
 
+- *"Triage my failed and on-hold orders from the last 30 days — which ones should I chase first?"*
 - *"What's stuck in fulfillment? Show on-hold orders by age and any failed orders from the last 30 days."*
 - *"Which top sellers are running low or out based on sales velocity?"*
 - *"Where's the leakage right now — biggest discounts, biggest refunds, and oldest on-hold or failed orders worth chasing?"*

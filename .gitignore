@@ -17,6 +17,7 @@ vendor/
 # Local credentials and Claude config.
 .mcp.json
 .claude/
+.agent-workflow-runs/
 
 # P2 / communication drafts — working documents, not part of the codebase.
 # Keep a README here so the folder itself (and its purpose) is discoverable.
