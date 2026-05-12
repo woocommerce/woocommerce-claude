@@ -39,9 +39,11 @@ Explain the frame only when it helps the merchant understand the number. Do not 
 
 - Lead with the merchant's question. If they asked about best customers, lead with the active-base lifetime-value view. If they asked about retention, lead with cohorts and repeat behaviour.
 - Use returned comparison fields for movement. Do not hand-calculate deltas, percentages, averages, ratios, cohort curves, repeat rates, LTV gaps, or scenario uplift unless the exact field is present.
+- Do not use multiplication-style movement or value language unless the returned field supplies that exact wording. Say "1,147 customers versus 397" rather than "nearly tripled". Say "repeat buyers average £8,897.68 versus £2,332.53 for one-time buyers" rather than "repeat buyers are worth 3.8x more".
 - Average lifetime spend can be distorted by a few high-value customers. Compare it with median lifetime spend before calling the customer base broadly valuable.
 - One-time and repeat segments are lifetime segments across the active base, not only period behaviour. Pair segment share with average lifetime spend per segment before recommending retention work.
 - If the one-time-to-repeat opportunity block is present and positive, read scenario conversions and estimated uplift directly. Do not narrate the multiplication behind the scenario.
+- For one-time-to-repeat scenarios, quote the returned scenario label, conversions, and estimated uplift exactly. Do not paraphrase "10%" as "one in ten", round the uplift into "~£1.2M", or soften exact rows with "roughly".
 - If the uplift per conversion is zero or negative, say there is no clear value uplift in converting the active one-time base to repeaters in the returned data.
 - Cohort retention is historic repeat behaviour. Do not call it a forecast. Do not compare ongoing cohorts with mature cohorts head-to-head.
 - For ongoing cohorts, use the returned mature/ongoing label and any returned flip-to-mature date exactly. Do not approximate dates or claim the threshold comes from the store's typical reorder window.
@@ -92,7 +94,7 @@ List up to five pseudonymised top customers when returned. Include lifetime spen
 
 #### 5. Opportunities
 
-Name the highest-signal opportunities from the returned data: one-time-to-repeat scenarios, replenishment reminders, bundles/cross-sells, loyalty/coupon checks, product education, or channel tracking. Use only returned scenario figures and caveat small samples.
+Name the highest-signal opportunities from the returned data: one-time-to-repeat scenarios, replenishment reminders, bundles/cross-sells, loyalty/coupon checks, product education, or channel tracking. Use returned scenario rows exactly and caveat small samples.
 
 #### 6. Next Actions
 
