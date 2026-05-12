@@ -20,8 +20,8 @@ export type ChatResponse =
 	| { status: 'error'; message: string };
 
 /**
- * Page-load data passed from PHP via wp_localize_script()
- * and read from window.woocommerceClaudeTodayData (see src/data.ts).
+ * Page-load data passed from PHP via an inline script
+ * and read from window.woocommerceClaudeTodayData (see data.ts).
  */
 export interface ModuleData {
 	nonce: string;

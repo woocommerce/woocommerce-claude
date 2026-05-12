@@ -3,12 +3,42 @@
   "version": "0.2.0",
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "wp-scripts build",
-    "start": "wp-scripts start",
-    "plugin-zip": "wp-scripts plugin-zip"
+    "build": "wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "build:production": "NODE_ENV=production wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "start": "wp-build --watch"
+  },
+  "wpPlugin": {
+    "name": "wcai",
+    "packageNamespace": "woocommerce-claude",
+    "handlePrefix": "woocommerce-claude",
+    "pages": [
+      {
+        "id": "woocommerce-claude-insights",
+        "init": [ "@woocommerce-claude/init" ]
+      }
+    ],
+    "externalNamespaces": {
+      "wordpress": {
+        "global": "wp",
+        "handlePrefix": "wp"
+      }
+    }
+  },
+  "dependencies": {
+    "@wordpress/boot": "0.11.0",
+    "@wordpress/data": "10.44.0",
+    "@wordpress/i18n": "^6.9.0",
+    "@wordpress/icons": "^12.0.0",
+    "@wordpress/route": "0.10.0",
+    "markdown-it": "^14.1.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@wordpress/scripts": "^30.0.0"
+    "@babel/core": "7.29.0",
+    "@wordpress/build": "0.13.0",
+    "browserslist": "4.28.2"
   }
 }

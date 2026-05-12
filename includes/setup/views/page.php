@@ -33,12 +33,11 @@ defined( 'ABSPATH' ) || exit;
 use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
-$credential        = $key_state['credential'] ?? '';
-$has_key           = null !== $key_state;
-$server_slug       = SetupPage::server_slug();
-$remote_pkg        = SetupPage::REMOTE_PACKAGE;
-$default_key_desc  = RestApiKey::KEY_DESCRIPTION;
-$telemetry_enabled = 'yes' === get_option( SetupPage::TELEMETRY_OPTION, 'no' );
+$credential       = $key_state['credential'] ?? '';
+$has_key          = null !== $key_state;
+$server_slug      = SetupPage::server_slug();
+$remote_pkg       = SetupPage::REMOTE_PACKAGE;
+$default_key_desc = RestApiKey::KEY_DESCRIPTION;
 
 list( $api_username, $api_password ) = '' === $credential
 	? array( 'ck_xxx', 'cs_xxx' )
@@ -71,26 +70,19 @@ $claude_code_command = sprintf(
 );
 
 $notices = array(
-	'key_generated'      => array( 'success', __( 'API key generated and ready to use with Claude.', 'woocommerce-claude' ) ),
-	'key_exists'         => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
-	'key_required'       => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'woocommerce-claude' ) ),
-	'key_regenerated'    => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
-	'key_failed'         => array( 'error', __( 'Could not provision the API key. Check the error log.', 'woocommerce-claude' ) ),
-	'disconnected'       => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
-	'ownership_changed'  => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
-	'telemetry_enabled'  => array( 'success', __( 'Anonymised usage data sharing is on. Thanks for helping improve WooCommerce for Claude.', 'woocommerce-claude' ) ),
-	'telemetry_disabled' => array( 'info', __( 'Anonymised usage data sharing is off.', 'woocommerce-claude' ) ),
+	'key_generated'     => array( 'success', __( 'API key generated and ready to use with Claude.', 'woocommerce-claude' ) ),
+	'key_exists'        => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
+	'key_required'      => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'woocommerce-claude' ) ),
+	'key_regenerated'   => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
+	'key_failed'        => array( 'error', __( 'Could not provision the API key. Check the error log.', 'woocommerce-claude' ) ),
+	'disconnected'      => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
+	'ownership_changed' => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
 );
 
 $download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
 $regen_url      = SetupPage::action_url( SetupPage::ACTION_REGEN_KEY );
 $disconnect_url = SetupPage::action_url( SetupPage::ACTION_DISCONNECT );
 $generate_url   = SetupPage::action_url( SetupPage::ACTION_GENERATE_KEY );
-// `enable` carries the desired end state so the JS handler can pick the
-// right URL based on the checkbox's new state without a round-trip.
-// Both URLs are nonced; clicking either is idempotent under double-submit.
-$telemetry_enable_url  = SetupPage::action_url( SetupPage::ACTION_TOGGLE_TELEMETRY, array( 'enable' => '1' ) );
-$telemetry_disable_url = SetupPage::action_url( SetupPage::ACTION_TOGGLE_TELEMETRY, array( 'enable' => '0' ) );
 
 // Deep link to WC's REST API key list — used for "broaden permissions"
 // guidance. When a key already exists, link straight to its edit form
@@ -458,53 +450,5 @@ $can_use_step2_actions = $has_key;
 
 	<?php endif; /* end non-owner gate */ ?>
 
-	<?php
-	/*
-	 * Anonymised-usage-data opt-in. Lives outside the non-owner gate so
-	 * any admin landing on this tab can see and flip the store-wide
-	 * setting — it isn't credential-bearing. Mirrors the consent pattern
-	 * WooCommerce core uses in onboarding (checkbox ticked by default,
-	 * "Learn more" link to woocommerce.com/usage-tracking/). New installs
-	 * are opted in via the activation hook in the main plugin file;
-	 * existing installs default off and the merchant ticks here.
-	 *
-	 * The checkbox is wired via setup.js — change events navigate to the
-	 * appropriate nonced admin-post URL. The page intentionally has no
-	 * <form> wrapping the input (WC's outer <form id="mainform"> already
-	 * surrounds this view; nested forms would be invalid HTML).
-	 */
-	?>
-	<section class="woocommerce-claude-setup__card">
-		<div class="woocommerce-claude-setup__optin">
-			<input
-				id="woocommerce-claude-telemetry-optin"
-				type="checkbox"
-				class="woocommerce-claude-setup__optin-checkbox"
-				data-woocommerce-claude-telemetry-toggle
-				data-enable-url="<?php echo esc_url( $telemetry_enable_url ); ?>"
-				data-disable-url="<?php echo esc_url( $telemetry_disable_url ); ?>"
-				<?php checked( $telemetry_enabled ); ?>
-			/>
-			<label for="woocommerce-claude-telemetry-optin" class="woocommerce-claude-setup__optin-label">
-				<?php
-				printf(
-					wp_kses(
-						/* translators: %s: link to WooCommerce's usage tracking page. */
-						__( 'I agree to share anonymised usage data to help make WooCommerce for Claude better for everyone. You can opt out at any time. %s', 'woocommerce-claude' ),
-						array(
-							'a' => array(
-								'href'   => array(),
-								'target' => array(),
-								'rel'    => array(),
-								'class'  => array(),
-							),
-						)
-					),
-					'<a class="woocommerce-claude-setup__optin-learn" href="https://woocommerce.com/usage-tracking/" target="_blank" rel="noopener">' . esc_html__( 'Learn more about usage tracking.', 'woocommerce-claude' ) . '</a>'
-				);
-				?>
-			</label>
-		</div>
-	</section>
 
 </div>

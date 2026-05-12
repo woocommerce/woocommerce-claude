@@ -10,8 +10,8 @@ namespace WooCommerce\Claude\Setup;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude tab
- * (default section). Walks a store owner through connecting WooCommerce for Claude
+ * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude
+ * Setup section. Walks a store owner through connecting WooCommerce for Claude
  * to Claude Desktop (one-click .mcpb download with the API key
  * embedded) or to other MCP clients via a copy-paste JSON snippet.
  *
@@ -84,8 +84,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude, default
-	 * section).
+	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude → Setup).
 	 *
 	 * @param array<string,string|int> $args Extra query args.
 	 * @return string
@@ -94,8 +93,9 @@ class SetupPage {
 		return add_query_arg(
 			array_merge(
 				array(
-					'page' => 'wc-settings',
-					'tab'  => self::SETTINGS_TAB,
+					'page'    => 'wc-settings',
+					'tab'     => self::SETTINGS_TAB,
+					'section' => 'setup',
 				),
 				$args
 			),
@@ -192,7 +192,7 @@ class SetupPage {
 
 	/**
 	 * Render the setup view. Called by SettingsPage::output() when the
-	 * default section is active. Outputs HTML directly.
+	 * Setup section is active. Outputs HTML directly.
 	 *
 	 * Computes `$is_owner` — whether the current user is the WP user
 	 * the WC API key is bound to. WC API keys authenticate as their
@@ -453,14 +453,11 @@ class SetupPage {
 		wp_enqueue_style( 'woocommerce-claude-setup', $base_url . 'setup.css', array(), $css_ver );
 		wp_enqueue_script( 'woocommerce-claude-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
-		// Hide WC's outer Save Changes button on this section — the
-		// setup view has its own actioned controls and nothing to
-		// "save". Scoped to #mainform > .submit so it only suppresses
-		// the WC-emitted save row, not anything inside our cards.
-		wp_add_inline_style(
-			'woocommerce-claude-setup',
-			'#mainform > p.submit { display: none; }'
-		);
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$sec = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
+		if ( 'setup' === $sec ) {
+			wp_add_inline_style( 'woocommerce-claude-setup', '#mainform > p.submit { display: none; }' );
+		}
 	}
 
 	/**
@@ -482,7 +479,7 @@ class SetupPage {
 		$sec  = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && '' === $sec;
+		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && ( '' === $sec || 'setup' === $sec );
 	}
 
 	/**

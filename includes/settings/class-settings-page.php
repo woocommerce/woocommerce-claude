@@ -59,17 +59,22 @@ class SettingsPage extends \WC_Settings_Page {
 		parent::__construct();
 
 		add_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this, 'render_api_key_field' ) );
+		add_action( 'woocommerce_admin_field_woocommerce_claude_telemetry', array( $this, 'render_telemetry_field' ) );
 		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::DIFM_API_KEY_OPTION, array( $this, 'sanitize_api_key_option' ), 10, 3 );
+		add_action( 'woocommerce_settings_save_woocommerce-claude', array( $this, 'save_telemetry_option' ) );
 		add_action( 'woocommerce_settings_save_woocommerce-claude', array( $this, 'validate_api_key_on_save' ) );
 	}
 
 	/**
-	 * Single-section tab — no sub-nav.
+	 * Sub-navigation sections for the WooCommerce for Claude tab.
 	 *
 	 * @return array<string,string>
 	 */
 	public function get_sections() {
-		return array();
+		return array(
+			''      => __( 'AI Insights', 'woocommerce-claude' ),
+			'setup' => __( 'Setup', 'woocommerce-claude' ),
+		);
 	}
 
 	/**
@@ -97,6 +102,11 @@ class SettingsPage extends \WC_Settings_Page {
 				'desc'  => $this->get_difm_section_description(),
 			),
 			array(
+				'type'  => 'woocommerce_claude_telemetry',
+				'id'    => SetupPage::TELEMETRY_OPTION,
+				'title' => __( 'Usage tracking', 'woocommerce-claude' ),
+			),
+			array(
 				'type'     => 'woocommerce_claude_api_key',
 				'id'       => self::DIFM_API_KEY_OPTION,
 				'title'    => __( 'Anthropic API Key', 'woocommerce-claude' ),
@@ -112,10 +122,20 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Render the setup view and the AI Insights key settings.
+	 * Render the current section.
+	 *
+	 * The Setup section shows the Claude Desktop connection wizard and hides
+	 * WC's Save button (no form fields, all actions are link-based).
+	 * The default AI Insights section renders the Anthropic API key field.
 	 */
 	public function output() {
-		SetupPage::render_setup_view();
+		global $current_section;
+
+		if ( 'setup' === $current_section ) {
+			SetupPage::render_setup_view();
+			return;
+		}
+
 		\WC_Admin_Settings::output_fields( $this->get_settings_for_default_section() );
 	}
 
@@ -138,6 +158,70 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		return __( 'Paste your Anthropic API key to get AI-powered insights in your WooCommerce dashboard. Your key is stored in the WordPress database. For higher security, define <code>WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY</code> in <code>wp-config.php</code> instead.', 'woocommerce-claude' );
+	}
+
+	/**
+	 * Render the anonymised-usage-data opt-in as a native WC-style checkbox row.
+	 *
+	 * @param array $value WooCommerce settings field definition.
+	 * @return void
+	 */
+	public function render_telemetry_field( $value ) {
+		$telemetry_enabled = 'yes' === get_option( SetupPage::TELEMETRY_OPTION, 'no' );
+		$title             = isset( $value['title'] ) ? $value['title'] : '';
+		?>
+		<tr>
+			<th scope="row" class="titledesc"><?php echo esc_html( $title ); ?></th>
+			<td class="forminp forminp-checkbox">
+				<fieldset>
+					<legend class="screen-reader-text"><span><?php echo esc_html( $title ); ?></span></legend>
+					<label for="woocommerce-claude-telemetry-optin">
+						<input
+							id="woocommerce-claude-telemetry-optin"
+							name="<?php echo esc_attr( SetupPage::TELEMETRY_OPTION ); ?>"
+							type="checkbox"
+							value="yes"
+							<?php checked( $telemetry_enabled ); ?>
+						/>
+						<?php esc_html_e( 'Share anonymised usage data to help improve WooCommerce for Claude', 'woocommerce-claude' ); ?>
+					</label>
+					<p class="description">
+						<?php
+						printf(
+							wp_kses(
+								/* translators: %s: link to WooCommerce's usage tracking page. */
+								__( 'You can opt out at any time. %s', 'woocommerce-claude' ),
+								array(
+									'a' => array(
+										'href'   => array(),
+										'target' => array(),
+										'rel'    => array(),
+									),
+								)
+							),
+							'<a href="https://woocommerce.com/usage-tracking/" target="_blank" rel="noopener">' . esc_html__( 'Learn more about usage tracking.', 'woocommerce-claude' ) . '</a>'
+						);
+						?>
+					</p>
+				</fieldset>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Persist the telemetry opt-in when WooCommerce for Claude settings are saved.
+	 *
+	 * A standard HTML checkbox sends its value only when checked; absence means
+	 * unchecked. WC doesn't know about our custom field type, so we handle the
+	 * save explicitly here.
+	 *
+	 * @return void
+	 */
+	public function save_telemetry_option() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
+		$enabled = isset( $_POST[ SetupPage::TELEMETRY_OPTION ] ) && 'yes' === sanitize_key( $_POST[ SetupPage::TELEMETRY_OPTION ] );
+		update_option( SetupPage::TELEMETRY_OPTION, $enabled ? 'yes' : 'no' );
 	}
 
 	/**

@@ -1,6 +1,6 @@
 {
   "core": "WordPress/WordPress#6.9",
-  "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip"],
+  "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip", "https://downloads.wordpress.org/plugin/gutenberg.zip"],
   "mappings": {
     "wp-content/plugins/woocommerce-claude": ".",
     "wp-content/mu-plugins": "./tools/mu-plugins"
