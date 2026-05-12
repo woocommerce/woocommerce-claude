@@ -22,6 +22,7 @@ Something feels off — find out what.
 - *"My last 7 days look soft. What changed? Break it down by product, category, and time of day."*
 - *"Which products had the biggest movers up and down this month?"*
 - *"Are refunds or failed orders trending up vs. my baseline?"*
+- *"Revenue is down this month. Triage what changed across orders, AOV, products, channels, and refunds."*
 - *"Triage refunds from the last 30 days: what products or countries should I inspect first?"*
 - *"Revenue is down month-over-month. Walk me through the most likely causes using my actual data."*
 

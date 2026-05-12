@@ -117,6 +117,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-weekly-store-review-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-failed-order-triage-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-refund-triage-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-revenue-drop-triage-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
@@ -450,6 +451,7 @@ class Plugin {
 					Abilities\WeeklyStoreReviewAbility::ABILITY_NAME,
 					Abilities\FailedOrderTriageAbility::ABILITY_NAME,
 					Abilities\RefundTriageAbility::ABILITY_NAME,
+					Abilities\RevenueDropTriageAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
 			);
@@ -538,6 +540,10 @@ For "triage failed orders", "what orders are stuck?", "which unpaid orders shoul
 ## Refund triage intent
 
 For "refund triage", "what is driving refunds?", "are returns/refunds getting worse?", "which products are being refunded?", or similar refund-diagnostic requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` with `subject=refunds`, `wc-analytics-breakdown` with `subject=refunds` by product, and `wc-analytics-breakdown` with `subject=refunds` by country. Refund periods mean refund-issued date, not original order date. Use returned refund-rate, timing, full/partial, and comparison fields directly — do not compute rates or shares yourself. Final answer sections: Snapshot, Severity, Refund Timing, Top Drivers, Likely Checks, Next Actions. Treat refund reasons and chargebacks as manual checks unless the merchant supplied them.
+
+## Revenue drop triage intent
+
+For "why is revenue down?", "sales dropped", "revenue drop triage", "month-over-month revenue decline", "what changed in a soft period?", or similar revenue-decline requests, use `period=last_30_days` and `compare=true` unless the merchant gave explicit dates. Call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` for revenue, orders, customers, and refunds, `wc-analytics-breakdown` for products by product, and `wc-analytics-breakdown` for attribution by channel. Lead with collected revenue and first decide whether it is actually down; if not, say so. Separate order volume, average order value, customer mix, refunds, pending/on-hold pipeline, product mix, and channel mix. Use returned comparison fields, dropped-out product/channel lists, and attribution coverage directly — do not compute deltas or claim ad spend, ROAS, sessions, conversion rate, competitor effects, stockouts, pricing changes, or seasonality unless the data or merchant supplies that signal. Final answer sections: Snapshot, Severity, Drop Drivers, Product and Channel Signals, Likely Checks, Next Actions.
 
 ## Common routing mistakes — do not make these
 
