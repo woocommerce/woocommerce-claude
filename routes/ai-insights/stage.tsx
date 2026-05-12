@@ -59,18 +59,25 @@ interface ChatViewProps {
 	onSaveConversation: ( conv: StoredConversation ) => Promise< void >;
 }
 
+interface SaveConversationOptions {
+	updateRoute?: boolean;
+}
+
 /** Inner view — owns all chat state. Re-mounts when conversationId changes. */
 function ChatView( { urlConversationId, conversations, onSaveConversation }: ChatViewProps ) {
 	const initialConversation = urlConversationId
 		? conversations.find( ( c ) => c.id === urlConversationId )
 		: undefined;
 
-	const handleConversationSaved = useCallback( async ( conversation: StoredConversation ) => {
-		if ( ! urlConversationId ) {
+	const handleConversationSaved = useCallback( async (
+		conversation: StoredConversation,
+		options: SaveConversationOptions = {}
+	) => {
+		await onSaveConversation( conversation );
+
+		if ( options.updateRoute && ! urlConversationId ) {
 			replaceCurrentRouteWithConversation( conversation.id );
 		}
-
-		await onSaveConversation( conversation );
 	}, [ onSaveConversation, urlConversationId ] );
 
 	const { state, sendMessage, clearError } = useChat( {
