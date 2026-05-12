@@ -20,7 +20,8 @@ export interface ChatState {
 export interface UseChatOptions {
 	initialMessages?: ChatMessage[];
 	initialConversationId?: string;
-	onConversationSaved?: ( conv: StoredConversation ) => void;
+	initialTitle?: string;
+	onConversationSaved?: ( conv: StoredConversation ) => void | Promise< void >;
 }
 
 function generateTitle( text: string ): string {
@@ -34,7 +35,12 @@ function generateTitle( text: string ): string {
 }
 
 export function useChat( options: UseChatOptions = {} ) {
-	const { initialMessages = [], initialConversationId, onConversationSaved } = options;
+	const {
+		initialMessages = [],
+		initialConversationId,
+		initialTitle,
+		onConversationSaved,
+	} = options;
 
 	const [ state, setState ] = useState< ChatState >( {
 		messages: initialMessages,
@@ -47,7 +53,7 @@ export function useChat( options: UseChatOptions = {} ) {
 		initialConversationId
 	);
 	const conversationIdRef = useRef< string | undefined >( initialConversationId );
-	const titleRef = useRef< string | undefined >( undefined );
+	const titleRef = useRef< string | undefined >( initialTitle );
 
 	// Start the ID counter above any existing message IDs to avoid collisions.
 	const nextId = useRef(
@@ -78,6 +84,7 @@ export function useChat( options: UseChatOptions = {} ) {
 			role: 'user',
 			content: text,
 		};
+		const submittedMessages = [ ...history, userMessage ];
 
 		setState( ( prev ) => ( {
 			...prev,
@@ -140,7 +147,7 @@ export function useChat( options: UseChatOptions = {} ) {
 			// Compute the saved messages before calling setState so we can
 			// pass them to onConversationSaved without side-effects inside the
 			// setState updater (which React may call multiple times).
-			const savedMessages = [ ...messagesRef.current, assistantMessage ];
+			const savedMessages = [ ...submittedMessages, assistantMessage ];
 
 			setState( ( prev ) => ( {
 				...prev,

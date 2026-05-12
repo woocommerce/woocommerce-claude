@@ -3,6 +3,8 @@ import { dispatch } from '@wordpress/data';
 import { commentAuthorAvatar } from '@wordpress/icons';
 import { __ } from '@wordpress/i18n';
 
+const MAX_CONVERSATIONS = 5;
+
 interface StoredConversation {
 	id: string;
 	title: string;
@@ -17,8 +19,14 @@ declare global {
 	}
 }
 
+function conversationRoute( conversationId: string ): string {
+	return `/?conversationId=${ encodeURIComponent( conversationId ) }`;
+}
+
 function syncConversationsToNav( conversations: StoredConversation[] ): void {
-	if ( ! conversations.length ) {
+	const recentConversations = conversations.slice( 0, MAX_CONVERSATIONS );
+
+	if ( ! recentConversations.length ) {
 		return;
 	}
 
@@ -29,11 +37,13 @@ function syncConversationsToNav( conversations: StoredConversation[] ): void {
 		parent_type: 'drilldown',
 	} );
 
-	conversations.forEach( ( conv ) => {
-		dispatch( bootStore ).registerMenuItem( `ai-insights-conv-${ conv.id }`, {
-			id: `ai-insights-conv-${ conv.id }`,
+	recentConversations.forEach( ( conv, index ) => {
+		const id = `ai-insights-recent-${ index }`;
+
+		dispatch( bootStore ).registerMenuItem( id, {
+			id,
 			label: conv.title,
-			to: `/?conversationId=${ conv.id }`,
+			to: conversationRoute( conv.id ),
 			parent: 'ai-insights-recents',
 		} );
 	} );
