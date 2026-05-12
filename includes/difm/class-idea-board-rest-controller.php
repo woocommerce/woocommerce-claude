@@ -4,6 +4,7 @@
  *
  * Routes:
  *   GET /woocommerce-claude/v1/difm/idea-board - Generate a brainstorming board.
+ *   POST /woocommerce-claude/v1/difm/idea-board/reanalyse - Re-analyse the merchant-edited board.
  *
  * @package WooCommerce\Claude\Difm
  */
@@ -34,9 +35,19 @@ class IdeaBoardRestController {
 	const ROUTE = '/difm/idea-board';
 
 	/**
+	 * Idea board re-analysis route.
+	 */
+	const REANALYSE_ROUTE = '/difm/idea-board/reanalyse';
+
+	/**
 	 * Version marker for cached idea-board payloads.
 	 */
 	const CACHE_VERSION = '2026-05-12-ai-content-layout-v3';
+
+	/**
+	 * Maximum number of cards accepted in a merchant-edited board.
+	 */
+	const MAX_REANALYSIS_NOTES = 12;
 
 	/**
 	 * Canonical board width used for AI coordinate planning.
@@ -125,6 +136,24 @@ class IdeaBoardRestController {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			self::REANALYSE_ROUTE,
+			array(
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'reanalyse_idea_board' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+					'args'                => array(
+						'board' => array(
+							'type'     => 'object',
+							'required' => true,
+						),
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -171,6 +200,60 @@ class IdeaBoardRestController {
 		}
 
 		return rest_ensure_response( $payload );
+	}
+
+	/**
+	 * POST /woocommerce-claude/v1/difm/idea-board/reanalyse - refine the submitted board.
+	 *
+	 * @param \WP_REST_Request $request Incoming request.
+	 * @return \WP_REST_Response
+	 */
+	public function reanalyse_idea_board( \WP_REST_Request $request ) {
+		if ( ! AnthropicClient::has_api_key() ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => __( 'Add an Anthropic API key to re-analyse the idea board.', 'woocommerce-claude' ),
+				)
+			);
+		}
+
+		$raw_board = $request->get_param( 'board' );
+		if ( ! is_array( $raw_board ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+				)
+			);
+		}
+
+		$board = $this->normalise_submitted_idea_board( $raw_board );
+		if ( is_wp_error( $board ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $board->get_error_message(),
+				)
+			);
+		}
+
+		$payload = $this->build_reanalysed_idea_board_payload( $board );
+		if ( is_wp_error( $payload ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $payload->get_error_message(),
+				)
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'status' => 'ok',
+				'board'  => $payload,
+			)
+		);
 	}
 
 	/**
@@ -275,6 +358,43 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Build a re-analysed board from the merchant-edited board state.
+	 *
+	 * This path deliberately does not fetch analytics, read cached board
+	 * transients, write cached board transients, or clear analytics caches.
+	 *
+	 * @param array $board Sanitised board payload submitted by the browser.
+	 * @return array|\WP_Error Board payload or error.
+	 */
+	private function build_reanalysed_idea_board_payload( array $board ) {
+		$result = $this->request_ai_idea_board_reanalysis( $board );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$notes         = $result['notes'];
+		$arrows        = $result['arrows'];
+		$layout_source = 'fallback';
+
+		if ( ! is_wp_error( $result['positions'] ) ) {
+			$notes         = $this->apply_idea_board_positions( $notes, $result['positions'] );
+			$layout_source = 'ai';
+		} else {
+			$notes = $this->create_algorithmic_idea_board_layout( $notes );
+		}
+
+		$board['notes']       = $notes;
+		$board['arrows']      = $arrows;
+		$board['content']     = array(
+			'source' => 'ai',
+		);
+		$board['layout']      = $this->build_idea_board_layout_metadata( $layout_source );
+		$board['generatedAt'] = current_datetime()->format( DATE_ATOM );
+
+		return $board;
+	}
+
+	/**
 	 * Clear the cached analytics slices used by the idea board.
 	 *
 	 * The board is only a composition layer; the underlying analytics helpers
@@ -309,6 +429,177 @@ class IdeaBoardRestController {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Normalise a merchant-submitted board before sending it to AI.
+	 *
+	 * @param array $board Raw board payload from the REST request.
+	 * @return array|\WP_Error
+	 */
+	private function normalise_submitted_idea_board( array $board ) {
+		if ( empty( $board['notes'] ) || ! is_array( $board['notes'] ) ) {
+			return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board must include at least one card.', 'woocommerce-claude' ) );
+		}
+
+		$notes = $this->normalise_submitted_idea_board_notes( $board['notes'] );
+		if ( is_wp_error( $notes ) ) {
+			return $notes;
+		}
+
+		$seen_ids = array_fill_keys( wp_list_pluck( $notes, 'id' ), true );
+		$arrows   = $this->normalise_idea_board_arrows(
+			isset( $board['arrows'] ) && is_array( $board['arrows'] ) ? $board['arrows'] : array(),
+			$seen_ids
+		);
+
+		$id = isset( $board['id'] ) ? sanitize_key( (string) $board['id'] ) : 'store-idea-board';
+		if ( '' === $id ) {
+			$id = 'store-idea-board';
+		}
+
+		$title = isset( $board['title'] ) ? $this->trim_note_text( $board['title'], 90 ) : '';
+		if ( '' === $title ) {
+			$title = __( 'Idea board', 'woocommerce-claude' );
+		}
+
+		return array(
+			'id'              => $id,
+			'title'           => $title,
+			'period'          => $this->normalise_idea_board_period( isset( $board['period'] ) && is_array( $board['period'] ) ? $board['period'] : array() ),
+			'currency'        => isset( $board['currency'] ) ? sanitize_text_field( (string) $board['currency'] ) : get_woocommerce_currency(),
+			'headlineMetrics' => $this->normalise_idea_board_headline_metrics( isset( $board['headlineMetrics'] ) && is_array( $board['headlineMetrics'] ) ? $board['headlineMetrics'] : array() ),
+			'notes'           => $notes,
+			'arrows'          => $arrows,
+			'content'         => array(
+				'source' => 'ai',
+			),
+			'layout'          => $this->build_idea_board_layout_metadata( 'fallback' ),
+			'generatedAt'     => isset( $board['generatedAt'] ) ? sanitize_text_field( (string) $board['generatedAt'] ) : '',
+		);
+	}
+
+	/**
+	 * Normalise submitted card rows.
+	 *
+	 * @param array $raw_notes Raw note rows.
+	 * @return array|\WP_Error
+	 */
+	private function normalise_submitted_idea_board_notes( array $raw_notes ) {
+		$count = count( $raw_notes );
+		if ( $count < 1 || $count > self::MAX_REANALYSIS_NOTES ) {
+			return new \WP_Error(
+				'invalid_submitted_board',
+				sprintf(
+					/* translators: %d: maximum number of cards. */
+					__( 'The submitted idea board must include between 1 and %d cards.', 'woocommerce-claude' ),
+					self::MAX_REANALYSIS_NOTES
+				)
+			);
+		}
+
+		$notes    = array();
+		$seen_ids = array();
+		foreach ( $raw_notes as $note ) {
+			if ( ! is_array( $note ) || ! isset( $note['id'], $note['type'], $note['title'], $note['body'], $note['colour'], $note['prompt'], $note['x'], $note['y'] ) ) {
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board omitted a required card field.', 'woocommerce-claude' ) );
+			}
+
+			$id = sanitize_key( (string) $note['id'] );
+			if ( '' === $id || isset( $seen_ids[ $id ] ) ) {
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board repeated or omitted a card ID.', 'woocommerce-claude' ) );
+			}
+
+			$type       = sanitize_key( (string) $note['type'] );
+			$colour     = sanitize_key( (string) $note['colour'] );
+			$confidence = isset( $note['confidence'] ) ? sanitize_key( (string) $note['confidence'] ) : 'medium';
+			if (
+				! in_array( $type, array( 'insight', 'idea', 'question' ), true )
+				|| ! in_array( $colour, array( 'yellow', 'pink', 'green', 'blue', 'orange', 'lime', 'white' ), true )
+				|| ! in_array( $confidence, array( 'low', 'medium', 'high' ), true )
+			) {
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported card value.', 'woocommerce-claude' ) );
+			}
+
+			if ( ! is_numeric( $note['x'] ) || ! is_numeric( $note['y'] ) ) {
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included invalid card coordinates.', 'woocommerce-claude' ) );
+			}
+
+			$title  = $this->trim_note_text( $note['title'], 70 );
+			$body   = $this->trim_note_text( $note['body'], 190 );
+			$prompt = $this->trim_note_text( $note['prompt'], 220 );
+			if ( '' === $title || '' === $body || '' === $prompt ) {
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an empty card field.', 'woocommerce-claude' ) );
+			}
+
+			$seen_ids[ $id ] = true;
+			$notes[]         = array(
+				'id'         => $id,
+				'type'       => $type,
+				'title'      => $title,
+				'body'       => $body,
+				'colour'     => $colour,
+				'x'          => round( (float) $note['x'], 1 ),
+				'y'          => round( (float) $note['y'], 1 ),
+				'rotation'   => isset( $note['rotation'] ) && is_numeric( $note['rotation'] ) ? (float) $note['rotation'] : $this->default_note_rotation( count( $notes ) ),
+				'prompt'     => $prompt,
+				'confidence' => $confidence,
+			);
+		}
+
+		return $notes;
+	}
+
+	/**
+	 * Normalise board period metadata.
+	 *
+	 * @param array $period Raw period metadata.
+	 * @return array
+	 */
+	private function normalise_idea_board_period( array $period ) {
+		return array(
+			'start'      => isset( $period['start'] ) ? sanitize_text_field( (string) $period['start'] ) : '',
+			'end'        => isset( $period['end'] ) ? sanitize_text_field( (string) $period['end'] ) : '',
+			'label'      => isset( $period['label'] ) ? $this->trim_note_text( $period['label'], 80 ) : '',
+			'days'       => isset( $period['days'] ) ? absint( $period['days'] ) : 0,
+			'comparison' => isset( $period['comparison'] ) ? $this->trim_note_text( $period['comparison'], 140 ) : '',
+		);
+	}
+
+	/**
+	 * Normalise aggregate metrics used as re-analysis context.
+	 *
+	 * @param array $metrics Raw metrics.
+	 * @return array
+	 */
+	private function normalise_idea_board_headline_metrics( array $metrics ) {
+		return array(
+			'net_sales'           => isset( $metrics['net_sales'] ) ? (float) $metrics['net_sales'] : 0.0,
+			'orders_count'        => isset( $metrics['orders_count'] ) ? (int) $metrics['orders_count'] : 0,
+			'average_order_value' => isset( $metrics['average_order_value'] ) ? (float) $metrics['average_order_value'] : 0.0,
+			'total_customers'     => isset( $metrics['total_customers'] ) ? (int) $metrics['total_customers'] : 0,
+		);
+	}
+
+	/**
+	 * Build public layout metadata.
+	 *
+	 * @param string $source Layout source.
+	 * @return array
+	 */
+	private function build_idea_board_layout_metadata( $source ) {
+		return array(
+			'source' => in_array( $source, array( 'ai', 'fallback' ), true ) ? $source : 'fallback',
+			'board'  => array(
+				'width'  => self::CANVAS_WIDTH,
+				'height' => self::CANVAS_HEIGHT,
+			),
+			'card'   => array(
+				'width'  => self::CARD_WIDTH,
+				'height' => self::CARD_HEIGHT,
+				'gap'    => self::CARD_GAP,
+			),
+		);
 	}
 
 	/**
@@ -420,6 +711,134 @@ class IdeaBoardRestController {
 		}
 
 		return $this->normalise_idea_board_content( $decoded );
+	}
+
+	/**
+	 * Request a re-analysis of the merchant-edited board.
+	 *
+	 * @param array $board Sanitised board payload.
+	 * @return array|\WP_Error
+	 */
+	private function request_ai_idea_board_reanalysis( array $board ) {
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+
+		$client   = new AnthropicClient();
+		$response = $client->messages(
+			array(
+				array(
+					'role'    => 'user',
+					'content' => $this->build_idea_board_reanalysis_prompt( $board ),
+				),
+			),
+			$this->build_idea_board_reanalysis_system_prompt(),
+			array(),
+			2200
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
+		$json = $this->extract_json_object( $text );
+		if ( '' === $json ) {
+			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response did not include JSON.', 'woocommerce-claude' ) );
+		}
+
+		$decoded = json_decode( $json, true );
+		if ( ! is_array( $decoded ) || empty( $decoded['notes'] ) || ! is_array( $decoded['notes'] ) ) {
+			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response used an unexpected shape.', 'woocommerce-claude' ) );
+		}
+
+		$content = $this->normalise_idea_board_reanalysis_content( $decoded, $board['notes'] );
+		if ( is_wp_error( $content ) ) {
+			return $content;
+		}
+
+		$positions = new \WP_Error( 'invalid_layout_response', __( 'The idea-board re-analysis response omitted layout positions.', 'woocommerce-claude' ) );
+		if ( isset( $decoded['positions'] ) && is_array( $decoded['positions'] ) ) {
+			$positions = $this->normalise_idea_board_layout_positions( $decoded['positions'] );
+			if ( ! is_wp_error( $positions ) ) {
+				$validation = $this->validate_idea_board_layout_positions( $content['notes'], $positions );
+				if ( is_wp_error( $validation ) ) {
+					$positions = $validation;
+				}
+			}
+		}
+
+		return array(
+			'notes'     => $content['notes'],
+			'arrows'    => $content['arrows'],
+			'positions' => $positions,
+		);
+	}
+
+	/**
+	 * Build the system prompt for board re-analysis.
+	 *
+	 * @return string
+	 */
+	private function build_idea_board_reanalysis_system_prompt() {
+		return 'You re-analyse an existing WooCommerce merchant brainstorming board. '
+			. 'Use only the submitted board state, period, currency, and aggregated headline metrics. '
+			. 'Do not fetch, infer, or invent additional analytics. '
+			. 'Do not include names, emails, addresses, order IDs, or other PII. '
+			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
+			. 'Preserve the merchant-edited card set exactly: return every submitted card ID once, keep each card type unchanged, and do not add, remove, merge, or rename cards. '
+			. 'You may lightly polish titles, bodies, prompts, colours, confidence, arrows, and layout so the board is clearer. '
+			. 'Return only valid JSON in this exact shape: {"notes":[{"id":"existing-id","type":"same-type","title":"...","body":"...","colour":"yellow|pink|green|blue|orange|lime|white","prompt":"...","confidence":"low|medium|high"}],"arrows":[{"from":"note-id","to":"note-id","label":"..."}],"positions":[{"id":"existing-id","x":12.3,"y":45.6}]}. '
+			. 'Titles must be under 55 characters and bodies under 145 characters.';
+	}
+
+	/**
+	 * Build the user prompt for board re-analysis.
+	 *
+	 * @param array $board Sanitised board payload.
+	 * @return string
+	 */
+	private function build_idea_board_reanalysis_prompt( array $board ) {
+		return wp_json_encode(
+			array(
+				'task'               => 'Re-analyse this merchant-edited board without rebuilding it from analytics.',
+				'privacy_boundary'   => 'Use only aggregated headline metrics and submitted board text; no PII is supplied or needed.',
+				'merchant_boundary'  => 'Recommendations must be things a merchant can action in WooCommerce, marketing, merchandising, operations, or settings.',
+				'preserve_cards'     => array(
+					'must_return_every_submitted_card_id_once' => true,
+					'must_keep_card_types_unchanged' => true,
+					'must_not_add_remove_merge_or_rename_cards' => true,
+				),
+				'layout'             => array(
+					'board'       => array(
+						'width'  => self::CANVAS_WIDTH,
+						'height' => self::CANVAS_HEIGHT,
+					),
+					'card'        => array(
+						'width'  => self::CARD_WIDTH,
+						'height' => self::CARD_HEIGHT,
+						'gap'    => self::CARD_GAP,
+					),
+					'constraints' => array(
+						'must_return_every_card_id_once' => true,
+						'must_not_overlap_cards'         => true,
+						'x_range_percent'                => array( self::MIN_X_PERCENT, self::MAX_X_PERCENT ),
+						'y_range_percent'                => array( self::MIN_Y_PERCENT, self::MAX_Y_PERCENT ),
+					),
+				),
+				'allowed_note_types' => array( 'insight', 'idea', 'question' ),
+				'allowed_colours'    => array( 'yellow', 'pink', 'green', 'blue', 'orange', 'lime', 'white' ),
+				'allowed_confidence' => array( 'low', 'medium', 'high' ),
+				'board'              => array(
+					'id'              => $board['id'],
+					'title'           => $board['title'],
+					'period'          => $board['period'],
+					'currency'        => $board['currency'],
+					'headlineMetrics' => $board['headlineMetrics'],
+					'notes'           => $board['notes'],
+					'arrows'          => $board['arrows'],
+					'generatedAt'     => $board['generatedAt'],
+				),
+			)
+		);
 	}
 
 	/**
@@ -617,6 +1036,82 @@ class IdeaBoardRestController {
 		return array(
 			'notes'  => $notes,
 			'arrows' => $arrows,
+		);
+	}
+
+	/**
+	 * Normalise AI re-analysis output while preserving the submitted card set.
+	 *
+	 * @param array $decoded         Decoded model response.
+	 * @param array $submitted_notes Sanitised notes submitted by the browser.
+	 * @return array|\WP_Error
+	 */
+	private function normalise_idea_board_reanalysis_content( array $decoded, array $submitted_notes ) {
+		$expected = array();
+		foreach ( $submitted_notes as $note ) {
+			$expected[ $note['id'] ] = $note;
+		}
+
+		$notes    = array();
+		$seen_ids = array();
+		foreach ( $decoded['notes'] as $note ) {
+			if ( ! is_array( $note ) || ! isset( $note['id'], $note['type'], $note['title'], $note['body'], $note['colour'], $note['prompt'] ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response omitted a required note field.', 'woocommerce-claude' ) );
+			}
+
+			$id = sanitize_key( (string) $note['id'] );
+			if ( '' === $id || ! isset( $expected[ $id ] ) || isset( $seen_ids[ $id ] ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed the card set.', 'woocommerce-claude' ) );
+			}
+
+			$type = sanitize_key( (string) $note['type'] );
+			if ( $type !== $expected[ $id ]['type'] ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed a card type.', 'woocommerce-claude' ) );
+			}
+
+			$colour = sanitize_key( (string) $note['colour'] );
+			if ( ! in_array( $colour, array( 'yellow', 'pink', 'green', 'blue', 'orange', 'lime', 'white' ), true ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response used an unsupported note colour.', 'woocommerce-claude' ) );
+			}
+
+			$title  = $this->trim_note_text( $note['title'], 70 );
+			$body   = $this->trim_note_text( $note['body'], 190 );
+			$prompt = $this->trim_note_text( $note['prompt'], 220 );
+			if ( '' === $title || '' === $body || '' === $prompt ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response included an empty note.', 'woocommerce-claude' ) );
+			}
+
+			$confidence = isset( $note['confidence'] ) ? sanitize_key( (string) $note['confidence'] ) : 'medium';
+			if ( ! in_array( $confidence, array( 'low', 'medium', 'high' ), true ) ) {
+				$confidence = 'medium';
+			}
+
+			$seen_ids[ $id ] = true;
+			$notes[]         = array(
+				'id'         => $id,
+				'type'       => $type,
+				'title'      => $title,
+				'body'       => $body,
+				'colour'     => $colour,
+				'x'          => $expected[ $id ]['x'],
+				'y'          => $expected[ $id ]['y'],
+				'rotation'   => $expected[ $id ]['rotation'],
+				'prompt'     => $prompt,
+				'confidence' => $confidence,
+			);
+		}
+
+		$expected_ids = array_fill_keys( array_keys( $expected ), true );
+		$actual_ids   = array_fill_keys( array_keys( $seen_ids ), true );
+		ksort( $expected_ids );
+		ksort( $actual_ids );
+		if ( $expected_ids !== $actual_ids ) {
+			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed the card set.', 'woocommerce-claude' ) );
+		}
+
+		return array(
+			'notes'  => $notes,
+			'arrows' => $this->normalise_idea_board_arrows( isset( $decoded['arrows'] ) && is_array( $decoded['arrows'] ) ? $decoded['arrows'] : array(), $expected_ids ),
 		);
 	}
 

@@ -58,4 +58,4 @@ export type IdeaBoardResponse =
 	| { status: 'ok'; board: IdeaBoardData }
 	| { status: 'error'; message: string };
 
-export type IdeaBoardStatus = 'idle' | 'loading' | 'error';
+export type IdeaBoardStatus = 'idle' | 'loading' | 'reanalysing' | 'error';

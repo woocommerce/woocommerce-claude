@@ -1,6 +1,8 @@
 import { __, sprintf } from '@wordpress/i18n';
+import { useState } from '@wordpress/element';
 import { useIdeaBoard } from './useIdeaBoard';
 import type { IdeaBoardArrow, IdeaBoardData, IdeaBoardNote } from './types';
+import type { FormEvent } from 'react';
 
 interface IdeaBoardProps {
 	restBase: string;
@@ -10,9 +12,73 @@ interface IdeaBoardProps {
 
 const NOTE_WIDTH = 18;
 const NOTE_HEIGHT = 17;
+const MAX_NOTES = 12;
+
+type AddedNoteType = 'idea' | 'question';
 
 export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
-	const { board, status, errorMessage, refresh } = useIdeaBoard( { restBase, nonce, days } );
+	const { board, status, errorMessage, refresh, reanalyse, updateBoard } = useIdeaBoard( { restBase, nonce, days } );
+	const [ isAddingCard, setIsAddingCard ] = useState( false );
+	const [ newCardType, setNewCardType ] = useState< AddedNoteType >( 'idea' );
+	const [ newCardTitle, setNewCardTitle ] = useState( '' );
+	const [ newCardBody, setNewCardBody ] = useState( '' );
+	const isBusy = status === 'loading' || status === 'reanalysing';
+	const canAddCard = Boolean( board && board.notes.length < MAX_NOTES );
+	const canReanalyse = Boolean( board && board.notes.length > 0 && ! isBusy );
+
+	const removeNote = ( noteId: string ) => {
+		updateBoard( ( currentBoard ) => ( {
+			...currentBoard,
+			notes: currentBoard.notes.filter( ( note ) => note.id !== noteId ),
+			arrows: currentBoard.arrows.filter( ( arrow ) => arrow.from !== noteId && arrow.to !== noteId ),
+		} ) );
+	};
+
+	const addCard = ( event: FormEvent< HTMLFormElement > ) => {
+		event.preventDefault();
+		if ( ! board || ! canAddCard ) {
+			return;
+		}
+
+		const title = newCardTitle.trim();
+		const body = newCardBody.trim();
+		if ( ! title || ! body ) {
+			return;
+		}
+
+		const ids = new Set( board.notes.map( ( note ) => note.id ) );
+		const id = createMerchantNoteId( title, ids );
+		const position = addedNotePosition( board.notes.length );
+		const note: IdeaBoardNote = {
+			id,
+			type: newCardType,
+			title: truncateText( title, 70 ),
+			body: truncateText( body, 190 ),
+			colour: newCardType === 'idea' ? 'orange' : 'white',
+			x: position.x,
+			y: position.y,
+			rotation: defaultAddedNoteRotation( board.notes.length ),
+			prompt: truncateText(
+				sprintf(
+					/* translators: 1: card type, 2: card title, 3: card body. */
+					__( 'Explore this merchant-added %1$s: %2$s. %3$s', 'woocommerce-claude' ),
+					newCardType,
+					title,
+					body
+				),
+				220
+			),
+			confidence: 'medium',
+		};
+
+		updateBoard( {
+			...board,
+			notes: [ ...board.notes, note ],
+		} );
+		setNewCardTitle( '' );
+		setNewCardBody( '' );
+		setIsAddingCard( false );
+	};
 
 	return (
 		<div className="hey-woo-idea-page">
@@ -31,22 +97,99 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 						</p>
 					) }
 				</div>
-				<button
-					type="button"
-					className="button button-secondary hey-woo-idea-header__refresh"
-					onClick={ refresh }
-					disabled={ status === 'loading' }
-				>
-					{ status === 'loading'
-						? __( 'Refreshing', 'woocommerce-claude' )
-						: __( 'Refresh', 'woocommerce-claude' ) }
-				</button>
+				<div className="hey-woo-idea-header__actions">
+					{ board && (
+						<>
+							<button
+								type="button"
+								className="button button-secondary"
+								onClick={ () => setIsAddingCard( ( value ) => ! value ) }
+								disabled={ ! canAddCard || isBusy }
+							>
+								{ __( 'Add card', 'woocommerce-claude' ) }
+							</button>
+							<button
+								type="button"
+								className="button button-primary"
+								onClick={ () => reanalyse( board ) }
+								disabled={ ! canReanalyse }
+							>
+								{ status === 'reanalysing'
+									? __( 'Re-analysing', 'woocommerce-claude' )
+									: __( 'Re-analyse board', 'woocommerce-claude' ) }
+							</button>
+						</>
+					) }
+					<button
+						type="button"
+						className="button button-secondary"
+						onClick={ () => refresh() }
+						disabled={ isBusy }
+					>
+						{ status === 'loading'
+							? __( 'Refreshing', 'woocommerce-claude' )
+							: __( 'Refresh', 'woocommerce-claude' ) }
+					</button>
+				</div>
 			</header>
 
 			{ status === 'error' && (
 				<div className="hey-woo-idea-error" role="alert">
 					{ errorMessage }
 				</div>
+			) }
+
+			{ board && isAddingCard && (
+				<form className="hey-woo-idea-add-card" onSubmit={ addCard }>
+					<label>
+						<span>{ __( 'Type', 'woocommerce-claude' ) }</span>
+						<select
+							value={ newCardType }
+							onChange={ ( event ) => setNewCardType( event.currentTarget.value as AddedNoteType ) }
+							disabled={ isBusy }
+						>
+							<option value="idea">{ __( 'Idea', 'woocommerce-claude' ) }</option>
+							<option value="question">{ __( 'Question', 'woocommerce-claude' ) }</option>
+						</select>
+					</label>
+					<label>
+						<span>{ __( 'Title', 'woocommerce-claude' ) }</span>
+						<input
+							type="text"
+							value={ newCardTitle }
+							onChange={ ( event ) => setNewCardTitle( event.currentTarget.value ) }
+							maxLength={ 70 }
+							disabled={ isBusy }
+						/>
+					</label>
+					<label className="hey-woo-idea-add-card__body">
+						<span>{ __( 'Body', 'woocommerce-claude' ) }</span>
+						<textarea
+							value={ newCardBody }
+							onChange={ ( event ) => setNewCardBody( event.currentTarget.value ) }
+							maxLength={ 190 }
+							rows={ 2 }
+							disabled={ isBusy }
+						/>
+					</label>
+					<div className="hey-woo-idea-add-card__actions">
+						<button
+							type="button"
+							className="button button-secondary"
+							onClick={ () => setIsAddingCard( false ) }
+							disabled={ isBusy }
+						>
+							{ __( 'Cancel', 'woocommerce-claude' ) }
+						</button>
+						<button
+							type="submit"
+							className="button button-primary"
+							disabled={ isBusy || ! newCardTitle.trim() || ! newCardBody.trim() }
+						>
+							{ __( 'Add to board', 'woocommerce-claude' ) }
+						</button>
+					</div>
+				</form>
 			) }
 
 			{ status === 'loading' && ! board && (
@@ -56,12 +199,20 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 				</div>
 			) }
 
-			{ board && <Board board={ board } /> }
+			{ board && <Board board={ board } onRemoveNote={ removeNote } isBusy={ isBusy } /> }
 		</div>
 	);
 }
 
-function Board( { board }: { board: IdeaBoardData } ) {
+function Board( {
+	board,
+	onRemoveNote,
+	isBusy,
+}: {
+	board: IdeaBoardData;
+	onRemoveNote: ( noteId: string ) => void;
+	isBusy: boolean;
+} ) {
 	return (
 		<section className="hey-woo-idea-board" aria-label={ board.title }>
 			<BoardArrowLayer notes={ board.notes } arrows={ board.arrows } />
@@ -71,13 +222,21 @@ function Board( { board }: { board: IdeaBoardData } ) {
 				<span />
 			</div>
 			{ board.notes.map( ( note ) => (
-				<StickyNote key={ note.id } note={ note } />
+				<StickyNote key={ note.id } note={ note } onRemove={ onRemoveNote } isBusy={ isBusy } />
 			) ) }
 		</section>
 	);
 }
 
-function StickyNote( { note }: { note: IdeaBoardNote } ) {
+function StickyNote( {
+	note,
+	onRemove,
+	isBusy,
+}: {
+	note: IdeaBoardNote;
+	onRemove: ( noteId: string ) => void;
+	isBusy: boolean;
+} ) {
 	return (
 		<article
 			className={ `hey-woo-idea-note hey-woo-idea-note--${ note.type } hey-woo-idea-note--${ note.colour }` }
@@ -88,6 +247,20 @@ function StickyNote( { note }: { note: IdeaBoardNote } ) {
 			} }
 		>
 			<span className="hey-woo-idea-note__pin" aria-hidden="true" />
+			<button
+				type="button"
+				className="hey-woo-idea-note__remove"
+				onClick={ () => onRemove( note.id ) }
+				disabled={ isBusy }
+				aria-label={ sprintf(
+					/* translators: %s: note title. */
+					__( 'Remove %s', 'woocommerce-claude' ),
+					note.title
+				) }
+				title={ __( 'Remove card', 'woocommerce-claude' ) }
+			>
+				<span aria-hidden="true">×</span>
+			</button>
 			<span className="hey-woo-idea-note__type">{ note.type }</span>
 			<h2>{ note.title }</h2>
 			<p>{ note.body }</p>
@@ -183,6 +356,46 @@ function noteEdgePoint( note: IdeaBoardNote, dx: number, dy: number, margin: num
 
 function clamp( value: number, min: number, max: number ) {
 	return Math.min( Math.max( value, min ), max );
+}
+
+function addedNotePosition( index: number ) {
+	const slot = index % MAX_NOTES;
+	return {
+		x: 7 + ( slot % 3 ) * 25,
+		y: 10 + Math.floor( slot / 3 ) * 17,
+	};
+}
+
+function defaultAddedNoteRotation( index: number ) {
+	const rotations = [ -1, 2, -2, 1, 0, -1 ];
+	return rotations[ index % rotations.length ];
+}
+
+function createMerchantNoteId( title: string, existingIds: Set< string > ) {
+	const base = slugify( title ) || 'card';
+	let id = `merchant-${ base }`;
+	let suffix = 2;
+
+	while ( existingIds.has( id ) ) {
+		id = `merchant-${ base }-${ suffix }`;
+		suffix++;
+	}
+
+	return id;
+}
+
+function slugify( value: string ) {
+	return value
+		.toLowerCase()
+		.normalize( 'NFKD' )
+		.replace( /[\u0300-\u036f]/g, '' )
+		.replace( /[^a-z0-9]+/g, '-' )
+		.replace( /^-+|-+$/g, '' )
+		.slice( 0, 42 );
+}
+
+function truncateText( value: string, limit: number ) {
+	return value.length <= limit ? value : `${ value.slice( 0, limit - 3 ).trim() }...`;
 }
 
 function formatDate( value: string ) {

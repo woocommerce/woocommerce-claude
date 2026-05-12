@@ -14,6 +14,8 @@ interface IdeaBoardState {
 	errorMessage: string;
 }
 
+type BoardUpdater = IdeaBoardData | ( ( board: IdeaBoardData ) => IdeaBoardData );
+
 export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 	const [ state, setState ] = useState< IdeaBoardState >( {
 		board: null,
@@ -58,11 +60,11 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 
 			const json: IdeaBoardResponse = await response.json();
 			if ( json.status === 'error' ) {
-				setState( {
-					board: null,
+				setState( ( previous ) => ( {
+					...previous,
 					status: 'error',
 					errorMessage: json.message,
-				} );
+				} ) );
 				return;
 			}
 
@@ -80,9 +82,79 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 		}
 	}, [ days, nonce, restBase ] );
 
+	const updateBoard = useCallback( ( updater: BoardUpdater ) => {
+		setState( ( previous ) => {
+			if ( ! previous.board ) {
+				return previous;
+			}
+
+			const board = typeof updater === 'function' ? updater( previous.board ) : updater;
+			return {
+				...previous,
+				board,
+				status: previous.status === 'error' ? 'idle' : previous.status,
+				errorMessage: previous.status === 'error' ? '' : previous.errorMessage,
+			};
+		} );
+	}, [] );
+
+	const reanalyse = useCallback( async ( board: IdeaBoardData ) => {
+		if ( ! restBase ) {
+			setState( ( previous ) => ( {
+				...previous,
+				status: 'error',
+				errorMessage: __( 'The idea board endpoint is not available.', 'woocommerce-claude' ),
+			} ) );
+			return;
+		}
+
+		setState( ( previous ) => ( {
+			...previous,
+			status: 'reanalysing',
+			errorMessage: '',
+		} ) );
+
+		try {
+			const response = await fetch( `${ restBase }/idea-board/reanalyse`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': nonce,
+				},
+				body: JSON.stringify( { board } ),
+			} );
+
+			if ( ! response.ok ) {
+				throw new Error( 'request_failed' );
+			}
+
+			const json: IdeaBoardResponse = await response.json();
+			if ( json.status === 'error' ) {
+				setState( ( previous ) => ( {
+					...previous,
+					status: 'error',
+					errorMessage: json.message,
+				} ) );
+				return;
+			}
+
+			setState( {
+				board: json.board,
+				status: 'idle',
+				errorMessage: '',
+			} );
+		} catch ( error ) {
+			setState( ( previous ) => ( {
+				...previous,
+				status: 'error',
+				errorMessage: __( 'The idea board could not be re-analysed. Please try again.', 'woocommerce-claude' ),
+			} ) );
+		}
+	}, [ nonce, restBase ] );
+
 	useEffect( () => {
 		refresh( false );
 	}, [ refresh ] );
 
-	return { ...state, refresh };
+	return { ...state, refresh, reanalyse, updateBoard };
 }
