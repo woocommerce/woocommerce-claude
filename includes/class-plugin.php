@@ -155,9 +155,17 @@ class Plugin {
 		// WooCommerce Settings tab.
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
 
-		// DIFM admin page + REST controller.
-		( new Difm\DifmAdminPage() )->register();
-		( new Difm\DifmRestController() )->register();
+		// DIFM admin page + REST controller — feature-flagged off by default
+		// while the surface is still in development. Toggle via the
+		// `woocommerce_claude_enable_difm` option (`yes` / `no`), or force a
+		// specific state with the WOOCOMMERCE_CLAUDE_ENABLE_DIFM constant in
+		// wp-config.php (the constant wins when defined, useful for tests and
+		// CLI). The integration test bootstrap force-defines the constant so
+		// DIFM coverage runs regardless of the production default.
+		if ( self::is_difm_enabled() ) {
+			( new Difm\DifmAdminPage() )->register();
+			( new Difm\DifmRestController() )->register();
+		}
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.
@@ -663,6 +671,49 @@ INSTRUCTIONS;
 
 		wp_set_current_user( $user->ID );
 		return true;
+	}
+
+	/**
+	 * Option name controlling whether the DIFM (Do-It-For-Me) chat surface
+	 * is enabled.
+	 *
+	 * Stored as the WooCommerce-conventional 'yes' / 'no' string. Toggle
+	 * via WP-CLI (`wp option update woocommerce_claude_enable_difm yes`),
+	 * `update_option()`, or any future admin-UI toggle.
+	 */
+	const DIFM_ENABLED_OPTION = 'woocommerce_claude_enable_difm';
+
+	/**
+	 * Whether the DIFM (Do-It-For-Me) chat surface is enabled.
+	 *
+	 * DIFM is feature-flagged off by default while the surface is still
+	 * in development. Two switches in priority order:
+	 *
+	 *   1. The `WOOCOMMERCE_CLAUDE_ENABLE_DIFM` PHP constant — defined in
+	 *      wp-config.php (or any plugin / mu-plugin loaded before this one).
+	 *      When defined the constant value wins, so this is the right knob
+	 *      for tests, CI, and environments that want a hard override.
+	 *   2. The `woocommerce_claude_enable_difm` WordPress option — string
+	 *      `'yes'` / `'no'`, default `'no'`. Toggle from WP-CLI with
+	 *      `wp option update woocommerce_claude_enable_difm yes`, or
+	 *      programmatically with `update_option()`. This is the runtime
+	 *      knob that doesn't require a redeploy.
+	 *
+	 * The integration test suite force-defines the constant via
+	 * `tests/integration/bootstrap.php` so DIFM tests run regardless of
+	 * the production default.
+	 *
+	 * @return bool
+	 */
+	public static function is_difm_enabled() {
+		// Constant override — wins when defined. Used by tests and any
+		// environment that wants to force a specific state regardless of
+		// the database option.
+		if ( defined( 'WOOCOMMERCE_CLAUDE_ENABLE_DIFM' ) ) {
+			return (bool) WOOCOMMERCE_CLAUDE_ENABLE_DIFM;
+		}
+
+		return 'yes' === get_option( self::DIFM_ENABLED_OPTION, 'no' );
 	}
 
 	/**
