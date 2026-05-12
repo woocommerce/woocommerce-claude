@@ -86,14 +86,18 @@ class DifmAdminPage {
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
+
+		$user_id = get_current_user_id();
 
 		$data = array(
-			'nonce'       => wp_create_nonce( 'wp_rest' ),
-			'restBase'    => rest_url( 'woocommerce-claude/v1/difm' ),
-			'settingsUrl' => admin_url( 'admin.php?page=wc-settings&tab=woocommerce-claude' ),
-			'userName'    => wp_get_current_user()->display_name,
-			'currency'    => get_woocommerce_currency_symbol(),
-			'hasKey'      => AnthropicClient::has_api_key(),
+			'nonce'         => wp_create_nonce( 'wp_rest' ),
+			'restBase'      => rest_url( 'woocommerce-claude/v1/difm' ),
+			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=woocommerce-claude' ),
+			'userName'      => wp_get_current_user()->display_name,
+			'currency'      => get_woocommerce_currency_symbol(),
+			'hasKey'        => AnthropicClient::has_api_key(),
+			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
 		);
 
 		// Register an inline-only script handle so print_footer_scripts() outputs the data.
