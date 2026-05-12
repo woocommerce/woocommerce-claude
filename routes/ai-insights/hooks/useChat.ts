@@ -93,10 +93,21 @@ export function useChat( options: UseChatOptions = {} ) {
 			errorMessage: '',
 		} ) );
 
-		const controller = new AbortController();
-		const timeoutId = setTimeout( () => controller.abort(), REQUEST_TIMEOUT_MS );
+		let timeoutId: ReturnType< typeof setTimeout > | undefined;
 
 		try {
+			if ( onConversationSaved && conversationIdRef.current && titleRef.current ) {
+				await onConversationSaved( {
+					id: conversationIdRef.current,
+					title: titleRef.current,
+					messages: submittedMessages,
+					updatedAt: Date.now(),
+				} );
+			}
+
+			const controller = new AbortController();
+			timeoutId = setTimeout( () => controller.abort(), REQUEST_TIMEOUT_MS );
+
 			const response = await fetch( moduleData.restBase + '/chat', {
 				method: 'POST',
 				headers: {
@@ -149,22 +160,24 @@ export function useChat( options: UseChatOptions = {} ) {
 			// setState updater (which React may call multiple times).
 			const savedMessages = [ ...submittedMessages, assistantMessage ];
 
-			setState( ( prev ) => ( {
-				...prev,
-				messages: [ ...prev.messages, assistantMessage ],
-				status: 'idle',
-			} ) );
-
 			if ( onConversationSaved && conversationIdRef.current && titleRef.current ) {
-				onConversationSaved( {
+				await onConversationSaved( {
 					id: conversationIdRef.current,
 					title: titleRef.current,
 					messages: savedMessages,
 					updatedAt: Date.now(),
 				} );
 			}
+
+			setState( ( prev ) => ( {
+				...prev,
+				messages: [ ...prev.messages, assistantMessage ],
+				status: 'idle',
+			} ) );
 		} catch ( err ) {
-			clearTimeout( timeoutId );
+			if ( timeoutId ) {
+				clearTimeout( timeoutId );
+			}
 
 			const isAbort = err instanceof Error && err.name === 'AbortError';
 			setState( ( prev ) => ( {

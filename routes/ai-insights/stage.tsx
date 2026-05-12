@@ -66,13 +66,11 @@ function ChatView( { urlConversationId, conversations, onSaveConversation }: Cha
 		: undefined;
 
 	const handleConversationSaved = useCallback( async ( conversation: StoredConversation ) => {
-		await onSaveConversation( conversation );
-
 		if ( ! urlConversationId ) {
-			window.setTimeout( () => {
-				replaceCurrentRouteWithConversation( conversation.id );
-			}, 0 );
+			replaceCurrentRouteWithConversation( conversation.id );
 		}
+
+		await onSaveConversation( conversation );
 	}, [ onSaveConversation, urlConversationId ] );
 
 	const { state, sendMessage, clearError } = useChat( {
