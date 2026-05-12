@@ -4,6 +4,14 @@
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
   "type": "module",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "uninstall.php",
+    "woocommerce-claude.php",
+    "includes",
+    "skills"
+  ],
   "scripts": {
     "build": "wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
     "build:production": "NODE_ENV=production wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",

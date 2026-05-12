@@ -99,7 +99,13 @@ You now have these tools available (plus the nine built-in `woocommerce-*` CRUD 
 | `wc-analytics-rows`                        | Flexible filter engine across orders / products / customers; aggregate-or-rows mode; pseudonymised rows   |
 | `wc-analytics-confirm-large-range`         | Approve a >365-day range query after presenting the cost estimate (the gate-handshake helper)             |
 
-Plus three resources (`store://profile`, `store://catalog-schema`, `store://policies`) and two prompts (`wc-prompts-catalog-audit`, `wc-prompts-product-improve`).
+Plus three resources (`store://profile`, `store://catalog-schema`, `store://policies`) and three prompts (`wc-prompts-catalog-audit`, `wc-prompts-product-improve`, `wc-prompts-weekly-store-review`).
+
+The repository also includes reference agent Skills in [`skills/`](./skills/). These are workflow wrappers around the MCP tools — for example, `weekly-store-review` combines revenue, orders, customers, products, attribution, and refunds into one merchant-friendly weekly review. The MCP tools stay as stable data primitives; Skills carry the opinionated workflow guidance.
+
+For best results in clients that support agent plugins or skills, install the companion agent plugin metadata from this repository as well as connecting the store MCP server. See [docs/agent-plugin.md](./docs/agent-plugin.md). The WordPress plugin provides live store data; the agent plugin teaches the AI client how to use it reliably.
+
+In Claude Code, the agent plugin can be installed Shopify-style with `/plugin marketplace add woocommerce/woocommerce-claude`, then `/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit`. After `/reload-plugins`, try `/weekly-store-review`.
 
 ### What can you ask?
 
@@ -108,6 +114,7 @@ A range of questions covering the store's catalogue, performance, customers, and
 **Store performance**
 
 - "How did my store do this week?"
+- "Give me my weekly store review"
 - "What's my AOV right now?"
 - "How does Q4 last year compare to this year?"
 - "What's my collected revenue vs my pending revenue?"

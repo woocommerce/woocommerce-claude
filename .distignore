@@ -48,7 +48,9 @@ CODE_OF_CONDUCT.md
 SECURITY.md
 .migration
 docs
-skills
+
+# Agent workflow skills are part of the installable AI toolkit. They are
+# static reference files and should ship in the plugin zip.
 
 # Editor / OS metadata
 *.log

@@ -42,8 +42,12 @@ woocommerce-claude/
 ├── tools/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
-├── skills/                   # Reference Claude Code / Codex skills (catalog-audit,
-│                             # product-content-generator, store-health-monitor)
+├── skills/                   # Reference Claude Code / Codex workflow skills
+│   ├── README.md             # Skills index and tools-vs-skills guidance
+│   ├── weekly-store-review
+│   ├── catalog-audit
+│   ├── product-content-generator
+│   └── store-health-monitor
 ├── bin/
 │   ├── check                 # Local CI mirror — PHPCS + composer audit + PHPUnit + DCC
 │   └── check-dcc             # Data Consistency Checker (gated; auto-skips if not installed)
@@ -113,6 +117,8 @@ A new analytics skill needs **code + PHPUnit test + two static-sweep constants**
 2. There's no `tests/integration/test-<slug>.php` file with at least one `test_*` method.
 
 The full how-to is in CONTRIBUTING.md (`Adding a new analytics Skill`). Don't shortcut the test — the coverage guard is the substitute for "did anyone actually verify this against real data?"
+
+This section is about registered analytics Abilities under `includes/abilities/`, not agent-side workflow skills under `skills/`. If the current MCP tools already return the needed data and the change is just an opinionated workflow ("weekly review", "refund triage", "catalogue cleanup plan"), add or update a `skills/<name>/SKILL.md` file instead of adding a new MCP ability.
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 

@@ -88,5 +88,6 @@ class AbilitiesBootstrap {
 		StorePoliciesAbility::register();
 		CatalogAuditAbility::register();
 		ProductImproveAbility::register();
+		WeeklyStoreReviewAbility::register();
 	}
 }
