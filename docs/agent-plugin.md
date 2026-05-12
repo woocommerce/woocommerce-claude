@@ -7,10 +7,12 @@ WooCommerce for Claude has two installable pieces:
 
 This repository now includes the first-stage agent plugin manifests:
 
+- `.claude-plugin/marketplace.json`
+- `agent-plugin/.claude-plugin/plugin.json`
+- `agent-plugin/skills/`
 - `plugin.json`
 - `.codex-plugin/plugin.json`
 - `.claude-plugin/plugin.json`
-- `.claude-plugin/marketplace.json`
 - `.cursor-plugin/plugin.json`
 - `skills/`
 
@@ -38,6 +40,19 @@ From Claude Code chat, add this branch as a marketplace:
 Then install the plugin:
 
 ```text
+/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit
+```
+
+If you previously tested an older branch copy, update the marketplace first:
+
+```text
+/plugin marketplace update woocommerce-claude-ai-toolkit
+```
+
+If Claude reports that the plugin is already installed, uninstall and reinstall it:
+
+```text
+/plugin uninstall woocommerce-claude@woocommerce-claude-ai-toolkit
 /plugin install woocommerce-claude@woocommerce-claude-ai-toolkit
 ```
 

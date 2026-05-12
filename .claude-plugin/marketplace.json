@@ -9,9 +9,8 @@
   "plugins": [
     {
       "name": "woocommerce-claude",
-      "source": "./",
+      "source": "./agent-plugin",
       "description": "Run WooCommerce store analytics, catalog readiness, and product content workflows with WooCommerce for Claude MCP tools",
-      "version": "0.2.0",
       "author": {
         "name": "WooCommerce"
       },
