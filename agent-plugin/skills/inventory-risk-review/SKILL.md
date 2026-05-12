@@ -49,17 +49,18 @@ Keep the two time frames separate:
 - Stock status and stock quantity are current catalogue state. Sales, revenue, order count, refunds, and comparison movement are period-scoped. Say "sold in the period and is currently out of stock" rather than implying the stockout existed during those sales.
 - Use returned comparison fields for movement. Do not hand-calculate deltas, percentages, shares, stock velocity, sell-through, days of cover, revenue at risk, or reorder quantities.
 - Do not divide current stock quantity by period units sold. Never say how many days, weeks, or months of stock remain.
-- Do not forecast demand, predict stockouts, estimate lost sales, or claim a product will run out. Say "watch" or "check stock" when the data does not contain a forecast.
+- Do not forecast demand, predict stockouts, estimate lost sales, or claim a product will run out. Avoid "demand is up", "prevent a stockout", "avoid a stockout", "run into a stockout", or "move off-shelf" language unless the data already shows that exact current stock issue. Say "sales increased", "watch", "check availability", or "check stock" when the data does not contain a forecast.
 - Do not invent stock history. The tools show current stock status/quantity, not when stock changed, when the product went out of stock, or when it was restocked.
 - Do not invent supplier lead times, reorder points, safety stock, margin, COGS, fulfilment capacity, warehouse constraints, carrying cost, purchase orders, or purchasing status.
-- Do not recommend confirming supplier lead times, placing purchase orders, refreshing POs, or tightening reorder timing unless the merchant supplied that operational context. Say "check replenishment manually" or "review stock settings" instead.
+- Do not recommend confirming supplier lead times, placing purchase orders, refreshing POs, tightening reorder timing, or checking replenishment timing unless the merchant supplied that operational context. Say "review stock settings" or "check availability manually" instead.
 - Treat `stock_quantity` of `null` as unknown or not quantity-managed. Do not call it zero, unlimited, or safe.
 - Treat `onsale` as current WooCommerce sale pricing only. Do not claim the product is in ads, emails, homepage placements, bundles, paid campaigns, or social promotions unless the merchant supplied that context.
 - A sale-priced product with stock issues is a merchandising check: pause the sale price, hide/replace the product in featured areas, update availability messaging, or exclude it from campaigns the merchant controls today.
 - Slow movers are products currently in stock with zero paid sales in the selected period. For newly created products, say the period may be too short. For older products, suggest merchandising, product-page, category, bundle, pricing, or clearance checks.
+- Do not recommend widening the assortment, adding new SKUs, expanding categories, or saying there is "room to expand" based on this review. Current inventory and period sales do not show assortment capacity or product-development opportunity.
 - Refunds on product rows are a signal to check product/support context, not proof of defects, sizing issues, shipping failures, or quality problems.
 - Small samples need small-sample language. If a product has 5 or fewer units/orders in the period, state the count before treating it as a priority.
-- Do not mention tool names, ability names, parameter names, database tables, internal field paths, filter JSON, or status slugs in the final answer. Translate stock statuses into merchant language.
+- Do not mention tool names, ability names, parameter names, database tables, internal field paths, filter JSON, status slugs, or raw field names like `stock_quantity`, `units_sold_in_period`, `revenue_in_period`, or `orders_count_in_period` in the final answer. Translate these into merchant language such as "current stock quantity", "units sold", "period revenue", and "orders".
 - Do not suggest building a new skill, endpoint, connector, or plugin feature. Suggest merchant actions available today in WooCommerce admin, product merchandising, sale pricing, fulfilment settings, customer support, or connected marketing tools.
 
 ## Conversation Discipline
@@ -82,7 +83,7 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-**Low-stock review threshold:** [threshold used, or "Not used" if stock quantities were unavailable]
+**Low-stock review threshold:** [threshold used in merchant language, such as "5 units or fewer", or "Not used" if stock quantities were unavailable]
 
 #### 1. Snapshot
 
