@@ -214,7 +214,7 @@ class DifmRestController {
 			);
 		}
 
-		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools );
+		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools, '', $this->merchant_requested_chart( $user_message ) );
 	}
 
 	/**
@@ -225,11 +225,13 @@ class DifmRestController {
 	 * @param array           $messages      Conversation messages.
 	 * @param array           $tools         Anthropic-format tool definitions.
 	 * @param string          $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @param bool            $chart_requested Whether the merchant explicitly asked for a chart.
 	 * @return \WP_REST_Response
 	 */
-	private function answer_with_tools( AnthropicClient $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '' ) {
-		$chart_specs = array();
-		$iterations  = 0;
+	private function answer_with_tools( AnthropicClient $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '', $chart_requested = false ) {
+		$chart_specs           = array();
+		$chart_retry_attempted = false;
+		$iterations            = 0;
 
 		while ( $iterations < self::MAX_TOOL_ITERATIONS ) {
 			$result = $client->messages( $messages, $system_prompt, $tools );
@@ -247,8 +249,28 @@ class DifmRestController {
 			$content     = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
 
 			if ( 'tool_use' !== $stop_reason ) {
+				$reply = $this->extract_text_reply( $content );
+				if (
+					empty( $chart_specs )
+					&& ! $chart_retry_attempted
+					&& $this->has_render_chart_tool( $tools )
+					&& ( $chart_requested || $this->reply_claims_chart( $reply ) )
+				) {
+					$chart_retry_attempted = true;
+					$messages[]            = array(
+						'role'    => 'assistant',
+						'content' => $content,
+					);
+					$messages[]            = array(
+						'role'    => 'user',
+						'content' => 'The previous answer said or implied that a chart was shown, but no render_chart tool call was made. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
+					);
+					++$iterations;
+					continue;
+				}
+
 				return rest_ensure_response(
-					$this->build_chat_response( $this->extract_text_reply( $content ), $chart_specs, $empty_reply_fallback )
+					$this->build_chat_response( $reply, $chart_specs, $empty_reply_fallback )
 				);
 			}
 
@@ -368,6 +390,71 @@ class DifmRestController {
 		}
 
 		return $response;
+	}
+
+	/**
+	 * Whether the current tool set can render charts.
+	 *
+	 * @param array $tools Anthropic-format tool definitions.
+	 * @return bool
+	 */
+	private function has_render_chart_tool( array $tools ) {
+		foreach ( $tools as $tool ) {
+			if ( isset( $tool['name'] ) && self::RENDER_CHART_TOOL === $tool['name'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a merchant message explicitly asks for a chart or visual.
+	 *
+	 * @param string $message Merchant message.
+	 * @return bool
+	 */
+	private function merchant_requested_chart( $message ) {
+		return 1 === preg_match( '/\b(chart|charts|graph|graphs|plot|plots|visualise|visualize|visualisation|visualization)\b/i', (string) $message );
+	}
+
+	/**
+	 * Whether the current turn or latest user history asks for a chart.
+	 *
+	 * @param array  $raw_history  Raw history from the REST request.
+	 * @param string $user_message Current user message.
+	 * @return bool
+	 */
+	private function history_requested_chart( array $raw_history, $user_message ) {
+		if ( $this->merchant_requested_chart( $user_message ) ) {
+			return true;
+		}
+
+		$history = array_reverse( $raw_history );
+		foreach ( $history as $turn ) {
+			if ( ! is_array( $turn ) || ! isset( $turn['role'] ) || 'user' !== $turn['role'] ) {
+				continue;
+			}
+
+			return isset( $turn['content'] ) && $this->merchant_requested_chart( (string) $turn['content'] );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a text reply claims that a chart is already visible.
+	 *
+	 * @param string $reply Assistant reply text.
+	 * @return bool
+	 */
+	private function reply_claims_chart( $reply ) {
+		$reply = (string) $reply;
+
+		return 1 === preg_match(
+			'/\b(chart|graph|plot)\s+(above|below|shows|illustrates|compares)\b|\b(the|this|that|following)\s+(chart|graph|plot)\b|\bas shown in (the )?(chart|graph|plot)\b|\b(here is|here\'s|i have added|i\'ve added|i created|i\'ve created|i generated|i\'ve generated).{0,40}\b(chart|graph|plot)\b/i',
+			$reply
+		);
 	}
 
 	/**
@@ -918,7 +1005,8 @@ class DifmRestController {
 			$system_prompt,
 			$messages,
 			array( $this->build_render_chart_tool_definition() ),
-			__( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' )
+			__( 'I loaded the full range, but could not summarise the result. Please try again.', 'woocommerce-claude' ),
+			$this->history_requested_chart( $raw_history, $user_message )
 		);
 	}
 

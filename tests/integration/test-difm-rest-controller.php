@@ -695,6 +695,109 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'Net Sales — Last 7 Days', $data['charts'][0]['title'] );
 	}
 
+	/**
+	 * A text answer that claims a chart exists must be retried until render_chart is called.
+	 */
+	public function test_chat_retries_when_reply_claims_chart_without_render_chart() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$call_count       = 0;
+		$second_call_body = null;
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $parsed_args ) use ( &$call_count, &$second_call_body ) {
+				++$call_count;
+
+				if ( 1 === $call_count ) {
+					return array(
+						'response' => array(
+							'code'    => 200,
+							'message' => 'OK',
+						),
+						'body'     => wp_json_encode(
+							array(
+								'type'        => 'message',
+								'stop_reason' => 'end_turn',
+								'content'     => array(
+									array(
+										'type' => 'text',
+										'text' => 'The chart above shows Premium Speaker generated nearly 3x more than your next product.',
+									),
+								),
+							)
+						),
+						'headers'  => array(),
+					);
+				}
+
+				$second_call_body = json_decode( $parsed_args['body'], true );
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'tool_use',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Premium Speaker leads product revenue, followed by Wireless Headphones.',
+								),
+								array(
+									'type'  => 'tool_use',
+									'id'    => 'toolu_product_chart',
+									'name'  => 'render_chart',
+									'input' => array(
+										'type'   => 'bar',
+										'title'  => 'Product Revenue Comparison',
+										'series' => array(
+											array(
+												'name' => 'Revenue',
+												'data' => array(
+													array(
+														'x' => 'Premium Speaker',
+														'y' => 199.75,
+													),
+													array(
+														'x' => 'Wireless Headphones',
+														'y' => 79.95,
+													),
+												),
+											),
+										),
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Can you show this in a chart to compare against other products?' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 2, $call_count );
+		$this->assertNotNull( $second_call_body );
+		$messages        = $second_call_body['messages'];
+		$last_user_turn  = end( $messages );
+		$previous_answer = $messages[1];
+		$this->assertStringContainsString( 'no render_chart tool call was made', $last_user_turn['content'] );
+		$this->assertStringContainsString( 'The chart above shows', $previous_answer['content'][0]['text'] );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Premium Speaker leads product revenue, followed by Wireless Headphones.', $data['reply'] );
+		$this->assertArrayHasKey( 'charts', $data );
+		$this->assertSame( 'Product Revenue Comparison', $data['charts'][0]['title'] );
+	}
+
 	// ── POST /difm/chat — large-range confirmation ───────────────────────────
 
 	/**
