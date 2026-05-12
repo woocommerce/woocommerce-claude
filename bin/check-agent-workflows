@@ -10,6 +10,7 @@
 #   ./bin/check-agent-workflows
 #   ./bin/check-agent-workflows --profile generic
 #   ./bin/check-agent-workflows --max-budget-usd 3
+#   ./bin/check-agent-workflows --workflow tax-reconciliation-smoke --profile generic
 #
 
 set -euo pipefail
@@ -43,7 +44,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, revenue-drop-triage, refund-triage, or failed-order-triage.
+  --workflow <name>       Workflow to run: coupon-performance-triage, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -58,7 +59,9 @@ Options:
 
 The iris-demo profile expects the deterministic seeded demo store used in
 manual testing. Use --profile generic for other stores; it only checks the
-answer shape and known bad phrasing.
+answer shape and known bad phrasing. The tax-reconciliation-smoke workflow
+expects the local fixture from tools/seed-tax-smoke-store.php when asserting
+the exact tax figures.
 USAGE
 }
 
@@ -139,6 +142,11 @@ case "$WORKFLOW" in
 			PROMPT="/woocommerce-claude:failed-order-triage"
 		fi
 		;;
+	tax-reconciliation-smoke)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:tax-reconciliation"
+		fi
+		;;
 	*)
 		fail "Unsupported workflow: $WORKFLOW"
 		;;
@@ -179,14 +187,14 @@ CLAUDE_CMD=(
 )
 
 if [ -n "$MCP_CONFIG" ]; then
-	CLAUDE_CMD+=( --mcp-config "$MCP_CONFIG" )
+	CLAUDE_CMD+=( --mcp-config "$MCP_CONFIG" --strict-mcp-config )
 fi
 
 if [ -n "$MODEL" ]; then
 	CLAUDE_CMD+=( --model "$MODEL" )
 fi
 
-CLAUDE_CMD+=( "$PROMPT" )
+CLAUDE_CMD+=( -- "$PROMPT" )
 
 step "Running $WORKFLOW via Claude Code"
 printf 'Output: %s\n' "$OUTPUT_FILE"
@@ -376,6 +384,35 @@ assert_coupon_performance_triage() {
 	fi
 }
 
+assert_tax_reconciliation_smoke() {
+	assert_store_connected
+
+	assert_contains "Snapshot"
+	assert_contains "Reconciliation"
+	assert_contains "Tax Rates"
+	assert_contains "Readiness"
+	assert_contains "Issues"
+
+	assert_contains "£73.00"
+	assert_contains "£71.00"
+	assert_contains "£2.00"
+	assert_contains "£9.50"
+	assert_contains "£63.50"
+	assert_contains "£16.00"
+	assert_contains "£89.00"
+	assert_contains "Codex UK VAT"
+	assert_contains "Codex DE VAT"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|wp_wc_|wc_order_|woocommerce_tax_rates' 'internal tool, parameter, or storage language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'profit|margin|ROAS|conversion rate|sessions|impressions|ad spend' 'unsupported commercial metric'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue' 'pipeline described as lost revenue'
+	assert_not_matches 'database|SQL|lookup row|row id|tax_rate_id' 'implementation detail leak'
+	assert_not_matches 'legally collected|carry to a VAT return|use .* for .*filing|filing.*use .*£|what you owe|tax you owe' 'tax-advice overreach'
+	assert_not_matches 'catalogue AI-readiness|catalog AI-readiness|product completeness|schema coverage|policy completeness|content quality|overall AI-readiness score' 'catalogue readiness leakage'
+}
+
 case "$WORKFLOW" in
 	coupon-performance-triage)
 		assert_coupon_performance_triage
@@ -388,6 +425,9 @@ case "$WORKFLOW" in
 		;;
 	failed-order-triage)
 		assert_failed_order_triage
+		;;
+	tax-reconciliation-smoke)
+		assert_tax_reconciliation_smoke
 		;;
 esac
 
