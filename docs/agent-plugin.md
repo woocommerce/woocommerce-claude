@@ -29,12 +29,12 @@ Installing the agent plugin may make client-level plugin commands available, suc
 3. Ask: "Give me my weekly store review."
 4. Confirm the `weekly-store-review` skill triggers and the answer includes revenue, orders, customers, refunds, products, channels, watch list, and next actions.
 
-## Claude Code marketplace test
+## Claude Code marketplace install
 
-From Claude Code chat, add this branch as a marketplace:
+From Claude Code chat, add this repository as a marketplace:
 
 ```text
-/plugin marketplace add woocommerce/woocommerce-claude@codex-weekly-store-review-skill
+/plugin marketplace add woocommerce/woocommerce-claude
 ```
 
 Then install the plugin:
