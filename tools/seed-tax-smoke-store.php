@@ -195,6 +195,32 @@ $sync_order = static function ( $order_id ) {
 	TaxesDataStore::sync_order_taxes( $order_id );
 };
 
+$clear_wc_claude_caches = static function () use ( $wpdb ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Local fixture cache cleanup.
+	$transient_options = $wpdb->get_col(
+		"SELECT option_name FROM {$wpdb->options}
+		WHERE option_name LIKE '_transient_woocommerce_claude_%'
+		OR option_name LIKE '_transient_timeout_woocommerce_claude_%'"
+	);
+
+	foreach ( $transient_options as $option_name ) {
+		if ( 0 === strpos( $option_name, '_transient_timeout_' ) ) {
+			$transient_key = substr( $option_name, strlen( '_transient_timeout_' ) );
+		} else {
+			$transient_key = substr( $option_name, strlen( '_transient_' ) );
+		}
+
+		delete_transient( $transient_key );
+	}
+
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Local fixture cache cleanup.
+	$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_woocommerce_claude_%' OR option_name LIKE '_transient_timeout_woocommerce_claude_%'" );
+
+	if ( function_exists( 'wp_cache_flush' ) ) {
+		wp_cache_flush();
+	}
+};
+
 $make_order = static function ( $label, $args ) use ( $fixture_key, $now, $sync_order ) {
 	$date = gmdate( 'Y-m-d H:i:s', $now - ( DAY_IN_SECONDS * (int) $args['days_ago'] ) );
 
@@ -391,9 +417,7 @@ TaxesDataStore::sync_order_taxes( $refund->get_id() );
 
 wc_delete_shop_order_transients();
 WC_Cache_Helper::invalidate_cache_group( 'taxes' );
-
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Local fixture cache cleanup.
-$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_woocommerce_claude_%' OR option_name LIKE '_transient_timeout_woocommerce_claude_%'" );
+$clear_wc_claude_caches();
 
 WP_CLI::success(
 	sprintf(

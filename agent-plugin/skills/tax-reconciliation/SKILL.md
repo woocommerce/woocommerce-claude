@@ -37,7 +37,7 @@ Tax analytics use order/refund dates from WooCommerce analytics. A refund issued
 - Keep three views distinct:
   - Collected paid tax: paid orders only.
   - Pending/on-hold tax: tax attached to on-hold orders that have not cleared. Treat it as an operational pipeline figure, not collected tax or a legal conclusion.
-  - Dashboard-equivalent tax: paid + on-hold + refunded view for reconciling against WooCommerce admin.
+  - Dashboard-equivalent tax: the WooCommerce-admin reconciliation view returned by analytics. Keep it separate from net tax and from refunded tax; do not infer inclusion rules beyond the returned definition.
 - Net tax is total paid tax minus refunded tax. Read the returned field directly; do not hand-calculate it unless you are explaining a reconciliation check using the returned values.
 - Order tax and shipping tax should add to total paid tax. Use this as a sanity check when the merchant asks for reconciliation.
 - Refunded tax is a claw-back from prior collection. Do not use broad refund totals from refund triage when the merchant asks tax-only questions.
@@ -47,6 +47,7 @@ Tax analytics use order/refund dates from WooCommerce analytics. A refund issued
 - If total collected tax is zero and pending tax is zero, say the store either did not charge tax in the period or had no taxable orders. Point the merchant to WooCommerce > Settings > Tax to confirm current rates.
 - If collected tax is zero or implausibly low while revenue is substantial, frame this as a configuration check, not a compliance conclusion.
 - Do not say what the merchant owes legally. Do not say a figure is what to carry to a tax return or use for filing. Say instead that net tax is the operational figure to reconcile before filing, and that final filing treatment should be confirmed with an accountant.
+- Do not repeat legal phrasing from tool definitions such as "legally collected" or "legally collected revenue". For pending/on-hold tax, say it has not cleared or has not been received yet.
 - Do not mention tool names, ability names, parameter names, database tables, internal field paths, or status slugs in the final answer.
 - Do not suggest building a new skill, endpoint, connector, or plugin feature. Suggest merchant actions available today in WooCommerce admin, tax settings, order/payment workflows, shipping settings, payment processor dashboards, or accounting workflows.
 
@@ -79,7 +80,7 @@ Show the core checks in merchant language:
 
 - order tax + shipping tax equals collected paid tax,
 - collected paid tax minus refunded tax equals net tax,
-- collected paid tax plus pending/on-hold tax explains the dashboard-equivalent view,
+- collected paid tax plus pending/on-hold tax explains the dashboard-equivalent view when the returned figures support that check,
 - per-rate paid tax sums to collected paid tax.
 
 Use exact returned figures. Do not expose internal field names.
