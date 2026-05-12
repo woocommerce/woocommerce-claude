@@ -45,6 +45,7 @@ woocommerce-claude/
 ├── skills/                   # Reference Claude Code / Codex workflow skills
 │   ├── README.md             # Skills index and tools-vs-skills guidance
 │   ├── weekly-store-review
+│   ├── failed-order-triage
 │   ├── catalog-audit
 │   ├── product-content-generator
 │   └── store-health-monitor
@@ -64,6 +65,8 @@ pnpm exec wp-env start            # boots WP 6.9 + WC + this plugin on http://lo
                                    # afterStart activates WC + WooCommerce for Claude, installs WC pages,
                                    # sets a UK store address (London / GBP)
 ./bin/check                        # full pre-push gate (PHPCS, composer audit, PHPUnit, DCC)
+RUN_AGENT_WORKFLOW_SMOKE=1 ./bin/check
+                                   # full gate + live Claude Code agent workflow smoke test
 ```
 
 To seed a realistic demo store (deterministic — `mt_srand(42)`):

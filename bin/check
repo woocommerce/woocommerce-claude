@@ -11,6 +11,11 @@
 # PHPUnit needs the wp-env tests-cli container running:
 #   pnpm exec wp-env start
 #
+# Optional live agent workflow smoke test:
+#   RUN_AGENT_WORKFLOW_SMOKE=1 ./bin/check
+# This calls Claude Code + the configured WooCommerce demo-store MCP server,
+# so it is opt-in rather than part of the default local CI mirror.
+#
 
 set -euo pipefail
 
@@ -73,5 +78,16 @@ pnpm exec wp-env run tests-cli \
 #    empty — see bin/check-dcc for the full gating logic.
 step "DCC (local-vs-db analytics drift, via wp wca-data-consistency run)"
 "$REPO_ROOT/bin/check-dcc"
+
+# 6. Optional live agent workflow smoke test. This is gated because it calls
+#    the live Claude model and the configured WooCommerce for Claude MCP
+#    server, so it can spend tokens and depends on local MCP credentials.
+if [ "${RUN_AGENT_WORKFLOW_SMOKE:-0}" = "1" ]; then
+	step "Agent workflow smoke test (Claude Code + demo store MCP)"
+	"$REPO_ROOT/bin/check-agent-workflows"
+else
+	step "Agent workflow smoke test skipped"
+	printf '  (set RUN_AGENT_WORKFLOW_SMOKE=1 to run Claude Code + demo store MCP smoke tests)\n'
+fi
 
 step "All checks passed."

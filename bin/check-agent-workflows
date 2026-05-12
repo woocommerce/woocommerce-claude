@@ -1,0 +1,302 @@
+#!/usr/bin/env bash
+#
+# Local smoke test for Claude Code agent-plugin workflows.
+#
+# This intentionally stays out of ./bin/check because it calls the live
+# Claude model and the configured store MCP connection. Use it for demo-store
+# workflow regression testing after changing skills or prompt wrappers.
+#
+# Usage:
+#   ./bin/check-agent-workflows
+#   ./bin/check-agent-workflows --profile generic
+#   ./bin/check-agent-workflows --max-budget-usd 2
+#
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+WORKFLOW="failed-order-triage"
+PROFILE="iris-demo"
+PROMPT=""
+PLUGIN_DIR="$REPO_ROOT/agent-plugin"
+OUT_ROOT="$REPO_ROOT/.agent-workflow-runs"
+MAX_BUDGET_USD="${CLAUDE_MAX_BUDGET_USD:-3}"
+MCP_CONFIG="${CLAUDE_MCP_CONFIG:-}"
+MODEL="${CLAUDE_MODEL:-}"
+PERMISSION_MODE="${CLAUDE_PERMISSION_MODE:-auto}"
+DRY_RUN=0
+PRINT_OUTPUT=0
+
+step() {
+	printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$1"
+}
+
+fail() {
+	printf '\n\033[1;31m✖ %s\033[0m\n' "$1" >&2
+	exit 1
+}
+
+usage() {
+	cat <<'USAGE'
+Usage: ./bin/check-agent-workflows [options]
+
+Options:
+  --workflow <name>       Workflow to run. Currently: failed-order-triage.
+  --profile <name>        Assertion profile: iris-demo (default) or generic.
+  --prompt <text>         Override the prompt/slash command sent to Claude.
+  --plugin-dir <path>     Plugin directory or zip to load for this run.
+  --mcp-config <path>     Optional MCP config path/JSON passed to Claude.
+  --max-budget-usd <n>    Claude CLI budget cap for this run (default: 3).
+  --model <model>         Optional Claude model override.
+  --permission-mode <m>   Claude permission mode (default: auto).
+  --out-dir <path>        Directory for captured transcripts.
+  --print-output          Print the captured answer after assertions pass.
+  --dry-run               Print the Claude command without running it.
+  -h, --help              Show this help.
+
+The iris-demo profile expects the deterministic seeded demo store used in
+manual testing. Use --profile generic for other stores; it only checks the
+answer shape and known bad phrasing.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--workflow)
+			WORKFLOW="${2:-}"
+			shift 2
+			;;
+		--profile)
+			PROFILE="${2:-}"
+			shift 2
+			;;
+		--prompt)
+			PROMPT="${2:-}"
+			shift 2
+			;;
+		--plugin-dir)
+			PLUGIN_DIR="${2:-}"
+			shift 2
+			;;
+		--mcp-config)
+			MCP_CONFIG="${2:-}"
+			shift 2
+			;;
+		--max-budget-usd)
+			MAX_BUDGET_USD="${2:-}"
+			shift 2
+			;;
+		--model)
+			MODEL="${2:-}"
+			shift 2
+			;;
+		--permission-mode)
+			PERMISSION_MODE="${2:-}"
+			shift 2
+			;;
+		--out-dir)
+			OUT_ROOT="${2:-}"
+			shift 2
+			;;
+		--print-output)
+			PRINT_OUTPUT=1
+			shift
+			;;
+		--dry-run)
+			DRY_RUN=1
+			shift
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		*)
+			fail "Unknown option: $1"
+			;;
+	esac
+done
+
+case "$WORKFLOW" in
+	failed-order-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:failed-order-triage"
+		fi
+		;;
+	*)
+		fail "Unsupported workflow: $WORKFLOW"
+		;;
+esac
+
+case "$PROFILE" in
+	iris-demo|generic)
+		;;
+	*)
+		fail "Unsupported profile: $PROFILE"
+		;;
+esac
+
+command -v claude >/dev/null 2>&1 || fail "Claude Code CLI not found on PATH."
+
+if [ ! -e "$PLUGIN_DIR" ]; then
+	fail "Plugin directory/zip not found: $PLUGIN_DIR"
+fi
+
+RUN_ID="$(date '+%Y%m%d-%H%M%S')"
+RUN_DIR="$OUT_ROOT/$RUN_ID-$WORKFLOW-$PROFILE"
+OUTPUT_FILE="$RUN_DIR/output.txt"
+STDERR_FILE="$RUN_DIR/stderr.txt"
+QUEUE_FILE="$RUN_DIR/priority-queue.txt"
+mkdir -p "$RUN_DIR"
+
+step "Validating agent plugin"
+claude plugin validate "$PLUGIN_DIR"
+
+CLAUDE_CMD=(
+	claude
+	-p
+	--plugin-dir "$PLUGIN_DIR"
+	--no-session-persistence
+	--output-format text
+	--max-budget-usd "$MAX_BUDGET_USD"
+	--permission-mode "$PERMISSION_MODE"
+)
+
+if [ -n "$MCP_CONFIG" ]; then
+	CLAUDE_CMD+=( --mcp-config "$MCP_CONFIG" )
+fi
+
+if [ -n "$MODEL" ]; then
+	CLAUDE_CMD+=( --model "$MODEL" )
+fi
+
+CLAUDE_CMD+=( "$PROMPT" )
+
+step "Running $WORKFLOW via Claude Code"
+printf 'Output: %s\n' "$OUTPUT_FILE"
+printf 'Command:'
+printf ' %q' "${CLAUDE_CMD[@]}"
+printf '\n'
+
+if [ "$DRY_RUN" -eq 1 ]; then
+	exit 0
+fi
+
+if ! "${CLAUDE_CMD[@]}" >"$OUTPUT_FILE" 2>"$STDERR_FILE"; then
+	if [ -s "$STDERR_FILE" ]; then
+		cat "$STDERR_FILE" >&2
+	fi
+	fail "Claude workflow run failed. See $OUTPUT_FILE and $STDERR_FILE."
+fi
+
+assert_contains() {
+	local needle="$1"
+	if ! grep -Fqi -- "$needle" "$OUTPUT_FILE"; then
+		fail "Expected output to contain: $needle"
+	fi
+}
+
+assert_not_matches() {
+	local pattern="$1"
+	local label="$2"
+	if grep -Eiq -- "$pattern" "$OUTPUT_FILE"; then
+		printf '\nMatched forbidden pattern (%s):\n' "$label" >&2
+		grep -Ein -- "$pattern" "$OUTPUT_FILE" >&2 || true
+		fail "Forbidden phrasing found: $label"
+	fi
+}
+
+assert_store_connected() {
+	if grep -Eiq -- "no WooCommerce store connected|can't run the triage|cannot run the triage|needs the store://profile resource|needs .*wc-analytics|no .*store MCP" "$OUTPUT_FILE"; then
+		fail "Claude ran the skill, but no WooCommerce for Claude MCP store is connected to this CLI session. Run 'claude mcp list' to confirm, add the store with the setup-page command, or pass --mcp-config."
+	fi
+
+	if grep -Eiq -- "need permission|please approve|approve the tool requests" "$OUTPUT_FILE"; then
+		fail "Claude stopped for interactive tool approval. Re-run with --permission-mode auto, or set CLAUDE_PERMISSION_MODE=auto."
+	fi
+}
+
+assert_priority_queue_order() {
+	awk '
+		/Priority Queue/ { in_queue = 1; next }
+		/Likely Checks/ { if (in_queue) exit }
+		in_queue { print }
+	' "$OUTPUT_FILE" > "$QUEUE_FILE"
+
+	if [ ! -s "$QUEUE_FILE" ]; then
+		fail "Could not extract the Priority Queue section."
+	fi
+
+	local line_3102 line_3101 line_3126 line_3138 line_failed
+	local token line
+	for token in "#3102" "#3101" "#3126" "#3138"; do
+		line="$(awk -v token="$token" 'index($0, token) { print NR; exit }' "$QUEUE_FILE")"
+		if [ -z "$line" ]; then
+			fail "Expected Priority Queue to include $token for the iris-demo profile."
+		fi
+		case "$token" in
+			"#3102") line_3102="$line" ;;
+			"#3101") line_3101="$line" ;;
+			"#3126") line_3126="$line" ;;
+			"#3138") line_3138="$line" ;;
+		esac
+	done
+
+	line_failed="$(awk 'index($0, "#") && tolower($0) ~ /failed/ { print NR; exit }' "$QUEUE_FILE")"
+	if [ -z "$line_failed" ]; then
+		fail "Expected Priority Queue to include one failed order after the on-hold queue. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_3102" -ge "$line_3101" ]; then
+		fail "Priority Queue should list #3102 before #3101. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_3101" -ge "$line_3126" ] || [ "$line_3101" -ge "$line_3138" ]; then
+		fail "Priority Queue should list the 14 Apr on-hold orders before the 15 Apr on-hold orders. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_failed" -le "$line_3126" ] || [ "$line_failed" -le "$line_3138" ]; then
+		fail "Priority Queue should list four oldest on-hold orders before the failed order. See $QUEUE_FILE."
+	fi
+}
+
+assert_failed_order_triage() {
+	assert_store_connected
+
+	assert_contains "Failed and On-Hold Order Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "On-Hold Pipeline"
+	assert_contains "Failed Orders"
+	assert_contains "Priority Queue"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches '10% of paid orders|14\.7%|failed[- ]order share|failed rate|smaller share of the order book|paid-order growth|paid orders.*(grew|increased|rose|shrank|declined|fell)|failed orders.*share of paid|on-hold orders.*share of paid' 'paid-order denominator arithmetic'
+	assert_not_matches 'these four orders account|22% of stuck|account for \$17,?200|top four.*account' 'priority-queue arithmetic'
+	assert_not_matches 'routine checkout attrition|normal checkout attrition|expected checkout attrition|background checkout noise|normal checkout noise' 'unsupported checkout-attrition label'
+	assert_not_matches 'fix payment-method labelling|ensure each order has a payment method recorded|label it correctly' 'premature payment-method labelling conclusion'
+	assert_not_matches 'past the point .*bank transfer|past the point .*BACS' 'assumed manual-payment clearing window'
+	assert_not_matches 'which is (the )?reassur|reassur(ing)? half' 'blank payment methods treated as reassuring'
+	assert_not_matches 'meaningfully larger|roughly flat|broadly flat|slightly larger|modestly larger|modest growth|modest uptick|small uptick|sharp (increase|growth|rise|jump)|surging' 'unsupported comparison magnitude label'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+		assert_priority_queue_order
+	fi
+}
+
+case "$WORKFLOW" in
+	failed-order-triage)
+		assert_failed_order_triage
+		;;
+esac
+
+step "Agent workflow smoke test passed"
+printf 'Transcript: %s\n' "$OUTPUT_FILE"
+
+if [ "$PRINT_OUTPUT" -eq 1 ]; then
+	printf '\n'
+	cat "$OUTPUT_FILE"
+fi
