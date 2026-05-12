@@ -27,7 +27,7 @@ For a typical WooCommerce store, the plugin's load is lighter than loading the W
 
 ### Claude Desktop — one click
 
-1. Install and activate WooCommerce for Claude. For local dev: `npx wp-env start`.
+1. Install and activate WooCommerce for Claude. For local dev: `pnpm exec wp-env start`.
 2. Open **WooCommerce → Settings → WooCommerce for Claude** in WP admin (or click **Set up Claude** in the post-activation notice).
 3. If WooCommerce MCP integration isn't on yet, click **Enable WooCommerce MCP integration**.
 4. Click **Download WooCommerce for Claude**, then double-click the downloaded `.mcpb` file. Claude Desktop registers WooCommerce for Claude automatically — no copy-paste, no JSON, no API key wrangling.
@@ -236,8 +236,11 @@ add_filter( 'woocommerce_claude_enriched_product', function( $data, $product ) {
 ## Local development
 
 ```bash
+# Install Node dependencies:
+pnpm install
+
 # Start the WordPress + WooCommerce environment:
-npx @wordpress/env start
+pnpm exec wp-env start
 
 # Test the plugin's REST endpoints (still available for direct access):
 curl -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/v1/store/profile
@@ -258,7 +261,7 @@ Run the full lint/test suite locally before pushing:
 ./bin/check
 ```
 
-Runs PHPCS (WordPress + Docs), composer audit, and a PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer deps; subsequent runs skip that.
+Runs PHPCS (WordPress + Docs), composer audit, and a PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
 
 `./bin/check` mirrors `.github/workflows/ci.yml` line-for-line, so the same checks run in CI on every push.
 
@@ -268,8 +271,8 @@ For testing analytics Skills, seed a full demo store with 2 years of realistic d
 
 ```bash
 # Copy the seed script into the container and run it (~10 minutes):
-npx @wordpress/env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
-npx @wordpress/env run cli -- wp eval-file /tmp/seed.php
+pnpm exec wp-env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
+pnpm exec wp-env run cli -- wp eval-file /tmp/seed.php
 ```
 
 This generates:
@@ -288,13 +291,13 @@ Includes realistic patterns: growth trends, seasonal spikes (Black Friday, Chris
 To reset and re-seed:
 
 ```bash
-npx @wordpress/env run cli -- wp db reset --yes
-npx @wordpress/env run cli -- wp core install --url=localhost:8888 --title="WooCommerce for Claude!" \
+pnpm exec wp-env run cli -- wp db reset --yes
+pnpm exec wp-env run cli -- wp core install --url=localhost:8888 --title="WooCommerce for Claude!" \
   --admin_user=admin --admin_password=password --admin_email=admin@example.com --skip-email
-npx @wordpress/env run cli -- wp plugin activate woocommerce.latest-stable plugin
-npx @wordpress/env run cli -- wp wc tool run install_pages --user=admin
-npx @wordpress/env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
-npx @wordpress/env run cli -- wp eval-file /tmp/seed.php
+pnpm exec wp-env run cli -- wp plugin activate woocommerce.latest-stable plugin
+pnpm exec wp-env run cli -- wp wc tool run install_pages --user=admin
+pnpm exec wp-env run cli -- bash -c "cat > /tmp/seed.php" < tools/seed-demo-store.php
+pnpm exec wp-env run cli -- wp eval-file /tmp/seed.php
 ```
 
 ---

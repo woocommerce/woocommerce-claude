@@ -29,9 +29,10 @@ composer.json
 composer.lock
 vendor
 
-# Node / npm build tooling
+# Node / pnpm build tooling
 package.json
 package-lock.json
+pnpm-lock.yaml
 node_modules
 
 # Linting / standards configs

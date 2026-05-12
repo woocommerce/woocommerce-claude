@@ -1,5 +1,8 @@
 node_modules/
 
+# pnpm is the project package manager; keep stray npm locks out of commits.
+package-lock.json
+
 # Build artifacts
 build/
 packages/*/build-module/
