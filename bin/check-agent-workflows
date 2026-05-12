@@ -17,7 +17,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-WORKFLOW="refund-triage"
+WORKFLOW="revenue-drop-triage"
 PROFILE="iris-demo"
 PROMPT=""
 PLUGIN_DIR="$REPO_ROOT/agent-plugin"
@@ -43,7 +43,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: refund-triage or failed-order-triage.
+  --workflow <name>       Workflow to run: revenue-drop-triage, refund-triage, or failed-order-triage.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -119,6 +119,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$WORKFLOW" in
+	revenue-drop-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:revenue-drop-triage"
+		fi
+		;;
 	refund-triage)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="Triage refunds from the last 6 months."
@@ -316,7 +321,35 @@ assert_refund_triage() {
 	fi
 }
 
+assert_revenue_drop_triage() {
+	assert_store_connected
+
+	assert_contains "Revenue Drop Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "Drop Drivers"
+	assert_contains "Product and Channel Signals"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'on-hold .*lost revenue|failed .*lost revenue|pending .*lost revenue|confirmed lost revenue' 'pipeline described as lost revenue'
+	assert_not_matches 'ROAS|conversion rate|sessions|impressions|click-through rate' 'unsupported marketing-performance metric'
+	assert_not_matches 'competitor|ad budget|because of seasonality|caused by seasonality|pricing change caused|stockout caused' 'invented external cause'
+	assert_not_matches 'churn' 'unsupported churn language'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 case "$WORKFLOW" in
+	revenue-drop-triage)
+		assert_revenue_drop_triage
+		;;
 	refund-triage)
 		assert_refund_triage
 		;;
