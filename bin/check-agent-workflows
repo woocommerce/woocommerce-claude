@@ -2,10 +2,9 @@
 #
 # Local smoke test for Claude Code agent-plugin workflows.
 #
-# This intentionally stays out of the default ./bin/check path because it
-# calls the live Claude model and the configured store MCP connection. Use it
-# for demo-store workflow regression testing after changing skills or prompt
-# wrappers.
+# This intentionally stays out of ./bin/check because it calls the live
+# Claude model and the configured store MCP connection. Use it for demo-store
+# workflow regression testing after changing skills or prompt wrappers.
 #
 # Usage:
 #   ./bin/check-agent-workflows
@@ -44,7 +43,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run. Currently: refund-triage.
+  --workflow <name>       Workflow to run: refund-triage or failed-order-triage.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -125,6 +124,11 @@ case "$WORKFLOW" in
 			PROMPT="Triage refunds from the last 6 months."
 		fi
 		;;
+	failed-order-triage)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:failed-order-triage"
+		fi
+		;;
 	*)
 		fail "Unsupported workflow: $WORKFLOW"
 		;;
@@ -148,6 +152,7 @@ RUN_ID="$(date '+%Y%m%d-%H%M%S')"
 RUN_DIR="$OUT_ROOT/$RUN_ID-$WORKFLOW-$PROFILE"
 OUTPUT_FILE="$RUN_DIR/output.txt"
 STDERR_FILE="$RUN_DIR/stderr.txt"
+QUEUE_FILE="$RUN_DIR/priority-queue.txt"
 mkdir -p "$RUN_DIR"
 
 step "Validating agent plugin"
@@ -217,6 +222,76 @@ assert_store_connected() {
 	fi
 }
 
+assert_priority_queue_order() {
+	awk '
+		/Priority Queue/ { in_queue = 1; next }
+		/Likely Checks/ { if (in_queue) exit }
+		in_queue { print }
+	' "$OUTPUT_FILE" > "$QUEUE_FILE"
+
+	if [ ! -s "$QUEUE_FILE" ]; then
+		fail "Could not extract the Priority Queue section."
+	fi
+
+	local line_3102 line_3101 line_3126 line_3138 line_failed
+	local token line
+	for token in "#3102" "#3101" "#3126" "#3138"; do
+		line="$(awk -v token="$token" 'index($0, token) { print NR; exit }' "$QUEUE_FILE")"
+		if [ -z "$line" ]; then
+			fail "Expected Priority Queue to include $token for the iris-demo profile."
+		fi
+		case "$token" in
+			"#3102") line_3102="$line" ;;
+			"#3101") line_3101="$line" ;;
+			"#3126") line_3126="$line" ;;
+			"#3138") line_3138="$line" ;;
+		esac
+	done
+
+	line_failed="$(awk 'index($0, "#") && tolower($0) ~ /failed/ { print NR; exit }' "$QUEUE_FILE")"
+	if [ -z "$line_failed" ]; then
+		fail "Expected Priority Queue to include one failed order after the on-hold queue. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_3102" -ge "$line_3101" ]; then
+		fail "Priority Queue should list #3102 before #3101. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_3101" -ge "$line_3126" ] || [ "$line_3101" -ge "$line_3138" ]; then
+		fail "Priority Queue should list the 14 Apr on-hold orders before the 15 Apr on-hold orders. See $QUEUE_FILE."
+	fi
+
+	if [ "$line_failed" -le "$line_3126" ] || [ "$line_failed" -le "$line_3138" ]; then
+		fail "Priority Queue should list four oldest on-hold orders before the failed order. See $QUEUE_FILE."
+	fi
+}
+
+assert_failed_order_triage() {
+	assert_store_connected
+
+	assert_contains "Failed and On-Hold Order Triage"
+	assert_contains "Snapshot"
+	assert_contains "Severity"
+	assert_contains "On-Hold Pipeline"
+	assert_contains "Failed Orders"
+	assert_contains "Priority Queue"
+	assert_contains "Likely Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches '10% of paid orders|14\.7%|failed[- ]order share|failed rate|smaller share of the order book|paid-order growth|paid orders.*(grew|increased|rose|shrank|declined|fell)|failed orders.*share of paid|on-hold orders.*share of paid' 'paid-order denominator arithmetic'
+	assert_not_matches 'these four orders account|22% of stuck|account for \$17,?200|top four.*account' 'priority-queue arithmetic'
+	assert_not_matches 'routine checkout attrition|normal checkout attrition|expected checkout attrition|background checkout noise|normal checkout noise' 'unsupported checkout-attrition label'
+	assert_not_matches 'fix payment-method labelling|ensure each order has a payment method recorded|label it correctly' 'premature payment-method labelling conclusion'
+	assert_not_matches 'past the point .*bank transfer|past the point .*BACS' 'assumed manual-payment clearing window'
+	assert_not_matches 'which is (the )?reassur|reassur(ing)? half' 'blank payment methods treated as reassuring'
+	assert_not_matches 'meaningfully larger|roughly flat|broadly flat|slightly larger|modestly larger|modest growth|modest uptick|small uptick|sharp (increase|growth|rise|jump)|surging' 'unsupported comparison magnitude label'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+		assert_priority_queue_order
+	fi
+}
+
 assert_refund_triage() {
 	assert_store_connected
 
@@ -230,11 +305,11 @@ assert_refund_triage() {
 
 	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug' 'internal tool or parameter language'
 	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
-	assert_not_matches 'per our guidance|per our thresholds|our own guidance|our thresholds|red[- ]flag zone per' 'threshold provenance leaked'
-	assert_not_matches 'Changed mind|Defective product|Wrong size|Not as described|Arrived damaged|Late delivery' 'invented or leaked refund reason labels'
+	assert_not_matches 'per our guidance|per our thresholds|our own guidance|our thresholds|red[- ]flag zone per' 'threshold provenance leak'
+	assert_not_matches 'Changed mind|Defective product|Wrong size|Not as described|Arrived damaged|Late delivery' 'invented or leaked refund reason'
 	assert_not_matches 'refunds? (are|were) chargebacks|chargebacks? (are|were) refunds' 'chargebacks conflated with refunds'
-	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'customer PII request or exposure'
-	assert_not_matches 'denominator' 'analytics denominator jargon'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'denominator' 'analytics jargon'
 
 	if [ "$PROFILE" = "iris-demo" ]; then
 		assert_contains "Iris"
@@ -244,6 +319,9 @@ assert_refund_triage() {
 case "$WORKFLOW" in
 	refund-triage)
 		assert_refund_triage
+		;;
+	failed-order-triage)
+		assert_failed_order_triage
 		;;
 esac
 

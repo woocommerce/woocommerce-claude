@@ -1,7 +1,7 @@
 {
   "name": "woocommerce-claude",
   "version": "0.2.2",
-  "description": "WooCommerce for Claude agent skills for store analytics, refund triage, catalog readiness, and MCP setup workflows",
+  "description": "WooCommerce for Claude agent skills for store analytics, order and refund triage, catalog readiness, and MCP setup workflows",
   "author": {
     "name": "WooCommerce"
   },
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "WooCommerce for Claude",
     "shortDescription": "Run WooCommerce store analytics workflows with Claude-ready MCP tools.",
-    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, refund triage, catalog audits, product content improvements, and store health checks.",
+    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, failed-order triage, refund triage, catalog audits, product content improvements, and store health checks.",
     "developerName": "WooCommerce",
     "category": "Productivity",
     "capabilities": [
@@ -28,6 +28,7 @@
     "websiteURL": "https://github.com/woocommerce/woocommerce-claude",
     "defaultPrompt": [
       "Give me my weekly store review.",
+      "Triage my failed and on-hold orders.",
       "Triage refunds from the last 30 days.",
       "Run a catalog audit.",
       "Improve this product listing."

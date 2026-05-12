@@ -79,7 +79,7 @@ pnpm exec wp-env run tests-cli \
 step "DCC (local-vs-db analytics drift, via wp wca-data-consistency run)"
 "$REPO_ROOT/bin/check-dcc"
 
-# 7. Optional live agent workflow smoke test. This is gated because it calls
+# 6. Optional live agent workflow smoke test. This is gated because it calls
 #    the live Claude model and the configured WooCommerce for Claude MCP
 #    server, so it can spend tokens and depends on local MCP credentials.
 if [ "${RUN_AGENT_WORKFLOW_SMOKE:-0}" = "1" ]; then

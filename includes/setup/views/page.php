@@ -399,7 +399,7 @@ $can_use_step2_actions = $has_key;
 		/*
 		 * "Try it out" card — only relevant once the connection is live
 		 * ($has_key, captured by $can_use_step2_actions).
-		 * Four starter questions the merchant can paste straight into
+		 * Five starter questions the merchant can paste straight into
 		 * Claude, plus a link to a longer set of guide questions in the
 		 * repo. Intentionally avoids referencing MCP slash commands —
 		 * the picker UX varies across clients and a "paste this question"
@@ -408,6 +408,7 @@ $can_use_step2_actions = $has_key;
 		if ( $can_use_step2_actions ) :
 			$starter_prompts = array(
 				__( 'Give me my weekly store review.', 'woocommerce-claude' ),
+				__( 'Triage my failed and on-hold orders.', 'woocommerce-claude' ),
 				__( 'Triage refunds from the last 30 days.', 'woocommerce-claude' ),
 				__( 'Revenue is down vs. last period — find the cause.', 'woocommerce-claude' ),
 				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'woocommerce-claude' ),
@@ -417,7 +418,7 @@ $can_use_step2_actions = $has_key;
 			<section class="woocommerce-claude-setup__card">
 				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Try it out', 'woocommerce-claude' ); ?></h2>
 				<p class="woocommerce-claude-setup__card-lede">
-					<?php esc_html_e( 'Four starter questions you can ask Claude about your store. Open Claude, paste one in, and WooCommerce for Claude will pull the data and write the answer.', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Five starter questions you can ask Claude about your store. Open Claude, paste one in, and WooCommerce for Claude will pull the data and write the answer.', 'woocommerce-claude' ); ?>
 				</p>
 
 				<ul class="woocommerce-claude-setup__prompts">

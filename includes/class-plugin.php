@@ -115,6 +115,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-weekly-store-review-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-failed-order-triage-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-refund-triage-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
@@ -447,6 +448,7 @@ class Plugin {
 					Abilities\CatalogAuditAbility::ABILITY_NAME,
 					Abilities\ProductImproveAbility::ABILITY_NAME,
 					Abilities\WeeklyStoreReviewAbility::ABILITY_NAME,
+					Abilities\FailedOrderTriageAbility::ABILITY_NAME,
 					Abilities\RefundTriageAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
@@ -528,6 +530,10 @@ The four verb tools differ by SHAPE, not by topic. Pick the tool by the shape of
 ## Weekly store review intent
 
 For "weekly store review", "how did my store do this week?", or similar broad weekly-performance requests, use this exact minimum data plan with `period=last_7_days` and `compare=true` unless the merchant gave explicit dates: call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` for revenue, orders, customers, and refunds (do not skip refunds), `wc-analytics-breakdown` for products by product, and `wc-analytics-breakdown` for attribution by channel. Use the tools quietly — do not tell the merchant you are loading schemas, selecting tools, or making parallel calls. Final answer sections: Headline, What changed, Products, Channels, Watch List, Next Actions. Failed and on-hold order value is checkout risk or payment pipeline, not confirmed lost revenue.
+
+## Failed and on-hold order triage intent
+
+For "triage failed orders", "what orders are stuck?", "which unpaid orders should I chase?", "payment pipeline", "checkout failures", or similar payment-risk requests, start with `wc-analytics-totals` subject=orders and read `status_breakdown` plus the `pipeline` diagnostic. Use `wc-analytics-rows` entity=orders with explicit status filters for on-hold and failed orders; rows mode is appropriate when producing an actionable queue, but keep customer details pseudonymised. On-hold is payment pipeline, failed is checkout risk, and neither is confirmed lost revenue. If on-hold value is material or a card gateway appears in the pipeline payment-method diagnostic, use attribution breakdown by channel to see whether one channel over-indexes on pipeline.
 
 ## Refund triage intent
 

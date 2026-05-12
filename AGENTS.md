@@ -45,6 +45,7 @@ woocommerce-claude/
 ├── skills/                   # Reference Claude Code / Codex workflow skills
 │   ├── README.md             # Skills index and tools-vs-skills guidance
 │   ├── weekly-store-review
+│   ├── failed-order-triage
 │   ├── refund-triage
 │   ├── catalog-audit
 │   ├── product-content-generator
