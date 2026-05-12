@@ -14,7 +14,7 @@ If the user does not specify a date range, use `period: last_7_days` and `compar
 ## Workflow
 
 1. Read `store://profile` once to get the store name, currency, locale, payment methods, and shipping context.
-2. Fetch headline totals with `compare: true`:
+2. Fetch all four headline totals with `compare: true`; do not omit refunds even when the user's wording is broad:
    - `wc-analytics-totals` with `subject: revenue`
    - `wc-analytics-totals` with `subject: orders`
    - `wc-analytics-totals` with `subject: customers`
@@ -26,6 +26,12 @@ If the user does not specify a date range, use `period: last_7_days` and `compar
 5. Use `wc-analytics-rows` only when the merchant asks for specific orders, products, or customers. The weekly review should usually stay aggregate-first.
 6. Follow the MCP server's extended-range approval flow if a requested range is over 365 days. Never split the range to bypass the gate.
 
+## Conversation discipline
+
+- Do not tell the merchant you are loading schemas, selecting tools, making parallel calls, or pulling data through a named connector. Use the tools quietly.
+- If you need a progress sentence before the final answer, say only a plain merchant-facing line such as "I'll check the last week and compare it with the previous week."
+- In the final answer, use the section headings below. Do not replace `Next Actions` with an open-ended "want me to dig into..." question.
+
 ## Interpretation rules
 
 - Only report numbers returned by the tools. Do not invent targets, forecasts, margins, conversion rates, sessions, ad spend, ROAS, or customer identities.
@@ -36,6 +42,8 @@ If the user does not specify a date range, use `period: last_7_days` and `compar
 - Distinguish revenue frames. Do not add collected, pending, and dashboard-matching revenue figures together; they overlap.
 - Attribution is revenue source context, not ROAS. If the merchant asks about return on ad spend, say ad cost is needed from a Google Ads, Meta Ads, or similar connector.
 - Refunds are a diagnostic, not a verdict. Call out products or countries worth checking, but avoid implying cause unless the data actually contains it.
+- Failed or on-hold order value is pipeline or checkout risk, not confirmed lost revenue. Do not describe it as lost unless the returned data says those orders are unrecoverable.
+- If you add optional extra cuts, only use them to support a claim you will actually make. Do not let optional detail crowd out refunds, the watch list, or next actions.
 
 ## Output
 
@@ -67,11 +75,11 @@ Summarise the leading channels and any notable mix shift. If unassigned/direct t
 
 #### 5. Watch List
 
-List up to three issues worth checking: refund spikes, weak product performance, unusual on-hold pipeline, small-sample anomalies, or channel mix changes.
+List up to three issues worth checking: refund spikes or low refund risk, weak product performance, unusual on-hold pipeline, small-sample anomalies, or channel mix changes.
 
 #### 6. Next Actions
 
-Give three merchant-actionable steps. Each action should be doable in WooCommerce admin, marketing tools, fulfilment/support workflows, or a connected analytics/ad platform. Do not suggest building a new skill, endpoint, or plugin feature.
+Give three merchant-actionable steps. Each action should be doable in WooCommerce admin, marketing tools, fulfilment/support workflows, or a connected analytics/ad platform. Do not suggest building a new skill, endpoint, or plugin feature. A follow-up question is optional after the three actions, but it must not replace them.
 
 ## Tone
 
