@@ -1,0 +1,29 @@
+{
+  "name": "woocommerce-claude-ai-toolkit",
+  "owner": {
+    "name": "WooCommerce"
+  },
+  "metadata": {
+    "description": "WooCommerce for Claude agent skills for store analytics, catalog readiness, and MCP setup workflows"
+  },
+  "plugins": [
+    {
+      "name": "woocommerce-claude",
+      "source": "./",
+      "description": "Run WooCommerce store analytics, catalog readiness, and product content workflows with WooCommerce for Claude MCP tools",
+      "version": "0.2.0",
+      "author": {
+        "name": "WooCommerce"
+      },
+      "license": "GPL-3.0-or-later",
+      "homepage": "https://github.com/woocommerce/woocommerce-claude",
+      "keywords": [
+        "woocommerce",
+        "mcp",
+        "analytics",
+        "commerce",
+        "skills"
+      ]
+    }
+  ]
+}

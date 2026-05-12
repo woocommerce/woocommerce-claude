@@ -10,6 +10,7 @@ This repository now includes the first-stage agent plugin manifests:
 - `plugin.json`
 - `.codex-plugin/plugin.json`
 - `.claude-plugin/plugin.json`
+- `.claude-plugin/marketplace.json`
 - `.cursor-plugin/plugin.json`
 - `skills/`
 
@@ -25,3 +26,35 @@ Installing the agent plugin may make client-level plugin commands available, suc
 2. Install this repository as an agent plugin or skills pack in the same client.
 3. Ask: "Give me my weekly store review."
 4. Confirm the `weekly-store-review` skill triggers and the answer includes revenue, orders, customers, refunds, products, channels, watch list, and next actions.
+
+## Claude Code marketplace test
+
+From Claude Code chat, add this branch as a marketplace:
+
+```text
+/plugin marketplace add woocommerce/woocommerce-claude@codex-weekly-store-review-skill
+```
+
+Then install the plugin:
+
+```text
+/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit
+```
+
+Restart Claude Code, or run:
+
+```text
+/reload-plugins
+```
+
+Then try:
+
+```text
+/woocommerce-claude:weekly-store-review
+```
+
+or:
+
+```text
+Give me my weekly store review.
+```
