@@ -407,7 +407,7 @@ $can_use_step2_actions = $has_key;
 		 */
 		if ( $can_use_step2_actions ) :
 			$starter_prompts = array(
-				__( 'Walk me through my store — what it sells, who buys, and what to look at this week.', 'woocommerce-claude' ),
+				__( 'Give me my weekly store review.', 'woocommerce-claude' ),
 				__( 'Revenue is down vs. last period — find the cause.', 'woocommerce-claude' ),
 				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'woocommerce-claude' ),
 			);

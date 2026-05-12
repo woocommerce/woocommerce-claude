@@ -114,6 +114,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-store-policies-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-catalog-audit-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-product-improve-ability.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-weekly-store-review-ability.php';
 
 		// Connect-to-Claude setup page. McpbBundle is loaded lazily inside
 		// the download handler since it's only used on that one path.
@@ -444,6 +445,7 @@ class Plugin {
 				array(
 					Abilities\CatalogAuditAbility::ABILITY_NAME,
 					Abilities\ProductImproveAbility::ABILITY_NAME,
+					Abilities\WeeklyStoreReviewAbility::ABILITY_NAME,
 				),
 				array( $this, 'authenticate_mcp_request' )
 			);
@@ -520,6 +522,10 @@ The four verb tools differ by SHAPE, not by topic. Pick the tool by the shape of
 `wc-analytics-series` — trend questions, "how is X changing over time". `subject` ∈ {customers, products}; `interval` ∈ {day, week, month, auto}. Each row in the series carries the same per-subject metrics for that bucket.
 
 `wc-analytics-rows` — "show me the actual records" questions. Flexible filter engine across three entities. `entity` ∈ {orders, products, customers}; `mode` ∈ {aggregate, rows}; `filters` is an array of `{field, operator, value}`. Reach for this BEFORE concluding an aggregated tool "can't show specifics" — it almost always can.
+
+## Weekly store review intent
+
+For "weekly store review", "how did my store do this week?", or similar broad weekly-performance requests, use this exact minimum data plan with `period=last_7_days` and `compare=true` unless the merchant gave explicit dates: call `woocommerce-claude-get-store-profile` once, `wc-analytics-totals` for revenue, orders, customers, and refunds (do not skip refunds), `wc-analytics-breakdown` for products by product, and `wc-analytics-breakdown` for attribution by channel. Use the tools quietly — do not tell the merchant you are loading schemas, selecting tools, or making parallel calls. Final answer sections: Headline, What changed, Products, Channels, Watch List, Next Actions. Failed and on-hold order value is checkout risk or payment pipeline, not confirmed lost revenue.
 
 ## Common routing mistakes — do not make these
 
