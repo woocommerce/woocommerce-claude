@@ -110,6 +110,7 @@ Rules:
 - On-hold and failed orders are pipeline or checkout risk. They can explain why revenue has not landed yet, but they are not confirmed lost revenue.
 - Product findings are sales signals, not causal proof. A top product dropping out, low stock status, or concentration shift tells the merchant where to inspect pricing, stock, merchandising, product content, fulfilment, or promotion timing.
 - Customer mix shifts need plain language: fewer new customers suggests acquisition softness; fewer returning customers suggests retention or repeat-purchase softness; lower AOV suggests basket-size, discounting, or mix checks. Phrase as checks, not conclusions.
+- Do not describe customer movement as churn, churn risk, or no churn. This workflow has repeat-rate and customer-mix actuals, not churn prediction.
 - Small samples need small-sample language. If a driver rests on 5 or fewer orders/refunds/customers, state the count before interpreting the percentage.
 - Do not invent competitor effects, seasonality, ad budget changes, stockouts, pricing changes, email-send gaps, search ranking changes, or fulfilment problems unless the merchant supplies them or the returned data contains the signal.
 - Do not mention tool names, ability names, parameter names, database tables, internal field paths, or status slugs in the final answer.

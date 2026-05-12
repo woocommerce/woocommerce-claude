@@ -338,6 +338,7 @@ assert_revenue_drop_triage() {
 	assert_not_matches 'on-hold .*lost revenue|failed .*lost revenue|pending .*lost revenue|confirmed lost revenue' 'pipeline described as lost revenue'
 	assert_not_matches 'ROAS|conversion rate|sessions|impressions|click-through rate' 'unsupported marketing-performance metric'
 	assert_not_matches 'competitor|ad budget|because of seasonality|caused by seasonality|pricing change caused|stockout caused' 'invented external cause'
+	assert_not_matches 'churn' 'unsupported churn language'
 	assert_not_matches 'denominator' 'analytics jargon'
 
 	if [ "$PROFILE" = "iris-demo" ]; then
