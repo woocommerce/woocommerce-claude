@@ -100,6 +100,12 @@ class DifmAdminPage {
 				__( 'AI Insights', 'woocommerce-claude' ),
 				'/'
 			);
+
+			wcai_register_woocommerce_claude_insights_menu_item(
+				'idea-board',
+				__( 'Idea board', 'woocommerce-claude' ),
+				'/idea-board'
+			);
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.

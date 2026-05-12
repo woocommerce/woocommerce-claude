@@ -132,6 +132,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-idea-board-rest-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
 	}
 
@@ -164,6 +165,7 @@ class Plugin {
 		( new Difm\DifmAdminPage() )->register();
 		( new Difm\DifmRestController() )->register();
 		( new Difm\DifmConversationsController() )->register();
+		( new Difm\IdeaBoardRestController() )->register();
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.
