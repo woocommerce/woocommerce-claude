@@ -436,7 +436,7 @@ assert_inventory_risk_review() {
 	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
 	assert_not_matches 'days? (of )?(cover|stock)|weeks? of stock|months? of stock|stock cover|coverage in days|run out in|sell out in|will run out|will sell out|likely to run out|expected to sell out|units per day|per[- ]day run rate' 'unsupported stock-cover or runout arithmetic'
 	assert_not_matches 'forecast demand|demand forecast|predicted demand|demand prediction|sell[- ]through|reorder point|safety stock|economic order quantity|EOQ' 'unsupported inventory forecasting'
-	assert_not_matches 'supplier lead|lead time|warehouse capacity|fulfilment capacity|COGS|cost of goods|profit margin|gross margin|carrying cost|holding cost|purchase order (is|has|will|due|arrives)|PO (is|has|will|due|arrives)' 'unsupported supplier, margin, or fulfilment claims'
+	assert_not_matches 'supplier lead|lead time|warehouse capacity|fulfilment capacity|COGS|cost of goods|profit margin|gross margin|carrying cost|holding cost|purchase order|refresh PO|place .*PO|PO (is|has|will|due|arrives)|reorder timing' 'unsupported supplier, margin, or fulfilment claims'
 	assert_not_matches 'stockout caused|stock[- ]out caused|caused by (a )?stockout|revenue at risk|lost sales|missed sales' 'unsupported stockout causation or lost-sales claim'
 	assert_not_matches 'went out of stock|was out of stock (on|during|for)|restocked (on|in)|stock (history|changed|movement over time)' 'unsupported stock history claim'
 	assert_not_matches 'is being advertised|still advertised|paid campaign|ad campaign|email campaign.*(promot|push)|homepage.*(promot|feature)|social.*(promot|push)' 'unsupported promotion-channel claim'
