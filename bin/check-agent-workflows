@@ -13,6 +13,7 @@
 #   ./bin/check-agent-workflows --workflow tax-reconciliation-smoke --profile generic
 #   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
+#   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
 #
 
 set -euo pipefail
@@ -46,7 +47,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -137,6 +138,11 @@ case "$WORKFLOW" in
 	inventory-risk-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:inventory-risk-review"
+		fi
+		;;
+	product-performance-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:product-performance-review"
 		fi
 		;;
 	revenue-drop-triage)
@@ -449,6 +455,32 @@ assert_inventory_risk_review() {
 	fi
 }
 
+assert_product_performance_review() {
+	assert_store_connected
+
+	assert_contains "Product Performance Review"
+	assert_contains "Snapshot"
+	assert_contains "Top Products"
+	assert_contains "Product Mix Changes"
+	assert_contains "Category and SKU Coverage"
+	assert_contains "Refund Signals"
+	assert_contains "Products to Review"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|net_revenue|orders_count|stock_status|units_sold_in_period|revenue_in_period|refund_rate_percent' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'product views|page views|sessions|add[- ]to[- ]cart|cart adds|conversion rate|profit margin|gross margin|COGS|cost of goods|ROAS|ad spend|impressions|click-through rate' 'unsupported product, margin, or marketing metric'
+	assert_not_matches 'forecast demand|demand forecast|predicted demand|demand prediction|demand (is|has|was|up|down|rose|grew|increased|declined)|seasonality|competitor' 'unsupported forecast or external cause'
+	assert_not_matches 'stockout caused|stock[- ]out caused|caused by (a )?stockout|stockout risk|lost sales|missed sales|missed revenue|revenue at risk|current stock.*caused|out of stock.*caused' 'unsupported stock causation or lost-sales claim'
+	assert_not_matches 'widen .*assortment|expand .*assortment|assortment expansion|adding new SKUs|add new SKUs|new SKUs|develop new products|product-development opportunity|launch new products' 'unsupported assortment or product-development claim'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_tax_reconciliation_smoke() {
 	assert_store_connected
 
@@ -487,6 +519,9 @@ case "$WORKFLOW" in
 		;;
 	inventory-risk-review)
 		assert_inventory_risk_review
+		;;
+	product-performance-review)
+		assert_product_performance_review
 		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage
