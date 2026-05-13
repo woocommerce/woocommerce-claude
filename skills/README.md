@@ -20,6 +20,20 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | `store-health-monitor` | Operational catalogue checks for missing images, weak descriptions, stock gaps, and policy issues. |
 | `product-content-generator` | Better descriptions, FAQs, attributes, SEO metadata, and alt text for a product. |
 
+## Candidate workflow skills
+
+These are candidates for future agent-side workflow skills. Treat this as a working backlog, not a merchant-facing roadmap. Each candidate should still pass the "existing tools first" test before implementation; add a new MCP ability or analytics subject only when the current tools cannot return the data safely.
+
+| Candidate | Use it for | Likely existing tools |
+| --- | --- | --- |
+| `product-performance-review` | A product-level trading review covering top sellers, product mix shifts, dropped-out products, category/SKU coverage, refunds, and merchandising actions. | `wc-analytics-breakdown` products/refunds, `wc-analytics-series` products, `wc-analytics-rows` products |
+| `channel-performance-review` | A channel/source review covering revenue, customers, pipeline skew, attribution coverage, and tracking checks without ROAS or ad-spend claims. | `wc-analytics-breakdown` attribution, `wc-analytics-totals` revenue/customers/orders |
+| `shipping-method-review` | A shipping-method review covering collected revenue, pipeline, refunds, unassigned coverage, and practical shipping-setting checks. | `wc-analytics-breakdown` revenue by shipping method, `wc-analytics-totals` orders/refunds |
+| `geography-performance-review` | A country-level review covering revenue concentration, refunds, customer mix, tax-threshold context, and operational checks. | `wc-analytics-breakdown` revenue/refunds by country, `wc-analytics-totals` revenue/customers/tax |
+| `payment-method-review` | A payment-method review covering paid revenue, on-hold pipeline, failed orders, payment-method concentration, and gateway checks. | `wc-analytics-breakdown` revenue by payment method, `wc-analytics-totals` orders/revenue |
+| `customer-acquisition-review` | A current-period acquisition review covering new versus returning customers, acquisition channels, customer quality signals, and next actions without forecasting LTV. | `wc-analytics-totals` customers/customer_value, `wc-analytics-breakdown` attribution |
+| `catalogue-merchandising-review` | A merchandising review covering top products, slow movers, sale pricing, current stock state, categories, and product-page actions. | `wc-analytics-breakdown` products, `wc-analytics-rows` products, product details |
+
 ## Adding skills
 
 Prefer a new skill when the work is an opinionated workflow over existing data, such as "review this week", "triage refunds", or "prepare a catalogue cleanup plan".
