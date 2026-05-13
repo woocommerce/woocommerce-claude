@@ -15,6 +15,7 @@
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
 #   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow channel-performance-review --profile generic
+#   ./bin/check-agent-workflows --workflow geography-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow shipping-method-review --profile generic
 #   ./bin/check-agent-workflows --workflow payment-method-review --profile generic
 #
@@ -50,7 +51,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, geography-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -151,6 +152,11 @@ case "$WORKFLOW" in
 	channel-performance-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:channel-performance-review"
+		fi
+		;;
+	geography-performance-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:geography-performance-review"
 		fi
 		;;
 	shipping-method-review)
@@ -527,6 +533,35 @@ assert_channel_performance_review() {
 	fi
 }
 
+assert_geography_performance_review() {
+	assert_store_connected
+
+	assert_contains "Geography Performance Review"
+	assert_contains "Snapshot"
+	assert_contains "Country Revenue and Orders"
+	assert_contains "Movement and Concentration"
+	assert_contains "Customer Mix"
+	assert_contains "Refund Signals"
+	assert_contains "Coverage and Tax Context"
+	assert_contains "Operational Next Actions"
+	assert_contains "Billing country"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|storage slug|net_revenue|orders_count|share_of_revenue_percent|refund_rate_percent|billing_country|lifetime_spend' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin|tracking feature|custom report)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number|street address|postcode' 'PII or regional detail'
+	assert_not_matches 'shipping country|shipping destination|delivery country|delivery destination|fulfilment region|fulfillment region|state-level|city-level|postcode-level|postal-code|postal code' 'unsupported geography granularity'
+	assert_not_matches 'sessions|visitors|page views|impressions|clicks|click-through|conversion rate|checkout conversion|ROAS|ad spend|cost per acquisition|campaign efficiency|organic search demand|seasonality|competitor|customer motivation|customer dissatisfaction|country fit|market fit' 'unsupported marketing, demand, or motive claim'
+	assert_not_matches 'country .*caused|caused by .*country|country-specific cause|confirm cause|refund cause|refund reason|reason categories|wrong item|payment confusion|buyer intent|prevent(s|ing)? a pattern|shipping caused|product quality issue|delivery failure|fraud|payment dispute' 'unsupported geography causation'
+	assert_not_matches 'must register|required to register|registration obligation|tax liability|legally required|non-compliant|compliance breach|you owe|what you owe|file .*return|VAT return|GST return|sales tax return|threshold crossed|above .*threshold|below .*threshold|annualised|annualized|nexus .*met|nexus .*triggered' 'tax or legal advice overreach'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue|lost sales|lost orders|paid revenue (is|was|is still|was still)? ?(on-hold|pending|awaiting payment)|pending paid revenue|on-hold paid revenue' 'pipeline described as lost or paid revenue'
+	assert_not_matches 'unassigned .*country is|unassigned .*country means|guess .*country|infer .*country|missing country is definitely|bad billing-country data|broken billing-country data' 'premature country-coverage conclusion'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_payment_method_review() {
 	assert_store_connected
 
@@ -630,6 +665,9 @@ case "$WORKFLOW" in
 		;;
 	channel-performance-review)
 		assert_channel_performance_review
+		;;
+	geography-performance-review)
+		assert_geography_performance_review
 		;;
 	shipping-method-review)
 		assert_shipping_method_review

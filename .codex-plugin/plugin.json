@@ -1,7 +1,7 @@
 {
   "name": "woocommerce-claude",
-  "version": "0.2.10",
-  "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, shipping-method, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows",
+  "version": "0.2.11",
+  "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, geography, shipping-method, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows",
   "author": {
     "name": "WooCommerce"
   },
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "WooCommerce for Claude",
     "shortDescription": "Run WooCommerce store analytics workflows with Claude-ready MCP tools.",
-    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, revenue-drop triage, coupon-performance triage, customer value reviews, inventory risk reviews, product performance reviews, channel performance reviews, shipping-method reviews, payment-method reviews, failed-order triage, refund triage, tax reconciliation, catalogue audits, product content improvements, and store health checks.",
+    "longDescription": "Agent skills for WooCommerce for Claude. Use them with a store that has the WooCommerce for Claude WordPress plugin connected over MCP to run weekly reviews, revenue-drop triage, coupon-performance triage, customer value reviews, inventory risk reviews, product performance reviews, channel performance reviews, geography reviews, shipping-method reviews, payment-method reviews, failed-order triage, refund triage, tax reconciliation, catalogue audits, product content improvements, and store health checks.",
     "developerName": "WooCommerce",
     "category": "Productivity",
     "capabilities": [
@@ -34,6 +34,7 @@
       "Review my inventory risk from the last 30 days.",
       "Review product performance from the last 30 days.",
       "Review channel performance from the last 30 days.",
+      "Review geography performance from the last 30 days.",
       "Review shipping methods from the last 30 days.",
       "Review payment methods from the last 30 days.",
       "Triage my failed and on-hold orders.",

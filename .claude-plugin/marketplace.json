@@ -4,13 +4,13 @@
     "name": "WooCommerce"
   },
   "metadata": {
-    "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, shipping-method, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows"
+    "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, geography, shipping-method, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows"
   },
   "plugins": [
     {
       "name": "woocommerce-claude",
       "source": "./agent-plugin",
-      "description": "Run WooCommerce store analytics, customer value, inventory risk, product, channel, shipping-method, and payment-method performance, tax reconciliation, revenue/coupon/order/refund triage, catalogue readiness, and product content workflows with WooCommerce for Claude MCP tools",
+      "description": "Run WooCommerce store analytics, customer value, inventory risk, product, channel, geography, shipping-method, and payment-method performance, tax reconciliation, revenue/coupon/order/refund triage, catalogue readiness, and product content workflows with WooCommerce for Claude MCP tools",
       "author": {
         "name": "WooCommerce"
       },
