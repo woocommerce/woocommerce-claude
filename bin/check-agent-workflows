@@ -15,6 +15,7 @@
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
 #   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow channel-performance-review --profile generic
+#   ./bin/check-agent-workflows --workflow payment-method-review --profile generic
 #
 
 set -euo pipefail
@@ -48,7 +49,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -149,6 +150,11 @@ case "$WORKFLOW" in
 	channel-performance-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:channel-performance-review"
+		fi
+		;;
+	payment-method-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:payment-method-review"
 		fi
 		;;
 	revenue-drop-triage)
@@ -515,6 +521,36 @@ assert_channel_performance_review() {
 	fi
 }
 
+assert_payment_method_review() {
+	assert_store_connected
+
+	assert_contains "Payment Method Review"
+	assert_contains "Snapshot"
+	assert_contains "Paid Payment Mix"
+	assert_contains "Concentration and Movement"
+	assert_contains "On-Hold Pipeline"
+	assert_contains "Failed Orders"
+	assert_contains "Payment Label Coverage"
+	assert_contains "Gateway and Admin Checks"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|payment_method|net_revenue|orders_count|pipeline_revenue|status_breakdown|share_of_revenue_percent|pipeline_over_index_points' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin|tracking feature|custom report)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'chargeback|dispute|fraud|fraudulent|declined-card|declined card|gateway decline|payment decline|authorisation|authorization|(^|[^[:alnum:]_])(SCA|3DS)([^[:alnum:]_]|$)|processor outage|gateway outage|webhook failure|processor fault|gateway fault|gateway is down|method is broken|method caused|gateway caused|payment method caused' 'unsupported processor, dispute, or causation claim'
+	assert_not_matches 'conversion rate|checkout conversion|checkout problem|checkout drop[- ]off|sessions|visitors|users|page views|add[- ]to[- ]cart|abandoned carts?|cart abandonment|customer abandonment|visitor behaviour|visitor behavior|customer intent|customer motivation|customer preference|shopper preference|shopper intent|shopper motivation|shopper behaviour|shopper behavior|buyer preference|buyer intent|buyer behaviour|buyer behavior' 'unsupported checkout or customer-behaviour metric'
+	assert_not_matches 'failed[- ]order rate|failed rate|failure rate|share of paid orders|as a share of paid|failed orders?[^.]*paid orders|failed orders?[^.]*paid volume|failed orders?[^.]*order volume|failed orders?[^.]*tracks?|because paid volume|because paid orders|tracks? .*order volume|higher overall order volume' 'failed-order denominator arithmetic'
+	assert_not_matches 'modest uptick|slight uptick|meaningful uptick|sharp uptick|surging|spike|spiked|roughly flat|broadly flat' 'unsupported failed-order magnitude label'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|failed .*lost revenue|confirmed lost revenue|lost sales|lost orders' 'pipeline or failed orders described as lost'
+	assert_not_matches 'paid revenue (is|was|is still|was still)? ?(on-hold|pending|awaiting payment)|pending paid revenue|on-hold paid revenue' 'pipeline conflated with paid revenue'
+	assert_not_matches 'fix payment-method labelling|fix payment method labelling|ensure each order has a payment method recorded|label it correctly|labels? are incorrectly configured|no payment methods are configured|no configured payment methods|store profile .*payment methods|profile .*payment methods|reassur(ing|e|ed|ance)?' 'premature payment-label conclusion'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_tax_reconciliation_smoke() {
 	assert_store_connected
 
@@ -559,6 +595,9 @@ case "$WORKFLOW" in
 		;;
 	channel-performance-review)
 		assert_channel_performance_review
+		;;
+	payment-method-review)
+		assert_payment_method_review
 		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage
