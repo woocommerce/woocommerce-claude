@@ -576,8 +576,9 @@ assert_shipping_method_review() {
 	assert_not_matches 'delivery time|delivery-time|delivery speed|delivery delay|delayed delivery|late delivery|on[- ]time|SLA|carrier performance|carrier failure|carrier caused|shipping method caused|method caused|caused by shipping|caused by the shipping method|damage in transit|damaged in transit' 'unsupported delivery or carrier claim'
 	assert_not_matches 'fulfilment capacity|fulfillment capacity|warehouse capacity|staffing|carrier capacity|COGS|cost of goods|profit margin|gross margin|margin|ROAS|ad spend|conversion rate|checkout conversion|checkout drop[- ]off|sessions|visitors|page views|chargeback|chargebacks|fraud|customer motivation|customer dissatisfaction' 'unsupported margin, marketing, conversion, or motive claim'
 	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue|lost sales|lost orders|fulfilment backlog|fulfillment backlog|shipping backlog|delivery backlog' 'pipeline described as lost revenue or shipping backlog'
-	assert_not_matches 'shipping charges? by method|split shipping charges? by method|collected shipping by method|shipping charged by method|method-level shipping charge' 'unsupported method-level shipping-charge split'
-	assert_not_matches 'fix unassigned shipping|missing shipping data|bad shipping data|broken shipping data|unassigned .*error|unassigned .*problem' 'premature unassigned-shipping conclusion'
+	assert_not_matches 'shipping charges? by method (were|was|are|is|:)|split shipping charges? by method (were|was|are|is|:)|collected shipping by method|shipping charged by method|method-level shipping charge (were|was|are|is|of|for|:)' 'unsupported method-level shipping-charge split'
+	assert_not_matches 'specific orders behind|orders behind .*shipping method|order list .*shipping method|filter .*shipping method' 'unsupported shipping-method order-list promise'
+	assert_not_matches 'fix unassigned shipping|missing shipping data|bad shipping data|broken shipping data|(unassigned shipping|unassigned row|unassigned coverage|unassigned methods?) (is|are|means|shows|proves|indicates|signals)[^.!?]*(error|problem)' 'premature unassigned-shipping conclusion'
 	assert_not_matches 'denominator' 'analytics jargon'
 
 	if [ "$PROFILE" = "iris-demo" ]; then
