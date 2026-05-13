@@ -9,6 +9,7 @@
  * `ChatView` to fully re-mount rather than try to reconcile state in-place.
  */
 import './style.scss';
+import { Button } from '@wordpress/components';
 import { useCallback, useEffect, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { useSearch } from '@wordpress/route';
@@ -147,13 +148,16 @@ function ChatView( { urlConversationId, conversations, onSaveConversation }: Cha
 				{ state.status === 'error' && (
 					<div className="hey-woo-error-bar" role="alert">
 						<span>{ state.errorMessage || __( 'Something went wrong.', 'woocommerce-claude' ) }</span>
-						<button
+						<Button
 							type="button"
+							variant="tertiary"
+							size="compact"
+							isDestructive
 							className="hey-woo-error-bar__dismiss"
 							onClick={ clearError }
 						>
 							{ __( 'Dismiss', 'woocommerce-claude' ) }
-						</button>
+						</Button>
 					</div>
 				) }
 

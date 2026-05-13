@@ -9,19 +9,20 @@
 .hey-woo-page {
 	display: flex;
 	flex-direction: column;
-	height: 100vh;
+	height: calc(100vh - 16px);
 	max-width: 860px;
 	margin: 0 auto;
 	padding: 0 16px;
 	box-sizing: border-box;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	color: #1e1e1e;
 }
 
 // ── Chat header ─────────────────────────────────────────────────────────────
 
 .hey-woo-chat-header {
-	padding: 20px 0 12px;
-	border-bottom: 1px solid #ddd;
+	padding: 18px 0 14px;
+	border-bottom: 1px solid #e0e0e0;
 	flex-shrink: 0;
 
 	&__title {
@@ -43,10 +44,11 @@
 .hey-woo-messages {
 	flex: 1;
 	overflow-y: auto;
-	padding: 16px 0;
+	padding: 20px 0;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 14px;
+	min-height: 0;
 
 	&__empty {
 		color: #757575;
@@ -62,10 +64,11 @@
 
 .hey-woo-bubble {
 	max-width: 76%;
-	padding: 10px 14px;
-	border-radius: 12px;
+	padding: 12px 14px;
+	border-radius: 8px;
 	line-height: 1.55;
 	font-size: 14px;
+	box-sizing: border-box;
 
 	&__role {
 		display: block;
@@ -162,7 +165,7 @@
 
 	&--user {
 		align-self: flex-end;
-		background: #007cba;
+		background: #3858e9;
 		color: #fff;
 
 		.hey-woo-bubble__role {
@@ -172,8 +175,10 @@
 
 	&--assistant {
 		align-self: flex-start;
-		background: #f0f0f1;
+		background: #fff;
+		border: 1px solid #e0e0e0;
 		color: #1e1e1e;
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02);
 	}
 
 	&--typing {
@@ -211,37 +216,43 @@
 
 .hey-woo-input {
 	display: flex;
-	gap: 8px;
-	padding: 12px 0 16px;
-	border-top: 1px solid #ddd;
+	align-items: flex-end;
+	gap: 12px;
+	padding: 12px 0;
+	border-top: 1px solid #e0e0e0;
 	flex-shrink: 0;
+	background: #fff;
 
 	&__textarea {
 		flex: 1;
-		resize: none;
-		padding: 8px 12px;
-		border: 1px solid #8c8f94;
-		border-radius: 4px;
-		font-size: 14px;
-		line-height: 1.4;
-		font-family: inherit;
-		box-sizing: border-box;
+		margin-bottom: 0;
 
-		&:focus {
-			outline: 2px solid #007cba;
-			outline-offset: 0;
-			border-color: #007cba;
+		.components-base-control__field {
+			margin-bottom: 0;
 		}
 
-		&:disabled {
+		.components-textarea-control__input {
+			min-height: 48px;
+			padding: 10px 12px;
+			resize: none;
+			line-height: 1.45;
+		}
+
+		.components-textarea-control__input:disabled {
 			background: #f0f0f1;
 			cursor: not-allowed;
 		}
 	}
 
 	&__send {
-		align-self: flex-end;
 		white-space: nowrap;
+		flex-shrink: 0;
+
+		&:disabled,
+		&[aria-disabled="true"] {
+			opacity: 0.45;
+			cursor: default;
+		}
 	}
 }
 
@@ -260,13 +271,10 @@
 	color: #cc1818;
 
 	&__dismiss {
-		background: none;
-		border: none;
 		color: #cc1818;
-		cursor: pointer;
 		font-size: 12px;
-		text-decoration: underline;
-		padding: 0;
+		height: auto;
+		padding: 0 4px;
 	}
 }
 

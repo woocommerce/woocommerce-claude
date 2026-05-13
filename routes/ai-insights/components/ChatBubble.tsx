@@ -19,9 +19,11 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 			role="article"
 			aria-label={ isUser ? __( 'You', 'woocommerce-claude' ) : __( 'Assistant', 'woocommerce-claude' ) }
 		>
-			<span className="hey-woo-bubble__role">
-				{ isUser ? __( 'You', 'woocommerce-claude' ) : __( 'WooCommerce for Claude', 'woocommerce-claude' ) }
-			</span>
+			{ ! isUser && (
+				<span className="hey-woo-bubble__role">
+					{ __( 'WooCommerce for Claude', 'woocommerce-claude' ) }
+				</span>
+			) }
 			{ isUser ? (
 				<p className="hey-woo-bubble__content hey-woo-bubble__content--plain">
 					{ message.content }
