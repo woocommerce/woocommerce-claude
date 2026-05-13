@@ -15,6 +15,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | `inventory-risk-review` | A stock and inventory risk review covering current stock state, recent product sales, restock/watch priorities, sale-priced stock issues, slow movers, and next actions. |
 | `product-performance-review` | A product trading review covering top products, product mix shifts, newly entered or dropped-out top results, category/SKU coverage, product refund signals, and merchandising actions. |
 | `channel-performance-review` | A channel/source review covering paid revenue, customer mix, attribution coverage, on-hold pipeline skew, tracking checks, and merchant actions without ROAS or ad-spend claims. |
+| `shipping-method-review` | A shipping-method review covering paid order value, shipping charges, pipeline, refunds, unassigned coverage, and practical shipping-setting checks without carrier-timing claims. |
 | `payment-method-review` | A payment-method review covering paid revenue by method, on-hold pipeline, failed orders, payment-label coverage, and gateway/admin checks without processor-reversal or conversion claims. |
 | `failed-order-triage` | A payment-risk triage for failed orders, on-hold orders, stuck payments, gateway signals, and order follow-up queues. Also exposed as the `wc-prompts-failed-order-triage` MCP prompt. |
 | `refund-triage` | A refund diagnostic covering refund size, rate, timing, top refunded products/countries, likely checks, and next actions. Also exposed as the `wc-prompts-refund-triage` MCP prompt. |
@@ -29,7 +30,6 @@ These are candidates for future agent-side workflow skills. Treat this as a work
 
 | Candidate | Use it for | Likely existing tools |
 | --- | --- | --- |
-| `shipping-method-review` | A shipping-method review covering collected revenue, pipeline, refunds, unassigned coverage, and practical shipping-setting checks. | `wc-analytics-breakdown` revenue by shipping method, `wc-analytics-totals` orders/refunds |
 | `geography-performance-review` | A country-level review covering revenue concentration, refunds, customer mix, tax-threshold context, and operational checks. | `wc-analytics-breakdown` revenue/refunds by country, `wc-analytics-totals` revenue/customers/tax |
 | `customer-acquisition-review` | A current-period acquisition review covering new versus returning customers, acquisition channels, customer quality signals, and next actions without forecasting LTV. | `wc-analytics-totals` customers/customer_value, `wc-analytics-breakdown` attribution |
 | `catalogue-merchandising-review` | A merchandising review covering top products, slow movers, sale pricing, current stock state, categories, and product-page actions. | `wc-analytics-breakdown` products, `wc-analytics-rows` products, product details |

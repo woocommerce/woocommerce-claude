@@ -1,7 +1,7 @@
 {
   "name": "woocommerce-claude",
-  "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows",
-  "version": "0.2.9",
+  "description": "WooCommerce for Claude agent skills for store analytics, customer value, inventory risk, product, channel, shipping-method, and payment-method performance, tax reconciliation, revenue, coupon, order and refund triage, catalogue readiness, and MCP setup workflows",
+  "version": "0.2.10",
   "author": {
     "name": "WooCommerce"
   },
