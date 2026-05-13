@@ -476,7 +476,9 @@ assert_customer_acquisition_review() {
 	assert_not_matches 'first-touch|multi-touch|customer journey|organic search quer(y|ies)|landing page|high intent|low intent|customer motivation|customer intent|seasonality|competitor' 'unsupported attribution detail, intent, or external cause'
 	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue|lost customers|lost orders|paid revenue (is|was|is still|was still)? ?(on-hold|pending|awaiting payment)|pending paid revenue|on-hold paid revenue' 'pipeline described as lost or paid revenue'
 	assert_not_matches 'new customers? .*caused|channel .*caused|source .*caused|campaign .*caused|caused by .*channel|caused by .*campaign' 'unsupported acquisition causation'
-	assert_not_matches 'roughly [0-9]+(\.[0-9]+)?[x×]|[0-9]+(\.[0-9]+)?[x×].*(new|returning|customer)|nearly (doubled|tripled|quadrupled)|more than (doubled|tripled|quadrupled)|one in (ten|four|five)' 'narrative arithmetic over returned fields'
+	assert_not_matches 'roughly [0-9]+(\.[0-9]+)?[x×]|[0-9]+(\.[0-9]+)?[x×].*(new|returning|customer)|almost (double|doubled|triple|tripled|quadruple|quadrupled)|nearly (doubled|tripled|quadrupled)|more than (doubled|tripled|quadrupled)|roughly [0-9]+ in [0-9]+|[0-9]+ in [0-9]+ paid orders|one in (ten|four|five)' 'narrative arithmetic over returned fields'
+	assert_not_matches 'coverage (above|over|to|towards?) [0-9]+%|bring(ing)? coverage (above|over|to|towards?) [0-9]+%|coverage target|make the channel readout reliable' 'invented attribution-coverage target'
+	assert_not_matches 'almost certainly .*label|certainly .*label|looks like .*label change|not .*real lost (demand|channels?)|same .*now labelled|rename rather than' 'unsupported source-label relabel conclusion'
 	assert_not_matches 'denominator' 'analytics jargon'
 
 	if [ "$PROFILE" = "iris-demo" ]; then
