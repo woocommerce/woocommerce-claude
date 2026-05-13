@@ -117,8 +117,16 @@ class DifmConversationsController {
 	 */
 	public function save_conversation( $request ) {
 		$user_id         = get_current_user_id();
-		$raw_body_params = json_decode( $request->get_body(), true );
+		$raw_body        = $request->get_body();
+		$raw_body_params = array();
 		$messages        = $request['messages'];
+
+		if ( is_string( $raw_body ) && '' !== $raw_body ) {
+			$decoded_body = json_decode( $raw_body, true );
+			if ( is_array( $decoded_body ) ) {
+				$raw_body_params = $decoded_body;
+			}
+		}
 
 		if ( is_array( $raw_body_params ) && array_key_exists( 'messages', $raw_body_params ) ) {
 			$messages = $raw_body_params['messages'];
