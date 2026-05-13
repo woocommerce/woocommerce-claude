@@ -2,7 +2,9 @@
  * ChatInput — the message compose bar at the bottom of the chat.
  */
 import { useState, useRef } from '@wordpress/element';
+import { Button, TextareaControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { send } from '@wordpress/icons';
 
 interface ChatInputProps {
 	onSend: ( message: string ) => void;
@@ -31,28 +33,39 @@ export function ChatInput( { onSend, disabled }: ChatInputProps ) {
 		}
 	};
 
+	const handleFormSubmit = ( e: React.FormEvent< HTMLFormElement > ) => {
+		e.preventDefault();
+		handleSubmit();
+	};
+
 	return (
-		<div className="hey-woo-input">
-			<textarea
+		<form className="hey-woo-input" onSubmit={ handleFormSubmit }>
+			<TextareaControl
 				ref={ textareaRef }
 				className="hey-woo-input__textarea"
+				label={ __( 'Chat message', 'woocommerce-claude' ) }
+				hideLabelFromVision
 				value={ value }
-				onChange={ ( e ) => setValue( e.target.value ) }
+				onChange={ setValue }
 				onKeyDown={ handleKeyDown }
 				placeholder={ __( 'Ask about your store…', 'woocommerce-claude' ) }
 				rows={ 2 }
 				disabled={ disabled }
-				aria-label={ __( 'Chat message', 'woocommerce-claude' ) }
 			/>
-			<button
-				type="button"
-				className="button button-primary hey-woo-input__send"
-				onClick={ handleSubmit }
+			<Button
+				type="submit"
+				className="hey-woo-input__send"
+				variant="primary"
+				icon={ send }
+				iconPosition="right"
+				__next40pxDefaultSize
 				disabled={ disabled || ! value.trim() }
+				isBusy={ disabled }
+				accessibleWhenDisabled
 				aria-label={ __( 'Send message', 'woocommerce-claude' ) }
 			>
-				{ disabled ? __( '…', 'woocommerce-claude' ) : __( 'Send', 'woocommerce-claude' ) }
-			</button>
-		</div>
+				{ __( 'Send', 'woocommerce-claude' ) }
+			</Button>
+		</form>
 	);
 }
