@@ -1,6 +1,6 @@
 name: Release Plugin
 
-# Produce a distributable `woocommerce-claude.zip` and publish it as a GitHub Release.
+# Produce distributable plugin zips and publish them as a GitHub Release.
 #
 # Trigger: manual workflow_dispatch only — tag pushes do NOT trigger this
 # workflow; the tag + Release are CREATED by the workflow, not consumed by it.
@@ -89,21 +89,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build plugin zip
+      - name: Build WordPress plugin zip
         run: pnpm run plugin-zip
 
-      - name: Verify zip was produced
+      - name: Build Claude agent plugin zip
+        run: pnpm run agent-plugin-zip
+
+      - name: Verify zips were produced
         run: |
           if [ ! -f woocommerce-claude.zip ]; then
             echo "ERROR: woocommerce-claude.zip not found" >&2
             exit 1
           fi
+          if [ ! -f woocommerce-claude-agent-plugin.zip ]; then
+            echo "ERROR: woocommerce-claude-agent-plugin.zip not found" >&2
+            exit 1
+          fi
+          unzip -t woocommerce-claude-agent-plugin.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6
         with:
           name: woocommerce-claude-${{ env.VERSION }}
-          path: woocommerce-claude.zip
+          path: |
+            woocommerce-claude.zip
+            woocommerce-claude-agent-plugin.zip
           retention-days: 30
 
       - name: Create GitHub Release
@@ -112,7 +122,9 @@ jobs:
           tag_name: ${{ env.TAG_NAME }}
           name: ${{ env.TAG_NAME }}
           target_commitish: ${{ github.sha }}
-          files: woocommerce-claude.zip
+          files: |
+            woocommerce-claude.zip
+            woocommerce-claude-agent-plugin.zip
           generate_release_notes: true
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}

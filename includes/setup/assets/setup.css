@@ -470,6 +470,20 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	margin-top: 8px;
 }
 
+.woocommerce-claude-setup__workflow-actions {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 12px 0 0;
+}
+
+.woocommerce-claude-setup__workflow-version {
+	color: #6b7280;
+	font-size: 12px;
+	line-height: 1.4;
+}
+
 .woocommerce-claude-setup__workflow-title {
 	margin: 0 0 6px;
 	padding: 0;

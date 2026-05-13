@@ -406,15 +406,20 @@ $can_use_step2_actions = $has_key;
 		 * plugins or skills.
 		 */
 		if ( $can_use_step2_actions ) :
-			$starter_prompts  = array(
+			$starter_prompts = array(
 				__( 'Give me my weekly store review.', 'woocommerce-claude' ),
 				__( 'Triage my failed and on-hold orders.', 'woocommerce-claude' ),
 				__( 'Triage refunds from the last 30 days.', 'woocommerce-claude' ),
 				__( 'Revenue is down vs. last period — find the cause.', 'woocommerce-claude' ),
 				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'woocommerce-claude' ),
 			);
-			$agent_plugin_url = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
-			$guides_url       = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
+
+			$agent_plugin_download_url = sprintf(
+				'https://github.com/woocommerce/woocommerce-claude/releases/download/v%s/woocommerce-claude-agent-plugin.zip',
+				rawurlencode( WOOCOMMERCE_CLAUDE_VERSION )
+			);
+			$agent_plugin_url          = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
+			$guides_url                = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
 			?>
 			<section class="woocommerce-claude-setup__card">
 				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Try it out', 'woocommerce-claude' ); ?></h2>
@@ -457,6 +462,20 @@ $can_use_step2_actions = $has_key;
 					<p>
 						<?php esc_html_e( 'Claude Code can install it from the marketplace. Claude clients with plugin upload can import the agent plugin package instead, not the WordPress plugin zip or the MCPB connection file.', 'woocommerce-claude' ); ?>
 					</p>
+					<div class="woocommerce-claude-setup__workflow-actions">
+						<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
+							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+						</a>
+						<span class="woocommerce-claude-setup__workflow-version">
+							<?php
+							printf(
+								/* translators: %s: WooCommerce for Claude plugin version. */
+								esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
+								esc_html( WOOCOMMERCE_CLAUDE_VERSION )
+							);
+							?>
+						</span>
+					</div>
 					<p>
 						<?php
 						printf(
