@@ -138,6 +138,40 @@ class Test_Difm_Conversations_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Direct controller calls without a raw body still use parsed request params.
+	 */
+	public function test_save_accepts_parameter_payload_without_raw_body() {
+		$user_id = $this->set_admin_user();
+
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/conversations' );
+		$request->set_param( 'id', 'parameter-payload' );
+		$request->set_param( 'title', 'Parameter payload' );
+		$request->set_param(
+			'messages',
+			array(
+				array(
+					'id'      => 0,
+					'role'    => 'user',
+					'content' => 'Saved from parsed request parameters.',
+				),
+			)
+		);
+		$request->set_param( 'updatedAt', 20 );
+
+		$controller = new DifmConversationsController();
+		$response   = $controller->save_conversation( $request );
+		$data       = $response->get_data();
+
+		$this->assertSame( 'ok', $data['status'] );
+
+		$conversations = DifmConversationsController::get_recent_conversations( $user_id );
+
+		$this->assertCount( 1, $conversations );
+		$this->assertSame( 'parameter-payload', $conversations[0]['id'] );
+		$this->assertSame( 'Saved from parsed request parameters.', $conversations[0]['messages'][0]['content'] );
+	}
+
+	/**
 	 * Set the current user to an administrator with WooCommerce capabilities.
 	 *
 	 * @return int User ID.
