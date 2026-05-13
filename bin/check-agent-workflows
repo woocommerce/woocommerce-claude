@@ -12,6 +12,7 @@
 #   ./bin/check-agent-workflows --max-budget-usd 3
 #   ./bin/check-agent-workflows --workflow tax-reconciliation-smoke --profile generic
 #   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
+#   ./bin/check-agent-workflows --workflow customer-acquisition-review --profile generic
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
 #   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow channel-performance-review --profile generic
@@ -51,7 +52,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, geography-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, customer-acquisition-review, inventory-risk-review, product-performance-review, channel-performance-review, geography-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -137,6 +138,11 @@ case "$WORKFLOW" in
 	customer-value-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:customer-value-review"
+		fi
+		;;
+	customer-acquisition-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:customer-acquisition-review"
 		fi
 		;;
 	inventory-risk-review)
@@ -450,6 +456,34 @@ assert_customer_value_review() {
 	fi
 }
 
+assert_customer_acquisition_review() {
+	assert_store_connected
+
+	assert_contains "Customer Acquisition Review"
+	assert_contains "Snapshot"
+	assert_contains "New Versus Returning Customers"
+	assert_contains "Acquisition Channels"
+	assert_contains "First-Time Customer Quality Signals"
+	assert_contains "Repeat and Customer-Value Context"
+	assert_contains "Tracking and Data Quality"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|new_customer_spend_per_customer|repeat_rate_percent|pipeline_over_index_points|attribution_coverage_percent' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin|tracking feature|custom report)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number|real customer identity' 'PII'
+	assert_not_matches 'sessions|visitors|users|page views|impressions|clicks|click-through|conversion rate|checkout conversion|ROAS|ad spend|CPC|CPA|cost per acquisition|campaign efficiency|return on spend|profit margin|gross margin|COGS|cost of goods' 'unsupported marketing, conversion, or margin metric'
+	assert_not_matches 'predicted LTV|future LTV|LTV forecast|forecast LTV|will be worth|churn risk|likely to churn|at[- ]risk customers?|win[- ]back list|customer score|customer scoring|reactivation list' 'unsupported forecast, churn, or scoring claim'
+	assert_not_matches 'first-touch|multi-touch|customer journey|organic search quer(y|ies)|landing page|high intent|low intent|customer motivation|customer intent|seasonality|competitor' 'unsupported attribution detail, intent, or external cause'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|confirmed lost revenue|lost customers|lost orders|paid revenue (is|was|is still|was still)? ?(on-hold|pending|awaiting payment)|pending paid revenue|on-hold paid revenue' 'pipeline described as lost or paid revenue'
+	assert_not_matches 'new customers? .*caused|channel .*caused|source .*caused|campaign .*caused|caused by .*channel|caused by .*campaign' 'unsupported acquisition causation'
+	assert_not_matches 'roughly [0-9]+(\.[0-9]+)?[x×]|[0-9]+(\.[0-9]+)?[x×].*(new|returning|customer)|nearly (doubled|tripled|quadrupled)|more than (doubled|tripled|quadrupled)|one in (ten|four|five)' 'narrative arithmetic over returned fields'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_inventory_risk_review() {
 	assert_store_connected
 
@@ -657,6 +691,9 @@ case "$WORKFLOW" in
 		;;
 	customer-value-review)
 		assert_customer_value_review
+		;;
+	customer-acquisition-review)
+		assert_customer_acquisition_review
 		;;
 	inventory-risk-review)
 		assert_inventory_risk_review

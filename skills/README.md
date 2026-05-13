@@ -12,6 +12,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | `revenue-drop-triage` | A revenue-drop diagnostic separating order volume, AOV, customer mix, refunds, products, channels, pipeline, likely checks, and next actions. Also exposed as the `wc-prompts-revenue-drop-triage` MCP prompt. |
 | `coupon-performance-triage` | A coupon-performance diagnostic covering coupon usage, discount cost, with/without-coupon AOV, refunds, new-customer signal, pipeline, likely checks, and next actions. Also exposed as the `wc-prompts-coupon-performance-triage` MCP prompt. |
 | `customer-value-review` | A customer value and retention review covering active-base LTV, one-time versus repeat segments, cohort retention, reorder cadence, pseudonymised top customers, opportunities, and next actions. |
+| `customer-acquisition-review` | A current-period acquisition review covering new versus returning customers, acquisition channels, customer quality signals, tracking coverage, and next actions without forecasting LTV. |
 | `inventory-risk-review` | A stock and inventory risk review covering current stock state, recent product sales, restock/watch priorities, sale-priced stock issues, slow movers, and next actions. |
 | `product-performance-review` | A product trading review covering top products, product mix shifts, newly entered or dropped-out top results, category/SKU coverage, product refund signals, and merchandising actions. |
 | `channel-performance-review` | A channel/source review covering paid revenue, customer mix, attribution coverage, on-hold pipeline skew, tracking checks, and merchant actions without ROAS or ad-spend claims. |
@@ -31,7 +32,6 @@ These are candidates for future agent-side workflow skills. Treat this as a work
 
 | Candidate | Use it for | Likely existing tools |
 | --- | --- | --- |
-| `customer-acquisition-review` | A current-period acquisition review covering new versus returning customers, acquisition channels, customer quality signals, and next actions without forecasting LTV. | `wc-analytics-totals` customers/customer_value, `wc-analytics-breakdown` attribution |
 | `catalogue-merchandising-review` | A merchandising review covering top products, slow movers, sale pricing, current stock state, categories, and product-page actions. | `wc-analytics-breakdown` products, `wc-analytics-rows` products, product details |
 
 ## Adding skills
