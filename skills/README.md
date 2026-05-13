@@ -13,6 +13,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | `coupon-performance-triage` | A coupon-performance diagnostic covering coupon usage, discount cost, with/without-coupon AOV, refunds, new-customer signal, pipeline, likely checks, and next actions. Also exposed as the `wc-prompts-coupon-performance-triage` MCP prompt. |
 | `customer-value-review` | A customer value and retention review covering active-base LTV, one-time versus repeat segments, cohort retention, reorder cadence, pseudonymised top customers, opportunities, and next actions. |
 | `inventory-risk-review` | A stock and inventory risk review covering current stock state, recent product sales, restock/watch priorities, sale-priced stock issues, slow movers, and next actions. |
+| `product-performance-review` | A product trading review covering top products, product mix shifts, newly entered or dropped-out top results, category/SKU coverage, product refund signals, and merchandising actions. |
 | `failed-order-triage` | A payment-risk triage for failed orders, on-hold orders, stuck payments, gateway signals, and order follow-up queues. Also exposed as the `wc-prompts-failed-order-triage` MCP prompt. |
 | `refund-triage` | A refund diagnostic covering refund size, rate, timing, top refunded products/countries, likely checks, and next actions. Also exposed as the `wc-prompts-refund-triage` MCP prompt. |
 | `tax-reconciliation` | A tax collection and reconciliation readout covering collected paid tax, shipping tax, refunded tax, pending/on-hold tax, top rates, admin reconciliation views, and next actions. |
@@ -26,7 +27,6 @@ These are candidates for future agent-side workflow skills. Treat this as a work
 
 | Candidate | Use it for | Likely existing tools |
 | --- | --- | --- |
-| `product-performance-review` | A product-level trading review covering top sellers, product mix shifts, dropped-out products, category/SKU coverage, refunds, and merchandising actions. | `wc-analytics-breakdown` products/refunds, `wc-analytics-series` products, `wc-analytics-rows` products |
 | `channel-performance-review` | A channel/source review covering revenue, customers, pipeline skew, attribution coverage, and tracking checks without ROAS or ad-spend claims. | `wc-analytics-breakdown` attribution, `wc-analytics-totals` revenue/customers/orders |
 | `shipping-method-review` | A shipping-method review covering collected revenue, pipeline, refunds, unassigned coverage, and practical shipping-setting checks. | `wc-analytics-breakdown` revenue by shipping method, `wc-analytics-totals` orders/refunds |
 | `geography-performance-review` | A country-level review covering revenue concentration, refunds, customer mix, tax-threshold context, and operational checks. | `wc-analytics-breakdown` revenue/refunds by country, `wc-analytics-totals` revenue/customers/tax |
