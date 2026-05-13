@@ -400,20 +400,21 @@ $can_use_step2_actions = $has_key;
 		 * "Try it out" card — only relevant once the connection is live
 		 * ($has_key, captured by $can_use_step2_actions).
 		 * Five starter questions the merchant can paste straight into
-		 * Claude, plus a link to a longer set of guide questions in the
-		 * repo. Intentionally avoids referencing MCP slash commands —
-		 * the picker UX varies across clients and a "paste this question"
-		 * pathway works on every Claude surface.
+		 * Claude, plus links to guide questions and the optional agent
+		 * plugin workflows. Pasted questions work on every Claude surface;
+		 * slash commands are called out only for clients that support
+		 * plugins or skills.
 		 */
 		if ( $can_use_step2_actions ) :
-			$starter_prompts = array(
+			$starter_prompts  = array(
 				__( 'Give me my weekly store review.', 'woocommerce-claude' ),
 				__( 'Triage my failed and on-hold orders.', 'woocommerce-claude' ),
 				__( 'Triage refunds from the last 30 days.', 'woocommerce-claude' ),
 				__( 'Revenue is down vs. last period — find the cause.', 'woocommerce-claude' ),
 				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'woocommerce-claude' ),
 			);
-			$guides_url      = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
+			$agent_plugin_url = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
+			$guides_url       = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
 			?>
 			<section class="woocommerce-claude-setup__card">
 				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Try it out', 'woocommerce-claude' ); ?></h2>
@@ -447,6 +448,34 @@ $can_use_step2_actions = $has_key;
 					);
 					?>
 				</p>
+
+				<div class="woocommerce-claude-setup__workflow-note">
+					<h3 class="woocommerce-claude-setup__workflow-title"><?php esc_html_e( 'Workflow skills in Claude', 'woocommerce-claude' ); ?></h3>
+					<p>
+						<?php esc_html_e( 'The questions above work anywhere. For guided slash-command reviews, install the companion Claude agent plugin as well.', 'woocommerce-claude' ); ?>
+					</p>
+					<p>
+						<?php esc_html_e( 'Claude Code can install it from the marketplace. Claude clients with plugin upload can import the agent plugin package instead, not the WordPress plugin zip or the MCPB connection file.', 'woocommerce-claude' ); ?>
+					</p>
+					<p>
+						<?php
+						printf(
+							wp_kses(
+								/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
+								__( 'After plugins reload, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review. See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
+								array(
+									'a' => array(
+										'href'   => array(),
+										'target' => array(),
+										'rel'    => array(),
+									),
+								)
+							),
+							esc_url( $agent_plugin_url )
+						);
+						?>
+					</p>
+				</div>
 			</section>
 		<?php endif; /* end Try it out card */ ?>
 
