@@ -14,6 +14,7 @@
 #   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
 #   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
+#   ./bin/check-agent-workflows --workflow channel-performance-review --profile generic
 #
 
 set -euo pipefail
@@ -47,7 +48,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, inventory-risk-review, product-performance-review, channel-performance-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -143,6 +144,11 @@ case "$WORKFLOW" in
 	product-performance-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:product-performance-review"
+		fi
+		;;
+	channel-performance-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:channel-performance-review"
 		fi
 		;;
 	revenue-drop-triage)
@@ -481,6 +487,33 @@ assert_product_performance_review() {
 	fi
 }
 
+assert_channel_performance_review() {
+	assert_store_connected
+
+	assert_contains "Channel Performance Review"
+	assert_contains "Snapshot"
+	assert_contains "Revenue by Channel"
+	assert_contains "Customer Mix"
+	assert_contains "Pipeline and Payment Skew"
+	assert_contains "Tracking Hygiene"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|net_revenue|orders_count|new_customers|pipeline_revenue|attribution_coverage_percent|share_of_revenue_percent|pipeline_over_index_points|utm_source' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin|tracking feature|custom report)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number' 'PII'
+	assert_not_matches 'sessions|visitors|users|page views|clicks|impressions|click-through rate|CTR|conversion rate|ad spend|CPC|CPA|ROAS|cost per acquisition|campaign efficiency|profit margin|gross margin|COGS|cost of goods' 'unsupported marketing or margin metric'
+	assert_not_matches 'first-touch|multi-touch|customer journey|organic search quer(y|ies)|landing page' 'unsupported attribution detail'
+	assert_not_matches 'competitor|because of seasonality|caused by seasonality|customer motivation|high intent|low intent|saturated|underfunded|overfunded' 'invented external cause or intent'
+	assert_not_matches 'on-hold .*lost revenue|pending .*lost revenue|failed .*lost revenue|confirmed lost revenue' 'pipeline described as lost revenue'
+	assert_not_matches '[£$][0-9,]+(\.[0-9]+)? of paid revenue (is|was|still|sits|sitting|awaiting|in) .*on-hold|paid revenue (is|was|still|sits|sitting|awaiting|in) .*on-hold|pending paid revenue|on-hold paid revenue' 'pipeline conflated with paid revenue'
+	assert_not_matches 'channel .*caused|source .*caused|campaign .*caused|traffic .*caused|broke the gateway|gateway outage|processor outage' 'unsupported channel or gateway causation'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_tax_reconciliation_smoke() {
 	assert_store_connected
 
@@ -522,6 +555,9 @@ case "$WORKFLOW" in
 		;;
 	product-performance-review)
 		assert_product_performance_review
+		;;
+	channel-performance-review)
+		assert_channel_performance_review
 		;;
 	revenue-drop-triage)
 		assert_revenue_drop_triage
