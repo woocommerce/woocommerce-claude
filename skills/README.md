@@ -14,6 +14,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 | `customer-value-review` | A customer value and retention review covering active-base LTV, one-time versus repeat segments, cohort retention, reorder cadence, pseudonymised top customers, opportunities, and next actions. |
 | `customer-acquisition-review` | A current-period acquisition review covering new versus returning customers, acquisition channels, customer quality signals, tracking coverage, and next actions without forecasting LTV. |
 | `inventory-risk-review` | A stock and inventory risk review covering current stock state, recent product sales, restock/watch priorities, sale-priced stock issues, slow movers, and next actions. |
+| `catalogue-merchandising-review` | A catalogue merchandising review covering top products, slow movers, sale pricing, current stock state, categories, and product-page actions. |
 | `product-performance-review` | A product trading review covering top products, product mix shifts, newly entered or dropped-out top results, category/SKU coverage, product refund signals, and merchandising actions. |
 | `channel-performance-review` | A channel/source review covering paid revenue, customer mix, attribution coverage, on-hold pipeline skew, tracking checks, and merchant actions without ROAS or ad-spend claims. |
 | `geography-performance-review` | A billing-country review covering revenue concentration, orders, customer context, refunds, coverage, tax-threshold context, and operational checks without tax advice. |
@@ -28,11 +29,7 @@ The MCP tools are the data primitives: analytics totals, breakdowns, series, row
 
 ## Candidate workflow skills
 
-These are candidates for future agent-side workflow skills. Treat this as a working backlog, not a merchant-facing roadmap. Each candidate should still pass the "existing tools first" test before implementation; add a new MCP ability or analytics subject only when the current tools cannot return the data safely.
-
-| Candidate | Use it for | Likely existing tools |
-| --- | --- | --- |
-| `catalogue-merchandising-review` | A merchandising review covering top products, slow movers, sale pricing, current stock state, categories, and product-page actions. | `wc-analytics-breakdown` products, `wc-analytics-rows` products, product details |
+There are no current candidates in this batch. Keep this section as a working backlog, not a merchant-facing roadmap. Each future candidate should still pass the "existing tools first" test before implementation; add a new MCP ability or analytics subject only when the current tools cannot return the data safely.
 
 ## Adding skills
 

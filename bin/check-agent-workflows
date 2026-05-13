@@ -14,6 +14,7 @@
 #   ./bin/check-agent-workflows --workflow customer-value-review --profile generic
 #   ./bin/check-agent-workflows --workflow customer-acquisition-review --profile generic
 #   ./bin/check-agent-workflows --workflow inventory-risk-review --profile generic
+#   ./bin/check-agent-workflows --workflow catalogue-merchandising-review --profile generic
 #   ./bin/check-agent-workflows --workflow product-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow channel-performance-review --profile generic
 #   ./bin/check-agent-workflows --workflow geography-performance-review --profile generic
@@ -52,7 +53,7 @@ usage() {
 Usage: ./bin/check-agent-workflows [options]
 
 Options:
-  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, customer-acquisition-review, inventory-risk-review, product-performance-review, channel-performance-review, geography-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
+  --workflow <name>       Workflow to run: coupon-performance-triage, customer-value-review, customer-acquisition-review, inventory-risk-review, catalogue-merchandising-review, product-performance-review, channel-performance-review, geography-performance-review, shipping-method-review, payment-method-review, revenue-drop-triage, refund-triage, failed-order-triage, or tax-reconciliation-smoke.
   --profile <name>        Assertion profile: iris-demo (default) or generic.
   --prompt <text>         Override the prompt/slash command sent to Claude.
   --plugin-dir <path>     Plugin directory or zip to load for this run.
@@ -148,6 +149,11 @@ case "$WORKFLOW" in
 	inventory-risk-review)
 		if [ -z "$PROMPT" ]; then
 			PROMPT="/woocommerce-claude:inventory-risk-review"
+		fi
+		;;
+	catalogue-merchandising-review)
+		if [ -z "$PROMPT" ]; then
+			PROMPT="/woocommerce-claude:catalogue-merchandising-review"
 		fi
 		;;
 	product-performance-review)
@@ -515,6 +521,36 @@ assert_inventory_risk_review() {
 	fi
 }
 
+assert_catalogue_merchandising_review() {
+	assert_store_connected
+
+	assert_contains "Catalogue Merchandising Review"
+	assert_contains "Snapshot"
+	assert_contains "Products to Feature or Watch"
+	assert_contains "Category and SKU Coverage"
+	assert_contains "Current Stock and Sale Pricing"
+	assert_contains "Slow Movers"
+	assert_contains "Product-Page Actions"
+	assert_contains "Next Actions"
+
+	assert_not_matches 'wc-analytics-|woocommerce-claude-|subject=|dimension=|mode=|parameter|database table|field path|status slug|filter JSON|filtering the catalogue|filtered catalogue|did not appear when filtering|product page indicates|product detail shows|rows check|rows view|zero[- ]sales filter|net_revenue|orders_count|stock_status|onsale|on_sale|regular_price|sale_price|manage_stock|on[- ]sale filter|on[- ]sale view|on[- ]sale flag|sale[- ]price flag|sale[- ]flag|flagged as on sale|parent level|parent-level|variation[- ]level pricing|price fields|regular and sale price fields|units_sold_in_period|revenue_in_period|orders_count_in_period|sku_coverage_percent|catalogue_coverage_percent' 'internal tool or parameter language'
+	assert_not_matches 'build (a )?(new )?(skill|tool|endpoint|plugin|tracking feature|custom report)|add (a )?(new )?(skill|tool|endpoint)|future .*skill|planned .*skill' 'merchant-scope violation'
+	assert_not_matches 'customer name:|customer email:|email address|billing email|shipping address|phone number|street address' 'PII'
+	assert_not_matches 'product views|page views|sessions|visitors|users|add[- ]to[- ]cart|cart adds|conversion rate|checkout conversion|profit margin|gross margin|margin|COGS|cost of goods|ROAS|ad spend|impressions|click-through rate|CTR' 'unsupported product, margin, conversion, or marketing metric'
+	assert_not_matches 'forecast demand|demand forecast|predicted demand|demand prediction|seasonality|competitor|customer motivation|shopper intent|customer intent|buyer intent' 'unsupported forecast, external cause, or motive claim'
+	assert_not_matches 'stockout caused|stock[- ]out caused|caused by (a )?stockout|current stock.*caused|out of stock.*caused|stockout risk|lost sales|missed sales|missed revenue|revenue at risk|went out of stock|was out of stock (on|during|for)|restocked (on|in)|stock history|stock changed|stock movement over time' 'unsupported stock causation, stock history, or lost-sales claim'
+	assert_not_matches 'sale price.*caused|discount.*caused|currently on sale.*caused|markdown.*caused|is being advertised|still advertised|paid campaign|ad campaign|email campaign.*(promot|push)|social.*(promot|push)' 'unsupported sale-price or promotion-channel causation'
+	assert_not_matches 'widen .*assortment|expand .*assortment|assortment expansion|adding new SKUs|add new SKUs|new SKUs|develop new products|product-development opportunity|launch new products|expand categories|room to expand' 'unsupported assortment or product-development claim'
+	assert_not_matches 'customers? who bought .* also bought|basket affinity|frequently bought together|cross-sell data proves|upsell data proves' 'unsupported basket-affinity or relationship claim'
+	assert_not_matches 'proportionally lower|revenue per product|revenue per order|top [0-9]+ .*together|top (three|four|five) .*together|together make up|make up roughly|together dominate|together dominated|dominates revenue|dominate revenue|each cleared [£$]|bulk of revenue|drive[s]? the bulk|top products drive most revenue|basket-builder job|higher[- ]margin|high[- ]margin|profitable|unprofitable|margin mix|premium margin' 'unsupported ratio, summed-total, or margin inference'
+	assert_not_matches 'dead stock|obsolete stock|automatic clearance|clearance decision|clearance candidate|clearing .*stock|clear .*slow|delete .*product|discontinue .*product|de-list|delist' 'unsupported slow-mover conclusion'
+	assert_not_matches 'denominator' 'analytics jargon'
+
+	if [ "$PROFILE" = "iris-demo" ]; then
+		assert_contains "Iris"
+	fi
+}
+
 assert_product_performance_review() {
 	assert_store_connected
 
@@ -699,6 +735,9 @@ case "$WORKFLOW" in
 		;;
 	inventory-risk-review)
 		assert_inventory_risk_review
+		;;
+	catalogue-merchandising-review)
+		assert_catalogue_merchandising_review
 		;;
 	product-performance-review)
 		assert_product_performance_review
