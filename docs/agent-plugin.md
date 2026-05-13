@@ -3,7 +3,7 @@
 WooCommerce for Claude has two installable pieces:
 
 - The WordPress plugin, installed on the WooCommerce store. It exposes the live MCP endpoint, tools, resources, prompts, auth flow, and setup UI.
-- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, coupon-performance triage, customer value reviews, inventory risk reviews, product performance reviews, failed-order triage, refund triage, tax reconciliation, catalogue audits, and product content improvements.
+- The agent plugin/skills pack, installed into an AI client. It teaches the agent how to use those MCP tools for merchant workflows such as weekly reviews, revenue-drop triage, coupon-performance triage, customer value reviews, inventory risk reviews, product performance reviews, channel performance reviews, failed-order triage, refund triage, tax reconciliation, catalogue audits, and product content improvements.
 
 This repository now includes the first-stage agent plugin manifests:
 
@@ -20,7 +20,7 @@ The agent plugin does not replace the WordPress plugin. The skills assume the st
 
 ## Slash commands
 
-Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:coupon-performance-triage`, `/woocommerce-claude:customer-value-review`, `/woocommerce-claude:inventory-risk-review`, `/woocommerce-claude:product-performance-review`, `/woocommerce-claude:failed-order-triage`, `/woocommerce-claude:refund-triage`, and `/woocommerce-claude:tax-reconciliation` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/coupon-performance-triage`, `/customer-value-review`, `/inventory-risk-review`, `/product-performance-review`, `/failed-order-triage`, `/refund-triage`, and `/tax-reconciliation`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
+Installing the agent plugin may make client-level plugin commands available, such as `/plugin install ...` in Claude Code. In Claude Code, use the namespaced WooCommerce commands `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:revenue-drop-triage`, `/woocommerce-claude:coupon-performance-triage`, `/woocommerce-claude:customer-value-review`, `/woocommerce-claude:inventory-risk-review`, `/woocommerce-claude:product-performance-review`, `/woocommerce-claude:channel-performance-review`, `/woocommerce-claude:failed-order-triage`, `/woocommerce-claude:refund-triage`, and `/woocommerce-claude:tax-reconciliation` after the plugin is installed and plugins are reloaded. Some Claude Code builds also expose the shorter aliases `/weekly-store-review`, `/revenue-drop-triage`, `/coupon-performance-triage`, `/customer-value-review`, `/inventory-risk-review`, `/product-performance-review`, `/channel-performance-review`, `/failed-order-triage`, `/refund-triage`, and `/tax-reconciliation`. Other clients may trigger skills from their descriptions, default prompts, or a skill/prompt picker.
 
 ## Test path
 
@@ -38,12 +38,14 @@ Installing the agent plugin may make client-level plugin commands available, suc
 12. Confirm the `inventory-risk-review` skill triggers and the answer separates current stock state, period product sales, priority stock risks, sale-priced stock issues, slow movers, and next actions without customer PII or unsupported forecasts.
 13. Ask: "Review product performance from the last 30 days."
 14. Confirm the `product-performance-review` skill triggers and the answer separates top products, product mix changes, category/SKU coverage, refund signals, products to review, and next actions without customer PII or unsupported forecasts.
-15. Ask: "Triage my failed and on-hold orders."
-16. Confirm the `failed-order-triage` skill triggers and the answer separates on-hold payment pipeline from failed checkout risk, lists actionable order links without customer PII, and gives next actions.
-17. Ask: "Triage refunds from the last 30 days."
-18. Confirm the `refund-triage` skill triggers and the answer covers refund size, rate, timing, top refunded products/countries, likely checks, and next actions without customer PII.
-19. Ask: "Reconcile my tax collected in the last 30 days."
-20. Confirm the `tax-reconciliation` skill triggers and the answer separates collected paid tax, shipping tax, refunded tax, on-hold tax, the admin reconciliation view, top tax rates, and next actions without customer PII.
+15. Ask: "Review channel performance from the last 30 days."
+16. Confirm the `channel-performance-review` skill triggers and the answer separates paid revenue, customer mix, channel movement, pipeline skew, tracking coverage, source/campaign checks, and next actions without customer PII or unsupported ad-performance claims.
+17. Ask: "Triage my failed and on-hold orders."
+18. Confirm the `failed-order-triage` skill triggers and the answer separates on-hold payment pipeline from failed checkout risk, lists actionable order links without customer PII, and gives next actions.
+19. Ask: "Triage refunds from the last 30 days."
+20. Confirm the `refund-triage` skill triggers and the answer covers refund size, rate, timing, top refunded products/countries, likely checks, and next actions without customer PII.
+21. Ask: "Reconcile my tax collected in the last 30 days."
+22. Confirm the `tax-reconciliation` skill triggers and the answer separates collected paid tax, shipping tax, refunded tax, on-hold tax, the admin reconciliation view, top tax rates, and next actions without customer PII.
 
 ## Automated smoke test
 
@@ -171,6 +173,12 @@ or:
 or:
 
 ```text
+/woocommerce-claude:channel-performance-review
+```
+
+or:
+
+```text
 /woocommerce-claude:failed-order-triage
 ```
 
@@ -225,6 +233,12 @@ Review product performance from the last 30 days.
 or:
 
 ```text
+Review channel performance from the last 30 days.
+```
+
+or:
+
+```text
 Triage my failed and on-hold orders.
 ```
 
@@ -274,6 +288,12 @@ or:
 
 ```text
 /product-performance-review
+```
+
+or:
+
+```text
+/channel-performance-review
 ```
 
 or:
