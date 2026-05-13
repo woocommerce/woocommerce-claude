@@ -47,6 +47,7 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		delete_option( IdeaBoardRestController::SAVED_BOARD_OPTION );
 		$this->delete_idea_board_transients();
 		parent::tear_down();
 	}
@@ -58,6 +59,7 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$routes = $this->server->get_routes();
 
 		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::ROUTE, $routes );
+		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::SAVE_ROUTE, $routes );
 		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::REANALYSE_ROUTE, $routes );
 	}
 
@@ -66,6 +68,18 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	 */
 	public function test_idea_board_requires_manage_woocommerce() {
 		$request  = new \WP_REST_Request( 'GET', '/woocommerce-claude/v1/difm/idea-board' );
+		$response = $this->server->dispatch( $request );
+
+		$this->assertSame( 403, $response->get_status() );
+	}
+
+	/**
+	 * Unauthenticated requests to POST /difm/idea-board/save receive a 403.
+	 */
+	public function test_idea_board_save_requires_manage_woocommerce() {
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/idea-board/save' );
+		$request->set_param( 'board', $this->sample_current_period_board() );
+
 		$response = $this->server->dispatch( $request );
 
 		$this->assertSame( 403, $response->get_status() );
@@ -120,6 +134,133 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'error', $data['status'] );
 		$this->assertStringContainsString( 'Anthropic API key', $data['message'] );
 		$this->assertArrayNotHasKey( 'board', $data );
+	}
+
+	/**
+	 * POST /difm/idea-board/save persists a merchant-edited board without requiring AI.
+	 */
+	public function test_idea_board_save_persists_current_board() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		$this->set_admin_user();
+
+		$board           = $this->sample_current_period_board();
+		$board['notes']  = array_slice( $board['notes'], 0, 2 );
+		$board['arrows'] = array_merge(
+			$board['arrows'],
+			array(
+				array(
+					'from'  => 'removed-card',
+					'to'    => 'retention-signal',
+					'label' => 'ignore',
+				),
+			)
+		);
+
+		$response = $this->dispatch_idea_board_save( $board );
+		$data     = $response->get_data();
+		$saved    = get_option( IdeaBoardRestController::SAVED_BOARD_OPTION, array() );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertFalse( $data['board']['freshness']['isStale'] );
+		$this->assertSame( array( 'retention-signal' ), wp_list_pluck( $data['board']['arrows'], 'from' ) );
+		$this->assertIsArray( $saved );
+		$this->assertSame( IdeaBoardRestController::CACHE_VERSION, $saved['version'] );
+		$this->assertArrayNotHasKey( 'freshness', $saved['payload']['board'] );
+		$this->assertSame(
+			array(
+				'merchant-pop-up-offer',
+				'retention-signal',
+			),
+			$this->sorted_note_ids( $saved['payload']['board']['notes'] )
+		);
+	}
+
+	/**
+	 * POST /difm/idea-board/save allows an empty board so card removals persist.
+	 */
+	public function test_idea_board_save_allows_empty_board() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		$this->set_admin_user();
+
+		$board           = $this->sample_current_period_board();
+		$board['notes']  = array();
+		$board['arrows'] = array();
+
+		$save_response = $this->dispatch_idea_board_save( $board );
+		$save_data     = $save_response->get_data();
+		$this->assertSame( 200, $save_response->get_status() );
+		$this->assertSame( 'ok', $save_data['status'] );
+		$this->assertSame( array(), $save_data['board']['notes'] );
+
+		$get_response = $this->dispatch_idea_board();
+		$get_data     = $get_response->get_data();
+		$this->assertSame( 200, $get_response->get_status() );
+		$this->assertSame( 'ok', $get_data['status'] );
+		$this->assertSame( array(), $get_data['board']['notes'] );
+	}
+
+	/**
+	 * GET /difm/idea-board returns the saved board without an Anthropic key.
+	 */
+	public function test_idea_board_returns_saved_board_without_anthropic_key() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		$this->set_admin_user();
+
+		$saved_response = $this->dispatch_idea_board_save( $this->sample_current_period_board() );
+		$this->assertSame( 'ok', $saved_response->get_data()['status'] );
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt ) use ( &$call_count ) {
+				++$call_count;
+				return $preempt;
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board();
+		$data     = $response->get_data();
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 0, $call_count );
+		$this->assertFalse( $data['board']['freshness']['isStale'] );
+		$this->assertSame(
+			array(
+				'first-test',
+				'merchant-pop-up-offer',
+				'retention-signal',
+			),
+			$this->sorted_note_ids( $data['board']['notes'] )
+		);
+	}
+
+	/**
+	 * GET /difm/idea-board keeps a saved board and marks it stale when its period has moved.
+	 */
+	public function test_idea_board_marks_saved_board_stale_without_rebuilding() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		$this->set_admin_user();
+
+		$board                    = $this->sample_current_period_board();
+		$board['period']['start'] = current_datetime()->modify( '-90 days' )->format( 'Y-m-d' );
+		$board['period']['end']   = current_datetime()->modify( '-1 day' )->format( 'Y-m-d' );
+
+		$saved_response = $this->dispatch_idea_board_save( $board );
+		$this->assertSame( 'ok', $saved_response->get_data()['status'] );
+
+		$response = $this->dispatch_idea_board();
+		$data     = $response->get_data();
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertTrue( $data['board']['freshness']['isStale'] );
+		$this->assertSame( $board['period']['end'], $data['board']['period']['end'] );
+		$this->assertSame( $board['period']['end'], $data['board']['freshness']['savedPeriod']['end'] );
+		$this->assertNotSame( $board['period']['end'], $data['board']['freshness']['currentPeriod']['end'] );
 	}
 
 	/**
@@ -204,95 +345,101 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 				$captured_bodies[] = json_decode( $parsed_args['body'], true );
 				++$call_count;
 
-				if ( 1 === $call_count ) {
-					$text = wp_json_encode(
-						array(
-							'notes'  => array(
-								array(
-									'id'         => 'canvas-momentum',
-									'type'       => 'insight',
-									'title'      => 'Canvas Tote is moving',
-									'body'       => 'Recent paid orders give Canvas Tote a clear merchandising signal to build from.',
-									'colour'     => 'yellow',
-									'prompt'     => 'Brainstorm revenue ideas from Canvas Tote momentum.',
-									'confidence' => 'medium',
-								),
-								array(
-									'id'         => 'repeat-buyer-signal',
-									'type'       => 'insight',
-									'title'      => 'Repeat buyers are active',
-									'body'       => 'Returning customers are present, so post-purchase ideas are worth testing.',
-									'colour'     => 'blue',
-									'prompt'     => 'Suggest repeat-buyer campaigns for this store.',
-									'confidence' => 'medium',
-								),
-								array(
-									'id'         => 'bundle-canvas-tote',
-									'type'       => 'idea',
-									'title'      => 'Bundle the tote?',
-									'body'       => 'Pair Canvas Tote with a complementary product or timed offer.',
-									'colour'     => 'pink',
-									'prompt'     => 'Create bundle ideas around Canvas Tote.',
-									'confidence' => 'medium',
-								),
-								array(
-									'id'         => 'local-angle',
-									'type'       => 'idea',
-									'title'      => 'Use the local angle',
-									'body'       => 'Test campaign copy that reflects the store location and current season.',
-									'colour'     => 'lime',
-									'prompt'     => 'Draft localised campaign angles for this store.',
-									'confidence' => 'low',
-								),
-								array(
-									'id'         => 'first-test',
-									'type'       => 'question',
-									'title'      => 'What should we test first?',
-									'body'       => 'Pick one measurable experiment from these signals before widening the plan.',
-									'colour'     => 'white',
-									'prompt'     => 'Help prioritise the first idea-board experiment.',
-									'confidence' => 'high',
-								),
-							),
-							'arrows' => array(
-								array(
-									'from'  => 'canvas-momentum',
-									'to'    => 'bundle-canvas-tote',
-									'label' => 'build',
-								),
-								array(
-									'from'  => 'bundle-canvas-tote',
-									'to'    => 'first-test',
-									'label' => 'choose',
-								),
-								array(
-									'from'  => 'repeat-buyer-signal',
-									'to'    => 'local-angle',
-									'label' => 'adapt',
-								),
-							),
-						)
-					);
-
-					return array(
-						'response' => array(
-							'code'    => 200,
-							'message' => 'OK',
-						),
-						'body'     => wp_json_encode(
+				$text = wp_json_encode(
+					array(
+						'notes'     => array(
 							array(
-								'type'    => 'message',
-								'content' => array(
-									array(
-										'type' => 'text',
-										'text' => $text,
-									),
-								),
-							)
+								'id'         => 'canvas-momentum',
+								'type'       => 'insight',
+								'title'      => 'Canvas Tote is moving',
+								'body'       => 'Recent paid orders give Canvas Tote a clear merchandising signal to build from.',
+								'colour'     => 'yellow',
+								'prompt'     => 'Brainstorm revenue ideas from Canvas Tote momentum.',
+								'confidence' => 'medium',
+							),
+							array(
+								'id'         => 'repeat-buyer-signal',
+								'type'       => 'insight',
+								'title'      => 'Repeat buyers are active',
+								'body'       => 'Returning customers are present, so post-purchase ideas are worth testing.',
+								'colour'     => 'blue',
+								'prompt'     => 'Suggest repeat-buyer campaigns for this store.',
+								'confidence' => 'medium',
+							),
+							array(
+								'id'         => 'bundle-canvas-tote',
+								'type'       => 'idea',
+								'title'      => 'Bundle the tote?',
+								'body'       => 'Pair Canvas Tote with a complementary product or timed offer.',
+								'colour'     => 'pink',
+								'prompt'     => 'Create bundle ideas around Canvas Tote.',
+								'confidence' => 'medium',
+							),
+							array(
+								'id'         => 'local-angle',
+								'type'       => 'idea',
+								'title'      => 'Use the local angle',
+								'body'       => 'Test campaign copy that reflects the store location and current season.',
+								'colour'     => 'lime',
+								'prompt'     => 'Draft localised campaign angles for this store.',
+								'confidence' => 'low',
+							),
+							array(
+								'id'         => 'first-test',
+								'type'       => 'question',
+								'title'      => 'What should we test first?',
+								'body'       => 'Pick one measurable experiment from these signals before widening the plan.',
+								'colour'     => 'white',
+								'prompt'     => 'Help prioritise the first idea-board experiment.',
+								'confidence' => 'high',
+							),
 						),
-						'headers'  => array(),
-					);
-				}
+						'arrows'    => array(
+							array(
+								'from'  => 'canvas-momentum',
+								'to'    => 'bundle-canvas-tote',
+								'label' => 'build',
+							),
+							array(
+								'from'  => 'bundle-canvas-tote',
+								'to'    => 'first-test',
+								'label' => 'choose',
+							),
+							array(
+								'from'  => 'repeat-buyer-signal',
+								'to'    => 'local-angle',
+								'label' => 'adapt',
+							),
+						),
+						'positions' => array(
+							array(
+								'id' => 'canvas-momentum',
+								'x'  => 3,
+								'y'  => 6,
+							),
+							array(
+								'id' => 'repeat-buyer-signal',
+								'x'  => 3,
+								'y'  => 36,
+							),
+							array(
+								'id' => 'bundle-canvas-tote',
+								'x'  => 31,
+								'y'  => 6,
+							),
+							array(
+								'id' => 'local-angle',
+								'x'  => 31,
+								'y'  => 36,
+							),
+							array(
+								'id' => 'first-test',
+								'x'  => 60,
+								'y'  => 36,
+							),
+						),
+					)
+				);
 
 				return array(
 					'response' => array(
@@ -305,37 +452,7 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 							'content' => array(
 								array(
 									'type' => 'text',
-									'text' => wp_json_encode(
-										array(
-											'positions' => array(
-												array(
-													'id' => 'canvas-momentum',
-													'x'  => 3,
-													'y'  => 6,
-												),
-												array(
-													'id' => 'repeat-buyer-signal',
-													'x'  => 3,
-													'y'  => 36,
-												),
-												array(
-													'id' => 'bundle-canvas-tote',
-													'x'  => 31,
-													'y'  => 6,
-												),
-												array(
-													'id' => 'local-angle',
-													'x'  => 31,
-													'y'  => 36,
-												),
-												array(
-													'id' => 'first-test',
-													'x'  => 60,
-													'y'  => 36,
-												),
-											),
-										)
-									),
+									'text' => $text,
 								),
 							),
 						)
@@ -351,15 +468,15 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$data     = $response->get_data();
 
 		$this->assertSame( 200, $response->get_status() );
-		$this->assertSame( 2, $call_count );
+		$this->assertSame( 1, $call_count );
 		$this->assertSame( 'ai', $data['board']['content']['source'] );
 		$this->assertSame( 'ai', $data['board']['layout']['source'] );
 		$this->assertStringContainsString( 'merchant_prompt', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'readiness_recommendations', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'Canvas Tote', wp_json_encode( $data['board']['notes'] ) );
-		$this->assertStringContainsString( '"width":1480', $captured_bodies[1]['messages'][0]['content'] );
-		$this->assertStringContainsString( '"width":245', $captured_bodies[1]['messages'][0]['content'] );
-		$this->assertStringContainsString( 'do not write, edit, add, remove', strtolower( $captured_bodies[1]['system'] ) );
+		$this->assertStringContainsString( '"width":1480', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( '"width":245', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( 'layout positions', strtolower( $captured_bodies[0]['system'] ) );
 
 		$notes_by_id = array();
 		foreach ( $data['board']['notes'] as $note ) {
@@ -379,6 +496,14 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 				'repeat-buyer-signal',
 			),
 			$this->sorted_note_ids( $data['board']['notes'] )
+		);
+
+		$saved = get_option( IdeaBoardRestController::SAVED_BOARD_OPTION, array() );
+		$this->assertSame( IdeaBoardRestController::CACHE_VERSION, $saved['version'] );
+		$this->assertArrayNotHasKey( 'freshness', $saved['payload']['board'] );
+		$this->assertSame(
+			$this->sorted_note_ids( $data['board']['notes'] ),
+			$this->sorted_note_ids( $saved['payload']['board']['notes'] )
 		);
 	}
 
@@ -512,10 +637,66 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 			),
 			$data['board']['arrows']
 		);
+
+		$saved = get_option( IdeaBoardRestController::SAVED_BOARD_OPTION, array() );
+		$this->assertSame( IdeaBoardRestController::CACHE_VERSION, $saved['version'] );
+		$this->assertArrayNotHasKey( 'freshness', $saved['payload']['board'] );
+		$this->assertSame(
+			$this->sorted_note_ids( $data['board']['notes'] ),
+			$this->sorted_note_ids( $saved['payload']['board']['notes'] )
+		);
 	}
 
 	/**
-	 * POST /difm/idea-board/reanalyse rejects AI responses that change the submitted card set.
+	 * POST /difm/idea-board/reanalyse may add relevant cards while preserving submitted cards.
+	 */
+	public function test_idea_board_reanalysis_allows_added_cards() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				$payload                = $this->valid_reanalysis_payload();
+				$payload['notes'][]     = array(
+					'id'         => 'ai-added-insight',
+					'type'       => 'insight',
+					'title'      => 'New insight from the board',
+					'body'       => 'The edited board suggests one extra angle worth testing next.',
+					'colour'     => 'yellow',
+					'prompt'     => 'Explore the extra insight added during board re-analysis.',
+					'confidence' => 'medium',
+				);
+				$payload['positions'][] = array(
+					'id' => 'ai-added-insight',
+					'x'  => 31,
+					'y'  => 36,
+				);
+
+				return $this->anthropic_text_response( wp_json_encode( $payload ) );
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_reanalysis( $this->sample_reanalysis_board() );
+		$data     = $response->get_data();
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame(
+			array(
+				'ai-added-insight',
+				'first-test',
+				'merchant-pop-up-offer',
+				'retention-signal',
+			),
+			$this->sorted_note_ids( $data['board']['notes'] )
+		);
+	}
+
+	/**
+	 * POST /difm/idea-board/reanalyse rejects AI responses that remove or mutate submitted cards.
 	 *
 	 * @dataProvider invalid_reanalysis_card_set_provider
 	 *
@@ -532,21 +713,6 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 				if ( 'omit' === $mutation ) {
 					array_pop( $payload['notes'] );
 					array_pop( $payload['positions'] );
-				} elseif ( 'add' === $mutation ) {
-					$payload['notes'][]     = array(
-						'id'         => 'extra-card',
-						'type'       => 'idea',
-						'title'      => 'Extra card',
-						'body'       => 'This card was not submitted by the merchant.',
-						'colour'     => 'pink',
-						'prompt'     => 'Ignore this extra card.',
-						'confidence' => 'low',
-					);
-					$payload['positions'][] = array(
-						'id' => 'extra-card',
-						'x'  => 60,
-						'y'  => 60,
-					);
 				} elseif ( 'rename' === $mutation ) {
 					$payload['notes'][0]['id']     = 'renamed-signal';
 					$payload['positions'][0]['id'] = 'renamed-signal';
@@ -577,7 +743,6 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	public function invalid_reanalysis_card_set_provider() {
 		return array(
 			'omitted card' => array( 'omit' ),
-			'added card'   => array( 'add' ),
 			'renamed card' => array( 'rename' ),
 			'changed type' => array( 'type' ),
 		);
@@ -658,6 +823,49 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/idea-board/reanalyse' );
 		$request->set_param( 'board', $board );
 		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Dispatch an idea-board save request.
+	 *
+	 * @param array $board Board payload.
+	 * @return \WP_REST_Response
+	 */
+	private function dispatch_idea_board_save( array $board ) {
+		$request = new \WP_REST_Request( 'POST', '/woocommerce-claude/v1/difm/idea-board/save' );
+		$request->set_param( 'board', $board );
+		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Return a sample board whose period matches the current date range.
+	 *
+	 * @return array
+	 */
+	private function sample_current_period_board() {
+		$board = $this->sample_reanalysis_board();
+		$dates = $this->current_test_period_dates( 90 );
+
+		$board['period']['start'] = $dates['start'];
+		$board['period']['end']   = $dates['end'];
+
+		return $board;
+	}
+
+	/**
+	 * Return the current trailing period dates used by the route.
+	 *
+	 * @param int $days Number of trailing days.
+	 * @return array
+	 */
+	private function current_test_period_dates( $days ) {
+		$today = current_datetime();
+		$start = $today->modify( '-' . ( (int) $days - 1 ) . ' days' );
+
+		return array(
+			'start' => $start->format( 'Y-m-d' ),
+			'end'   => $today->format( 'Y-m-d' ),
+		);
 	}
 
 	/**

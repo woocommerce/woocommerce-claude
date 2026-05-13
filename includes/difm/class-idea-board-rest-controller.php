@@ -3,7 +3,8 @@
  * REST controller for the AI Insights idea board.
  *
  * Routes:
- *   GET /woocommerce-claude/v1/difm/idea-board - Generate a brainstorming board.
+ *   GET /woocommerce-claude/v1/difm/idea-board - Return the saved board or generate one.
+ *   POST /woocommerce-claude/v1/difm/idea-board/save - Save the merchant-edited board.
  *   POST /woocommerce-claude/v1/difm/idea-board/reanalyse - Re-analyse the merchant-edited board.
  *
  * @package WooCommerce\Claude\Difm
@@ -35,12 +36,22 @@ class IdeaBoardRestController {
 	const ROUTE = '/difm/idea-board';
 
 	/**
+	 * Idea board save route.
+	 */
+	const SAVE_ROUTE = '/difm/idea-board/save';
+
+	/**
 	 * Idea board re-analysis route.
 	 */
 	const REANALYSE_ROUTE = '/difm/idea-board/reanalyse';
 
 	/**
-	 * Version marker for cached idea-board payloads.
+	 * Option storing the merchant's latest saved idea board.
+	 */
+	const SAVED_BOARD_OPTION = 'woocommerce_claude_difm_idea_board_saved';
+
+	/**
+	 * Version marker for saved idea-board payloads.
 	 */
 	const CACHE_VERSION = '2026-05-12-ai-content-layout-v3';
 
@@ -139,6 +150,24 @@ class IdeaBoardRestController {
 
 		register_rest_route(
 			self::NAMESPACE,
+			self::SAVE_ROUTE,
+			array(
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'save_idea_board' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+					'args'                => array(
+						'board' => array(
+							'type'     => 'object',
+							'required' => true,
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
 			self::REANALYSE_ROUTE,
 			array(
 				array(
@@ -174,7 +203,7 @@ class IdeaBoardRestController {
 	}
 
 	/**
-	 * GET /woocommerce-claude/v1/difm/idea-board - AI-generated brainstorming board.
+	 * GET /woocommerce-claude/v1/difm/idea-board - saved or AI-generated brainstorming board.
 	 *
 	 * @param \WP_REST_Request $request Incoming request.
 	 * @return \WP_REST_Response
@@ -200,6 +229,45 @@ class IdeaBoardRestController {
 		}
 
 		return rest_ensure_response( $payload );
+	}
+
+	/**
+	 * POST /woocommerce-claude/v1/difm/idea-board/save - persist the submitted board.
+	 *
+	 * @param \WP_REST_Request $request Incoming request.
+	 * @return \WP_REST_Response
+	 */
+	public function save_idea_board( \WP_REST_Request $request ) {
+		$raw_board = $request->get_param( 'board' );
+		if ( ! is_array( $raw_board ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+				)
+			);
+		}
+
+		$board = $this->normalise_submitted_idea_board( $raw_board, 0 );
+		if ( is_wp_error( $board ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $board->get_error_message(),
+				)
+			);
+		}
+
+		$payload = array(
+			'status' => 'ok',
+			'board'  => $board,
+		);
+		$this->save_idea_board_payload( $payload );
+
+		$days  = $this->normalise_idea_board_days( isset( $board['period']['days'] ) ? (int) $board['period']['days'] : 90 );
+		$dates = $this->get_idea_board_dates( $days );
+
+		return rest_ensure_response( $this->add_idea_board_freshness( $payload, $days, $dates ) );
 	}
 
 	/**
@@ -248,22 +316,36 @@ class IdeaBoardRestController {
 			);
 		}
 
-		return rest_ensure_response(
-			array(
-				'status' => 'ok',
-				'board'  => $payload,
-			)
+		$response = array(
+			'status' => 'ok',
+			'board'  => $payload,
 		);
+		$this->save_idea_board_payload( $response );
+
+		$days  = $this->normalise_idea_board_days( isset( $payload['period']['days'] ) ? (int) $payload['period']['days'] : 90 );
+		$dates = $this->get_idea_board_dates( $days );
+
+		return rest_ensure_response( $this->add_idea_board_freshness( $response, $days, $dates ) );
 	}
 
 	/**
 	 * Build the idea-board payload from existing analytics helpers.
 	 *
 	 * @param int  $days    Number of trailing days to include.
-	 * @param bool $refresh Whether to bypass cached board and analytics results.
+	 * @param bool $refresh Whether to bypass the saved board and cached analytics results.
 	 * @return array|\WP_Error Board payload or error.
 	 */
 	private function build_idea_board_payload( $days, $refresh = false ) {
+		$days  = $this->normalise_idea_board_days( $days );
+		$dates = $this->get_idea_board_dates( $days );
+
+		if ( ! $refresh ) {
+			$saved = $this->get_saved_idea_board_payload( $days, $dates );
+			if ( is_array( $saved ) ) {
+				return $saved;
+			}
+		}
+
 		if ( ! AnthropicClient::has_api_key() ) {
 			return new \WP_Error(
 				'no_anthropic_key',
@@ -271,18 +353,8 @@ class IdeaBoardRestController {
 			);
 		}
 
-		$dates     = $this->get_idea_board_dates( $days );
-		$cache_key = 'woocommerce_claude_difm_idea_board_' . md5(
-			$dates['start'] . '_' . $dates['end'] . '_' . $days . '_' . get_woocommerce_currency() . '_' . self::CACHE_VERSION
-		);
-
 		if ( $refresh ) {
 			$this->clear_idea_board_analytics_caches();
-		} else {
-			$cached = get_transient( $cache_key );
-			if ( false !== $cached ) {
-				return $cached;
-			}
 		}
 
 		$revenue   = AnalyticsController::fetch_revenue_summary( '', $dates['start'], $dates['end'], true );
@@ -305,8 +377,14 @@ class IdeaBoardRestController {
 
 		$notes         = $content['notes'];
 		$arrows        = $content['arrows'];
-		$layout_result = $this->layout_idea_board_notes( $notes, $arrows );
-		$notes         = $layout_result['notes'];
+		$layout_source = 'fallback';
+
+		if ( ! is_wp_error( $content['positions'] ) ) {
+			$notes         = $this->apply_idea_board_positions( $notes, $content['positions'] );
+			$layout_source = 'ai';
+		} else {
+			$notes = $this->create_algorithmic_idea_board_layout( $notes );
+		}
 
 		$payload = array(
 			'status' => 'ok',
@@ -337,7 +415,7 @@ class IdeaBoardRestController {
 					'source' => $content['source'],
 				),
 				'layout'          => array(
-					'source' => $layout_result['source'],
+					'source' => $layout_source,
 					'board'  => array(
 						'width'  => self::CANVAS_WIDTH,
 						'height' => self::CANVAS_HEIGHT,
@@ -352,16 +430,16 @@ class IdeaBoardRestController {
 			),
 		);
 
-		set_transient( $cache_key, $payload, 30 * MINUTE_IN_SECONDS );
+		$this->save_idea_board_payload( $payload );
 
-		return $payload;
+		return $this->add_idea_board_freshness( $payload, $days, $dates );
 	}
 
 	/**
 	 * Build a re-analysed board from the merchant-edited board state.
 	 *
-	 * This path deliberately does not fetch analytics, read cached board
-	 * transients, write cached board transients, or clear analytics caches.
+	 * This path deliberately does not fetch analytics, read the saved initial
+	 * board, write transients, or clear analytics caches.
 	 *
 	 * @param array $board Sanitised board payload submitted by the browser.
 	 * @return array|\WP_Error Board payload or error.
@@ -395,12 +473,126 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Return a saved board payload with current freshness metadata.
+	 *
+	 * @param int   $days          Requested trailing days.
+	 * @param array $current_dates Current date range for the requested trailing days.
+	 * @return array|false
+	 */
+	private function get_saved_idea_board_payload( $days, array $current_dates ) {
+		$saved = get_option( self::SAVED_BOARD_OPTION, array() );
+		if ( ! is_array( $saved ) || ! isset( $saved['version'], $saved['payload'] ) || self::CACHE_VERSION !== $saved['version'] || ! is_array( $saved['payload'] ) ) {
+			return false;
+		}
+
+		$payload = $saved['payload'];
+		if (
+			! isset( $payload['status'], $payload['board'] )
+			|| 'ok' !== $payload['status']
+			|| ! is_array( $payload['board'] )
+			|| ! isset( $payload['board']['notes'] )
+			|| ! is_array( $payload['board']['notes'] )
+		) {
+			return false;
+		}
+
+		return $this->add_idea_board_freshness( $payload, $days, $current_dates );
+	}
+
+	/**
+	 * Save a board payload permanently.
+	 *
+	 * @param array $payload Board response payload.
+	 * @return void
+	 */
+	private function save_idea_board_payload( array $payload ) {
+		if ( ! isset( $payload['status'], $payload['board'] ) || 'ok' !== $payload['status'] || ! is_array( $payload['board'] ) ) {
+			return;
+		}
+
+		unset( $payload['board']['freshness'] );
+
+		update_option(
+			self::SAVED_BOARD_OPTION,
+			array(
+				'version'  => self::CACHE_VERSION,
+				'savedAt'  => current_datetime()->format( DATE_ATOM ),
+				'days'     => isset( $payload['board']['period']['days'] ) ? (int) $payload['board']['period']['days'] : 0,
+				'currency' => isset( $payload['board']['currency'] ) ? (string) $payload['board']['currency'] : '',
+				'payload'  => $payload,
+			),
+			false
+		);
+	}
+
+	/**
+	 * Attach freshness metadata to a board payload.
+	 *
+	 * @param array $payload       Board response payload.
+	 * @param int   $days          Requested trailing days.
+	 * @param array $current_dates Current date range for the requested trailing days.
+	 * @return array
+	 */
+	private function add_idea_board_freshness( array $payload, $days, array $current_dates ) {
+		if ( ! isset( $payload['board'] ) || ! is_array( $payload['board'] ) ) {
+			return $payload;
+		}
+
+		$period      = isset( $payload['board']['period'] ) && is_array( $payload['board']['period'] ) ? $payload['board']['period'] : array();
+		$period_days = isset( $period['days'] ) ? (int) $period['days'] : 0;
+		$is_stale    = $period_days !== (int) $days
+			|| ! isset( $period['start'], $period['end'] )
+			|| $period['start'] !== $current_dates['start']
+			|| $period['end'] !== $current_dates['end'];
+
+		$payload['board']['freshness'] = array(
+			'isStale'       => $is_stale,
+			'currentPeriod' => array(
+				'start' => $current_dates['start'],
+				'end'   => $current_dates['end'],
+				'label' => sprintf(
+					/* translators: %d: number of days. */
+					__( 'Last %d days', 'woocommerce-claude' ),
+					$days
+				),
+				'days'  => (int) $days,
+			),
+			'savedPeriod'   => array(
+				'start' => isset( $period['start'] ) ? (string) $period['start'] : '',
+				'end'   => isset( $period['end'] ) ? (string) $period['end'] : '',
+				'label' => isset( $period['label'] ) ? (string) $period['label'] : '',
+				'days'  => $period_days,
+			),
+		);
+
+		return $payload;
+	}
+
+	/**
+	 * Clamp board days to the public route bounds.
+	 *
+	 * @param int $days Requested trailing days.
+	 * @return int
+	 */
+	private function normalise_idea_board_days( $days ) {
+		$days = (int) $days;
+		if ( $days < 30 ) {
+			return 30;
+		}
+		if ( $days > 180 ) {
+			return 180;
+		}
+
+		return $days;
+	}
+
+	/**
 	 * Clear the cached analytics slices used by the idea board.
 	 *
 	 * The board is only a composition layer; the underlying analytics helpers
-	 * also cache their responses. A merchant pressing Refresh expects newly
+	 * cache their responses. A merchant pressing Refresh expects newly
 	 * imported or newly created orders to show up immediately, so the forced
-	 * refresh path clears both levels before rebuilding the board.
+	 * refresh path clears those helper caches before rebuilding the board.
 	 *
 	 * @return void
 	 */
@@ -434,15 +626,16 @@ class IdeaBoardRestController {
 	/**
 	 * Normalise a merchant-submitted board before sending it to AI.
 	 *
-	 * @param array $board Raw board payload from the REST request.
+	 * @param array $board         Raw board payload from the REST request.
+	 * @param int   $minimum_notes Minimum accepted note count.
 	 * @return array|\WP_Error
 	 */
-	private function normalise_submitted_idea_board( array $board ) {
-		if ( empty( $board['notes'] ) || ! is_array( $board['notes'] ) ) {
-			return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board must include at least one card.', 'woocommerce-claude' ) );
+	private function normalise_submitted_idea_board( array $board, $minimum_notes = 1 ) {
+		if ( ! isset( $board['notes'] ) || ! is_array( $board['notes'] ) ) {
+			return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board must include a card list.', 'woocommerce-claude' ) );
 		}
 
-		$notes = $this->normalise_submitted_idea_board_notes( $board['notes'] );
+		$notes = $this->normalise_submitted_idea_board_notes( $board['notes'], $minimum_notes );
 		if ( is_wp_error( $notes ) ) {
 			return $notes;
 		}
@@ -463,6 +656,11 @@ class IdeaBoardRestController {
 			$title = __( 'Idea board', 'woocommerce-claude' );
 		}
 
+		$layout_source = 'fallback';
+		if ( isset( $board['layout']['source'] ) && in_array( $board['layout']['source'], array( 'ai', 'fallback' ), true ) ) {
+			$layout_source = (string) $board['layout']['source'];
+		}
+
 		return array(
 			'id'              => $id,
 			'title'           => $title,
@@ -474,7 +672,7 @@ class IdeaBoardRestController {
 			'content'         => array(
 				'source' => 'ai',
 			),
-			'layout'          => $this->build_idea_board_layout_metadata( 'fallback' ),
+			'layout'          => $this->build_idea_board_layout_metadata( $layout_source ),
 			'generatedAt'     => isset( $board['generatedAt'] ) ? sanitize_text_field( (string) $board['generatedAt'] ) : '',
 		);
 	}
@@ -482,12 +680,24 @@ class IdeaBoardRestController {
 	/**
 	 * Normalise submitted card rows.
 	 *
-	 * @param array $raw_notes Raw note rows.
+	 * @param array $raw_notes     Raw note rows.
+	 * @param int   $minimum_notes Minimum accepted note count.
 	 * @return array|\WP_Error
 	 */
-	private function normalise_submitted_idea_board_notes( array $raw_notes ) {
+	private function normalise_submitted_idea_board_notes( array $raw_notes, $minimum_notes = 1 ) {
 		$count = count( $raw_notes );
-		if ( $count < 1 || $count > self::MAX_REANALYSIS_NOTES ) {
+		if ( $count < $minimum_notes || $count > self::MAX_REANALYSIS_NOTES ) {
+			if ( 0 === (int) $minimum_notes ) {
+				return new \WP_Error(
+					'invalid_submitted_board',
+					sprintf(
+						/* translators: %d: maximum number of cards. */
+						__( 'The submitted idea board must include no more than %d cards.', 'woocommerce-claude' ),
+						self::MAX_REANALYSIS_NOTES
+					)
+				);
+			}
+
 			return new \WP_Error(
 				'invalid_submitted_board',
 				sprintf(
@@ -637,9 +847,10 @@ class IdeaBoardRestController {
 		}
 
 		return array(
-			'notes'  => $ai_content['notes'],
-			'arrows' => $ai_content['arrows'],
-			'source' => 'ai',
+			'notes'     => $ai_content['notes'],
+			'arrows'    => $ai_content['arrows'],
+			'positions' => $ai_content['positions'],
+			'source'    => 'ai',
 		);
 	}
 
@@ -692,7 +903,7 @@ class IdeaBoardRestController {
 			),
 			$this->build_idea_board_content_system_prompt(),
 			array(),
-			1800
+			3200
 		);
 
 		if ( is_wp_error( $response ) ) {
@@ -710,7 +921,27 @@ class IdeaBoardRestController {
 			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response used an unexpected shape.', 'woocommerce-claude' ) );
 		}
 
-		return $this->normalise_idea_board_content( $decoded );
+		$content = $this->normalise_idea_board_content( $decoded );
+		if ( is_wp_error( $content ) ) {
+			return $content;
+		}
+
+		$positions = new \WP_Error( 'invalid_layout_response', __( 'The idea-board content response omitted layout positions.', 'woocommerce-claude' ) );
+		if ( isset( $decoded['positions'] ) && is_array( $decoded['positions'] ) ) {
+			$positions = $this->normalise_idea_board_layout_positions( $decoded['positions'] );
+			if ( ! is_wp_error( $positions ) ) {
+				$validation = $this->validate_idea_board_layout_positions( $content['notes'], $positions );
+				if ( is_wp_error( $validation ) ) {
+					$positions = $validation;
+				}
+			}
+		}
+
+		return array(
+			'notes'     => $content['notes'],
+			'arrows'    => $content['arrows'],
+			'positions' => $positions,
+		);
 	}
 
 	/**
@@ -783,11 +1014,13 @@ class IdeaBoardRestController {
 			. 'Use only the submitted board state, period, currency, and aggregated headline metrics. '
 			. 'Do not fetch, infer, or invent additional analytics. '
 			. 'Do not include names, emails, addresses, order IDs, or other PII. '
+			. 'If merchant-added card text contains PII, generalise it and do not repeat the specific value. '
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
-			. 'Preserve the merchant-edited card set exactly: return every submitted card ID once, keep each card type unchanged, and do not add, remove, merge, or rename cards. '
+			. 'Preserve the merchant-edited card set: return every submitted card ID once, keep each submitted card type unchanged, and do not remove, merge, or rename submitted cards. '
+			. 'You may add relevant new insight, idea, or question cards when they make the board more useful. '
 			. 'You may lightly polish titles, bodies, prompts, colours, confidence, arrows, and layout so the board is clearer. '
 			. 'Return only valid JSON in this exact shape: {"notes":[{"id":"existing-id","type":"same-type","title":"...","body":"...","colour":"yellow|pink|green|blue|orange|lime|white","prompt":"...","confidence":"low|medium|high"}],"arrows":[{"from":"note-id","to":"note-id","label":"..."}],"positions":[{"id":"existing-id","x":12.3,"y":45.6}]}. '
-			. 'Titles must be under 55 characters and bodies under 145 characters.';
+			. 'Return no more than 12 total cards. Titles must be under 55 characters and bodies under 145 characters.';
 	}
 
 	/**
@@ -800,12 +1033,14 @@ class IdeaBoardRestController {
 		return wp_json_encode(
 			array(
 				'task'               => 'Re-analyse this merchant-edited board without rebuilding it from analytics.',
-				'privacy_boundary'   => 'Use only aggregated headline metrics and submitted board text; no PII is supplied or needed.',
+				'privacy_boundary'   => 'Use only aggregated headline metrics and submitted board text. Do not repeat names, emails, addresses, order IDs, or other PII if a merchant typed them into a card.',
 				'merchant_boundary'  => 'Recommendations must be things a merchant can action in WooCommerce, marketing, merchandising, operations, or settings.',
 				'preserve_cards'     => array(
 					'must_return_every_submitted_card_id_once' => true,
 					'must_keep_card_types_unchanged' => true,
-					'must_not_add_remove_merge_or_rename_cards' => true,
+					'must_not_remove_merge_or_rename_submitted_cards' => true,
+					'may_add_relevant_cards'         => true,
+					'maximum_total_cards'            => self::MAX_REANALYSIS_NOTES,
 				),
 				'layout'             => array(
 					'board'       => array(
@@ -851,10 +1086,16 @@ class IdeaBoardRestController {
 			. 'Use only the supplied aggregated analytics, store profile, country/location context, and readiness recommendations. '
 			. 'Do not invent customer-level details or include names, emails, addresses, order IDs, or other PII. '
 			. 'Create cards that help the merchant brainstorm revenue growth: key insights, initial ideas, and open questions. '
-			. 'Prefer store-specific notes over generic advice, and use location context when it is genuinely useful. '
+			. 'Each insight card must reference at least one concrete metric, product, or trend from the analytics — avoid generic observations. '
+			. 'Consider location-specific buying patterns or seasonality where the analytics suggest it. '
 			. 'Do not suggest building plugins, custom endpoints, or developer-only work. '
-			. 'Return only valid JSON in this exact shape: {"notes":[{"id":"short-slug","type":"insight|idea|question","title":"...","body":"...","colour":"yellow|pink|green|blue|orange|lime|white","prompt":"...","confidence":"low|medium|high"}],"arrows":[{"from":"note-id","to":"note-id","label":"..."}]}. '
-			. 'Return 5 to 8 notes, including at least 2 insights, 2 ideas, and 1 question. Titles must be under 55 characters and bodies under 145 characters.';
+			. 'The "prompt" field must be a specific, ready-to-ask question the merchant can put to an AI assistant to explore that card further — not a generic call to action. '
+			. 'Confidence rubric: "high" = directly evidenced by the analytics data; "medium" = inferred from a pattern; "low" = speculative or context-only. '
+			. 'Only include an arrow when there is a clear directional relationship (an insight informing an idea, or a question challenging an insight). Do not add arrows just to make the board look connected. '
+			. 'Also return layout positions for every card. Use the card types, colours, titles, and arrows to group related cards — keep cards readable, avoid overlap, and use the full board area. '
+			. 'Return only valid JSON in this exact shape: {"notes":[{"id":"short-slug","type":"insight|idea|question","title":"...","body":"...","colour":"yellow|pink|green|blue|orange|lime|white","prompt":"...","confidence":"low|medium|high"}],"arrows":[{"from":"note-id","to":"note-id","label":"..."}],"positions":[{"id":"card-id","x":12.3,"y":45.6}]}. '
+			. 'Return 5 to 8 notes, including at least 2 insights, 2 ideas, and 1 question. Titles must be under 55 characters and bodies under 145 characters. '
+			. 'Positions are x/y percentages of the board from the top-left of each card. Every note must have exactly one position entry.';
 	}
 
 	/**
@@ -895,6 +1136,23 @@ class IdeaBoardRestController {
 				'readiness_recommendations' => $this->limit_nested_payload( $recs, 4500 ),
 				'allowed_note_types'        => array( 'insight', 'idea', 'question' ),
 				'allowed_colours'           => array( 'yellow', 'pink', 'green', 'blue', 'orange', 'lime', 'white' ),
+				'layout'                    => array(
+					'board'       => array(
+						'width'  => self::CANVAS_WIDTH,
+						'height' => self::CANVAS_HEIGHT,
+					),
+					'card'        => array(
+						'width'  => self::CARD_WIDTH,
+						'height' => self::CARD_HEIGHT,
+						'gap'    => self::CARD_GAP,
+					),
+					'constraints' => array(
+						'must_return_every_card_id_once' => true,
+						'must_not_overlap_cards'         => true,
+						'x_range_percent'                => array( self::MIN_X_PERCENT, self::MAX_X_PERCENT ),
+						'y_range_percent'                => array( self::MIN_Y_PERCENT, self::MAX_Y_PERCENT ),
+					),
+				),
 			)
 		);
 	}
@@ -931,34 +1189,6 @@ class IdeaBoardRestController {
 		return array(
 			'truncated' => true,
 			'summary'   => substr( $json, 0, $limit ),
-		);
-	}
-
-	/**
-	 * Layout notes on the visual board.
-	 *
-	 * When a key is configured, the model receives only the already-built card
-	 * metadata and canonical board/card dimensions, then returns coordinates.
-	 * Validation keeps the response constrained to the original card set.
-	 *
-	 * @param array $notes  Board notes.
-	 * @param array $arrows Board arrows.
-	 * @return array
-	 */
-	private function layout_idea_board_notes( array $notes, array $arrows ) {
-		if ( AnthropicClient::has_api_key() ) {
-			$ai_notes = $this->request_ai_idea_board_layout( $notes, $arrows );
-			if ( ! is_wp_error( $ai_notes ) ) {
-				return array(
-					'notes'  => $ai_notes,
-					'source' => 'ai',
-				);
-			}
-		}
-
-		return array(
-			'notes'  => $this->create_algorithmic_idea_board_layout( $notes ),
-			'source' => 'fallback',
 		);
 	}
 
@@ -1040,16 +1270,31 @@ class IdeaBoardRestController {
 	}
 
 	/**
-	 * Normalise AI re-analysis output while preserving the submitted card set.
+	 * Normalise AI re-analysis output while preserving submitted cards.
+	 *
+	 * Submitted cards must be returned exactly once with the same type. The
+	 * model may add extra cards, which are capped and validated like any other
+	 * board note.
 	 *
 	 * @param array $decoded         Decoded model response.
 	 * @param array $submitted_notes Sanitised notes submitted by the browser.
 	 * @return array|\WP_Error
 	 */
 	private function normalise_idea_board_reanalysis_content( array $decoded, array $submitted_notes ) {
-		$expected = array();
+		if ( count( $decoded['notes'] ) > self::MAX_REANALYSIS_NOTES ) {
+			return new \WP_Error(
+				'invalid_board_reanalysis',
+				sprintf(
+					/* translators: %d: maximum number of cards. */
+					__( 'The idea-board re-analysis response included more than %d cards.', 'woocommerce-claude' ),
+					self::MAX_REANALYSIS_NOTES
+				)
+			);
+		}
+
+		$submitted = array();
 		foreach ( $submitted_notes as $note ) {
-			$expected[ $note['id'] ] = $note;
+			$submitted[ $note['id'] ] = $note;
 		}
 
 		$notes    = array();
@@ -1060,13 +1305,17 @@ class IdeaBoardRestController {
 			}
 
 			$id = sanitize_key( (string) $note['id'] );
-			if ( '' === $id || ! isset( $expected[ $id ] ) || isset( $seen_ids[ $id ] ) ) {
-				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed the card set.', 'woocommerce-claude' ) );
+			if ( '' === $id || isset( $seen_ids[ $id ] ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response repeated or omitted a card ID.', 'woocommerce-claude' ) );
 			}
 
 			$type = sanitize_key( (string) $note['type'] );
-			if ( $type !== $expected[ $id ]['type'] ) {
-				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed a card type.', 'woocommerce-claude' ) );
+			if ( isset( $submitted[ $id ] ) && $type !== $submitted[ $id ]['type'] ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed a submitted card type.', 'woocommerce-claude' ) );
+			}
+
+			if ( ! in_array( $type, array( 'insight', 'idea', 'question' ), true ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response used an unsupported note type.', 'woocommerce-claude' ) );
 			}
 
 			$colour = sanitize_key( (string) $note['colour'] );
@@ -1087,31 +1336,30 @@ class IdeaBoardRestController {
 			}
 
 			$seen_ids[ $id ] = true;
+			$source_note     = isset( $submitted[ $id ] ) ? $submitted[ $id ] : array();
 			$notes[]         = array(
 				'id'         => $id,
 				'type'       => $type,
 				'title'      => $title,
 				'body'       => $body,
 				'colour'     => $colour,
-				'x'          => $expected[ $id ]['x'],
-				'y'          => $expected[ $id ]['y'],
-				'rotation'   => $expected[ $id ]['rotation'],
+				'x'          => isset( $source_note['x'] ) ? $source_note['x'] : 0,
+				'y'          => isset( $source_note['y'] ) ? $source_note['y'] : 0,
+				'rotation'   => isset( $source_note['rotation'] ) ? $source_note['rotation'] : $this->default_note_rotation( count( $notes ) ),
 				'prompt'     => $prompt,
 				'confidence' => $confidence,
 			);
 		}
 
-		$expected_ids = array_fill_keys( array_keys( $expected ), true );
-		$actual_ids   = array_fill_keys( array_keys( $seen_ids ), true );
-		ksort( $expected_ids );
-		ksort( $actual_ids );
-		if ( $expected_ids !== $actual_ids ) {
-			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response changed the card set.', 'woocommerce-claude' ) );
+		foreach ( array_keys( $submitted ) as $submitted_id ) {
+			if ( ! isset( $seen_ids[ $submitted_id ] ) ) {
+				return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response omitted a submitted card.', 'woocommerce-claude' ) );
+			}
 		}
 
 		return array(
 			'notes'  => $notes,
-			'arrows' => $this->normalise_idea_board_arrows( isset( $decoded['arrows'] ) && is_array( $decoded['arrows'] ) ? $decoded['arrows'] : array(), $expected_ids ),
+			'arrows' => $this->normalise_idea_board_arrows( isset( $decoded['arrows'] ) && is_array( $decoded['arrows'] ) ? $decoded['arrows'] : array(), $seen_ids ),
 		);
 	}
 
@@ -1218,115 +1466,6 @@ class IdeaBoardRestController {
 	}
 
 	/**
-	 * Request AI coordinates for the fixed card set.
-	 *
-	 * @param array $notes  Board notes.
-	 * @param array $arrows Board arrows.
-	 * @return array|\WP_Error Notes with AI coordinates, or error.
-	 */
-	private function request_ai_idea_board_layout( array $notes, array $arrows ) {
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
-
-		$client   = new AnthropicClient();
-		$response = $client->messages(
-			array(
-				array(
-					'role'    => 'user',
-					'content' => $this->build_idea_board_layout_prompt( $notes, $arrows ),
-				),
-			),
-			$this->build_idea_board_layout_system_prompt(),
-			array(),
-			1200
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
-
-		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
-		$json = $this->extract_json_object( $text );
-		if ( '' === $json ) {
-			return new \WP_Error( 'invalid_layout_response', __( 'The idea-board layout response did not include JSON.', 'woocommerce-claude' ) );
-		}
-
-		$decoded = json_decode( $json, true );
-		if ( ! is_array( $decoded ) || empty( $decoded['positions'] ) || ! is_array( $decoded['positions'] ) ) {
-			return new \WP_Error( 'invalid_layout_response', __( 'The idea-board layout response used an unexpected shape.', 'woocommerce-claude' ) );
-		}
-
-		$positions = $this->normalise_idea_board_layout_positions( $decoded['positions'] );
-		if ( is_wp_error( $positions ) ) {
-			return $positions;
-		}
-
-		$validation = $this->validate_idea_board_layout_positions( $notes, $positions );
-		if ( is_wp_error( $validation ) ) {
-			return $validation;
-		}
-
-		return $this->apply_idea_board_positions( $notes, $positions );
-	}
-
-	/**
-	 * Build the system prompt for AI-only card layout.
-	 *
-	 * @return string
-	 */
-	private function build_idea_board_layout_system_prompt() {
-		return 'You lay out sticky-note cards on a WooCommerce store brainstorming board. '
-			. 'You do not write, edit, add, remove, rename, merge, or omit cards. '
-			. 'Your only job is to return top-left x/y coordinates for every provided card ID. '
-			. 'Use the card titles, bodies, types, colours, and arrows to group related cards. '
-			. 'Keep cards readable, avoid card overlap, leave whitespace, and keep related cards near each other. '
-			. 'Return only valid JSON in this exact shape: {"positions":[{"id":"card-id","x":12.3,"y":45.6}]}. '
-			. 'Coordinates are percentages of the board, measured from the top-left of each card.';
-	}
-
-	/**
-	 * Build the user prompt for AI-only card layout.
-	 *
-	 * @param array $notes  Board notes.
-	 * @param array $arrows Board arrows.
-	 * @return string
-	 */
-	private function build_idea_board_layout_prompt( array $notes, array $arrows ) {
-		$cards = array();
-		foreach ( $notes as $note ) {
-			$cards[] = array(
-				'id'     => $note['id'],
-				'type'   => $note['type'],
-				'title'  => $note['title'],
-				'body'   => $note['body'],
-				'colour' => $note['colour'],
-			);
-		}
-
-		return wp_json_encode(
-			array(
-				'board'       => array(
-					'width'  => self::CANVAS_WIDTH,
-					'height' => self::CANVAS_HEIGHT,
-				),
-				'card'        => array(
-					'width'  => self::CARD_WIDTH,
-					'height' => self::CARD_HEIGHT,
-					'gap'    => self::CARD_GAP,
-				),
-				'constraints' => array(
-					'must_return_every_card_id_once' => true,
-					'must_not_add_or_remove_cards'   => true,
-					'must_not_overlap_cards'         => true,
-					'x_range_percent'                => array( self::MIN_X_PERCENT, self::MAX_X_PERCENT ),
-					'y_range_percent'                => array( self::MIN_Y_PERCENT, self::MAX_Y_PERCENT ),
-				),
-				'cards'       => $cards,
-				'arrows'      => $arrows,
-			)
-		);
-	}
-
-	/**
 	 * Extract the first JSON object from a model response.
 	 *
 	 * @param string $text Response text.
@@ -1403,8 +1542,8 @@ class IdeaBoardRestController {
 				return new \WP_Error( 'invalid_layout_response', __( 'The idea-board layout response placed a card outside the board.', 'woocommerce-claude' ) );
 			}
 
-			$left = $this->board_x_percent_to_pixels( $position['x'] );
-			$top  = $this->board_y_percent_to_pixels( $position['y'] );
+			$left = $this->board_percent_to_pixels( $position['x'], 'x' );
+			$top  = $this->board_percent_to_pixels( $position['y'], 'y' );
 
 			$boxes[ $id ] = array(
 				'left'   => $left,
@@ -1515,7 +1654,7 @@ class IdeaBoardRestController {
 	 * @return bool
 	 */
 	private function idea_board_boxes_overlap( array $a, array $b ) {
-		$gap = 12;
+		$gap = self::CARD_GAP;
 		return ! (
 			$a['right'] + $gap <= $b['left']
 			|| $b['right'] + $gap <= $a['left']
@@ -1525,23 +1664,15 @@ class IdeaBoardRestController {
 	}
 
 	/**
-	 * Convert board X percentage to canonical pixels.
+	 * Convert a board percentage coordinate to canonical pixels.
 	 *
-	 * @param float $value Percentage.
+	 * @param float  $value Percentage.
+	 * @param string $axis  'x' for horizontal, 'y' for vertical.
 	 * @return float
 	 */
-	private function board_x_percent_to_pixels( $value ) {
-		return ( (float) $value / 100 ) * self::CANVAS_WIDTH;
-	}
-
-	/**
-	 * Convert board Y percentage to canonical pixels.
-	 *
-	 * @param float $value Percentage.
-	 * @return float
-	 */
-	private function board_y_percent_to_pixels( $value ) {
-		return ( (float) $value / 100 ) * self::CANVAS_HEIGHT;
+	private function board_percent_to_pixels( $value, $axis ) {
+		$dimension = 'x' === $axis ? self::CANVAS_WIDTH : self::CANVAS_HEIGHT;
+		return ( (float) $value / 100 ) * $dimension;
 	}
 
 	/**

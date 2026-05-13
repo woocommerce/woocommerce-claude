@@ -52,6 +52,21 @@ export interface IdeaBoardData {
 		};
 	};
 	generatedAt: string;
+	freshness?: {
+		isStale: boolean;
+		currentPeriod: {
+			start: string;
+			end: string;
+			label: string;
+			days: number;
+		};
+		savedPeriod: {
+			start: string;
+			end: string;
+			label: string;
+			days: number;
+		};
+	};
 }
 
 export type IdeaBoardResponse =

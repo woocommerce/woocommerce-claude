@@ -1,5 +1,5 @@
 import { __, sprintf } from '@wordpress/i18n';
-import { useState } from '@wordpress/element';
+import { useMemo, useState } from '@wordpress/element';
 import { useIdeaBoard } from './useIdeaBoard';
 import type { IdeaBoardArrow, IdeaBoardData, IdeaBoardNote } from './types';
 import type { FormEvent } from 'react';
@@ -14,10 +14,10 @@ const NOTE_WIDTH = 18;
 const NOTE_HEIGHT = 17;
 const MAX_NOTES = 12;
 
-type AddedNoteType = 'idea' | 'question';
+type AddedNoteType = 'insight' | 'idea' | 'question';
 
 export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
-	const { board, status, errorMessage, refresh, reanalyse, updateBoard } = useIdeaBoard( { restBase, nonce, days } );
+	const { board, status, errorMessage, refresh, reanalyse, saveBoard, updateBoard } = useIdeaBoard( { restBase, nonce, days } );
 	const [ isAddingCard, setIsAddingCard ] = useState( false );
 	const [ newCardType, setNewCardType ] = useState< AddedNoteType >( 'idea' );
 	const [ newCardTitle, setNewCardTitle ] = useState( '' );
@@ -27,11 +27,17 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	const canReanalyse = Boolean( board && board.notes.length > 0 && ! isBusy );
 
 	const removeNote = ( noteId: string ) => {
-		updateBoard( ( currentBoard ) => ( {
-			...currentBoard,
-			notes: currentBoard.notes.filter( ( note ) => note.id !== noteId ),
-			arrows: currentBoard.arrows.filter( ( arrow ) => arrow.from !== noteId && arrow.to !== noteId ),
-		} ) );
+		if ( ! board ) {
+			return;
+		}
+
+		const updatedBoard = {
+			...board,
+			notes: board.notes.filter( ( note ) => note.id !== noteId ),
+			arrows: board.arrows.filter( ( arrow ) => arrow.from !== noteId && arrow.to !== noteId ),
+		};
+		updateBoard( updatedBoard );
+		void saveBoard( updatedBoard );
 	};
 
 	const addCard = ( event: FormEvent< HTMLFormElement > ) => {
@@ -54,7 +60,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 			type: newCardType,
 			title: truncateText( title, 70 ),
 			body: truncateText( body, 190 ),
-			colour: newCardType === 'idea' ? 'orange' : 'white',
+			colour: colourForAddedNote( newCardType ),
 			x: position.x,
 			y: position.y,
 			rotation: defaultAddedNoteRotation( board.notes.length ),
@@ -71,10 +77,13 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 			confidence: 'medium',
 		};
 
-		updateBoard( {
+		const updatedBoard = {
 			...board,
 			notes: [ ...board.notes, note ],
-		} );
+		};
+
+		updateBoard( updatedBoard );
+		void saveBoard( updatedBoard );
 		setNewCardTitle( '' );
 		setNewCardBody( '' );
 		setIsAddingCard( false );
@@ -139,6 +148,28 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 				</div>
 			) }
 
+			{ board?.freshness?.isStale && (
+				<div className="hey-woo-idea-stale" role="status">
+					<span>
+						{ sprintf(
+							/* translators: 1: saved period label, 2: saved start date, 3: saved end date, 4: current start date, 5: current end date. */
+							__(
+								'This board still shows %1$s, %2$s to %3$s. Refresh to update it to %4$s to %5$s.',
+								'woocommerce-claude'
+							),
+							board.period.label,
+							formatDate( board.period.start ),
+							formatDate( board.period.end ),
+							formatDate( board.freshness.currentPeriod.start ),
+							formatDate( board.freshness.currentPeriod.end )
+						) }
+					</span>
+					<button type="button" className="button button-secondary" onClick={ () => refresh() } disabled={ isBusy }>
+						{ __( 'Refresh board', 'woocommerce-claude' ) }
+					</button>
+				</div>
+			) }
+
 			{ board && isAddingCard && (
 				<form className="hey-woo-idea-add-card" onSubmit={ addCard }>
 					<label>
@@ -148,6 +179,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 							onChange={ ( event ) => setNewCardType( event.currentTarget.value as AddedNoteType ) }
 							disabled={ isBusy }
 						>
+							<option value="insight">{ __( 'Insight', 'woocommerce-claude' ) }</option>
 							<option value="idea">{ __( 'Idea', 'woocommerce-claude' ) }</option>
 							<option value="question">{ __( 'Question', 'woocommerce-claude' ) }</option>
 						</select>
@@ -216,11 +248,6 @@ function Board( {
 	return (
 		<section className="hey-woo-idea-board" aria-label={ board.title }>
 			<BoardArrowLayer notes={ board.notes } arrows={ board.arrows } />
-			<div className="hey-woo-idea-board__rail" aria-hidden="true">
-				<span />
-				<span />
-				<span />
-			</div>
 			{ board.notes.map( ( note ) => (
 				<StickyNote key={ note.id } note={ note } onRemove={ onRemoveNote } isBusy={ isBusy } />
 			) ) }
@@ -269,7 +296,7 @@ function StickyNote( {
 }
 
 function BoardArrowLayer( { notes, arrows }: { notes: IdeaBoardNote[]; arrows: IdeaBoardArrow[] } ) {
-	const notesById = new Map( notes.map( ( note ) => [ note.id, note ] ) );
+	const notesById = useMemo( () => new Map( notes.map( ( note ) => [ note.id, note ] ) ), [ notes ] );
 
 	return (
 		<svg className="hey-woo-idea-arrows" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -369,6 +396,14 @@ function addedNotePosition( index: number ) {
 function defaultAddedNoteRotation( index: number ) {
 	const rotations = [ -1, 2, -2, 1, 0, -1 ];
 	return rotations[ index % rotations.length ];
+}
+
+function colourForAddedNote( type: AddedNoteType ): IdeaBoardNote['colour'] {
+	if ( type === 'insight' ) {
+		return 'yellow';
+	}
+
+	return type === 'idea' ? 'orange' : 'white';
 }
 
 function createMerchantNoteId( title: string, existingIds: Set< string > ) {

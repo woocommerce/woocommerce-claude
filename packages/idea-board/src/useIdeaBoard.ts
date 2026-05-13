@@ -2,6 +2,18 @@ import { useCallback, useEffect, useState } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import type { IdeaBoardData, IdeaBoardResponse, IdeaBoardStatus } from './types';
 
+async function apiFetch( url: string, options: RequestInit ): Promise< Extract< IdeaBoardResponse, { status: 'ok' } > > {
+	const response = await fetch( url, options );
+	if ( ! response.ok ) {
+		throw new Error( 'request_failed' );
+	}
+	const json: IdeaBoardResponse = await response.json();
+	if ( json.status === 'error' ) {
+		throw new Error( json.message );
+	}
+	return json as Extract< IdeaBoardResponse, { status: 'ok' } >;
+}
+
 interface UseIdeaBoardArgs {
 	restBase: string;
 	nonce: string;
@@ -47,26 +59,12 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 				params.set( 'refresh', 'true' );
 			}
 
-			const response = await fetch( `${ restBase }/idea-board?${ params.toString() }`, {
+			const json = await apiFetch( `${ restBase }/idea-board?${ params.toString() }`, {
 				method: 'GET',
 				headers: {
 					'X-WP-Nonce': nonce,
 				},
 			} );
-
-			if ( ! response.ok ) {
-				throw new Error( 'request_failed' );
-			}
-
-			const json: IdeaBoardResponse = await response.json();
-			if ( json.status === 'error' ) {
-				setState( ( previous ) => ( {
-					...previous,
-					status: 'error',
-					errorMessage: json.message,
-				} ) );
-				return;
-			}
 
 			setState( {
 				board: json.board,
@@ -74,10 +72,13 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 				errorMessage: '',
 			} );
 		} catch ( error ) {
+			const message = error instanceof Error && error.message !== 'request_failed'
+				? error.message
+				: __( 'The idea board could not be loaded. Please try again.', 'woocommerce-claude' );
 			setState( {
 				board: null,
 				status: 'error',
-				errorMessage: __( 'The idea board could not be loaded. Please try again.', 'woocommerce-claude' ),
+				errorMessage: message,
 			} );
 		}
 	}, [ days, nonce, restBase ] );
@@ -115,7 +116,7 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 		} ) );
 
 		try {
-			const response = await fetch( `${ restBase }/idea-board/reanalyse`, {
+			const json = await apiFetch( `${ restBase }/idea-board/reanalyse`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -124,30 +125,42 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 				body: JSON.stringify( { board } ),
 			} );
 
-			if ( ! response.ok ) {
-				throw new Error( 'request_failed' );
-			}
-
-			const json: IdeaBoardResponse = await response.json();
-			if ( json.status === 'error' ) {
-				setState( ( previous ) => ( {
-					...previous,
-					status: 'error',
-					errorMessage: json.message,
-				} ) );
-				return;
-			}
-
 			setState( {
 				board: json.board,
 				status: 'idle',
 				errorMessage: '',
 			} );
 		} catch ( error ) {
+			const message = error instanceof Error && error.message !== 'request_failed'
+				? error.message
+				: __( 'The idea board could not be re-analysed. Please try again.', 'woocommerce-claude' );
 			setState( ( previous ) => ( {
 				...previous,
 				status: 'error',
-				errorMessage: __( 'The idea board could not be re-analysed. Please try again.', 'woocommerce-claude' ),
+				errorMessage: message,
+			} ) );
+		}
+	}, [ nonce, restBase ] );
+
+	const saveBoard = useCallback( async ( board: IdeaBoardData ) => {
+		if ( ! restBase ) {
+			return;
+		}
+
+		try {
+			await apiFetch( `${ restBase }/idea-board/save`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': nonce,
+				},
+				body: JSON.stringify( { board } ),
+			} );
+		} catch ( error ) {
+			setState( ( previous ) => ( {
+				...previous,
+				status: 'error',
+				errorMessage: __( 'The idea board could not be saved. Please try again.', 'woocommerce-claude' ),
 			} ) );
 		}
 	}, [ nonce, restBase ] );
@@ -156,5 +169,5 @@ export function useIdeaBoard( { restBase, nonce, days }: UseIdeaBoardArgs ) {
 		refresh( false );
 	}, [ refresh ] );
 
-	return { ...state, refresh, reanalyse, updateBoard };
+	return { ...state, refresh, reanalyse, saveBoard, updateBoard };
 }
