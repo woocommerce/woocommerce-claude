@@ -22,6 +22,7 @@ const DEFAULTS: ModuleData = {
 	currency: '',
 	hasKey: false,
 	conversations: [],
+	ideaBoardEnabled: false,
 };
 
 /** Singleton module data, populated by PHP via wp_add_inline_script(). */

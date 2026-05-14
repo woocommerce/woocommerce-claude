@@ -56,6 +56,16 @@ class IdeaBoardRestController {
 	const CACHE_VERSION = '2026-05-12-ai-content-layout-v3';
 
 	/**
+	 * Minimum supported trailing period for the idea board.
+	 */
+	const MIN_IDEA_BOARD_DAYS = 7;
+
+	/**
+	 * Maximum supported trailing period for the idea board.
+	 */
+	const MAX_IDEA_BOARD_DAYS = 365;
+
+	/**
 	 * Maximum number of cards accepted in a merchant-edited board.
 	 */
 	const MAX_REANALYSIS_NOTES = 12;
@@ -133,8 +143,8 @@ class IdeaBoardRestController {
 							'type'              => 'integer',
 							'required'          => false,
 							'default'           => 90,
-							'minimum'           => 30,
-							'maximum'           => 180,
+							'minimum'           => self::MIN_IDEA_BOARD_DAYS,
+							'maximum'           => self::MAX_IDEA_BOARD_DAYS,
 							'sanitize_callback' => 'absint',
 						),
 						'refresh' => array(
@@ -209,14 +219,7 @@ class IdeaBoardRestController {
 	 * @return \WP_REST_Response
 	 */
 	public function get_idea_board( \WP_REST_Request $request ) {
-		$days = (int) $request->get_param( 'days' );
-		if ( $days < 30 ) {
-			$days = 30;
-		}
-		if ( $days > 180 ) {
-			$days = 180;
-		}
-
+		$days    = $this->normalise_idea_board_days( $request->get_param( 'days' ) );
 		$refresh = wc_string_to_bool( $request->get_param( 'refresh' ) );
 		$payload = $this->build_idea_board_payload( $days, $refresh );
 		if ( is_wp_error( $payload ) ) {
@@ -576,11 +579,11 @@ class IdeaBoardRestController {
 	 */
 	private function normalise_idea_board_days( $days ) {
 		$days = (int) $days;
-		if ( $days < 30 ) {
-			return 30;
+		if ( $days < self::MIN_IDEA_BOARD_DAYS ) {
+			return self::MIN_IDEA_BOARD_DAYS;
 		}
-		if ( $days > 180 ) {
-			return 180;
+		if ( $days > self::MAX_IDEA_BOARD_DAYS ) {
+			return self::MAX_IDEA_BOARD_DAYS;
 		}
 
 		return $days;

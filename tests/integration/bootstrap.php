@@ -49,6 +49,10 @@ function woocommerce_claude_tests_load_plugins() {
 	}
 	require_once $wc_candidates[0];
 
+	// The idea board has an option flag, enabled here so the route
+	// registration and controller tests exercise the development surface.
+	update_option( 'woocommerce_claude_enable_idea_board', 'yes' );
+
 	require_once $plugin_dir . '/woocommerce-claude/woocommerce-claude.php';
 
 	// Prevent WooCommerce's own check_version() hook (plugins_loaded) from

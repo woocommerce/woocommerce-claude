@@ -5,6 +5,7 @@
  * @package WooCommerce\Claude\Tests
  */
 
+use WooCommerce\Claude\Plugin;
 use WooCommerce\Claude\Settings\SettingsPage;
 
 /**
@@ -24,6 +25,7 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
+		delete_option( Plugin::IDEA_BOARD_ENABLED_OPTION );
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		$_POST = array();
 
@@ -47,6 +49,29 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'sk-ant-real-secret', $html );
 		$this->assertStringContainsString( SettingsPage::DIFM_API_KEY_SENTINEL, $html );
 		$this->assertStringContainsString( 'type="password"', $html );
+	}
+
+	/**
+	 * The AI Insights settings expose the idea-board option.
+	 */
+	public function test_idea_board_toggle_is_rendered_in_settings_html() {
+		$html = $this->render_settings_html();
+
+		$this->assertStringContainsString( Plugin::IDEA_BOARD_ENABLED_OPTION, $html );
+		$this->assertStringContainsString( 'Show the editable idea board in AI Insights.', $html );
+	}
+
+	/**
+	 * The idea-board toggle persists through WooCommerce settings save.
+	 */
+	public function test_idea_board_toggle_saves_enabled_option() {
+		$this->save_settings(
+			array(
+				Plugin::IDEA_BOARD_ENABLED_OPTION => 'yes',
+			)
+		);
+
+		$this->assertSame( 'yes', get_option( Plugin::IDEA_BOARD_ENABLED_OPTION ) );
 	}
 
 	/**

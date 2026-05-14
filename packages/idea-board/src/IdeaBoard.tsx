@@ -1,3 +1,4 @@
+import { Button, Dropdown, MenuGroup, MenuItemsChoice } from '@wordpress/components';
 import { __, sprintf } from '@wordpress/i18n';
 import { useMemo, useState } from '@wordpress/element';
 import { useIdeaBoard } from './useIdeaBoard';
@@ -15,9 +16,43 @@ const NOTE_HEIGHT = 17;
 const MAX_NOTES = 12;
 
 type AddedNoteType = 'insight' | 'idea' | 'question';
+type DatePreset = {
+	days: number;
+	label: string;
+	value: string;
+};
 
 export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
-	const { board, status, errorMessage, refresh, reanalyse, saveBoard, updateBoard } = useIdeaBoard( { restBase, nonce, days } );
+	const datePresets = useMemo< DatePreset[] >( () => [
+		{
+			days: 7,
+			label: __( 'Last 7 days', 'woocommerce-claude' ),
+			value: '7',
+		},
+		{
+			days: 30,
+			label: __( 'Last 30 days', 'woocommerce-claude' ),
+			value: '30',
+		},
+		{
+			days: 90,
+			label: __( 'Last 90 days', 'woocommerce-claude' ),
+			value: '90',
+		},
+		{
+			days: 365,
+			label: __( 'Last 365 days', 'woocommerce-claude' ),
+			value: '365',
+		},
+	], [] );
+	const initialPreset = datePresets.find( ( preset ) => preset.days === days ) || datePresets[ 2 ];
+	const [ selectedDays, setSelectedDays ] = useState( initialPreset.days );
+	const activePreset = datePresets.find( ( preset ) => preset.days === selectedDays ) || initialPreset;
+	const { board, status, errorMessage, refresh, reanalyse, saveBoard, updateBoard } = useIdeaBoard( {
+		restBase,
+		nonce,
+		days: selectedDays,
+	} );
 	const [ isAddingCard, setIsAddingCard ] = useState( false );
 	const [ newCardType, setNewCardType ] = useState< AddedNoteType >( 'idea' );
 	const [ newCardTitle, setNewCardTitle ] = useState( '' );
@@ -25,6 +60,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	const isBusy = status === 'loading' || status === 'reanalysing';
 	const canAddCard = Boolean( board && board.notes.length < MAX_NOTES );
 	const canReanalyse = Boolean( board && board.notes.length > 0 && ! isBusy );
+	const displayPeriod = board?.freshness?.currentPeriod || board?.period;
 
 	const removeNote = ( noteId: string ) => {
 		if ( ! board ) {
@@ -38,6 +74,11 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		};
 		updateBoard( updatedBoard );
 		void saveBoard( updatedBoard );
+	};
+
+	const selectDatePreset = ( nextDays: number ) => {
+		setSelectedDays( nextDays );
+		setIsAddingCard( false );
 	};
 
 	const addCard = ( event: FormEvent< HTMLFormElement > ) => {
@@ -92,19 +133,27 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	return (
 		<div className="hey-woo-idea-page">
 			<header className="hey-woo-idea-header">
-				<div>
+				<div className="hey-woo-idea-header__summary">
 					<h1>{ __( 'Idea board', 'woocommerce-claude' ) }</h1>
-					{ board && (
-						<p>
-							{ sprintf(
-								/* translators: 1: period label, 2: start date, 3: end date. */
-								__( '%1$s, %2$s to %3$s', 'woocommerce-claude' ),
-								board.period.label,
-								formatDate( board.period.start ),
-								formatDate( board.period.end )
-							) }
-						</p>
-					) }
+					<div className="hey-woo-idea-header__meta">
+						<DatePresetDropdown
+							label={ activePreset.label }
+							presets={ datePresets }
+							value={ activePreset.value }
+							onSelect={ selectDatePreset }
+							disabled={ isBusy }
+						/>
+						{ displayPeriod && (
+							<span className="hey-woo-idea-header__date-range">
+								{ sprintf(
+									/* translators: 1: start date, 2: end date. */
+									__( '%1$s to %2$s', 'woocommerce-claude' ),
+									formatDate( displayPeriod.start ),
+									formatDate( displayPeriod.end )
+								) }
+							</span>
+						) }
+					</div>
 				</div>
 				<div className="hey-woo-idea-header__actions">
 					{ board && (
@@ -233,6 +282,61 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 
 			{ board && <Board board={ board } onRemoveNote={ removeNote } isBusy={ isBusy } /> }
 		</div>
+	);
+}
+
+function DatePresetDropdown( {
+	label,
+	presets,
+	value,
+	onSelect,
+	disabled,
+}: {
+	label: string;
+	presets: DatePreset[];
+	value: string;
+	onSelect: ( days: number ) => void;
+	disabled: boolean;
+} ) {
+	const choices = useMemo( () => presets.map( ( preset ) => ( {
+		label: preset.label,
+		value: preset.value,
+	} ) ), [ presets ] );
+
+	return (
+		<Dropdown
+			className="hey-woo-idea-date"
+			contentClassName="hey-woo-idea-date__popover"
+			popoverProps={ { placement: 'bottom-start' } }
+			renderToggle={ ( { isOpen, onToggle } ) => (
+				<Button
+					className="hey-woo-idea-date__button"
+					variant="secondary"
+					onClick={ onToggle }
+					disabled={ disabled }
+					aria-expanded={ isOpen }
+					aria-haspopup="true"
+				>
+					<span>{ label }</span>
+				</Button>
+			) }
+			renderContent={ ( { onClose } ) => (
+				<MenuGroup className="hey-woo-idea-date__menu" label={ __( 'Date range', 'woocommerce-claude' ) }>
+					<MenuItemsChoice
+						choices={ choices }
+						value={ value }
+						onHover={ () => undefined }
+						onSelect={ ( nextValue ) => {
+							const preset = presets.find( ( item ) => item.value === nextValue );
+							if ( preset ) {
+								onSelect( preset.days );
+							}
+							onClose();
+						} }
+					/>
+				</MenuGroup>
+			) }
+		/>
 	);
 }
 

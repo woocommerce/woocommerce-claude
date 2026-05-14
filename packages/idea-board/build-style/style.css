@@ -16,16 +16,27 @@
   margin: 0 auto 18px;
 }
 .hey-woo-idea-header h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 24px;
   line-height: 1.2;
   font-weight: 650;
   letter-spacing: 0;
 }
-.hey-woo-idea-header p {
-  margin: 0;
+.hey-woo-idea-header__summary {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.hey-woo-idea-header__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hey-woo-idea-header__date-range {
   color: #646970;
   font-size: 13px;
+  line-height: 1.4;
 }
 .hey-woo-idea-header__actions {
   display: flex;
@@ -34,6 +45,28 @@
   flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.hey-woo-idea-date__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+}
+.hey-woo-idea-date__button::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+}
+.hey-woo-idea-date__popover {
+  min-width: 190px;
+}
+.hey-woo-idea-date__menu {
+  min-width: 170px;
+  margin: 0;
 }
 
 .hey-woo-idea-error,

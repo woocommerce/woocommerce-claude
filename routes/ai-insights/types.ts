@@ -60,4 +60,5 @@ export interface ModuleData {
 	currency: string;
 	hasKey: boolean;
 	conversations: StoredConversation[];
+	ideaBoardEnabled: boolean;
 }

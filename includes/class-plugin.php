@@ -162,10 +162,15 @@ class Plugin {
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
 
 		// AI Insights admin page + REST controllers.
-		( new Difm\DifmAdminPage() )->register();
+		$idea_board_enabled = self::is_idea_board_enabled();
+
+		( new Difm\DifmAdminPage( $idea_board_enabled ) )->register();
 		( new Difm\DifmRestController() )->register();
 		( new Difm\DifmConversationsController() )->register();
-		( new Difm\IdeaBoardRestController() )->register();
+
+		if ( $idea_board_enabled ) {
+			( new Difm\IdeaBoardRestController() )->register();
+		}
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.
@@ -691,6 +696,28 @@ INSTRUCTIONS;
 
 		wp_set_current_user( $user->ID );
 		return true;
+	}
+
+	/**
+	 * Option name controlling whether the editable idea-board surface is enabled.
+	 *
+	 * Stored as the WooCommerce-conventional 'yes' / 'no' string. Toggle
+	 * via WP-CLI (`wp option update woocommerce_claude_enable_idea_board yes`),
+	 * `update_option()`, or the WooCommerce for Claude settings screen.
+	 */
+	const IDEA_BOARD_ENABLED_OPTION = 'woocommerce_claude_enable_idea_board';
+
+	/**
+	 * Whether the editable idea board is enabled.
+	 *
+	 * The idea board is nested under the wider AI Insights surface but
+	 * keeps a separate flag so it can be shown only on stores that explicitly
+	 * opt in while the board workflow is still being tested.
+	 *
+	 * @return bool
+	 */
+	public static function is_idea_board_enabled() {
+		return 'yes' === get_option( self::IDEA_BOARD_ENABLED_OPTION, 'no' );
 	}
 
 	/**

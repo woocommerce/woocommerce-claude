@@ -32,6 +32,22 @@ class DifmAdminPage {
 	const MENU_SLUG = 'woocommerce-claude-insights';
 
 	/**
+	 * Whether to expose the idea-board menu item and page data.
+	 *
+	 * @var bool
+	 */
+	private $idea_board_enabled = false;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param bool $idea_board_enabled Whether the idea board is enabled.
+	 */
+	public function __construct( $idea_board_enabled = false ) {
+		$this->idea_board_enabled = (bool) $idea_board_enabled;
+	}
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -101,11 +117,13 @@ class DifmAdminPage {
 				'/'
 			);
 
-			wcai_register_woocommerce_claude_insights_menu_item(
-				'idea-board',
-				__( 'Idea board', 'woocommerce-claude' ),
-				'/idea-board'
-			);
+			if ( $this->idea_board_enabled ) {
+				wcai_register_woocommerce_claude_insights_menu_item(
+					'idea-board',
+					__( 'Idea board', 'woocommerce-claude' ),
+					'/idea-board'
+				);
+			}
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
@@ -115,13 +133,14 @@ class DifmAdminPage {
 		$user_id = get_current_user_id();
 
 		$data = array(
-			'nonce'         => wp_create_nonce( 'wp_rest' ),
-			'restBase'      => rest_url( 'woocommerce-claude/v1/difm' ),
-			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=woocommerce-claude' ),
-			'userName'      => wp_get_current_user()->display_name,
-			'currency'      => get_woocommerce_currency_symbol(),
-			'hasKey'        => AnthropicClient::has_api_key(),
-			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
+			'nonce'            => wp_create_nonce( 'wp_rest' ),
+			'restBase'         => rest_url( 'woocommerce-claude/v1/difm' ),
+			'settingsUrl'      => admin_url( 'admin.php?page=wc-settings&tab=woocommerce-claude' ),
+			'userName'         => wp_get_current_user()->display_name,
+			'currency'         => get_woocommerce_currency_symbol(),
+			'hasKey'           => AnthropicClient::has_api_key(),
+			'conversations'    => DifmConversationsController::get_recent_conversations( $user_id ),
+			'ideaBoardEnabled' => $this->idea_board_enabled,
 		);
 
 		// Register an inline-only script handle so print_footer_scripts() outputs the data.

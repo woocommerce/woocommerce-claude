@@ -239,6 +239,29 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * GET /difm/idea-board supports the date presets shown in the UI.
+	 */
+	public function test_idea_board_returns_saved_boards_for_supported_date_presets() {
+		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		$this->set_admin_user();
+
+		foreach ( array( 7, 30, 90, 365 ) as $days ) {
+			$saved_response = $this->dispatch_idea_board_save( $this->sample_current_period_board( $days ) );
+			$this->assertSame( 'ok', $saved_response->get_data()['status'] );
+
+			$response = $this->dispatch_idea_board( false, $days );
+			$data     = $response->get_data();
+
+			$this->assertSame( 200, $response->get_status() );
+			$this->assertSame( 'ok', $data['status'] );
+			$this->assertSame( $days, $data['board']['period']['days'] );
+			$this->assertSame( sprintf( 'Last %d days', $days ), $data['board']['period']['label'] );
+			$this->assertFalse( $data['board']['freshness']['isStale'] );
+			$this->assertSame( $days, $data['board']['freshness']['currentPeriod']['days'] );
+		}
+	}
+
+	/**
 	 * GET /difm/idea-board keeps a saved board and marks it stale when its period has moved.
 	 */
 	public function test_idea_board_marks_saved_board_stale_without_rebuilding() {
@@ -803,10 +826,12 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	 * Dispatch an idea-board request.
 	 *
 	 * @param bool $refresh Whether to force refresh.
+	 * @param int  $days    Requested trailing days.
 	 * @return \WP_REST_Response
 	 */
-	private function dispatch_idea_board( $refresh = false ) {
+	private function dispatch_idea_board( $refresh = false, $days = 90 ) {
 		$request = new \WP_REST_Request( 'GET', '/woocommerce-claude/v1/difm/idea-board' );
+		$request->set_param( 'days', $days );
 		if ( $refresh ) {
 			$request->set_param( 'refresh', true );
 		}
@@ -840,14 +865,17 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	/**
 	 * Return a sample board whose period matches the current date range.
 	 *
+	 * @param int $days Number of trailing days.
 	 * @return array
 	 */
-	private function sample_current_period_board() {
+	private function sample_current_period_board( $days = 90 ) {
 		$board = $this->sample_reanalysis_board();
-		$dates = $this->current_test_period_dates( 90 );
+		$dates = $this->current_test_period_dates( $days );
 
 		$board['period']['start'] = $dates['start'];
 		$board['period']['end']   = $dates['end'];
+		$board['period']['label'] = sprintf( 'Last %d days', $days );
+		$board['period']['days']  = (int) $days;
 
 		return $board;
 	}

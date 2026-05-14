@@ -7,6 +7,7 @@
 
 namespace WooCommerce\Claude\Settings;
 
+use WooCommerce\Claude\Plugin;
 use WooCommerce\Claude\Setup\SetupPage;
 
 defined( 'ABSPATH' ) || exit;
@@ -99,6 +100,14 @@ class SettingsPage extends \WC_Settings_Page {
 				'type'  => 'woocommerce_claude_telemetry',
 				'id'    => SetupPage::TELEMETRY_OPTION,
 				'title' => __( 'Usage tracking', 'woocommerce-claude' ),
+			),
+			array(
+				'type'     => 'checkbox',
+				'id'       => Plugin::IDEA_BOARD_ENABLED_OPTION,
+				'title'    => __( 'Idea board', 'woocommerce-claude' ),
+				'desc'     => __( 'Show the editable idea board in AI Insights.', 'woocommerce-claude' ),
+				'default'  => 'no',
+				'autoload' => false,
 			),
 			array(
 				'type'     => 'woocommerce_claude_api_key',
