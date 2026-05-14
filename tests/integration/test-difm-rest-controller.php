@@ -234,9 +234,9 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Chat sends the Anthropic tools derived from ability metadata.
+	 * Chat sends compact Anthropic tools instead of the full MCP descriptions.
 	 */
-	public function test_chat_sends_metadata_derived_tool_definitions_to_api() {
+	public function test_chat_sends_compact_tool_definitions_to_api() {
 		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 
@@ -290,6 +290,12 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertContains( 'analytics_series', $tool_names );
 		$this->assertContains( 'analytics_rows', $tool_names );
 		$this->assertContains( 'render_chart', $tool_names );
+		$this->assertLessThan( 25000, strlen( $captured_raw_body ), 'The first Anthropic request must stay comfortably below low-tier token limits.' );
+		$this->assertLessThan(
+			6000,
+			array_sum( array_map( 'strlen', wp_list_pluck( $captured_body['tools'], 'description' ) ) ),
+			'Tool descriptions must stay compact; full MCP ability descriptions belong on the MCP surface only.'
+		);
 
 		$rows_tool = null;
 		foreach ( $captured_body['tools'] as $tool ) {
@@ -300,8 +306,11 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		}
 
 		$this->assertNotNull( $rows_tool );
-		$this->assertStringContainsString( 'ENTITIES + FIELD REGISTRIES', $rows_tool['description'] );
+		$this->assertStringContainsString( 'Flexible filtered analytics', $rows_tool['description'] );
+		$this->assertStringNotContainsString( 'ENTITIES + FIELD REGISTRIES', $rows_tool['description'] );
 		$this->assertArrayHasKey( 'input_schema', $rows_tool );
+		$this->assertArrayHasKey( 'filters', $rows_tool['input_schema']['properties'] );
+		$this->assertArrayNotHasKey( 'description', $rows_tool['input_schema']['properties']['filters'] );
 		$this->assertStringContainsString( '"name":"get_store_profile"', $captured_raw_body );
 		$this->assertStringContainsString( '"input_schema":{"type":"object","properties":{}}', $captured_raw_body );
 		$this->assertStringContainsString( 'analytics_series', $captured_body['system'] );
