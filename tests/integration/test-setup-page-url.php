@@ -13,8 +13,8 @@ use WooCommerce\Claude\Setup\SetupPage;
 class Test_Setup_Page_Url extends WP_UnitTestCase {
 
 	/**
-	 * The setup helper should always target the Setup section after the
-	 * WooCommerce for Claude settings tab was split into sections.
+	 * The setup helper should target the DIY section now that AI Insights
+	 * owns the default section.
 	 */
 	public function test_setup_url_targets_setup_section_by_default() {
 		$query = $this->query_args_from_url( SetupPage::url() );
@@ -25,7 +25,7 @@ class Test_Setup_Page_Url extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Redirect notices should be preserved while staying on the Setup section.
+	 * Redirect notices should be preserved while staying on the DIY section.
 	 */
 	public function test_setup_url_preserves_extra_args_on_setup_section() {
 		$query = $this->query_args_from_url(

@@ -14,9 +14,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registers the "WooCommerce for Claude" tab in WooCommerce > Settings.
  *
- * The default view renders the Connect-to-Claude setup screen first, then the
- * Bring Your Own Key field used by AI Insights. The key field is deliberately
- * custom-rendered so a stored Anthropic key is never sent back to the browser.
+ * The default view renders the Bring Your Own Key field used by AI Insights.
+ * The DIY setup view and plugin-level settings live in their own sections.
+ * The key field is deliberately custom-rendered so a stored Anthropic key is
+ * never sent back to the browser.
  */
 class SettingsPage extends \WC_Settings_Page {
 
@@ -72,8 +73,9 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	public function get_sections() {
 		return array(
-			''      => __( 'AI Insights', 'woocommerce-claude' ),
-			'setup' => __( 'Setup', 'woocommerce-claude' ),
+			''         => __( 'AI Insights', 'woocommerce-claude' ),
+			'setup'    => __( 'DIY', 'woocommerce-claude' ),
+			'settings' => __( 'Settings', 'woocommerce-claude' ),
 		);
 	}
 
@@ -96,11 +98,6 @@ class SettingsPage extends \WC_Settings_Page {
 				'desc'  => $this->get_difm_section_description(),
 			),
 			array(
-				'type'  => 'woocommerce_claude_telemetry',
-				'id'    => SetupPage::TELEMETRY_OPTION,
-				'title' => __( 'Usage tracking', 'woocommerce-claude' ),
-			),
-			array(
 				'type'     => 'woocommerce_claude_api_key',
 				'id'       => self::DIFM_API_KEY_OPTION,
 				'title'    => __( 'Anthropic API Key', 'woocommerce-claude' ),
@@ -116,14 +113,45 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
+	 * The Settings section contains plugin-level preferences.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function get_settings_for_settings_section() {
+		return array(
+			array(
+				'type'  => 'title',
+				'title' => __( 'Settings', 'woocommerce-claude' ),
+				'id'    => 'woocommerce_claude_settings_section',
+				'desc'  => __( 'Manage WooCommerce for Claude preferences that are not tied to a specific Claude connection.', 'woocommerce-claude' ),
+			),
+			array(
+				'type'  => 'woocommerce_claude_telemetry',
+				'id'    => SetupPage::TELEMETRY_OPTION,
+				'title' => __( 'Usage tracking', 'woocommerce-claude' ),
+			),
+			array(
+				'type' => 'sectionend',
+				'id'   => 'woocommerce_claude_settings_section',
+			),
+		);
+	}
+
+	/**
 	 * Render the current section.
 	 *
-	 * The Setup section shows the Claude Desktop connection wizard and hides
+	 * The DIY section shows the Claude Desktop connection wizard and hides
 	 * WC's Save button (no form fields, all actions are link-based).
-	 * The default AI Insights section renders the Anthropic API key field.
+	 * The Settings section renders plugin-level preferences. The default
+	 * AI Insights section renders the Anthropic API key field.
 	 */
 	public function output() {
 		global $current_section;
+
+		if ( 'settings' === $current_section ) {
+			\WC_Admin_Settings::output_fields( $this->get_settings_for_settings_section() );
+			return;
+		}
 
 		if ( 'setup' === $current_section ) {
 			SetupPage::render_setup_view();
@@ -214,6 +242,12 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return void
 	 */
 	public function save_telemetry_option() {
+		global $current_section;
+
+		if ( 'settings' !== $current_section ) {
+			return;
+		}
+
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
 		$enabled = isset( $_POST[ SetupPage::TELEMETRY_OPTION ] ) && 'yes' === sanitize_key( $_POST[ SetupPage::TELEMETRY_OPTION ] );
 		update_option( SetupPage::TELEMETRY_OPTION, $enabled ? 'yes' : 'no' );

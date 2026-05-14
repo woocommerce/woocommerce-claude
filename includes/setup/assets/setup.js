@@ -122,33 +122,9 @@
 		});
 	}
 
-	function initTelemetryToggle() {
-		var checkbox = document.querySelector('[data-woocommerce-claude-telemetry-toggle]');
-		if (!checkbox) {
-			return;
-		}
-		checkbox.addEventListener('change', function (event) {
-			var target = event.target;
-			var url = target.checked ? target.dataset.enableUrl : target.dataset.disableUrl;
-			if (url) {
-				window.location.href = url;
-			}
-		});
-		// Stop the "Learn more" link inside the label from also toggling
-		// the checkbox — otherwise opening the WC tracking page in a new
-		// tab would also flip the merchant's preference.
-		var learn = document.querySelector('.woocommerce-claude-setup__optin-learn');
-		if (learn) {
-			learn.addEventListener('click', function (event) {
-				event.stopPropagation();
-			});
-		}
-	}
-
 	function init() {
 		initTabs();
 		initCopy();
-		initTelemetryToggle();
 	}
 
 	if (document.readyState === 'loading') {
