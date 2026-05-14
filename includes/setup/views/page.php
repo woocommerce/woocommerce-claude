@@ -7,7 +7,7 @@
  *
  * Two-step layout:
  *
- *   Step 1 — Generate a read-only API key (explicit Generate button,
+ *   Step 1 — Create a read-only store connection key (explicit Create button,
  *            OR a summary line for the already-provisioned key with
  *            Regenerate / Disconnect).
  *   Step 2 — Configure in Claude (tabbed: MCPB install / Terminal setup).
@@ -25,6 +25,7 @@
  * @var array{credential:string,key_id:int,permissions:string}|null         $key_state    Provisioned key, or null if not yet created.
  * @var bool                                                                $is_owner     Whether the current user owns the provisioned key.
  * @var string                                                              $owner_display Display name of the key owner, when not the current user.
+ * @var bool                                                                $is_embedded  Whether the view is rendered inside the setup overview accordion.
  * @package WooCommerce\Claude
  */
 
@@ -70,13 +71,13 @@ $claude_code_command = sprintf(
 );
 
 $notices = array(
-	'key_generated'     => array( 'success', __( 'API key generated and ready to use with Claude.', 'woocommerce-claude' ) ),
-	'key_exists'        => array( 'info', __( 'An API key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
-	'key_required'      => array( 'error', __( 'Generate an API key in Step 1 before continuing.', 'woocommerce-claude' ) ),
-	'key_regenerated'   => array( 'success', __( 'API key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
-	'key_failed'        => array( 'error', __( 'Could not provision the API key. Check the error log.', 'woocommerce-claude' ) ),
-	'disconnected'      => array( 'info', __( 'API key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
-	'ownership_changed' => array( 'error', __( 'The API key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
+	'key_generated'     => array( 'success', __( 'Store connection key created and ready to use with Claude.', 'woocommerce-claude' ) ),
+	'key_exists'        => array( 'info', __( 'A store connection key already exists. Use Regenerate to rotate it.', 'woocommerce-claude' ) ),
+	'key_required'      => array( 'error', __( 'Create a store connection key in Step 1 before continuing.', 'woocommerce-claude' ) ),
+	'key_regenerated'   => array( 'success', __( 'Store connection key regenerated. Re-download the MCPB file for Claude Desktop.', 'woocommerce-claude' ) ),
+	'key_failed'        => array( 'error', __( 'Could not provision the store connection key. Check the error log.', 'woocommerce-claude' ) ),
+	'disconnected'      => array( 'info', __( 'Store connection key revoked and the connection torn down. Any installed Claude Desktop bundle has stopped authenticating.', 'woocommerce-claude' ) ),
+	'ownership_changed' => array( 'error', __( 'The store connection key was rotated by another admin while your action was in flight. Refresh the page and try again.', 'woocommerce-claude' ) ),
 );
 
 $download_url   = SetupPage::action_url( SetupPage::ACTION_DOWNLOAD );
@@ -95,15 +96,16 @@ $wc_key_edit_url = $has_key
 
 $can_generate          = ! $has_key;
 $can_use_step2_actions = $has_key;
+$is_embedded           = isset( $is_embedded ) ? (bool) $is_embedded : false;
 ?>
-<div class="woocommerce-claude-setup">
+<div class="woocommerce-claude-setup<?php echo esc_attr( $is_embedded ? ' woocommerce-claude-setup--embedded' : '' ); ?>">
 
 	<?php
 	if ( isset( $notices[ $notice_code ] ) ) :
 		$notice_kind = $notices[ $notice_code ][0];
 		$notice_text = $notices[ $notice_code ][1];
 		// Map success/info/error to a banner colour. Success uses the
-		// info treatment so the flash matches the "API key revoked"
+		// info treatment so the flash matches the "connection revoked"
 		// state shown in the design — green is reserved for the
 		// inline form-saved confirmation WC emits elsewhere.
 		$banner_modifier = 'error' === $notice_kind ? 'error' : 'info';
@@ -147,7 +149,7 @@ $can_use_step2_actions = $has_key;
 				<?php
 				printf(
 					/* translators: %s: display name of the admin who provisioned the key. */
-					esc_html__( 'The WooCommerce for Claude API key was created by %s. WooCommerce REST API keys authenticate as the user who created them, so the credential is only shown to that admin.', 'woocommerce-claude' ),
+					esc_html__( 'The WooCommerce for Claude store connection key was created by %s. WooCommerce REST API keys authenticate as the user who created them, so the credential is only shown to that admin.', 'woocommerce-claude' ),
 					'<strong>' . esc_html( $owner_display ) . '</strong>'
 				);
 				?>
@@ -169,7 +171,7 @@ $can_use_step2_actions = $has_key;
 				<a
 					class="button button-secondary"
 					href="<?php echo esc_url( $regen_url ); ?>"
-					onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key and re-bind it to your user? Any installed Claude Desktop bundle and pasted configuration will stop working until re-downloaded / re-pasted.', 'woocommerce-claude' ) ); ?>');"
+					onclick="return confirm('<?php echo esc_js( __( 'Regenerate the store connection key and re-bind it to your user? Any installed Claude Desktop bundle and pasted configuration will stop working until re-downloaded / re-pasted.', 'woocommerce-claude' ) ); ?>');"
 				>
 					<?php esc_html_e( 'Regenerate and re-bind to me', 'woocommerce-claude' ); ?>
 				</a>
@@ -178,10 +180,10 @@ $can_use_step2_actions = $has_key;
 
 	<?php else : ?>
 
-		<?php /* Step 1 — Generate API key (form OR summary line). */ ?>
+		<?php /* Step 1 — Create store connection key (button OR summary line). */ ?>
 		<section class="woocommerce-claude-setup__card">
 			<?php if ( ! $has_key ) : ?>
-				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 1: Generate an API key', 'woocommerce-claude' ); ?></h2>
+				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 1: Create a store connection key', 'woocommerce-claude' ); ?></h2>
 			<?php endif; ?>
 
 			<?php if ( $has_key ) : ?>
@@ -189,16 +191,16 @@ $can_use_step2_actions = $has_key;
 				<div class="woocommerce-claude-setup__keyrow">
 					<div class="woocommerce-claude-setup__keyrow-meta">
 						<div class="woocommerce-claude-setup__keyrow-label">
-							<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'API KEY', 'woocommerce-claude' ); ?></span>
-							<span class="woocommerce-claude-setup__pill woocommerce-claude-setup__pill--live">
-								<?php esc_html_e( 'LIVE', 'woocommerce-claude' ); ?>
+							<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'STORE CONNECTION KEY', 'woocommerce-claude' ); ?></span>
+							<span class="woocommerce-claude-setup__pill woocommerce-claude-setup__pill--ready">
+								<?php esc_html_e( 'READY', 'woocommerce-claude' ); ?>
 							</span>
 						</div>
 						<p class="woocommerce-claude-setup__keyrow-name">
 							<?php
 							printf(
 								/* translators: %s: key description label. */
-								esc_html__( 'API key: %s', 'woocommerce-claude' ),
+								esc_html__( 'Store connection key: %s', 'woocommerce-claude' ),
 								esc_html( $default_key_desc )
 							);
 							?>
@@ -211,14 +213,14 @@ $can_use_step2_actions = $has_key;
 						<a
 							class="woocommerce-claude-setup__textlink"
 							href="<?php echo esc_url( $regen_url ); ?>"
-							onclick="return confirm('<?php echo esc_js( __( 'Regenerate the API key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'woocommerce-claude' ) ); ?>');"
+							onclick="return confirm('<?php echo esc_js( __( 'Regenerate the store connection key? Any installed Claude Desktop bundle will stop working until you re-download and re-install it.', 'woocommerce-claude' ) ); ?>');"
 						>
 							<?php esc_html_e( 'Regenerate', 'woocommerce-claude' ); ?>
 						</a>
 						<a
 							class="woocommerce-claude-setup__textlink"
 							href="<?php echo esc_url( $disconnect_url ); ?>"
-							onclick="return confirm('<?php echo esc_js( __( 'Disconnect WooCommerce for Claude and revoke the API key? Any installed bundle stops authenticating immediately and the credential is removed from WooCommerce.', 'woocommerce-claude' ) ); ?>');"
+							onclick="return confirm('<?php echo esc_js( __( 'Disconnect WooCommerce for Claude and revoke the store connection key? Any installed bundle stops authenticating immediately and the credential is removed from WooCommerce.', 'woocommerce-claude' ) ); ?>');"
 						>
 							<?php esc_html_e( 'Disconnect', 'woocommerce-claude' ); ?>
 						</a>
@@ -250,11 +252,11 @@ $can_use_step2_actions = $has_key;
 				<div class="woocommerce-claude-setup__actions">
 					<?php if ( $can_generate ) : ?>
 						<a class="button button-primary" href="<?php echo esc_url( $generate_url ); ?>">
-							<?php esc_html_e( 'Generate key', 'woocommerce-claude' ); ?>
+							<?php esc_html_e( 'Create connection key', 'woocommerce-claude' ); ?>
 						</a>
 					<?php else : ?>
 						<button type="button" class="button button-primary" disabled>
-							<?php esc_html_e( 'Generate key', 'woocommerce-claude' ); ?>
+							<?php esc_html_e( 'Create connection key', 'woocommerce-claude' ); ?>
 						</button>
 					<?php endif; ?>
 				</div>
@@ -264,9 +266,9 @@ $can_use_step2_actions = $has_key;
 
 		<?php /* Step 2 — Configure in Claude (tabs). */ ?>
 		<section class="woocommerce-claude-setup__card">
-			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 2: Configure in Claude', 'woocommerce-claude' ); ?></h2>
+			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 2: Add this store to Claude', 'woocommerce-claude' ); ?></h2>
 			<p class="woocommerce-claude-setup__card-lede">
-				<?php esc_html_e( "Choose how you'd prefer to set up WooCommerce for Claude.", 'woocommerce-claude' ); ?>
+				<?php esc_html_e( "Choose how you'd prefer to connect Claude apps to this store.", 'woocommerce-claude' ); ?>
 			</p>
 
 			<div class="woocommerce-claude-setup__tabs" role="tablist" aria-label="<?php esc_attr_e( 'Configure in Claude', 'woocommerce-claude' ); ?>">
@@ -330,7 +332,7 @@ $can_use_step2_actions = $has_key;
 
 				<?php if ( $can_use_step2_actions ) : ?>
 					<p class="woocommerce-claude-setup__warn-block">
-						<?php esc_html_e( 'The MCPB file contains an API key for this store. Don\'t share it. If it leaks, click Regenerate above to revoke instantly.', 'woocommerce-claude' ); ?>
+						<?php esc_html_e( 'The MCPB file contains a store connection key. Don\'t share it. If it leaks, click Regenerate above to revoke instantly.', 'woocommerce-claude' ); ?>
 					</p>
 				<?php endif; ?>
 
@@ -361,7 +363,7 @@ $can_use_step2_actions = $has_key;
 
 				<?php if ( ! $can_use_step2_actions ) : ?>
 					<p class="woocommerce-claude-setup__blocked">
-						<?php esc_html_e( 'Generate an API key in Step 1 above to see the snippets with your credential filled in.', 'woocommerce-claude' ); ?>
+						<?php esc_html_e( 'Create a store connection key in Step 1 above to see the snippets with your credential filled in.', 'woocommerce-claude' ); ?>
 					</p>
 				<?php else : ?>
 
@@ -408,7 +410,7 @@ $can_use_step2_actions = $has_key;
 		$agent_plugin_cli_command  = "claude plugin marketplace add woocommerce/woocommerce-claude\nclaude plugin install woocommerce-claude@woocommerce-claude-ai-toolkit";
 		?>
 		<section class="woocommerce-claude-setup__card">
-			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Install workflow skills for Claude', 'woocommerce-claude' ); ?></h2>
+			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Add guide workflows (optional)', 'woocommerce-claude' ); ?></h2>
 			<p class="woocommerce-claude-setup__card-lede">
 				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin after Claude can connect to your store.', 'woocommerce-claude' ); ?>
 			</p>
@@ -453,18 +455,18 @@ $can_use_step2_actions = $has_key;
 
 				<?php if ( ! $can_use_step2_actions ) : ?>
 					<p class="woocommerce-claude-setup__blocked">
-						<?php esc_html_e( 'Generate an API key in Step 1 before downloading workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+						<?php esc_html_e( 'Create a store connection key in Step 1 before downloading workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
 					</p>
 				<?php endif; ?>
 
 				<div class="woocommerce-claude-setup__workflow-actions">
 					<?php if ( $can_use_step2_actions ) : ?>
 						<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
-							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+							<?php esc_html_e( 'Download skills', 'woocommerce-claude' ); ?>
 						</a>
 					<?php else : ?>
 						<button type="button" class="button button-secondary" disabled>
-							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+							<?php esc_html_e( 'Download skills', 'woocommerce-claude' ); ?>
 						</button>
 					<?php endif; ?>
 				</div>
@@ -483,7 +485,7 @@ $can_use_step2_actions = $has_key;
 
 				<?php if ( ! $can_use_step2_actions ) : ?>
 					<p class="woocommerce-claude-setup__blocked">
-						<?php esc_html_e( 'Generate an API key in Step 1 before installing workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+						<?php esc_html_e( 'Create a store connection key in Step 1 before installing workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
 					</p>
 				<?php else : ?>
 					<div class="woocommerce-claude-setup__field woocommerce-claude-setup__workflow-command">
@@ -520,7 +522,7 @@ $can_use_step2_actions = $has_key;
 				</p>
 			</div>
 
-			<p class="woocommerce-claude-setup__prompt-footer">
+			<p class="woocommerce-claude-setup__prompt-footer woocommerce-claude-setup__prompt-footer--workflow">
 				<?php esc_html_e( 'After plugins load, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review.', 'woocommerce-claude' ); ?>
 			</p>
 		</section>
@@ -552,7 +554,22 @@ $can_use_step2_actions = $has_key;
 				<ul class="woocommerce-claude-setup__prompts">
 					<?php foreach ( $starter_prompts as $question ) : ?>
 						<li class="woocommerce-claude-setup__prompt">
-							<?php echo esc_html( $question ); ?>
+							<button
+								type="button"
+								class="woocommerce-claude-setup__prompt-copy"
+								data-woocommerce-claude-copy-text="<?php echo esc_attr( $question ); ?>"
+								data-copied-label="<?php esc_attr_e( 'Copied question', 'woocommerce-claude' ); ?>"
+								<?php /* translators: %s: starter question text copied into Claude. */ ?>
+								aria-label="<?php echo esc_attr( sprintf( __( 'Copy question: %s', 'woocommerce-claude' ), $question ) ); ?>"
+							>
+								<span class="woocommerce-claude-setup__prompt-text"><?php echo esc_html( $question ); ?></span>
+								<span class="woocommerce-claude-setup__prompt-icon" aria-hidden="true">
+									<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+										<rect x="4" y="4" width="9" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/>
+										<path d="M3 11H2.5C2.22 11 2 10.78 2 10.5V2.5C2 2.22 2.22 2 2.5 2H10.5C10.78 2 11 2.22 11 2.5V3" stroke="currentColor" stroke-width="1.3"/>
+									</svg>
+								</span>
+							</button>
 						</li>
 					<?php endforeach; ?>
 				</ul>

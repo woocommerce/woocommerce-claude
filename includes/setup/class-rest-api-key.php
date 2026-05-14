@@ -33,6 +33,13 @@ class RestApiKey {
 	const OPTION_KEY_ID = 'woocommerce_claude_setup_api_key_id';
 
 	/**
+	 * Timestamp of the most recent authenticated MCP request using the
+	 * setup-managed store connection key. Presence means an external Claude app
+	 * has successfully reached this store at least once.
+	 */
+	const OPTION_LAST_SEEN = 'woocommerce_claude_setup_last_seen';
+
+	/**
 	 * Description written into woocommerce_api_keys.description so the
 	 * key is recognisable in WC admin. Also used as the orphan-cleanup
 	 * key — every row with this exact description is treated as
@@ -566,5 +573,6 @@ class RestApiKey {
 	private function clear_options() {
 		delete_option( self::OPTION_CREDENTIAL );
 		delete_option( self::OPTION_KEY_ID );
+		delete_option( self::OPTION_LAST_SEEN );
 	}
 }

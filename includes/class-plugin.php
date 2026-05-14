@@ -691,6 +691,9 @@ INSTRUCTIONS;
 		}
 
 		wp_set_current_user( $user->ID );
+		if ( (int) get_option( Setup\RestApiKey::OPTION_KEY_ID, 0 ) === (int) $row->key_id ) {
+			update_option( Setup\RestApiKey::OPTION_LAST_SEEN, time(), false );
+		}
 		return true;
 	}
 

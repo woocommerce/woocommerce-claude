@@ -6,6 +6,7 @@
  */
 
 use WooCommerce\Claude\Settings\SettingsPage;
+use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
 /**
@@ -29,8 +30,11 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SetupPage::TELEMETRY_OPTION );
+		( new RestApiKey() )->revoke();
 		$_POST           = array();
 		$current_section = '';
+		unset( $_GET['notice'] );
+		wp_set_current_user( 0 );
 
 		if ( $this->settings_page ) {
 			remove_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this->settings_page, 'render_api_key_field' ) );
@@ -57,13 +61,12 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The WooCommerce settings sub-navigation keeps AI, DIY, and preferences separate.
+	 * The WooCommerce settings sub-navigation keeps only consolidated setup and preferences visible.
 	 */
-	public function test_sections_include_ai_insights_diy_and_settings() {
+	public function test_sections_include_setup_and_settings() {
 		$this->assertSame(
 			array(
-				''         => 'AI Insights',
-				'setup'    => 'DIY',
+				''         => 'Setup',
 				'settings' => 'Settings',
 			),
 			$this->settings_page()->get_sections()
@@ -71,10 +74,92 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The default section renders the consolidated accordion setup overview.
+	 */
+	public function test_default_section_renders_setup_overview() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user    = get_user_by( 'id', $user_id );
+		$this->assertInstanceOf( WP_User::class, $user );
+		$user->add_cap( 'manage_woocommerce' );
+		wp_set_current_user( $user_id );
+
+		ob_start();
+		$this->settings_page()->output();
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'Set up Claude for your store', $html );
+		$this->assertStringContainsString( 'Chat in WordPress admin', $html );
+		$this->assertStringContainsString( 'Connect Claude apps', $html );
+		$this->assertLessThan( strpos( $html, 'Chat in WordPress admin' ), strpos( $html, 'Connect Claude apps' ) );
+		$this->assertStringContainsString( 'Anthropic API Key', $html );
+		$this->assertStringContainsString( 'Step 1: Create a store connection key', $html );
+		$this->assertStringContainsString( 'Step 3: Add guide workflows (optional)', $html );
+		$this->assertStringContainsString( 'Download skills', $html );
+		$this->assertStringContainsString( 'woocommerce-claude-setup__accordion', $html );
+		$this->assertStringNotContainsString( 'Optional: Add guided workflows', $html );
+		$this->assertStringNotContainsString( '<details class="woocommerce-claude-setup__accordion" open>', $html );
+		$this->assertStringNotContainsString( 'Download Claude workflow skills', $html );
+		$this->assertStringNotContainsString( 'You can set up one or both options.', $html );
+	}
+
+	/**
+	 * The Ask Claude CTA is a post-save affordance, not a persistent second action.
+	 */
+	public function test_open_ai_insights_button_only_renders_after_saving_key_form() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user    = get_user_by( 'id', $user_id );
+		$this->assertInstanceOf( WP_User::class, $user );
+		$user->add_cap( 'manage_woocommerce' );
+		wp_set_current_user( $user_id );
+		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-existing', 'no' );
+
+		$html = $this->render_default_output();
+		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
+
+		$_POST = array(
+			SettingsPage::DIFM_API_KEY_OPTION => SettingsPage::DIFM_API_KEY_SENTINEL,
+		);
+		$this->settings_page()->validate_api_key_on_save();
+
+		$html = $this->render_default_output();
+		$this->assertStringContainsString( 'Open Ask Claude', $html );
+		$this->assertMatchesRegularExpression(
+			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Chat in WordPress admin[\s\S]*Open Ask Claude[\s\S]*<\/details>/',
+			$html
+		);
+
+		$html = $this->render_default_output();
+		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
+	}
+
+	/**
+	 * Setup action notices keep the external connection accordion open so the
+	 * next step is visible after creating or rotating the store connection key.
+	 */
+	public function test_external_connection_notice_keeps_connection_accordion_open() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user    = get_user_by( 'id', $user_id );
+		$this->assertInstanceOf( WP_User::class, $user );
+		$user->add_cap( 'manage_woocommerce' );
+		wp_set_current_user( $user_id );
+
+		$state = ( new RestApiKey() )->get_or_create();
+		$this->assertIsArray( $state );
+
+		$_GET['notice'] = 'key_generated';
+		$html           = $this->render_default_output();
+
+		$this->assertMatchesRegularExpression(
+			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Connect Claude apps[\s\S]*Download MCPB file[\s\S]*<\/details>/',
+			$html
+		);
+	}
+
+	/**
 	 * Usage tracking belongs in Settings, not in the AI Insights key section.
 	 */
 	public function test_ai_insights_section_does_not_render_usage_tracking() {
-		$html = $this->render_settings_html();
+		$html = $this->render_settings_html( 'get_settings_for_ai_insights_section' );
 
 		$this->assertStringNotContainsString( 'Usage tracking', $html );
 		$this->assertStringNotContainsString( 'woocommerce-claude-telemetry-optin', $html );
@@ -229,6 +314,17 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	private function render_settings_html( $method_name = 'get_settings_for_default_section' ) {
 		ob_start();
 		\WC_Admin_Settings::output_fields( $this->get_settings_fields( $method_name ) );
+		return ob_get_clean();
+	}
+
+	/**
+	 * Render the default settings output to HTML.
+	 *
+	 * @return string
+	 */
+	private function render_default_output() {
+		ob_start();
+		$this->settings_page()->output();
 		return ob_get_clean();
 	}
 

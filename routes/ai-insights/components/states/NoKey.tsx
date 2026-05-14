@@ -15,7 +15,7 @@ export function NoKey() {
 			</h2>
 			<p className="hey-woo-state__message">
 				{ __(
-					"Paste your Anthropic API key and WooCommerce for Claude will answer questions about your store's performance, orders, and customers — no Claude Desktop required.",
+					"Paste your Anthropic API key and WooCommerce for Claude will answer questions about your store's performance, orders, and customer trends from WordPress admin.",
 					'woocommerce-claude'
 				) }
 			</p>

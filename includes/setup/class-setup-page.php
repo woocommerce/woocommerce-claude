@@ -10,10 +10,11 @@ namespace WooCommerce\Claude\Setup;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude
- * DIY section. Walks a store owner through connecting WooCommerce for Claude
- * to Claude Desktop (one-click .mcpb download with the API key
- * embedded) or to other MCP clients via a copy-paste JSON snippet.
+ * Setup assets and external-access view rendered inside WooCommerce Settings
+ * → WooCommerce for Claude. The external-access section walks a store owner
+ * through connecting WooCommerce for Claude to Claude Desktop (one-click .mcpb
+ * download with the store connection key embedded) or to other MCP clients via
+ * a copy-paste JSON snippet.
  *
  * State-changing actions are exposed as `wp_nonce_url`-protected GET
  * links rather than POST forms because the view is rendered inside
@@ -81,23 +82,25 @@ class SetupPage {
 	}
 
 	/**
-	 * Build the URL of the DIY setup page.
+	 * Build the URL of the external-access setup page.
 	 *
 	 * @param array<string,string|int> $args Extra query args.
 	 * @return string
 	 */
 	public static function url( $args = array() ) {
-		return add_query_arg(
-			array_merge(
-				array(
-					'page'    => 'wc-settings',
-					'tab'     => self::SETTINGS_TAB,
-					'section' => 'setup',
-				),
-				$args
+		$query = array_merge(
+			array(
+				'page' => 'wc-settings',
+				'tab'  => self::SETTINGS_TAB,
 			),
-			admin_url( 'admin.php' )
+			$args
 		);
+
+		if ( isset( $query['section'] ) && '' === $query['section'] ) {
+			unset( $query['section'] );
+		}
+
+		return add_query_arg( $query, admin_url( 'admin.php' ) );
 	}
 
 	/**
@@ -189,7 +192,7 @@ class SetupPage {
 
 	/**
 	 * Render the setup view. Called by SettingsPage::output() when the
-	 * DIY section is active. Outputs HTML directly.
+	 * External access section is active. Outputs HTML directly.
 	 *
 	 * Computes `$is_owner` — whether the current user is the WP user
 	 * the WC API key is bound to. WC API keys authenticate as their
@@ -199,8 +202,10 @@ class SetupPage {
 	 * the owner sees the credential, the bundle download, and the
 	 * manual snippets. Non-owners get a "Regenerate to re-bind to you"
 	 * panel.
+	 *
+	 * @param bool $embedded Whether the view is rendered inside another setup panel.
 	 */
-	public static function render_setup_view() {
+	public static function render_setup_view( $embedded = false ) {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			return;
 		}
@@ -216,7 +221,7 @@ class SetupPage {
 		 * key authenticates against the WC REST surface generally, not
 		 * just /wp-json/woocommerce-claude/mcp — so the page must surface (and
 		 * offer to disconnect) an existing key. Provisioning is gated
-		 * behind the explicit "Generate key" button (see
+		 * behind the explicit "Create connection key" button (see
 		 * handle_generate_key) rather than happening silently on
 		 * render — the merchant should always know when a credential
 		 * has been minted on their behalf.
@@ -231,6 +236,7 @@ class SetupPage {
 			$owner_user    = get_userdata( $owner_user_id );
 			$owner_display = $owner_user ? $owner_user->display_name : __( 'another administrator', 'woocommerce-claude' );
 		}
+		$is_embedded = (bool) $embedded;
 
 		require WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/views/page.php';
 	}
@@ -289,14 +295,14 @@ class SetupPage {
 		if ( null === $state ) {
 			return new \WP_Error(
 				'key_required',
-				__( 'Generate an API key in Step 1 before downloading.', 'woocommerce-claude' )
+				__( 'Create a store connection key in Step 1 before downloading.', 'woocommerce-claude' )
 			);
 		}
 
 		if ( (int) ( $state['owner_user_id'] ?? 0 ) !== (int) $expected_user_id ) {
 			return new \WP_Error(
 				'ownership_changed',
-				__( 'The API key was rotated by another admin while your download was being prepared. Refresh the page and try again.', 'woocommerce-claude' )
+				__( 'The store connection key was rotated by another admin while your download was being prepared. Refresh the page and try again.', 'woocommerce-claude' )
 			);
 		}
 
@@ -400,7 +406,15 @@ class SetupPage {
 		}
 		$setup_link = sprintf(
 			'<a href="%s">%s</a>',
-			esc_url( self::url() ),
+			esc_url(
+				add_query_arg(
+					array(
+						'page' => 'wc-settings',
+						'tab'  => self::SETTINGS_TAB,
+					),
+					admin_url( 'admin.php' )
+				)
+			),
 			esc_html__( 'Setup', 'woocommerce-claude' )
 		);
 		array_unshift( $links, $setup_link );
@@ -409,7 +423,7 @@ class SetupPage {
 
 	/**
 	 * Enqueue the page's CSS and JS, only on the WC Settings →
-	 * WooCommerce for Claude DIY section.
+	 * WooCommerce for Claude setup overview and external-access sections.
 	 *
 	 * @param string $hook_suffix Current admin hook suffix.
 	 */
@@ -437,8 +451,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Whether the current request is the setup page (WC Settings →
-	 * WooCommerce for Claude, default section). Caller may pass the admin hook suffix
+	 * Whether the current request should load the setup assets. Caller may pass the admin hook suffix
 	 * if it has it; falls back to the request's GET vars otherwise.
 	 *
 	 * @param string|null $hook_suffix Optional admin hook suffix.
@@ -455,7 +468,7 @@ class SetupPage {
 		$sec  = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && 'setup' === $sec;
+		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && in_array( $sec, array( '', 'setup' ), true );
 	}
 
 	/**
@@ -647,7 +660,7 @@ class SetupPage {
 		$owner = ( new RestApiKey() )->owner_user_id();
 		if ( 0 < $owner && get_current_user_id() !== $owner ) {
 			wp_die(
-				esc_html__( 'This action is restricted to the admin who provisioned the WooCommerce for Claude API key. Use Regenerate on the setup page to re-bind the key to your user, then try again.', 'woocommerce-claude' ),
+				esc_html__( 'This action is restricted to the admin who provisioned the WooCommerce for Claude store connection key. Use Regenerate on the setup page to re-bind the key to your user, then try again.', 'woocommerce-claude' ),
 				'',
 				array( 'response' => 403 )
 			);

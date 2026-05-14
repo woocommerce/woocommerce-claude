@@ -7,6 +7,7 @@
 
 namespace WooCommerce\Claude\Settings;
 
+use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
 defined( 'ABSPATH' ) || exit;
@@ -14,8 +15,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registers the "WooCommerce for Claude" tab in WooCommerce > Settings.
  *
- * The default view renders the Bring Your Own Key field used by AI Insights.
- * The DIY setup view and plugin-level settings live in their own sections.
+ * The default view renders a neutral setup overview. The Bring Your Own Key
+ * field used by AI Insights, the external-access setup view, and plugin-level
+ * settings live in their own sections.
  * The key field is deliberately custom-rendered so a stored Anthropic key is
  * never sent back to the browser.
  */
@@ -32,7 +34,7 @@ class SettingsPage extends \WC_Settings_Page {
 	const DIFM_API_KEY_SENTINEL = '__HEY_WOO_KEY_CONFIGURED__';
 
 	/**
-	 * Field name for explicitly removing a saved DIFM API key.
+	 * Field name for explicitly removing a saved Anthropic API key.
 	 */
 	const DIFM_API_KEY_CLEAR_FIELD = 'woocommerce_claude_anthropic_api_key_clear';
 
@@ -50,6 +52,11 @@ class SettingsPage extends \WC_Settings_Page {
 	 * Legacy server constant name from the pre-rename branch.
 	 */
 	const LEGACY_DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
+
+	/**
+	 * User-meta flag used to show the AI Insights CTA immediately after saving.
+	 */
+	const AI_INSIGHTS_SAVED_META = 'woocommerce_claude_ai_insights_just_saved';
 
 	/**
 	 * Register the tab and wire up WC settings hooks.
@@ -73,23 +80,21 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	public function get_sections() {
 		return array(
-			''         => __( 'AI Insights', 'woocommerce-claude' ),
-			'setup'    => __( 'DIY', 'woocommerce-claude' ),
+			''         => __( 'Setup', 'woocommerce-claude' ),
 			'settings' => __( 'Settings', 'woocommerce-claude' ),
 		);
 	}
 
 	/**
-	 * The default section contains the AI Insights key fields.
+	 * The AI Insights section contains the Anthropic API key fields.
 	 *
-	 * The AI Insights section configures the Anthropic API key DIFM
-	 * (Do-It-For-Me) uses for server-side AI calls. The setup wizard lives
-	 * in the `setup` section and handles connecting Claude Desktop to the
-	 * MCP server.
+	 * The AI Insights section configures the Anthropic API key used for
+	 * server-side AI calls. The setup wizard lives in the `setup` section and
+	 * handles connecting Claude Desktop to the MCP server.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
-	protected function get_settings_for_default_section() {
+	protected function get_settings_for_ai_insights_section() {
 		return array(
 			array(
 				'type'  => 'title',
@@ -110,6 +115,18 @@ class SettingsPage extends \WC_Settings_Page {
 				'id'   => 'woocommerce_claude_difm_section',
 			),
 		);
+	}
+
+	/**
+	 * Back-compatibility shim for callers that still ask WC for the default
+	 * section's settings. The default screen is now custom-rendered, but the
+	 * AI Insights field list remains available here so legacy save flows keep
+	 * preserving an existing key instead of treating a missing field as removal.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function get_settings_for_default_section() {
+		return $this->get_settings_for_ai_insights_section();
 	}
 
 	/**
@@ -140,10 +157,10 @@ class SettingsPage extends \WC_Settings_Page {
 	/**
 	 * Render the current section.
 	 *
-	 * The DIY section shows the Claude Desktop connection wizard and hides
-	 * WC's Save button (no form fields, all actions are link-based).
-	 * The Settings section renders plugin-level preferences. The default
-	 * AI Insights section renders the Anthropic API key field.
+	 * The default section shows a neutral setup overview and hides WC's Save
+	 * button (no form fields). The external-access section shows the Claude app
+	 * connection wizard. The Settings section renders plugin-level preferences.
+	 * The AI Insights section renders the Anthropic API key field.
 	 */
 	public function output() {
 		global $current_section;
@@ -158,7 +175,138 @@ class SettingsPage extends \WC_Settings_Page {
 			return;
 		}
 
-		\WC_Admin_Settings::output_fields( $this->get_settings_for_default_section() );
+		if ( 'ai-insights' === $current_section ) {
+			\WC_Admin_Settings::output_fields( $this->get_settings_for_ai_insights_section() );
+			return;
+		}
+
+		$this->render_setup_overview();
+	}
+
+	/**
+	 * Render the neutral setup overview with the two setup surfaces embedded
+	 * as stacked accordions.
+	 *
+	 * @return void
+	 */
+	private function render_setup_overview() {
+		$has_ai_key       = '' !== $this->get_api_key_constant_name() || '' !== $this->get_saved_api_key();
+		$external_state   = ( new RestApiKey() )->existing_state();
+		$has_external_key = null !== $external_state;
+		$has_external_use = $has_external_key && 0 < (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only setup flash.
+		$setup_notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
+
+		$ai_insights_url  = admin_url( 'admin.php?page=woocommerce-claude-insights' );
+		$show_ai_insights = $has_ai_key && $this->consume_ai_insights_saved_notice();
+		$connected_label  = __( 'Connected', 'woocommerce-claude' );
+		$ready_label      = __( 'Ready', 'woocommerce-claude' );
+		$not_set_up_label = __( 'Not set up', 'woocommerce-claude' );
+		$ai_open          = $show_ai_insights ? 'open' : '';
+		$external_open    = '' === $setup_notice_code ? '' : 'open';
+		$ai_status_label  = $has_ai_key ? $ready_label : $not_set_up_label;
+		$ai_status_class  = $has_ai_key ? 'woocommerce-claude-setup__pill--ready' : 'woocommerce-claude-setup__pill--off';
+		if ( $has_external_use ) {
+			$external_status_label = $connected_label;
+			$external_status_class = 'woocommerce-claude-setup__pill--live';
+		} elseif ( $has_external_key ) {
+			$external_status_label = $ready_label;
+			$external_status_class = 'woocommerce-claude-setup__pill--ready';
+		} else {
+			$external_status_label = $not_set_up_label;
+			$external_status_class = 'woocommerce-claude-setup__pill--off';
+		}
+		?>
+		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
+			<section class="woocommerce-claude-setup__intro">
+				<h2><?php esc_html_e( 'Set up Claude for your store', 'woocommerce-claude' ); ?></h2>
+				<p><?php esc_html_e( 'Connect Claude apps to this store, use Claude in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
+			</section>
+
+			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $external_open ); ?>>
+				<summary class="woocommerce-claude-setup__accordion-summary">
+					<span class="woocommerce-claude-setup__option-icon dashicons dashicons-desktop" aria-hidden="true"></span>
+					<span class="woocommerce-claude-setup__accordion-text">
+						<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Connect Claude apps', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Use Claude Desktop, Claude Code, or another MCP-compatible app with this store.', 'woocommerce-claude' ); ?></span>
+					</span>
+					<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $external_status_class ); ?>">
+						<?php echo esc_html( $external_status_label ); ?>
+					</span>
+				</summary>
+				<div class="woocommerce-claude-setup__accordion-panel">
+					<?php SetupPage::render_setup_view( true ); ?>
+				</div>
+			</details>
+
+			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
+				<summary class="woocommerce-claude-setup__accordion-summary">
+					<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
+					<span class="woocommerce-claude-setup__accordion-text">
+						<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask Claude about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
+					</span>
+					<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
+						<?php echo esc_html( $ai_status_label ); ?>
+					</span>
+				</summary>
+				<div class="woocommerce-claude-setup__accordion-panel">
+					<?php $this->render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights ); ?>
+				</div>
+			</details>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the AI Insights key setup controls inside the setup accordion.
+	 *
+	 * @param bool   $has_ai_key      Whether an Anthropic key is already configured.
+	 * @param string $ai_insights_url URL for the AI Insights admin page.
+	 * @param bool   $show_ai_insights_link Whether to show the AI Insights CTA.
+	 * @return void
+	 */
+	private function render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights_link ) {
+		?>
+		<p class="woocommerce-claude-setup__card-lede"><?php echo wp_kses_post( $this->get_difm_section_description() ); ?></p>
+
+		<?php if ( $has_ai_key ) : ?>
+			<div class="woocommerce-claude-setup__banner woocommerce-claude-setup__banner--info">
+				<span class="woocommerce-claude-setup__banner-icon" aria-hidden="true">
+					<span class="dashicons dashicons-yes-alt"></span>
+				</span>
+				<div class="woocommerce-claude-setup__banner-body">
+					<strong><?php esc_html_e( 'Ask Claude is ready in WordPress admin.', 'woocommerce-claude' ); ?></strong>
+					<p><?php esc_html_e( 'You can open the chat, replace the saved key, or remove it from this section.', 'woocommerce-claude' ); ?></p>
+				</div>
+			</div>
+		<?php endif; ?>
+
+		<table class="form-table woocommerce-claude-setup__embedded-form" role="presentation">
+			<tbody>
+				<?php
+				$this->render_api_key_field(
+					array(
+						'id'    => self::DIFM_API_KEY_OPTION,
+						'title' => __( 'Anthropic API Key', 'woocommerce-claude' ),
+						'desc'  => __( 'Starts with <code>sk-ant-</code>. The real key is used only for server-side AI calls and is never rendered back into this page.', 'woocommerce-claude' ),
+					)
+				);
+				?>
+			</tbody>
+		</table>
+
+		<div class="woocommerce-claude-setup__accordion-actions">
+			<button name="save" class="button button-primary woocommerce-save-button" type="submit" value="<?php esc_attr_e( 'Save changes', 'woocommerce-claude' ); ?>">
+				<?php esc_html_e( 'Save changes', 'woocommerce-claude' ); ?>
+			</button>
+			<?php if ( $show_ai_insights_link ) : ?>
+				<a class="button button-secondary" href="<?php echo esc_url( $ai_insights_url ); ?>">
+					<?php esc_html_e( 'Open Ask Claude', 'woocommerce-claude' ); ?>
+				</a>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 
 	/**
@@ -170,7 +318,7 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	private function get_difm_section_description() {
 		$constant_name = $this->get_api_key_constant_name();
-		$requirement   = __( 'AI Insights requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
+		$requirement   = __( 'Ask Claude requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
 
 		if ( '' !== $constant_name ) {
 			return sprintf(
@@ -335,6 +483,7 @@ class SettingsPage extends \WC_Settings_Page {
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
 			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
+			$this->clear_ai_insights_saved_notice();
 			return null;
 		}
 
@@ -376,6 +525,11 @@ class SettingsPage extends \WC_Settings_Page {
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
 			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
+			$this->clear_ai_insights_saved_notice();
+			return;
+		}
+
+		if ( ! $this->is_api_key_field_submitted() ) {
 			return;
 		}
 
@@ -387,6 +541,9 @@ class SettingsPage extends \WC_Settings_Page {
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		if ( '' === $submitted_key || self::DIFM_API_KEY_SENTINEL === $submitted_key ) {
+			if ( '' !== $this->get_saved_api_key() ) {
+				$this->mark_ai_insights_saved_notice();
+			}
 			return;
 		}
 
@@ -398,6 +555,7 @@ class SettingsPage extends \WC_Settings_Page {
 
 			if ( $auth_failure ) {
 				delete_option( self::DIFM_API_KEY_OPTION );
+				$this->clear_ai_insights_saved_notice();
 
 				\WC_Admin_Settings::add_error(
 					sprintf(
@@ -406,6 +564,7 @@ class SettingsPage extends \WC_Settings_Page {
 						$result->get_error_message()
 					)
 				);
+				return;
 			} else {
 				\WC_Admin_Settings::add_error(
 					sprintf(
@@ -416,6 +575,65 @@ class SettingsPage extends \WC_Settings_Page {
 				);
 			}
 		}
+
+		$this->mark_ai_insights_saved_notice();
+	}
+
+	/**
+	 * Whether the Anthropic API key field was part of the submitted form.
+	 *
+	 * @return bool
+	 */
+	private function is_api_key_field_submitted() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
+		return isset( $_POST[ self::DIFM_API_KEY_OPTION ] );
+	}
+
+	/**
+	 * Mark the current user as having just saved the AI Insights key form.
+	 *
+	 * @return void
+	 */
+	private function mark_ai_insights_saved_notice() {
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return;
+		}
+
+		update_user_meta( $user_id, self::AI_INSIGHTS_SAVED_META, (string) time() );
+	}
+
+	/**
+	 * Clear the post-save AI Insights CTA flag for the current user.
+	 *
+	 * @return void
+	 */
+	private function clear_ai_insights_saved_notice() {
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return;
+		}
+
+		delete_user_meta( $user_id, self::AI_INSIGHTS_SAVED_META );
+	}
+
+	/**
+	 * Consume the post-save AI Insights CTA flag for the current user.
+	 *
+	 * @return bool
+	 */
+	private function consume_ai_insights_saved_notice() {
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		$show_notice = '' !== (string) get_user_meta( $user_id, self::AI_INSIGHTS_SAVED_META, true );
+		if ( $show_notice ) {
+			delete_user_meta( $user_id, self::AI_INSIGHTS_SAVED_META );
+		}
+
+		return $show_notice;
 	}
 
 	/**
