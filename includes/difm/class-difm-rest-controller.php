@@ -11,6 +11,7 @@
 namespace WooCommerce\Claude\Difm;
 
 use WooCommerce\Claude\Abilities\ConfirmLargeRangeAbility;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -234,7 +235,16 @@ class DifmRestController {
 		$iterations            = 0;
 
 		while ( $iterations < self::MAX_TOOL_ITERATIONS ) {
-			$result = $client->messages( $messages, $system_prompt, $tools );
+			$result = $client->messages(
+				$messages,
+				$system_prompt,
+				$tools,
+				4096,
+				array(
+					'surface'   => 'difm_chat',
+					'iteration' => $iterations + 1,
+				)
+			);
 
 			if ( is_wp_error( $result ) ) {
 				return rest_ensure_response(
@@ -286,6 +296,7 @@ class DifmRestController {
 				$tool_id    = isset( $block['id'] ) ? (string) $block['id'] : '';
 
 				if ( self::RENDER_CHART_TOOL === $tool_name ) {
+					$this->log_tool_call( $tool_name, $tool_input, $tool_id, '', 'captured' );
 					$chart_specs[]  = $this->sanitise_chart_spec( $tool_input );
 					$tool_results[] = array(
 						'type'        => 'tool_result',
@@ -551,7 +562,12 @@ class DifmRestController {
 	 * @return array|\WP_Error
 	 */
 	private function execute_tool( $name, array $input ) {
+		$start_ms   = microtime( true );
+		$ability_id = isset( self::TOOL_ABILITY_MAP[ $name ] ) ? self::TOOL_ABILITY_MAP[ $name ] : '';
+		$this->log_tool_call( $name, $input, '', $ability_id, 'execute' );
+
 		if ( ! isset( self::TOOL_ABILITY_MAP[ $name ] ) ) {
+			$this->log_tool_result( $name, 'error', 'unknown_tool', (int) round( ( microtime( true ) - $start_ms ) * 1000 ), null );
 			return new \WP_Error(
 				'unknown_tool',
 				sprintf(
@@ -563,10 +579,10 @@ class DifmRestController {
 			);
 		}
 
-		$ability_id = self::TOOL_ABILITY_MAP[ $name ];
-		$ability    = $this->get_ability( $ability_id );
+		$ability = $this->get_ability( $ability_id );
 
 		if ( ! $ability ) {
+			$this->log_tool_result( $name, 'error', 'missing_ability', (int) round( ( microtime( true ) - $start_ms ) * 1000 ), null );
 			return new \WP_Error(
 				'missing_ability',
 				sprintf(
@@ -581,6 +597,7 @@ class DifmRestController {
 		try {
 			$result = $ability->execute( $input );
 		} catch ( \Throwable $e ) {
+			$this->log_tool_result( $name, 'error', 'tool_execution_failed', (int) round( ( microtime( true ) - $start_ms ) * 1000 ), null );
 			return new \WP_Error(
 				'tool_execution_failed',
 				__( 'Tool execution failed.', 'woocommerce-claude' ),
@@ -589,10 +606,129 @@ class DifmRestController {
 		}
 
 		if ( is_wp_error( $result ) ) {
+			$this->log_tool_result( $name, 'error', $result->get_error_code(), (int) round( ( microtime( true ) - $start_ms ) * 1000 ), null );
 			return $result;
 		}
 
-		return is_array( $result ) ? $result : array( 'result' => $result );
+		$output = is_array( $result ) ? $result : array( 'result' => $result );
+		$this->log_tool_result( $name, 'ok', '', (int) round( ( microtime( true ) - $start_ms ) * 1000 ), $output );
+
+		return $output;
+	}
+
+	/**
+	 * Log a model-requested tool call without recording raw prompt or PII.
+	 *
+	 * @param string $tool_name Tool name.
+	 * @param array  $input     Tool input.
+	 * @param string $tool_id   Anthropic tool_use ID.
+	 * @param string $ability_id Backing WordPress ability ID.
+	 * @param string $phase     Tool phase.
+	 * @return void
+	 */
+	private function log_tool_call( $tool_name, array $input, $tool_id = '', $ability_id = '', $phase = '' ) {
+		TelemetryHandler::record(
+			'difm_tool_call',
+			array_merge(
+				array(
+					'event'      => 'difm_tool_call',
+					'tool'       => $tool_name,
+					'tool_id'    => $tool_id,
+					'ability_id' => $ability_id,
+					'phase'      => $phase,
+				),
+				$this->summarise_tool_input_for_log( $input )
+			)
+		);
+	}
+
+	/**
+	 * Log the outcome of a server-executed tool call.
+	 *
+	 * @param string     $tool_name   Tool name.
+	 * @param string     $status      ok|error.
+	 * @param string     $error_code  Error code when status=error.
+	 * @param int        $duration_ms Execution duration.
+	 * @param array|null $output      Tool output.
+	 * @return void
+	 */
+	private function log_tool_result( $tool_name, $status, $error_code, $duration_ms, $output ) {
+		$data = array(
+			'event'       => 'difm_tool_result',
+			'tool'        => $tool_name,
+			'status'      => $status,
+			'error_code'  => $error_code,
+			'duration_ms' => $duration_ms,
+		);
+
+		if ( is_array( $output ) ) {
+			$encoded              = wp_json_encode( $output );
+			$data['output_bytes'] = is_string( $encoded ) ? strlen( $encoded ) : 0;
+		}
+
+		TelemetryHandler::record( 'difm_tool_result', $data );
+	}
+
+	/**
+	 * Summarise tool input for logs without recording free text or raw filters.
+	 *
+	 * @param array $input Tool input.
+	 * @return array
+	 */
+	private function summarise_tool_input_for_log( array $input ) {
+		$summary = array();
+		$keys    = array(
+			'subject',
+			'entity',
+			'dimension',
+			'period',
+			'date_start',
+			'date_end',
+			'interval',
+			'mode',
+			'group_by',
+			'limit',
+			'orderby',
+			'order',
+			'include_unassigned',
+			'compare',
+			'product_id',
+			'category',
+			'page',
+			'per_page',
+			'type',
+		);
+
+		foreach ( $keys as $key ) {
+			if ( isset( $input[ $key ] ) && is_scalar( $input[ $key ] ) ) {
+				$summary[ $key ] = $input[ $key ];
+			}
+		}
+
+		if ( isset( $input['filters'] ) && is_array( $input['filters'] ) ) {
+			$summary['filter_count'] = count( $input['filters'] );
+		}
+
+		if ( isset( $input['query'] ) && '' !== (string) $input['query'] ) {
+			$summary['query_present'] = 'yes';
+		}
+
+		if ( isset( $input['confirmation_token'] ) && '' !== (string) $input['confirmation_token'] ) {
+			$summary['confirmation_token_present'] = 'yes';
+		}
+
+		if ( isset( $input['series'] ) && is_array( $input['series'] ) ) {
+			$point_count = 0;
+			foreach ( $input['series'] as $series ) {
+				if ( is_array( $series ) && isset( $series['data'] ) && is_array( $series['data'] ) ) {
+					$point_count += count( $series['data'] );
+				}
+			}
+			$summary['series_count'] = count( $input['series'] );
+			$summary['point_count']  = $point_count;
+		}
+
+		return $summary;
 	}
 
 	/**
@@ -638,10 +774,11 @@ class DifmRestController {
 				);
 			}
 			$input_schema = $this->normalise_anthropic_input_schema( $input_schema );
+			$input_schema = $this->strip_schema_descriptions( $input_schema );
 
 			$tools[] = array(
 				'name'         => $tool_name,
-				'description'  => (string) $ability->get_description(),
+				'description'  => $this->compact_tool_description( $tool_name, (string) $ability->get_description() ),
 				'input_schema' => $input_schema,
 			);
 		}
@@ -649,6 +786,95 @@ class DifmRestController {
 		$tools[] = $this->build_render_chart_tool_definition();
 
 		return $tools;
+	}
+
+	/**
+	 * Return the compact Anthropic-facing description for a DIFM tool.
+	 *
+	 * Ability descriptions are intentionally long because they double as MCP
+	 * guardrails. AI Insights sends tool definitions on every Anthropic request,
+	 * so it uses a compact routing guide and leaves the full descriptions on the
+	 * public MCP surface.
+	 *
+	 * @param string $tool_name            Anthropic-visible tool name.
+	 * @param string $fallback_description Ability metadata description.
+	 * @return string
+	 */
+	private function compact_tool_description( $tool_name, $fallback_description ) {
+		switch ( $tool_name ) {
+			case 'analytics_totals':
+				return 'Headline WooCommerce analytics totals for "how much/how many" questions. Subjects: revenue (collected net sales, orders, AOV, refunds, tax, shipping, pending revenue), orders (counts, statuses, value distribution, payment-method pipeline), customers (new vs returning customers, repeat rate, segment spend), customer_value (lifetime spend/LTV, pseudonymised top customers, cohorts), tax (collected/pending/dashboard tax, refunded tax, effective rate), refunds (amount, count, rate, timing, partial vs full). Use date_start/date_end for custom ranges. Use breakdown for grouped cuts, series for trends, rows for filtered records. If the tool returns extended_range_required, stop; the server will ask the merchant to confirm.';
+
+			case 'analytics_breakdown':
+				return 'Grouped WooCommerce analytics for "by X" or "top X" questions. Valid subject/dimension pairs: revenue by category/country/payment_method/shipping_method; attribution by channel/source/medium/campaign/term/content/device/channel_source; products by product/variation; refunds by product/country; tax by rate; coupons by code. Defaults: revenue=category, attribution=channel, products/refunds=product, tax=rate, coupons=code. Use totals for headline figures, series for trends, rows for arbitrary filters or specific row lists. Read returned rates, shares, coverage, and deltas directly; do not recompute them.';
+
+			case 'analytics_series':
+				return 'Time-series WooCommerce analytics for trend questions. Subjects: customers (new vs returning counts, orders, repeat rate, segment spend, pipeline by bucket) and products (top products or variations with per-bucket revenue, quantity, orders, refunds). interval is day, week, month, or auto. Use day for short windows, week/month for longer windows unless the merchant asks for a specific granularity. Do not sum bucket counts into unique period totals; use analytics_totals for period headlines. If the merchant asks for a trend, chart, graph, daily, weekly, monthly, or comparison view, this is usually the right tool.';
+
+			case 'analytics_rows':
+				return 'Flexible filtered analytics for orders, products, or customers. Use when the question combines attributes, asks for matching records, or needs a row list. entity=orders fields include order_total, gross_total, num_items_sold, tax_total, shipping_total, discount_amount, currency, payment_method, billing/shipping country/state/city/postcode, attribution_channel/source/campaign/device, coupon_code, date_created, returning_customer, status, product_id. entity=products fields include product_id, price, stock_quantity, units_sold_in_period, revenue_in_period, orders_count_in_period, sku, name, status, stock_status, category, onsale, date_created. entity=customers fields include customer_id, lifetime_orders_count, lifetime_spend, country/state/city/postcode, date_registered, date_last_active, first_order_date, last_order_date. Operators: is, is_not, greater_than, less_than, between, is_in, contains, starts_with, is_empty, and matching negations as appropriate. mode=aggregate for counts/sums; mode=rows for top-N lists. Customer rows are pseudonymised; never ask for names or emails.';
+
+			case 'get_product_details':
+				return 'Get one product by product_id with description, attributes, images, related products, catalogue metadata, and AI readiness/completeness signals. Use after search_products or analytics product results when the merchant asks about a specific product.';
+
+			case 'search_products':
+				return 'Search the product catalogue by query or category and return enriched product summaries with completeness metadata. Use for product lookup, catalogue questions, and finding product IDs before get_product_details.';
+
+			case 'get_store_profile':
+				return 'Get store identity and configuration: store name, URL, currency, locale, payment methods, shipping zones, features, and high-level WooCommerce settings. Use when store context matters.';
+
+			case 'get_readiness_score':
+				return 'Get the store AI readiness score from 0 to 100 with factor breakdowns for product completeness, schema coverage, policy completeness, and content quality.';
+
+			case 'get_recommendations':
+				return 'Get prioritised store-level recommendations for improving AI readiness. Use for "what should I fix first" or readiness improvement questions.';
+
+			case 'suggest_improvements':
+				return 'Suggest concrete content or configuration improvements for one product or the whole store. Use after readiness or product-detail data when the merchant asks how to improve.';
+		}
+
+		return $this->truncate_tool_description( $fallback_description, 900 );
+	}
+
+	/**
+	 * Truncate an unexpected ability description defensively.
+	 *
+	 * @param string $description Description text.
+	 * @param int    $limit       Maximum characters.
+	 * @return string
+	 */
+	private function truncate_tool_description( $description, $limit ) {
+		$description = trim( preg_replace( '/\s+/', ' ', (string) $description ) );
+		$limit       = max( 100, (int) $limit );
+
+		if ( strlen( $description ) <= $limit ) {
+			return $description;
+		}
+
+		return rtrim( substr( $description, 0, $limit - 1 ) ) . '.';
+	}
+
+	/**
+	 * Remove nested schema descriptions from Anthropic tool input schemas.
+	 *
+	 * The compact tool description carries the routing guidance; keeping every
+	 * per-property description repeats the same information in a costly form.
+	 *
+	 * @param mixed $schema Schema node.
+	 * @return mixed
+	 */
+	private function strip_schema_descriptions( $schema ) {
+		if ( ! is_array( $schema ) ) {
+			return $schema;
+		}
+
+		unset( $schema['description'] );
+
+		foreach ( $schema as $key => $value ) {
+			$schema[ $key ] = $this->strip_schema_descriptions( $value );
+		}
+
+		return $schema;
 	}
 
 	/**

@@ -17,7 +17,7 @@ use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Routes skill-execution events to the WooCommerce logger.
+ * Routes telemetry events to the WooCommerce logger.
  */
 class LogHandler implements TelemetryHandlerInterface {
 
@@ -27,39 +27,26 @@ class LogHandler implements TelemetryHandlerInterface {
 	const LOG_SOURCE = 'woocommerce-claude';
 
 	/**
-	 * Write the event to the WC logger at INFO level.
+	 * Write the whole telemetry payload to the WC logger at INFO level.
 	 *
-	 * Verb-tool emissions carry `tool` / `subject` / `shape` alongside the
-	 * `skill_name` arg (which is the verb-tool ability ID). The `skill=`
-	 * column in the log line stays for downstream tooling that aggregates
-	 * on it; it reads as the verb-tool ability ID for every event.
-	 *
-	 * @param string $skill_name Verb-tool ability ID (the action's first arg).
-	 * @param array  $data       Telemetry payload — tool / subject / shape /
-	 *                          duration_ms / cache_hit / rows_returned /
-	 *                          date_start / date_end / interval / bucket_count.
+	 * @param string $event_name Event or skill identifier.
+	 * @param array  $data       Telemetry payload.
+	 * @return void
 	 */
-	public function record( $skill_name, $data ) {
+	public function record( $event_name, $data ) {
 		if ( ! function_exists( 'wc_get_logger' ) ) {
 			return;
 		}
 
-		$logger  = wc_get_logger();
-		$message = sprintf(
-			'skill=%s tool=%s subject=%s shape=%s duration_ms=%d cache_hit=%s rows_returned=%d date_start=%s date_end=%s interval=%s bucket_count=%s',
-			$skill_name,
-			$data['tool'] ?? 'null',
-			$data['subject'] ?? 'null',
-			$data['shape'] ?? 'null',
-			(int) ( $data['duration_ms'] ?? 0 ),
-			! empty( $data['cache_hit'] ) ? 'true' : 'false',
-			(int) ( $data['rows_returned'] ?? 0 ),
-			$data['date_start'] ?? 'null',
-			$data['date_end'] ?? 'null',
-			$data['interval'] ?? 'null',
-			isset( $data['bucket_count'] ) ? (string) $data['bucket_count'] : 'null'
-		);
+		$payload = function_exists( 'wc_print_r' ) ? wc_print_r( $data, true ) : wp_json_encode( $data );
+		$payload = is_string( $payload ) ? $payload : '';
 
-		$logger->info( $message, array( 'source' => self::LOG_SOURCE ) );
+		wc_get_logger()->info(
+			(string) $event_name . ' ' . $payload,
+			array(
+				'source' => self::LOG_SOURCE,
+				'data'   => $data,
+			)
+		);
 	}
 }

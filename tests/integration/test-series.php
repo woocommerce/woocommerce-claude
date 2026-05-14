@@ -25,7 +25,7 @@
  * @package WooCommerce\Claude\Tests
  */
 
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
 use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
@@ -92,7 +92,7 @@ class Test_Series extends WP_UnitTestCase {
 				);
 			}
 		};
-		SkillTelemetry::add_handler( $this->spy_handler );
+		TelemetryHandler::add_handler( $this->spy_handler );
 	}
 
 	/**
@@ -214,7 +214,7 @@ class Test_Series extends WP_UnitTestCase {
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call.'
+			'TelemetryHandler registry must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/series', $event['skill'] );

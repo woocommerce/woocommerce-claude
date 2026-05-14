@@ -22,13 +22,14 @@
  *     cutover this is the only emission point — legacy fetch-level
  *     `do_action` calls inside `AnalyticsController::fetch_X` were
  *     removed, so both direct `add_action` listeners and
- *     `SkillTelemetry::add_handler()` handlers see exactly one event
+ *     `TelemetryHandler::add_handler()` handlers see exactly one event
  *     per execute call.
  *
  * @package WooCommerce\Claude\Tests
  */
 
 use WooCommerce\Claude\Telemetry\SkillTelemetry;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
 use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
@@ -54,7 +55,7 @@ class Test_Totals extends WP_UnitTestCase {
 	private $direct_listener;
 
 	/**
-	 * Spy handler registered via SkillTelemetry::add_handler().
+	 * Spy handler registered via TelemetryHandler::add_handler().
 	 *
 	 * @var TelemetryHandlerInterface
 	 */
@@ -98,11 +99,11 @@ class Test_Totals extends WP_UnitTestCase {
 				);
 			}
 		};
-		SkillTelemetry::add_handler( $this->spy_handler );
+		TelemetryHandler::add_handler( $this->spy_handler );
 	}
 
 	/**
-	 * Remove the direct listener — the SkillTelemetry handler list is
+	 * Remove the direct listener — the TelemetryHandler registry list is
 	 * static, but each test's spy captures into its own instance, so
 	 * leaving stale spies registered does not pollute later tests.
 	 */
@@ -161,6 +162,55 @@ class Test_Totals extends WP_UnitTestCase {
 	}
 
 	/**
+	 * SkillTelemetry only forwards the original skill-shaped payload keys.
+	 */
+	public function test_skill_telemetry_only_accepts_skill_payload_keys() {
+		$this->spy_handler->events = array();
+
+		SkillTelemetry::dispatch(
+			'wc-analytics/totals',
+			array(
+				'skill'              => 'will-be-replaced',
+				'tool'               => 'wc-analytics/totals',
+				'subject'            => 'revenue',
+				'shape'              => 'aggregate',
+				'duration_ms'        => 12,
+				'cache_hit'          => false,
+				'rows_returned'      => 0,
+				'date_start'         => '2000-01-01',
+				'date_end'           => '2000-01-31',
+				'interval'           => 'day',
+				'bucket_count'       => 31,
+				'event'              => 'not-a-skill-field',
+				'model'              => 'claude-sonnet-4-5',
+				'usage_input_tokens' => 123,
+			)
+		);
+
+		$this->assertCount( 1, $this->spy_handler->events );
+		$this->assertSame(
+			array(
+				'skill',
+				'tool',
+				'subject',
+				'shape',
+				'duration_ms',
+				'cache_hit',
+				'rows_returned',
+				'date_start',
+				'date_end',
+				'interval',
+				'bucket_count',
+			),
+			array_keys( $this->spy_handler->events[0]['data'] )
+		);
+		$this->assertSame( 'wc-analytics/totals', $this->spy_handler->events[0]['data']['skill'] );
+		$this->assertArrayNotHasKey( 'event', $this->spy_handler->events[0]['data'] );
+		$this->assertArrayNotHasKey( 'model', $this->spy_handler->events[0]['data'] );
+		$this->assertArrayNotHasKey( 'usage_input_tokens', $this->spy_handler->events[0]['data'] );
+	}
+
+	/**
 	 * Each subject routes to the matching `AnalyticsController::fetch_X()`
 	 * method and emits exactly one enriched telemetry event.
 	 *
@@ -182,7 +232,7 @@ class Test_Totals extends WP_UnitTestCase {
 		// After the 0.2.0 cutover the verb tool's own do_action at the end
 		// of execute() is the only emission point — legacy fetch-level
 		// emissions inside AnalyticsController::fetch_X were removed.
-		// Direct listeners and SkillTelemetry-routed handlers each see
+		// Direct listeners and TelemetryHandler-routed handlers each see
 		// exactly one event per execute call.
 		$this->assertCount(
 			1,
@@ -194,7 +244,7 @@ class Test_Totals extends WP_UnitTestCase {
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call.'
+			'TelemetryHandler registry must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/totals', $event['skill'] );

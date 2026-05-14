@@ -6,6 +6,8 @@
  */
 
 use WooCommerce\Claude\Difm\AnthropicClient;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
  * Tests for AnthropicClient.
@@ -176,6 +178,110 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'anthropic_error', $result->get_error_code() );
 		$this->assertSame( 'Invalid API key.', $result->get_error_message() );
+	}
+
+	/**
+	 * Messages emits redacted request diagnostics and actual token usage.
+	 */
+	public function test_messages_dispatches_request_metadata_and_actual_usage() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+
+		$handler = new class() implements TelemetryHandlerInterface {
+			/**
+			 * Captured telemetry events.
+			 *
+			 * @var array<int, array{skill: string, data: array}>
+			 */
+			public $events = array();
+
+			/**
+			 * Capture the event dispatched through TelemetryHandler.
+			 *
+			 * @param string $skill_name Event name.
+			 * @param array  $data       Telemetry payload.
+			 */
+			public function record( $skill_name, $data ) {
+				$this->events[] = array(
+					'skill' => $skill_name,
+					'data'  => $data,
+				);
+			}
+		};
+		TelemetryHandler::add_handler( $handler );
+
+		add_filter(
+			'pre_http_request',
+			static function () {
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'id'      => 'msg_usage',
+							'type'    => 'message',
+							'content' => array(),
+							'usage'   => array(
+								'input_tokens'  => 42,
+								'output_tokens' => 7,
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$client = new AnthropicClient();
+		$client->messages(
+			array(
+				array(
+					'role'    => 'user',
+					'content' => 'How much did I sell today?',
+				),
+			),
+			'System prompt',
+			array(
+				array(
+					'name'         => 'analytics_totals',
+					'description'  => 'Totals tool.',
+					'input_schema' => array(
+						'type'       => 'object',
+						'properties' => array(),
+					),
+				),
+			),
+			123,
+			array(
+				'surface'   => 'test',
+				'iteration' => 2,
+				'api_key'   => 'sk-ant-redacted',
+			)
+		);
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertGreaterThanOrEqual( 2, count( $handler->events ) );
+		$this->assertSame( 'anthropic_request', $handler->events[0]['skill'] );
+		$this->assertSame( 'anthropic_request', $handler->events[0]['data']['event'] );
+		$this->assertSame( 'test', $handler->events[0]['data']['surface'] );
+		$this->assertSame( 2, $handler->events[0]['data']['iteration'] );
+		$this->assertSame( 'analytics_totals', $handler->events[0]['data']['tool_names'] );
+		$this->assertGreaterThan( 0, (int) $handler->events[0]['data']['body_bytes'] );
+		$this->assertArrayNotHasKey( 'api_key', $handler->events[0]['data'] );
+		$this->assertArrayNotHasKey( 'estimated_input_tokens', $handler->events[0]['data'] );
+		$this->assertArrayNotHasKey( 'estimated_total_tokens_if_full_out', $handler->events[0]['data'] );
+		$this->assertArrayNotHasKey( 'max_output_tokens', $handler->events[0]['data'] );
+
+		$this->assertSame( 'anthropic_response', $handler->events[1]['skill'] );
+		$this->assertSame( 'anthropic_response', $handler->events[1]['data']['event'] );
+		$this->assertSame( $handler->events[0]['data']['request_id'], $handler->events[1]['data']['request_id'] );
+		$this->assertSame( 200, $handler->events[1]['data']['status_code'] );
+		$this->assertSame( 42, $handler->events[1]['data']['usage_input_tokens'] );
+		$this->assertSame( 7, $handler->events[1]['data']['usage_output_tokens'] );
 	}
 
 	// ── validate_key() — mocked HTTP ──────────────────────────────────────────
