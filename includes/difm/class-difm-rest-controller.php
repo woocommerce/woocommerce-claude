@@ -269,7 +269,7 @@ class DifmRestController {
 					$chart_retry_attempted = true;
 					$messages[]            = array(
 						'role'    => 'assistant',
-						'content' => $content,
+						'content' => $this->normalise_anthropic_assistant_content( $content ),
 					);
 					$messages[]            = array(
 						'role'    => 'user',
@@ -349,7 +349,7 @@ class DifmRestController {
 
 			$messages[] = array(
 				'role'    => 'assistant',
-				'content' => $content,
+				'content' => $this->normalise_anthropic_assistant_content( $content ),
 			);
 			$messages[] = array(
 				'role'    => 'user',
@@ -993,6 +993,31 @@ class DifmRestController {
 		}
 
 		return $sanitised;
+	}
+
+	/**
+	 * Normalise assistant content before replaying it to Anthropic.
+	 *
+	 * Anthropic requires every `tool_use.input` to be a JSON object. PHP decodes
+	 * `{}` as an empty array and would otherwise re-encode zero-argument tool
+	 * calls as `[]`, which the next Messages API request rejects.
+	 *
+	 * @param array $content Assistant content blocks from Anthropic.
+	 * @return array
+	 */
+	private function normalise_anthropic_assistant_content( array $content ) {
+		foreach ( $content as $index => $block ) {
+			if ( ! is_array( $block ) || ! isset( $block['type'] ) || 'tool_use' !== $block['type'] ) {
+				continue;
+			}
+
+			$block['input']    = isset( $block['input'] ) && is_array( $block['input'] )
+				? (object) $block['input']
+				: (object) array();
+			$content[ $index ] = $block;
+		}
+
+		return $content;
 	}
 
 	/**

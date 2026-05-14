@@ -32,6 +32,7 @@ class StorePoliciesAbility {
 				'label'               => __( 'Store policies', 'woocommerce-claude' ),
 				'description'         => __( 'Store policies — privacy, refunds, shipping, terms. Aggregated via the plugin\'s knowledge providers.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(

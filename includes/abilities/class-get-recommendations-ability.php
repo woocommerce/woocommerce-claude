@@ -30,6 +30,7 @@ class GetRecommendationsAbility {
 				'label'               => __( 'Get recommendations', 'woocommerce-claude' ),
 				'description'         => __( "Get prioritised recommendations for improving the store's AI readiness. Each recommendation includes priority, impact, and a description of what to fix. Requires the WooCommerce for Claude plugin.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(
