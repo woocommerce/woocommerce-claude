@@ -194,14 +194,16 @@ class SettingsPage extends \WC_Settings_Page {
 		$external_state   = ( new RestApiKey() )->existing_state();
 		$has_external_key = null !== $external_state;
 		$has_external_use = $has_external_key && 0 < (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only setup flash.
+		$setup_notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		$ai_insights_url  = admin_url( 'admin.php?page=woocommerce-claude-insights' );
 		$show_ai_insights = $has_ai_key && $this->consume_ai_insights_saved_notice();
 		$connected_label  = __( 'Connected', 'woocommerce-claude' );
 		$ready_label      = __( 'Ready', 'woocommerce-claude' );
 		$not_set_up_label = __( 'Not set up', 'woocommerce-claude' );
-		$ai_open          = $has_ai_key ? '' : 'open';
-		$external_open    = $has_external_key ? '' : 'open';
+		$ai_open          = ( $has_ai_key && ! $show_ai_insights ) ? '' : 'open';
+		$external_open    = ( $has_external_key && '' === $setup_notice_code ) ? '' : 'open';
 		$ai_status_label  = $has_ai_key ? $ready_label : $not_set_up_label;
 		$ai_status_class  = $has_ai_key ? 'woocommerce-claude-setup__pill--ready' : 'woocommerce-claude-setup__pill--off';
 		if ( $has_external_use ) {

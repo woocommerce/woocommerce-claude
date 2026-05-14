@@ -6,6 +6,7 @@
  */
 
 use WooCommerce\Claude\Settings\SettingsPage;
+use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
 /**
@@ -29,8 +30,10 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SetupPage::TELEMETRY_OPTION );
+		( new RestApiKey() )->revoke();
 		$_POST           = array();
 		$current_section = '';
+		unset( $_GET['notice'] );
 		wp_set_current_user( 0 );
 
 		if ( $this->settings_page ) {
@@ -117,9 +120,36 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 
 		$html = $this->render_default_output();
 		$this->assertStringContainsString( 'Open Ask Claude', $html );
+		$this->assertMatchesRegularExpression(
+			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Chat in WordPress admin[\s\S]*Open Ask Claude[\s\S]*<\/details>/',
+			$html
+		);
 
 		$html = $this->render_default_output();
 		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
+	}
+
+	/**
+	 * Setup action notices keep the external connection accordion open so the
+	 * next step is visible after creating or rotating the store connection key.
+	 */
+	public function test_external_connection_notice_keeps_connection_accordion_open() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user    = get_user_by( 'id', $user_id );
+		$this->assertInstanceOf( WP_User::class, $user );
+		$user->add_cap( 'manage_woocommerce' );
+		wp_set_current_user( $user_id );
+
+		$state = ( new RestApiKey() )->get_or_create();
+		$this->assertIsArray( $state );
+
+		$_GET['notice'] = 'key_generated';
+		$html           = $this->render_default_output();
+
+		$this->assertMatchesRegularExpression(
+			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Connect Claude apps[\s\S]*Download MCPB file[\s\S]*<\/details>/',
+			$html
+		);
 	}
 
 	/**
