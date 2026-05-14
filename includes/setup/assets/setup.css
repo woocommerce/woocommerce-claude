@@ -454,15 +454,10 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 .woocommerce-claude-setup__workflow-actions {
 	display: flex;
 	align-items: center;
+	justify-content: flex-end;
 	flex-wrap: wrap;
 	gap: 10px;
 	margin: 12px 0 0;
-}
-
-.woocommerce-claude-setup__workflow-version {
-	color: #6b7280;
-	font-size: 12px;
-	line-height: 1.4;
 }
 
 .woocommerce-claude-setup__workflow-command {

@@ -463,15 +463,6 @@ $can_use_step2_actions = $has_key;
 							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
 						</button>
 					<?php endif; ?>
-					<span class="woocommerce-claude-setup__workflow-version">
-						<?php
-						printf(
-							/* translators: %s: WooCommerce for Claude plugin version. */
-							esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
-							esc_html( WOOCOMMERCE_CLAUDE_VERSION )
-						);
-						?>
-					</span>
 				</div>
 			</div>
 
@@ -504,25 +495,29 @@ $can_use_step2_actions = $has_key;
 						</div>
 					</div>
 				<?php endif; ?>
+
+				<p class="woocommerce-claude-setup__prompt-footer">
+					<?php
+					printf(
+						wp_kses(
+							/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
+							__( 'See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
+							array(
+								'a' => array(
+									'href'   => array(),
+									'target' => array(),
+									'rel'    => array(),
+								),
+							)
+						),
+						esc_url( $agent_plugin_url )
+					);
+					?>
+				</p>
 			</div>
 
 			<p class="woocommerce-claude-setup__prompt-footer">
-				<?php
-				printf(
-					wp_kses(
-						/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
-						__( 'After plugins reload, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review. See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
-						array(
-							'a' => array(
-								'href'   => array(),
-								'target' => array(),
-								'rel'    => array(),
-							),
-						)
-					),
-					esc_url( $agent_plugin_url )
-				);
-				?>
+				<?php esc_html_e( 'After plugins load, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review.', 'woocommerce-claude' ); ?>
 			</p>
 		</section>
 

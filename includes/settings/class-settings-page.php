@@ -14,9 +14,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registers the "WooCommerce for Claude" tab in WooCommerce > Settings.
  *
- * The default view renders the Connect-to-Claude setup screen first, then the
- * Bring Your Own Key field used by AI Insights. The key field is deliberately
- * custom-rendered so a stored Anthropic key is never sent back to the browser.
+ * The setup view is the production default. When DIFM is enabled, the tab also
+ * exposes the Bring Your Own Key field used by AI Insights. The key field is
+ * deliberately custom-rendered so a stored Anthropic key is never sent back to
+ * the browser.
  */
 class SettingsPage extends \WC_Settings_Page {
 
@@ -71,6 +72,12 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return array<string,string>
 	 */
 	public function get_sections() {
+		if ( ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
+			return array(
+				'' => __( 'Setup', 'woocommerce-claude' ),
+			);
+		}
+
 		return array(
 			''      => __( 'AI Insights', 'woocommerce-claude' ),
 			'setup' => __( 'Setup', 'woocommerce-claude' ),
@@ -126,12 +133,13 @@ class SettingsPage extends \WC_Settings_Page {
 	 *
 	 * The Setup section shows the Claude Desktop connection wizard and hides
 	 * WC's Save button (no form fields, all actions are link-based).
-	 * The default AI Insights section renders the Anthropic API key field.
+	 * The default section renders Setup unless DIFM is enabled, in which case
+	 * it renders the Anthropic API key field for AI Insights.
 	 */
 	public function output() {
 		global $current_section;
 
-		if ( 'setup' === $current_section ) {
+		if ( 'setup' === $current_section || ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
 			SetupPage::render_setup_view();
 			return;
 		}
