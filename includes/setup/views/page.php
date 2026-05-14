@@ -406,29 +406,104 @@ $can_use_step2_actions = $has_key;
 		<section class="woocommerce-claude-setup__card">
 			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Install workflow skills for Claude', 'woocommerce-claude' ); ?></h2>
 			<p class="woocommerce-claude-setup__card-lede">
-				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin by downloading the zip file below and uploading it in Claude Desktop via Customize -> Personal plugins -> Upload plugins, or by running these commands in Terminal:', 'woocommerce-claude' ); ?>
+				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin after Claude can connect to your store.', 'woocommerce-claude' ); ?>
 			</p>
 
-			<div class="woocommerce-claude-setup__workflow-actions">
-				<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
-					<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
-				</a>
-				<span class="woocommerce-claude-setup__workflow-version">
-					<?php
-					printf(
-						/* translators: %s: WooCommerce for Claude plugin version. */
-						esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
-						esc_html( WOOCOMMERCE_CLAUDE_VERSION )
-					);
-					?>
-				</span>
+			<div class="woocommerce-claude-setup__tabs" role="tablist" aria-label="<?php esc_attr_e( 'Install workflow skills for Claude', 'woocommerce-claude' ); ?>">
+				<button
+					type="button"
+					role="tab"
+					id="woocommerce-claude-tab-workflow-upload"
+					class="woocommerce-claude-setup__tab is-active"
+					aria-selected="true"
+					aria-controls="woocommerce-claude-panel-workflow-upload"
+					data-woocommerce-claude-tab="workflow-upload"
+				>
+					<?php esc_html_e( 'Plugin upload', 'woocommerce-claude' ); ?>
+				</button>
+				<button
+					type="button"
+					role="tab"
+					id="woocommerce-claude-tab-workflow-terminal"
+					class="woocommerce-claude-setup__tab"
+					aria-selected="false"
+					aria-controls="woocommerce-claude-panel-workflow-terminal"
+					tabindex="-1"
+					data-woocommerce-claude-tab="workflow-terminal"
+				>
+					<?php esc_html_e( 'Terminal commands', 'woocommerce-claude' ); ?>
+				</button>
 			</div>
 
-			<div class="woocommerce-claude-setup__field woocommerce-claude-setup__workflow-command">
-				<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
-				<div class="woocommerce-claude-setup__codeblock">
-					<pre><code><?php echo esc_html( $agent_plugin_cli_command ); ?></code></pre>
+			<div
+				role="tabpanel"
+				id="woocommerce-claude-panel-workflow-upload"
+				class="woocommerce-claude-setup__tabpanel"
+				aria-labelledby="woocommerce-claude-tab-workflow-upload"
+			>
+				<ol class="woocommerce-claude-setup__steps">
+					<li><?php esc_html_e( 'Download the workflow skills zip below.', 'woocommerce-claude' ); ?></li>
+					<li><?php esc_html_e( 'In Claude Desktop, open Customize -> Personal plugins -> Upload plugins.', 'woocommerce-claude' ); ?></li>
+					<li><?php esc_html_e( 'Upload the zip file, enable the plugin, then reload plugins if Claude asks.', 'woocommerce-claude' ); ?></li>
+				</ol>
+
+				<?php if ( ! $can_use_step2_actions ) : ?>
+					<p class="woocommerce-claude-setup__blocked">
+						<?php esc_html_e( 'Generate an API key in Step 1 before downloading workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+					</p>
+				<?php endif; ?>
+
+				<div class="woocommerce-claude-setup__workflow-actions">
+					<?php if ( $can_use_step2_actions ) : ?>
+						<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
+							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+						</a>
+					<?php else : ?>
+						<button type="button" class="button button-secondary" disabled>
+							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+						</button>
+					<?php endif; ?>
+					<span class="woocommerce-claude-setup__workflow-version">
+						<?php
+						printf(
+							/* translators: %s: WooCommerce for Claude plugin version. */
+							esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
+							esc_html( WOOCOMMERCE_CLAUDE_VERSION )
+						);
+						?>
+					</span>
 				</div>
+			</div>
+
+			<div
+				role="tabpanel"
+				id="woocommerce-claude-panel-workflow-terminal"
+				class="woocommerce-claude-setup__tabpanel"
+				aria-labelledby="woocommerce-claude-tab-workflow-terminal"
+				hidden
+			>
+				<p class="woocommerce-claude-setup__card-lede">
+					<?php esc_html_e( 'Use Terminal if you prefer to install the workflow skills through Claude Code.', 'woocommerce-claude' ); ?>
+				</p>
+
+				<?php if ( ! $can_use_step2_actions ) : ?>
+					<p class="woocommerce-claude-setup__blocked">
+						<?php esc_html_e( 'Generate an API key in Step 1 before installing workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+					</p>
+				<?php else : ?>
+					<div class="woocommerce-claude-setup__field woocommerce-claude-setup__workflow-command">
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
+						<div class="woocommerce-claude-setup__codeblock">
+							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="agent-plugin-cli" aria-label="<?php esc_attr_e( 'Copy terminal commands', 'woocommerce-claude' ); ?>">
+								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+									<rect x="4" y="4" width="9" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/>
+									<path d="M3 11H2.5C2.22 11 2 10.78 2 10.5V2.5C2 2.22 2.22 2 2.5 2H10.5C10.78 2 11 2.22 11 2.5V3" stroke="currentColor" stroke-width="1.3"/>
+								</svg>
+							</button>
+							<pre data-woocommerce-claude-agent-plugin-cli><code><?php echo esc_html( $agent_plugin_cli_command ); ?></code></pre>
+						</div>
+					</div>
+				<?php endif; ?>
 			</div>
 
 			<p class="woocommerce-claude-setup__prompt-footer">

@@ -338,7 +338,7 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	color: #135e96;
 }
 
-/* ---- Tabs (Step 2) ---- */
+/* ---- Tabs (setup cards) ---- */
 
 .woocommerce-claude-setup__tabs {
 	display: flex;
