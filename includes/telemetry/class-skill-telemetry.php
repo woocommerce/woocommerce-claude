@@ -5,23 +5,8 @@
  * Listens on the woocommerce_claude_skill_executed action (fired by the
  * four verb-shaped analytics abilities — wc-analytics/totals,
  * wc-analytics/breakdown, wc-analytics/series, wc-analytics/rows — at
- * the end of every successful execute() call) and fans the payload out
- * to registered handlers.
- *
- * Default handler set:
- *   - LogHandler: active on non-production environments (local/development/staging).
- *   - TracksHandler: active when the "Enable telemetry" setting is on
- *     (wired in Plugin::maybe_add_tracks_handler via the filter below).
- *
- * Custom handlers can be added via the woocommerce_claude_telemetry_handlers filter:
- *
- *   add_filter(
- *       'woocommerce_claude_telemetry_handlers',
- *       function ( $handlers ) {
- *           $handlers[] = new My_Custom_Handler();
- *           return $handlers;
- *       }
- *   );
+ * the end of every successful execute() call) and prepares skill-shaped
+ * telemetry payloads before handing them to the handler registry.
  *
  * @package WooCommerce\Claude
  */
@@ -31,91 +16,115 @@ namespace WooCommerce\Claude\Telemetry;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Central dispatcher for skill-execution telemetry.
+ * Prepares WooCommerce for Claude skill telemetry payloads.
  */
 class SkillTelemetry {
 
 	/**
-	 * Registered handlers.
+	 * Wire up the skill-execution action listener.
 	 *
-	 * @var TelemetryHandlerInterface[]
-	 */
-	private static $handlers = array();
-
-	/**
-	 * Wire up the action listener and build the default handler set.
-	 *
-	 * Called once from Plugin::init_hooks(). The woocommerce_claude_telemetry_handlers
-	 * filter runs here, so handlers must be added to the filter before plugins_loaded
-	 * or init at the latest.
+	 * Called once from Plugin::init_hooks().
 	 */
 	public static function init() {
-		/**
-		 * Filter the telemetry handlers that receive skill-execution events.
-		 *
-		 * Return an array of TelemetryHandlerInterface instances. The default
-		 * set contains LogHandler (non-production only). Plugin::maybe_add_tracks_handler
-		 * adds TracksHandler via this filter when the "Enable telemetry" setting is on.
-		 *
-		 * @since 0.1.0
-		 *
-		 * @param TelemetryHandlerInterface[] $handlers Default handler list.
-		 */
-		$candidates = apply_filters( 'woocommerce_claude_telemetry_handlers', self::default_handlers() );
-
-		foreach ( $candidates as $handler ) {
-			if ( $handler instanceof TelemetryHandlerInterface ) {
-				self::$handlers[] = $handler;
-			}
-		}
-
 		add_action( 'woocommerce_claude_skill_executed', array( self::class, 'dispatch' ), 10, 2 );
 	}
 
 	/**
-	 * Add a handler at runtime (useful for tests or late-binding integrations).
-	 *
-	 * @param TelemetryHandlerInterface $handler Handler to add.
-	 */
-	public static function add_handler( $handler ) {
-		if ( $handler instanceof TelemetryHandlerInterface ) {
-			self::$handlers[] = $handler;
-		}
-	}
-
-	/**
-	 * Dispatch a skill-execution event to all registered handlers.
+	 * Dispatch a telemetry event to all registered handlers.
 	 *
 	 * Hooked on woocommerce_claude_skill_executed at priority 10. The
 	 * verb-tool abilities (wc-analytics-totals / breakdown / series / rows)
 	 * are the only emission points, so each tool call produces exactly one
-	 * event with the `(tool, subject, shape)` envelope on the payload.
+	 * skill-execution event with the `(tool, subject, shape)` envelope on the
+	 * payload.
 	 *
 	 * @param string $skill_name Skill identifier.
 	 * @param array  $data       Telemetry payload.
 	 */
 	public static function dispatch( $skill_name, $data ) {
-		foreach ( self::$handlers as $handler ) {
-			$handler->record( $skill_name, $data );
-		}
+		$data = self::prepare_data( $skill_name, $data );
+
+		TelemetryHandler::record( $skill_name, $data );
 	}
 
 	/**
-	 * Build the default handler list.
+	 * Prepare telemetry payloads before handlers receive them.
 	 *
-	 * LogHandler is included on non-production environments (local/development/staging)
-	 * so skill events appear in WC logs during development without any setup.
-	 * On production, only TracksHandler runs — and only when the setting is on.
-	 *
-	 * @return TelemetryHandlerInterface[]
+	 * @param string $event_name Skill identifier.
+	 * @param mixed  $data       Telemetry payload.
+	 * @return array
 	 */
-	private static function default_handlers() {
-		$handlers = array();
+	private static function prepare_data( $event_name, $data ) {
+		$data          = is_array( $data ) ? $data : array( 'value' => $data );
+		$data['skill'] = (string) $event_name;
+		$data          = self::only_accepted_fields( $data, self::accepted_keys( $event_name, $data ) );
 
-		if ( 'production' !== wp_get_environment_type() ) {
-			$handlers[] = new Handlers\LogHandler();
+		/**
+		 * Filter the telemetry payload before handlers receive it.
+		 *
+		 * Use this for final event-specific additions or removals after the
+		 * accepted-key pass.
+		 *
+		 * @since 0.2.0
+		 *
+		 * @param array  $data       Filtered telemetry payload.
+		 * @param string $event_name Skill identifier.
+		 */
+		return (array) apply_filters( 'woocommerce_claude_telemetry_data', $data, (string) $event_name );
+	}
+
+	/**
+	 * Return the list of telemetry keys accepted before dispatch.
+	 *
+	 * @param string $event_name Skill identifier.
+	 * @param array  $data       Telemetry payload.
+	 * @return array
+	 */
+	private static function accepted_keys( $event_name, array $data ) {
+		$keys = array(
+			'skill',
+			'tool',
+			'subject',
+			'shape',
+			'duration_ms',
+			'cache_hit',
+			'rows_returned',
+			'date_start',
+			'date_end',
+			'interval',
+			'bucket_count',
+		);
+
+		/**
+		 * Filter the telemetry keys accepted before handlers receive data.
+		 *
+		 * @since 0.2.0
+		 *
+		 * @param string[] $keys       Key names accepted into the telemetry payload.
+		 * @param string   $event_name Skill identifier.
+		 * @param array    $data       Telemetry payload before filtering.
+		 */
+		$keys = (array) apply_filters( 'woocommerce_claude_telemetry_accepted_keys', $keys, (string) $event_name, $data );
+
+		return array_map( 'strtolower', $keys );
+	}
+
+	/**
+	 * Keep only accepted telemetry keys.
+	 *
+	 * @param array $data Telemetry payload.
+	 * @param array $keys Lowercase key names to keep.
+	 * @return array
+	 */
+	private static function only_accepted_fields( array $data, array $keys ) {
+		$filtered = array();
+
+		foreach ( $data as $key => $value ) {
+			if ( in_array( strtolower( (string) $key ), $keys, true ) ) {
+				$filtered[ $key ] = $value;
+			}
 		}
 
-		return $handlers;
+		return $filtered;
 	}
 }

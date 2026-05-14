@@ -12,6 +12,8 @@
 
 namespace WooCommerce\Claude\Difm;
 
+use WooCommerce\Claude\Telemetry\AnthropicTelemetry;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -88,9 +90,10 @@ class AnthropicClient {
 	 * @param string $system     System prompt (optional).
 	 * @param array  $tools      Anthropic tool definitions (optional).
 	 * @param int    $max_tokens Maximum tokens to generate.
+	 * @param array  $context    Optional diagnostic context for logging.
 	 * @return array|\WP_Error   Decoded response array, or WP_Error on failure.
 	 */
-	public function messages( array $messages, $system = '', array $tools = array(), $max_tokens = 4096 ) {
+	public function messages( array $messages, $system = '', array $tools = array(), $max_tokens = 4096, array $context = array() ) {
 		$api_key = self::get_api_key();
 		if ( '' === $api_key ) {
 			return new \WP_Error( 'no_api_key', __( 'No Anthropic API key is configured.', 'woocommerce-claude' ) );
@@ -119,6 +122,13 @@ class AnthropicClient {
 			$body['tools'] = $tools;
 		}
 
+		$request_id = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : uniqid( 'difm_', true );
+		$body_json  = wp_json_encode( $body );
+		$body_json  = is_string( $body_json ) ? $body_json : '';
+		$start_ms   = microtime( true );
+
+		AnthropicTelemetry::record_request( $body, $body_json, $request_id, $context );
+
 		$response = wp_remote_post(
 			self::API_BASE . '/messages',
 			array(
@@ -128,17 +138,25 @@ class AnthropicClient {
 					'anthropic-version' => self::API_VERSION,
 					'content-type'      => 'application/json',
 				),
-				'body'    => wp_json_encode( $body ),
+				'body'    => $body_json,
 			)
 		);
 
 		if ( is_wp_error( $response ) ) {
+			AnthropicTelemetry::record_transport_error(
+				$request_id,
+				(int) round( ( microtime( true ) - $start_ms ) * 1000 ),
+				$response->get_error_code()
+			);
 			return $response;
 		}
 
 		$status_code  = (int) wp_remote_retrieve_response_code( $response );
 		$raw_body     = wp_remote_retrieve_body( $response );
 		$decoded_body = json_decode( $raw_body, true );
+		$duration_ms  = (int) round( ( microtime( true ) - $start_ms ) * 1000 );
+
+		AnthropicTelemetry::record_response( $request_id, $status_code, $duration_ms, $decoded_body );
 
 		if ( ! is_array( $decoded_body ) ) {
 			return new \WP_Error(

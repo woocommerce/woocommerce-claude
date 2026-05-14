@@ -6,6 +6,8 @@
  */
 
 use WooCommerce\Claude\Difm\DifmRestController;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
  * Tests for DifmRestController.
@@ -234,9 +236,9 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Chat sends the Anthropic tools derived from ability metadata.
+	 * Chat sends compact Anthropic tools instead of the full MCP descriptions.
 	 */
-	public function test_chat_sends_metadata_derived_tool_definitions_to_api() {
+	public function test_chat_sends_compact_tool_definitions_to_api() {
 		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 		$this->set_admin_user();
 
@@ -290,6 +292,12 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertContains( 'analytics_series', $tool_names );
 		$this->assertContains( 'analytics_rows', $tool_names );
 		$this->assertContains( 'render_chart', $tool_names );
+		$this->assertLessThan( 25000, strlen( $captured_raw_body ), 'The first Anthropic request must stay comfortably below low-tier token limits.' );
+		$this->assertLessThan(
+			6000,
+			array_sum( array_map( 'strlen', wp_list_pluck( $captured_body['tools'], 'description' ) ) ),
+			'Tool descriptions must stay compact; full MCP ability descriptions belong on the MCP surface only.'
+		);
 
 		$rows_tool = null;
 		foreach ( $captured_body['tools'] as $tool ) {
@@ -300,8 +308,11 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		}
 
 		$this->assertNotNull( $rows_tool );
-		$this->assertStringContainsString( 'ENTITIES + FIELD REGISTRIES', $rows_tool['description'] );
+		$this->assertStringContainsString( 'Flexible filtered analytics', $rows_tool['description'] );
+		$this->assertStringNotContainsString( 'ENTITIES + FIELD REGISTRIES', $rows_tool['description'] );
 		$this->assertArrayHasKey( 'input_schema', $rows_tool );
+		$this->assertArrayHasKey( 'filters', $rows_tool['input_schema']['properties'] );
+		$this->assertArrayNotHasKey( 'description', $rows_tool['input_schema']['properties']['filters'] );
 		$this->assertStringContainsString( '"name":"get_store_profile"', $captured_raw_body );
 		$this->assertStringContainsString( '"input_schema":{"type":"object","properties":{}}', $captured_raw_body );
 		$this->assertStringContainsString( 'analytics_series', $captured_body['system'] );
@@ -424,6 +435,28 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 
 		$call_count       = 0;
 		$second_call_body = null;
+		$handler          = new class() implements TelemetryHandlerInterface {
+			/**
+			 * Captured telemetry events.
+			 *
+			 * @var array<int, array{skill: string, data: array}>
+			 */
+			public $events = array();
+
+			/**
+			 * Capture the event dispatched through TelemetryHandler.
+			 *
+			 * @param string $skill_name Event name.
+			 * @param array  $data       Telemetry payload.
+			 */
+			public function record( $skill_name, $data ) {
+				$this->events[] = array(
+					'skill' => $skill_name,
+					'data'  => $data,
+				);
+			}
+		};
+		TelemetryHandler::add_handler( $handler );
 
 		add_filter(
 			'pre_http_request',
@@ -506,6 +539,19 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'ok', $data['status'] );
 		$this->assertSame( 'Your revenue last week was great.', $data['reply'] );
+
+		$tool_call = $this->find_diagnostic_event( $handler->events, 'difm_tool_call', 'analytics_totals' );
+		$this->assertNotNull( $tool_call );
+		$this->assertSame( 'difm_tool_call', $tool_call['event'] );
+		$this->assertSame( 'wc-analytics/totals', $tool_call['ability_id'] );
+		$this->assertSame( 'revenue', $tool_call['subject'] );
+		$this->assertSame( 'last_7_days', $tool_call['period'] );
+
+		$tool_result = $this->find_diagnostic_event( $handler->events, 'difm_tool_result', 'analytics_totals' );
+		$this->assertNotNull( $tool_result );
+		$this->assertSame( 'difm_tool_result', $tool_result['event'] );
+		$this->assertSame( 'ok', $tool_result['status'] );
+		$this->assertArrayHasKey( 'output_bytes', $tool_result );
 	}
 
 	/**
@@ -1071,6 +1117,31 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			$request->set_param( 'history', $history );
 		}
 		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Find a diagnostic telemetry event by event name and optional tool.
+	 *
+	 * @param array  $events Captured diagnostic events.
+	 * @param string $event  Event name.
+	 * @param string $tool   Optional tool name.
+	 * @return array|null
+	 */
+	private function find_diagnostic_event( array $events, $event, $tool = '' ) {
+		foreach ( $events as $entry ) {
+			if ( ! is_array( $entry ) || ( $entry['skill'] ?? '' ) !== $event ) {
+				continue;
+			}
+
+			$data = isset( $entry['data'] ) && is_array( $entry['data'] ) ? $entry['data'] : array();
+			if ( '' !== $tool && ( $data['tool'] ?? '' ) !== $tool ) {
+				continue;
+			}
+
+			return $data;
+		}
+
+		return null;
 	}
 
 	/**
