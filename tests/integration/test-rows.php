@@ -34,7 +34,7 @@
  * @package WooCommerce\Claude\Tests
  */
 
-use WooCommerce\Claude\Telemetry\SkillTelemetry;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
 use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
@@ -101,7 +101,7 @@ class Test_Rows extends WP_UnitTestCase {
 				);
 			}
 		};
-		SkillTelemetry::add_handler( $this->spy_handler );
+		TelemetryHandler::add_handler( $this->spy_handler );
 	}
 
 	/**
@@ -198,7 +198,7 @@ class Test_Rows extends WP_UnitTestCase {
 		$this->assertCount(
 			1,
 			$this->spy_handler->events,
-			'SkillTelemetry handler must see exactly one event per execute call.'
+			'TelemetryHandler registry must see exactly one event per execute call.'
 		);
 		$event = $this->spy_handler->events[0];
 		$this->assertSame( 'wc-analytics/rows', $event['skill'] );
@@ -253,7 +253,7 @@ class Test_Rows extends WP_UnitTestCase {
 		// The verb tool emits its enriched event only on the success path
 		// (after the fetch returns a non-error result). A filter validation
 		// failure short-circuits before that emission, so neither the direct
-		// listener nor the SkillTelemetry handler sees an event.
+		// listener nor the TelemetryHandler registry sees an event.
 		$this->assertSame( array(), array_column( $this->direct_events, 'skill' ) );
 		$this->assertCount( 0, $this->spy_handler->events );
 	}

@@ -6,6 +6,8 @@
  */
 
 use WooCommerce\Claude\Difm\DifmRestController;
+use WooCommerce\Claude\Telemetry\TelemetryHandler;
+use WooCommerce\Claude\Telemetry\TelemetryHandlerInterface;
 
 /**
  * Tests for DifmRestController.
@@ -433,6 +435,28 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 
 		$call_count       = 0;
 		$second_call_body = null;
+		$handler          = new class() implements TelemetryHandlerInterface {
+			/**
+			 * Captured telemetry events.
+			 *
+			 * @var array<int, array{skill: string, data: array}>
+			 */
+			public $events = array();
+
+			/**
+			 * Capture the event dispatched through TelemetryHandler.
+			 *
+			 * @param string $skill_name Event name.
+			 * @param array  $data       Telemetry payload.
+			 */
+			public function record( $skill_name, $data ) {
+				$this->events[] = array(
+					'skill' => $skill_name,
+					'data'  => $data,
+				);
+			}
+		};
+		TelemetryHandler::add_handler( $handler );
 
 		add_filter(
 			'pre_http_request',
@@ -515,6 +539,19 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'ok', $data['status'] );
 		$this->assertSame( 'Your revenue last week was great.', $data['reply'] );
+
+		$tool_call = $this->find_diagnostic_event( $handler->events, 'difm_tool_call', 'analytics_totals' );
+		$this->assertNotNull( $tool_call );
+		$this->assertSame( 'difm_tool_call', $tool_call['event'] );
+		$this->assertSame( 'wc-analytics/totals', $tool_call['ability_id'] );
+		$this->assertSame( 'revenue', $tool_call['subject'] );
+		$this->assertSame( 'last_7_days', $tool_call['period'] );
+
+		$tool_result = $this->find_diagnostic_event( $handler->events, 'difm_tool_result', 'analytics_totals' );
+		$this->assertNotNull( $tool_result );
+		$this->assertSame( 'difm_tool_result', $tool_result['event'] );
+		$this->assertSame( 'ok', $tool_result['status'] );
+		$this->assertArrayHasKey( 'output_bytes', $tool_result );
 	}
 
 	/**
@@ -1080,6 +1117,31 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 			$request->set_param( 'history', $history );
 		}
 		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Find a diagnostic telemetry event by event name and optional tool.
+	 *
+	 * @param array  $events Captured diagnostic events.
+	 * @param string $event  Event name.
+	 * @param string $tool   Optional tool name.
+	 * @return array|null
+	 */
+	private function find_diagnostic_event( array $events, $event, $tool = '' ) {
+		foreach ( $events as $entry ) {
+			if ( ! is_array( $entry ) || ( $entry['skill'] ?? '' ) !== $event ) {
+				continue;
+			}
+
+			$data = isset( $entry['data'] ) && is_array( $entry['data'] ) ? $entry['data'] : array();
+			if ( '' !== $tool && ( $data['tool'] ?? '' ) !== $tool ) {
+				continue;
+			}
+
+			return $data;
+		}
+
+		return null;
 	}
 
 	/**

@@ -52,9 +52,11 @@ class Plugin {
 
 		// Telemetry.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-telemetry-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
 
 		// Knowledge system.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
@@ -140,9 +142,10 @@ class Plugin {
 	 */
 	private function init_hooks() {
 		// Gate TracksHandler behind the settings toggle. Must run before
-		// SkillTelemetry::init() so the filter is registered when handlers are built.
+		// TelemetryHandler::init() so the filter is registered when handlers are built.
 		add_filter( 'woocommerce_claude_telemetry_handlers', array( $this, 'maybe_add_tracks_handler' ) );
 
+		Telemetry\TelemetryHandler::init();
 		Telemetry\SkillTelemetry::init();
 		Setup\SetupPage::init();
 
@@ -224,7 +227,7 @@ class Plugin {
 	/**
 	 * Conditionally add TracksHandler to the telemetry handler list.
 	 *
-	 * Hooked on woocommerce_claude_telemetry_handlers before SkillTelemetry::init()
+	 * Hooked on woocommerce_claude_telemetry_handlers before TelemetryHandler::init()
 	 * so the option is evaluated when the handler set is first built.
 	 * Option name matches Setup\SetupPage::TELEMETRY_OPTION.
 	 *
