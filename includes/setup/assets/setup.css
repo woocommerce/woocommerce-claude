@@ -451,25 +451,6 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	line-height: 1.55;
 }
 
-.woocommerce-claude-setup__workflow-note {
-	margin: 16px 0 0;
-	padding: 14px 16px;
-	background: #f6f7f7;
-	border-left: 4px solid #72aee6;
-	color: #1d2327;
-	font-size: 13px;
-	line-height: 1.55;
-}
-
-.woocommerce-claude-setup__workflow-note p {
-	margin: 0;
-	color: #50575e;
-}
-
-.woocommerce-claude-setup__workflow-note p + p {
-	margin-top: 8px;
-}
-
 .woocommerce-claude-setup__workflow-actions {
 	display: flex;
 	align-items: center;
@@ -484,13 +465,8 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	line-height: 1.4;
 }
 
-.woocommerce-claude-setup__workflow-title {
-	margin: 0 0 6px;
-	padding: 0;
-	color: #1d2327;
-	font-size: 13px;
-	font-weight: 600;
-	line-height: 1.4;
+.woocommerce-claude-setup__workflow-command {
+	margin-top: 14px;
 }
 
 /* ---- Code blocks (Manual setup) ---- */

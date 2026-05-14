@@ -396,14 +396,68 @@ $can_use_step2_actions = $has_key;
 		</section>
 
 		<?php
+		$agent_plugin_download_url = sprintf(
+			'https://github.com/woocommerce/woocommerce-claude/releases/download/v%s/woocommerce-claude-agent-plugin.zip',
+			rawurlencode( WOOCOMMERCE_CLAUDE_VERSION )
+		);
+		$agent_plugin_url          = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
+		$agent_plugin_cli_command  = "claude plugin marketplace add woocommerce/woocommerce-claude\nclaude plugin install woocommerce-claude@woocommerce-claude-ai-toolkit";
+		?>
+		<section class="woocommerce-claude-setup__card">
+			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Install workflow skills for Claude', 'woocommerce-claude' ); ?></h2>
+			<p class="woocommerce-claude-setup__card-lede">
+				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin by downloading the zip file below and uploading it in Claude Desktop via Customize -> Personal plugins -> Upload plugins, or by running these commands in Terminal:', 'woocommerce-claude' ); ?>
+			</p>
+
+			<div class="woocommerce-claude-setup__workflow-actions">
+				<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
+					<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+				</a>
+				<span class="woocommerce-claude-setup__workflow-version">
+					<?php
+					printf(
+						/* translators: %s: WooCommerce for Claude plugin version. */
+						esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
+						esc_html( WOOCOMMERCE_CLAUDE_VERSION )
+					);
+					?>
+				</span>
+			</div>
+
+			<div class="woocommerce-claude-setup__field woocommerce-claude-setup__workflow-command">
+				<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
+				<div class="woocommerce-claude-setup__codeblock">
+					<pre><code><?php echo esc_html( $agent_plugin_cli_command ); ?></code></pre>
+				</div>
+			</div>
+
+			<p class="woocommerce-claude-setup__prompt-footer">
+				<?php
+				printf(
+					wp_kses(
+						/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
+						__( 'After plugins reload, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review. See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
+						array(
+							'a' => array(
+								'href'   => array(),
+								'target' => array(),
+								'rel'    => array(),
+							),
+						)
+					),
+					esc_url( $agent_plugin_url )
+				);
+				?>
+			</p>
+		</section>
+
+		<?php
 		/*
 		 * "Try it out" card — only relevant once the connection is live
 		 * ($has_key, captured by $can_use_step2_actions).
 		 * Five starter questions the merchant can paste straight into
-		 * Claude, plus links to guide questions and the optional agent
-		 * plugin workflows. Pasted questions work on every Claude surface;
-		 * slash commands are called out only for clients that support
-		 * plugins or skills.
+		 * Claude, plus a link to a longer set of guide questions in the
+		 * repo.
 		 */
 		if ( $can_use_step2_actions ) :
 			$starter_prompts = array(
@@ -413,13 +467,7 @@ $can_use_step2_actions = $has_key;
 				__( 'Revenue is down vs. last period — find the cause.', 'woocommerce-claude' ),
 				__( 'Pick my 5 worst-scoring products and draft rewrites.', 'woocommerce-claude' ),
 			);
-
-			$agent_plugin_download_url = sprintf(
-				'https://github.com/woocommerce/woocommerce-claude/releases/download/v%s/woocommerce-claude-agent-plugin.zip',
-				rawurlencode( WOOCOMMERCE_CLAUDE_VERSION )
-			);
-			$agent_plugin_url          = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
-			$guides_url                = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
+			$guides_url      = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/prompt-guides.md';
 			?>
 			<section class="woocommerce-claude-setup__card">
 				<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Try it out', 'woocommerce-claude' ); ?></h2>
@@ -453,48 +501,6 @@ $can_use_step2_actions = $has_key;
 					);
 					?>
 				</p>
-
-				<div class="woocommerce-claude-setup__workflow-note">
-					<h3 class="woocommerce-claude-setup__workflow-title"><?php esc_html_e( 'Workflow skills in Claude', 'woocommerce-claude' ); ?></h3>
-					<p>
-						<?php esc_html_e( 'The questions above work anywhere. For guided slash-command reviews, install the companion Claude agent plugin as well.', 'woocommerce-claude' ); ?>
-					</p>
-					<p>
-						<?php esc_html_e( 'Claude Code can install it from the marketplace. Claude clients with plugin upload can import the agent plugin package instead, not the WordPress plugin zip or the MCPB connection file.', 'woocommerce-claude' ); ?>
-					</p>
-					<div class="woocommerce-claude-setup__workflow-actions">
-						<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
-							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
-						</a>
-						<span class="woocommerce-claude-setup__workflow-version">
-							<?php
-							printf(
-								/* translators: %s: WooCommerce for Claude plugin version. */
-								esc_html__( 'Matches WooCommerce for Claude %s.', 'woocommerce-claude' ),
-								esc_html( WOOCOMMERCE_CLAUDE_VERSION )
-							);
-							?>
-						</span>
-					</div>
-					<p>
-						<?php
-						printf(
-							wp_kses(
-								/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
-								__( 'After plugins reload, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review. See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
-								array(
-									'a' => array(
-										'href'   => array(),
-										'target' => array(),
-										'rel'    => array(),
-									),
-								)
-							),
-							esc_url( $agent_plugin_url )
-						);
-						?>
-					</p>
-				</div>
 			</section>
 		<?php endif; /* end Try it out card */ ?>
 
