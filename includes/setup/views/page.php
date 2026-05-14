@@ -10,7 +10,7 @@
  *   Step 1 — Generate a read-only API key (explicit Generate button,
  *            OR a summary line for the already-provisioned key with
  *            Regenerate / Disconnect).
- *   Step 2 — Configure in Claude (tabbed: Easy install / Manual setup).
+ *   Step 2 — Configure in Claude (tabbed: MCPB install / Terminal setup).
  *
  * Step-2 actions (Download MCPB, copying snippets) require an existing
  * key — surfaced in the UI as a disabled state on the action buttons,
@@ -279,7 +279,7 @@ $can_use_step2_actions = $has_key;
 					aria-controls="woocommerce-claude-panel-easy"
 					data-woocommerce-claude-tab="easy"
 				>
-					<?php esc_html_e( 'Easy install', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'MCPB install', 'woocommerce-claude' ); ?>
 				</button>
 				<button
 					type="button"
@@ -291,11 +291,11 @@ $can_use_step2_actions = $has_key;
 					tabindex="-1"
 					data-woocommerce-claude-tab="manual"
 				>
-					<?php esc_html_e( 'Manual setup', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Terminal setup', 'woocommerce-claude' ); ?>
 				</button>
 			</div>
 
-			<?php /* Easy install panel. */ ?>
+			<?php /* MCPB install panel. */ ?>
 			<div
 				role="tabpanel"
 				id="woocommerce-claude-panel-easy"
@@ -347,7 +347,7 @@ $can_use_step2_actions = $has_key;
 				</div>
 			</div>
 
-			<?php /* Manual setup panel. */ ?>
+			<?php /* Terminal setup panel. */ ?>
 			<div
 				role="tabpanel"
 				id="woocommerce-claude-panel-manual"
@@ -356,7 +356,7 @@ $can_use_step2_actions = $has_key;
 				hidden
 			>
 				<p class="woocommerce-claude-setup__card-lede">
-					<?php esc_html_e( "The manual snippets work for Claude Code today; we'll add more clients in future versions.", 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Choose one manual setup method. Use the terminal command for Claude Code, or use the config file snippet only if your client asks you to edit MCP configuration directly.', 'woocommerce-claude' ); ?>
 				</p>
 
 				<?php if ( ! $can_use_step2_actions ) : ?>
@@ -366,7 +366,7 @@ $can_use_step2_actions = $has_key;
 				<?php else : ?>
 
 					<div class="woocommerce-claude-setup__field">
-						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'OPTION 1: TERMINAL COMMAND', 'woocommerce-claude' ); ?></span>
 						<div class="woocommerce-claude-setup__codeblock">
 							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="cli" aria-label="<?php esc_attr_e( 'Copy terminal command', 'woocommerce-claude' ); ?>">
 								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -378,8 +378,12 @@ $can_use_step2_actions = $has_key;
 						</div>
 					</div>
 
+					<p class="woocommerce-claude-setup__choice-divider">
+						<?php esc_html_e( 'or', 'woocommerce-claude' ); ?>
+					</p>
+
 					<div class="woocommerce-claude-setup__field">
-						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'CONFIG FILE', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'OPTION 2: CONFIG FILE', 'woocommerce-claude' ); ?></span>
 						<div class="woocommerce-claude-setup__codeblock">
 							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="json" aria-label="<?php esc_attr_e( 'Copy config file', 'woocommerce-claude' ); ?>">
 								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -419,7 +423,7 @@ $can_use_step2_actions = $has_key;
 					aria-controls="woocommerce-claude-panel-workflow-upload"
 					data-woocommerce-claude-tab="workflow-upload"
 				>
-					<?php esc_html_e( 'Plugin upload', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Plugin install', 'woocommerce-claude' ); ?>
 				</button>
 				<button
 					type="button"
@@ -431,7 +435,7 @@ $can_use_step2_actions = $has_key;
 					tabindex="-1"
 					data-woocommerce-claude-tab="workflow-terminal"
 				>
-					<?php esc_html_e( 'Terminal commands', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Terminal setup', 'woocommerce-claude' ); ?>
 				</button>
 			</div>
 
