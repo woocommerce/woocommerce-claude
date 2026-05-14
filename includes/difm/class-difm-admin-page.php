@@ -65,14 +65,14 @@ class DifmAdminPage {
 	 * @return void
 	 */
 	public function add_menu_page() {
-		if ( ! $this->has_api_key() || ! $this->has_required_runtime() ) {
+		if ( ! $this->has_anthropic_api_key() || ! $this->has_required_runtime() ) {
 			return;
 		}
 
 		add_submenu_page(
 			'woocommerce',
-			__( 'AI Insights', 'woocommerce-claude' ),
-			__( 'AI Insights', 'woocommerce-claude' ),
+			__( 'Ask Claude', 'woocommerce-claude' ),
+			__( 'Ask Claude', 'woocommerce-claude' ),
 			'manage_woocommerce',
 			self::MENU_SLUG,
 			'__return_null'
@@ -94,10 +94,10 @@ class DifmAdminPage {
 		}
 
 		// Register the sidebar menu item for the boot navigation shell.
-		if ( $this->has_api_key() && function_exists( 'wcai_register_woocommerce_claude_insights_menu_item' ) ) {
+		if ( $this->has_anthropic_api_key() && function_exists( 'wcai_register_woocommerce_claude_insights_menu_item' ) ) {
 			wcai_register_woocommerce_claude_insights_menu_item(
 				'ai-insights',
-				__( 'AI Insights', 'woocommerce-claude' ),
+				__( 'Ask Claude', 'woocommerce-claude' ),
 				'/'
 			);
 		}
@@ -133,14 +133,14 @@ class DifmAdminPage {
 	 * @return void
 	 */
 	public function render_missing_runtime_notice() {
-		if ( $this->has_required_runtime() || ! $this->has_api_key() || ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( $this->has_required_runtime() || ! $this->has_anthropic_api_key() || ! current_user_can( 'manage_woocommerce' ) ) {
 			return;
 		}
 		?>
 		<div class="notice notice-warning">
 			<p>
-				<strong><?php esc_html_e( 'WooCommerce for Claude AI Insights requires Gutenberg or WordPress 7.0.', 'woocommerce-claude' ); ?></strong>
-				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use AI Insights with your Anthropic API key.', 'woocommerce-claude' ); ?>
+				<strong><?php esc_html_e( 'Ask Claude requires Gutenberg or WordPress 7.0.', 'woocommerce-claude' ); ?></strong>
+				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Ask Claude with your Anthropic API key.', 'woocommerce-claude' ); ?>
 			</p>
 		</div>
 		<?php
@@ -169,7 +169,7 @@ class DifmAdminPage {
 	 *
 	 * @return bool
 	 */
-	private function has_api_key() {
+	private function has_anthropic_api_key() {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		return AnthropicClient::has_api_key();

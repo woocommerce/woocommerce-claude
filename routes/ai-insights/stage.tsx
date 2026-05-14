@@ -113,7 +113,7 @@ function ChatView( { urlConversationId, conversations, onSaveConversation }: Cha
 		<div className="hey-woo-page hey-woo-page--chat">
 			<header className="hey-woo-chat-header">
 				<h1 className="hey-woo-chat-header__title">
-					{ __( 'AI Insights', 'woocommerce-claude' ) }
+					{ __( 'Ask Claude', 'woocommerce-claude' ) }
 				</h1>
 				<p className="hey-woo-chat-header__subtitle">
 					{ __( 'Ask anything about your store', 'woocommerce-claude' ) }

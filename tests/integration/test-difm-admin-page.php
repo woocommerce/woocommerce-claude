@@ -7,6 +7,7 @@
 
 use WooCommerce\Claude\Difm\DifmAdminPage;
 use WooCommerce\Claude\Settings\SettingsPage;
+use WooCommerce\Claude\Setup\RestApiKey;
 
 /**
  * Tests for conditional AI Insights navigation registration.
@@ -31,6 +32,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
+		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		add_filter( self::RUNTIME_FILTER, '__return_true' );
 	}
@@ -41,6 +43,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	public function tear_down() {
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
+		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		remove_all_filters( self::RUNTIME_FILTER );
 
@@ -57,6 +60,19 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Connecting Claude apps uses a WooCommerce REST API key, but that is not
+	 * enough to make the WordPress-admin AI Insights chat usable.
+	 */
+	public function test_ai_insights_submenu_is_not_registered_with_only_store_connection_key() {
+		$state = ( new RestApiKey() )->get_or_create();
+		$this->assertIsArray( $state );
+
+		( new DifmAdminPage() )->add_menu_page();
+
+		$this->assertFalse( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
+	}
+
+	/**
 	 * The WooCommerce submenu is registered once a key is configured.
 	 */
 	public function test_ai_insights_submenu_is_registered_with_api_key() {
@@ -65,6 +81,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		( new DifmAdminPage() )->add_menu_page();
 
 		$this->assertTrue( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
+		$this->assertSame( 'Ask Claude', $this->submenu_label_for_slug( DifmAdminPage::MENU_SLUG ) );
 	}
 
 	/**
@@ -92,7 +109,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		( new DifmAdminPage() )->render_missing_runtime_notice();
 		$notice = ob_get_clean();
 
-		$this->assertStringContainsString( 'requires Gutenberg or WordPress 7.0', $notice );
+		$this->assertStringContainsString( 'Ask Claude requires Gutenberg or WordPress 7.0', $notice );
 	}
 
 	/**
@@ -124,18 +141,28 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	 * @return bool
 	 */
 	private function submenu_contains_slug( $slug ) {
+		return null !== $this->submenu_label_for_slug( $slug );
+	}
+
+	/**
+	 * Return the menu label for a WooCommerce submenu slug.
+	 *
+	 * @param string $slug Menu slug.
+	 * @return string|null Menu label, or null when the slug is absent.
+	 */
+	private function submenu_label_for_slug( $slug ) {
 		global $submenu;
 
 		if ( ! isset( $submenu['woocommerce'] ) || ! is_array( $submenu['woocommerce'] ) ) {
-			return false;
+			return null;
 		}
 
 		foreach ( $submenu['woocommerce'] as $item ) {
 			if ( isset( $item[2] ) && $slug === $item[2] ) {
-				return true;
+				return isset( $item[0] ) ? (string) $item[0] : '';
 			}
 		}
 
-		return false;
+		return null;
 	}
 }

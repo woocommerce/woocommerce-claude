@@ -97,7 +97,7 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The AI Insights CTA is a post-save affordance, not a persistent second action.
+	 * The Ask Claude CTA is a post-save affordance, not a persistent second action.
 	 */
 	public function test_open_ai_insights_button_only_renders_after_saving_key_form() {
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
@@ -108,7 +108,7 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-existing', 'no' );
 
 		$html = $this->render_default_output();
-		$this->assertStringNotContainsString( 'Open AI Insights', $html );
+		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
 
 		$_POST = array(
 			SettingsPage::DIFM_API_KEY_OPTION => SettingsPage::DIFM_API_KEY_SENTINEL,
@@ -116,10 +116,10 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->settings_page()->validate_api_key_on_save();
 
 		$html = $this->render_default_output();
-		$this->assertStringContainsString( 'Open AI Insights', $html );
+		$this->assertStringContainsString( 'Open Ask Claude', $html );
 
 		$html = $this->render_default_output();
-		$this->assertStringNotContainsString( 'Open AI Insights', $html );
+		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
 	}
 
 	/**

@@ -274,7 +274,7 @@ class SettingsPage extends \WC_Settings_Page {
 					<span class="dashicons dashicons-yes-alt"></span>
 				</span>
 				<div class="woocommerce-claude-setup__banner-body">
-					<strong><?php esc_html_e( 'AI Insights is ready in WordPress admin.', 'woocommerce-claude' ); ?></strong>
+					<strong><?php esc_html_e( 'Ask Claude is ready in WordPress admin.', 'woocommerce-claude' ); ?></strong>
 					<p><?php esc_html_e( 'You can open the chat, replace the saved key, or remove it from this section.', 'woocommerce-claude' ); ?></p>
 				</div>
 			</div>
@@ -300,7 +300,7 @@ class SettingsPage extends \WC_Settings_Page {
 			</button>
 			<?php if ( $show_ai_insights_link ) : ?>
 				<a class="button button-secondary" href="<?php echo esc_url( $ai_insights_url ); ?>">
-					<?php esc_html_e( 'Open AI Insights', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Open Ask Claude', 'woocommerce-claude' ); ?>
 				</a>
 			<?php endif; ?>
 		</div>
@@ -316,7 +316,7 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	private function get_difm_section_description() {
 		$constant_name = $this->get_api_key_constant_name();
-		$requirement   = __( 'AI Insights requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
+		$requirement   = __( 'Ask Claude requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
 
 		if ( '' !== $constant_name ) {
 			return sprintf(
