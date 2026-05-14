@@ -10,7 +10,7 @@
  *   Step 1 — Generate a read-only API key (explicit Generate button,
  *            OR a summary line for the already-provisioned key with
  *            Regenerate / Disconnect).
- *   Step 2 — Configure in Claude (tabbed: Easy install / Manual setup).
+ *   Step 2 — Configure in Claude (tabbed: MCPB install / Terminal setup).
  *
  * Step-2 actions (Download MCPB, copying snippets) require an existing
  * key — surfaced in the UI as a disabled state on the action buttons,
@@ -279,7 +279,7 @@ $can_use_step2_actions = $has_key;
 					aria-controls="woocommerce-claude-panel-easy"
 					data-woocommerce-claude-tab="easy"
 				>
-					<?php esc_html_e( 'Easy install', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'MCPB install', 'woocommerce-claude' ); ?>
 				</button>
 				<button
 					type="button"
@@ -291,11 +291,11 @@ $can_use_step2_actions = $has_key;
 					tabindex="-1"
 					data-woocommerce-claude-tab="manual"
 				>
-					<?php esc_html_e( 'Manual setup', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Terminal setup', 'woocommerce-claude' ); ?>
 				</button>
 			</div>
 
-			<?php /* Easy install panel. */ ?>
+			<?php /* MCPB install panel. */ ?>
 			<div
 				role="tabpanel"
 				id="woocommerce-claude-panel-easy"
@@ -347,7 +347,7 @@ $can_use_step2_actions = $has_key;
 				</div>
 			</div>
 
-			<?php /* Manual setup panel. */ ?>
+			<?php /* Terminal setup panel. */ ?>
 			<div
 				role="tabpanel"
 				id="woocommerce-claude-panel-manual"
@@ -356,7 +356,7 @@ $can_use_step2_actions = $has_key;
 				hidden
 			>
 				<p class="woocommerce-claude-setup__card-lede">
-					<?php esc_html_e( "The manual snippets work for Claude Code today; we'll add more clients in future versions.", 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Choose one manual setup method. Use the terminal command for Claude Code, or use the config file snippet only if your client asks you to edit MCP configuration directly.', 'woocommerce-claude' ); ?>
 				</p>
 
 				<?php if ( ! $can_use_step2_actions ) : ?>
@@ -366,7 +366,7 @@ $can_use_step2_actions = $has_key;
 				<?php else : ?>
 
 					<div class="woocommerce-claude-setup__field">
-						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'OPTION 1: TERMINAL COMMAND', 'woocommerce-claude' ); ?></span>
 						<div class="woocommerce-claude-setup__codeblock">
 							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="cli" aria-label="<?php esc_attr_e( 'Copy terminal command', 'woocommerce-claude' ); ?>">
 								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -378,8 +378,12 @@ $can_use_step2_actions = $has_key;
 						</div>
 					</div>
 
+					<p class="woocommerce-claude-setup__choice-divider">
+						<?php esc_html_e( 'or', 'woocommerce-claude' ); ?>
+					</p>
+
 					<div class="woocommerce-claude-setup__field">
-						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'CONFIG FILE', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'OPTION 2: CONFIG FILE', 'woocommerce-claude' ); ?></span>
 						<div class="woocommerce-claude-setup__codeblock">
 							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="json" aria-label="<?php esc_attr_e( 'Copy config file', 'woocommerce-claude' ); ?>">
 								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -396,14 +400,138 @@ $can_use_step2_actions = $has_key;
 		</section>
 
 		<?php
+		$agent_plugin_download_url = sprintf(
+			'https://github.com/woocommerce/woocommerce-claude/releases/download/v%s/woocommerce-claude-agent-plugin.zip',
+			rawurlencode( WOOCOMMERCE_CLAUDE_VERSION )
+		);
+		$agent_plugin_url          = 'https://github.com/woocommerce/woocommerce-claude/blob/trunk/docs/agent-plugin.md';
+		$agent_plugin_cli_command  = "claude plugin marketplace add woocommerce/woocommerce-claude\nclaude plugin install woocommerce-claude@woocommerce-claude-ai-toolkit";
+		?>
+		<section class="woocommerce-claude-setup__card">
+			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Install workflow skills for Claude', 'woocommerce-claude' ); ?></h2>
+			<p class="woocommerce-claude-setup__card-lede">
+				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin after Claude can connect to your store.', 'woocommerce-claude' ); ?>
+			</p>
+
+			<div class="woocommerce-claude-setup__tabs" role="tablist" aria-label="<?php esc_attr_e( 'Install workflow skills for Claude', 'woocommerce-claude' ); ?>">
+				<button
+					type="button"
+					role="tab"
+					id="woocommerce-claude-tab-workflow-upload"
+					class="woocommerce-claude-setup__tab is-active"
+					aria-selected="true"
+					aria-controls="woocommerce-claude-panel-workflow-upload"
+					data-woocommerce-claude-tab="workflow-upload"
+				>
+					<?php esc_html_e( 'Plugin install', 'woocommerce-claude' ); ?>
+				</button>
+				<button
+					type="button"
+					role="tab"
+					id="woocommerce-claude-tab-workflow-terminal"
+					class="woocommerce-claude-setup__tab"
+					aria-selected="false"
+					aria-controls="woocommerce-claude-panel-workflow-terminal"
+					tabindex="-1"
+					data-woocommerce-claude-tab="workflow-terminal"
+				>
+					<?php esc_html_e( 'Terminal setup', 'woocommerce-claude' ); ?>
+				</button>
+			</div>
+
+			<div
+				role="tabpanel"
+				id="woocommerce-claude-panel-workflow-upload"
+				class="woocommerce-claude-setup__tabpanel"
+				aria-labelledby="woocommerce-claude-tab-workflow-upload"
+			>
+				<ol class="woocommerce-claude-setup__steps">
+					<li><?php esc_html_e( 'Download the workflow skills zip below.', 'woocommerce-claude' ); ?></li>
+					<li><?php esc_html_e( 'In Claude Desktop, open Customize -> Personal plugins -> Upload plugins.', 'woocommerce-claude' ); ?></li>
+					<li><?php esc_html_e( 'Upload the zip file and enable the plugin.', 'woocommerce-claude' ); ?></li>
+				</ol>
+
+				<?php if ( ! $can_use_step2_actions ) : ?>
+					<p class="woocommerce-claude-setup__blocked">
+						<?php esc_html_e( 'Generate an API key in Step 1 before downloading workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+					</p>
+				<?php endif; ?>
+
+				<div class="woocommerce-claude-setup__workflow-actions">
+					<?php if ( $can_use_step2_actions ) : ?>
+						<a class="button button-secondary" href="<?php echo esc_url( $agent_plugin_download_url ); ?>" target="_blank" rel="noopener">
+							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+						</a>
+					<?php else : ?>
+						<button type="button" class="button button-secondary" disabled>
+							<?php esc_html_e( 'Download Claude workflow skills', 'woocommerce-claude' ); ?>
+						</button>
+					<?php endif; ?>
+				</div>
+			</div>
+
+			<div
+				role="tabpanel"
+				id="woocommerce-claude-panel-workflow-terminal"
+				class="woocommerce-claude-setup__tabpanel"
+				aria-labelledby="woocommerce-claude-tab-workflow-terminal"
+				hidden
+			>
+				<p class="woocommerce-claude-setup__card-lede">
+					<?php esc_html_e( 'Use Terminal if you prefer to install the workflow skills through Claude Code.', 'woocommerce-claude' ); ?>
+				</p>
+
+				<?php if ( ! $can_use_step2_actions ) : ?>
+					<p class="woocommerce-claude-setup__blocked">
+						<?php esc_html_e( 'Generate an API key in Step 1 before installing workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
+					</p>
+				<?php else : ?>
+					<div class="woocommerce-claude-setup__field woocommerce-claude-setup__workflow-command">
+						<span class="woocommerce-claude-setup__field-label"><?php esc_html_e( 'TERMINAL', 'woocommerce-claude' ); ?></span>
+						<div class="woocommerce-claude-setup__codeblock">
+							<button type="button" class="woocommerce-claude-setup__copy" data-woocommerce-claude-copy-target="agent-plugin-cli" aria-label="<?php esc_attr_e( 'Copy terminal commands', 'woocommerce-claude' ); ?>">
+								<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+									<rect x="4" y="4" width="9" height="10" rx="1" stroke="currentColor" stroke-width="1.3"/>
+									<path d="M3 11H2.5C2.22 11 2 10.78 2 10.5V2.5C2 2.22 2.22 2 2.5 2H10.5C10.78 2 11 2.22 11 2.5V3" stroke="currentColor" stroke-width="1.3"/>
+								</svg>
+							</button>
+							<pre data-woocommerce-claude-agent-plugin-cli><code><?php echo esc_html( $agent_plugin_cli_command ); ?></code></pre>
+						</div>
+					</div>
+				<?php endif; ?>
+
+				<p class="woocommerce-claude-setup__prompt-footer">
+					<?php
+					printf(
+						wp_kses(
+							/* translators: %s: URL to the agent-plugin.md doc on GitHub. */
+							__( 'See the <a href="%s" target="_blank" rel="noopener">agent plugin guide</a> for install steps and the full command list.', 'woocommerce-claude' ),
+							array(
+								'a' => array(
+									'href'   => array(),
+									'target' => array(),
+									'rel'    => array(),
+								),
+							)
+						),
+						esc_url( $agent_plugin_url )
+					);
+					?>
+				</p>
+			</div>
+
+			<p class="woocommerce-claude-setup__prompt-footer">
+				<?php esc_html_e( 'After plugins load, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review.', 'woocommerce-claude' ); ?>
+			</p>
+		</section>
+
+		<?php
 		/*
 		 * "Try it out" card — only relevant once the connection is live
 		 * ($has_key, captured by $can_use_step2_actions).
 		 * Five starter questions the merchant can paste straight into
 		 * Claude, plus a link to a longer set of guide questions in the
-		 * repo. Intentionally avoids referencing MCP slash commands —
-		 * the picker UX varies across clients and a "paste this question"
-		 * pathway works on every Claude surface.
+		 * repo.
 		 */
 		if ( $can_use_step2_actions ) :
 			$starter_prompts = array(

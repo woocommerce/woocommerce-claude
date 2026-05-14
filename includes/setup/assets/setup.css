@@ -338,7 +338,7 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	color: #135e96;
 }
 
-/* ---- Tabs (Step 2) ---- */
+/* ---- Tabs (setup cards) ---- */
 
 .woocommerce-claude-setup__tabs {
 	display: flex;
@@ -425,6 +425,25 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	color: #50575e;
 }
 
+.woocommerce-claude-setup__choice-divider {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 2px 0 18px;
+	color: #6b7280;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.4;
+	text-transform: uppercase;
+}
+
+.woocommerce-claude-setup__choice-divider::before,
+.woocommerce-claude-setup__choice-divider::after {
+	content: "";
+	flex: 1 1 auto;
+	border-top: 1px solid #dcdcde;
+}
+
 /* ---- "Try it out" prompts list ---- */
 
 .woocommerce-claude-setup__prompts {
@@ -451,7 +470,20 @@ input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
 	line-height: 1.55;
 }
 
-/* ---- Code blocks (Manual setup) ---- */
+.woocommerce-claude-setup__workflow-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 12px 0 0;
+}
+
+.woocommerce-claude-setup__workflow-command {
+	margin-top: 14px;
+}
+
+/* ---- Code blocks (setup snippets) ---- */
 
 /*
  * Dark code panel with the Copy button overlaid in the top-right

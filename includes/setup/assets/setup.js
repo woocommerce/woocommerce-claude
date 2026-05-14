@@ -1,55 +1,60 @@
 /**
  * Hey Woo setup page client-side wiring.
  *
- *  - Tab switcher for the Step 2 "Easy install" / "Manual setup" panels.
- *  - Copy-to-clipboard for the manual snippets.
+ *  - Tab switcher for setup panels.
+ *  - Copy-to-clipboard for setup snippets.
  */
 (function () {
 	'use strict';
 
 	function initTabs() {
-		var tabs = document.querySelectorAll('.woocommerce-claude-setup__tab');
-		if (!tabs.length) {
-			return;
-		}
+		document.querySelectorAll('.woocommerce-claude-setup__tabs').forEach(function (tablist) {
+			var tabs = tablist.querySelectorAll('.woocommerce-claude-setup__tab');
+			if (!tabs.length) {
+				return;
+			}
 
-		function activate(targetKey) {
-			tabs.forEach(function (tab) {
-				var isActive = tab.getAttribute('data-woocommerce-claude-tab') === targetKey;
-				tab.classList.toggle('is-active', isActive);
-				tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-				tab.setAttribute('tabindex', isActive ? '0' : '-1');
-			});
-			document.querySelectorAll('.woocommerce-claude-setup__tabpanel').forEach(function (panel) {
-				var isActive = panel.id === 'woocommerce-claude-panel-' + targetKey;
-				panel.hidden = !isActive;
-			});
-		}
+			var panels = Array.prototype.map.call(tabs, function (tab) {
+				return document.getElementById(tab.getAttribute('aria-controls'));
+			}).filter(Boolean);
 
-		tabs.forEach(function (tab) {
-			tab.addEventListener('click', function () {
-				activate(tab.getAttribute('data-woocommerce-claude-tab'));
-			});
-			tab.addEventListener('keydown', function (event) {
-				if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
-					return;
-				}
-				event.preventDefault();
-				var keys = Array.prototype.map.call(tabs, function (t) {
-					return t.getAttribute('data-woocommerce-claude-tab');
+			function activate(targetTab) {
+				tabs.forEach(function (tab) {
+					var isActive = tab === targetTab;
+					tab.classList.toggle('is-active', isActive);
+					tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+					tab.setAttribute('tabindex', isActive ? '0' : '-1');
 				});
-				var current = tab.getAttribute('data-woocommerce-claude-tab');
-				var index = keys.indexOf(current);
-				var nextIndex = event.key === 'ArrowRight'
-					? (index + 1) % keys.length
-					: (index - 1 + keys.length) % keys.length;
-				activate(keys[nextIndex]);
-				var nextTab = document.querySelector(
-					'.woocommerce-claude-setup__tab[data-woocommerce-claude-tab="' + keys[nextIndex] + '"]'
-				);
-				if (nextTab) {
-					nextTab.focus();
-				}
+				panels.forEach(function (panel) {
+					panel.hidden = panel.id !== targetTab.getAttribute('aria-controls');
+				});
+			}
+
+			tabs.forEach(function (tab) {
+				tab.addEventListener('click', function () {
+					activate(tab);
+				});
+				tab.addEventListener('keydown', function (event) {
+					if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+						return;
+					}
+					event.preventDefault();
+					var keys = Array.prototype.map.call(tabs, function (t) {
+						return t.getAttribute('data-woocommerce-claude-tab');
+					});
+					var current = tab.getAttribute('data-woocommerce-claude-tab');
+					var index = keys.indexOf(current);
+					var nextIndex = event.key === 'ArrowRight'
+						? (index + 1) % keys.length
+						: (index - 1 + keys.length) % keys.length;
+					var nextTab = tablist.querySelector(
+						'.woocommerce-claude-setup__tab[data-woocommerce-claude-tab="' + keys[nextIndex] + '"]'
+					);
+					if (nextTab) {
+						activate(nextTab);
+						nextTab.focus();
+					}
+				});
 			});
 		});
 	}
@@ -107,6 +112,8 @@
 					source = document.querySelector('[data-woocommerce-claude-cli]');
 				} else if (key === 'json') {
 					source = document.querySelector('[data-woocommerce-claude-json]');
+				} else if (key === 'agent-plugin-cli') {
+					source = document.querySelector('[data-woocommerce-claude-agent-plugin-cli]');
 				}
 				if (source) {
 					copyText(source.textContent, button);

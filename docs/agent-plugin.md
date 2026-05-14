@@ -126,6 +126,16 @@ Restart Claude Code, or run:
 /reload-plugins
 ```
 
+## Claude plugin upload install
+
+Some Claude clients expose a plugin upload or import flow. Use that path when you want someone to install the WooCommerce for Claude workflow skills without running marketplace commands.
+
+The upload file is the companion agent plugin package, not the WordPress `woocommerce-claude.zip` plugin and not the store `.mcpb` connection file. Package the contents of `agent-plugin/` so `.claude-plugin/plugin.json` is at the package root and the `skills/` folder is included alongside it.
+
+Tagged releases publish this package as `woocommerce-claude-agent-plugin.zip`. The WordPress setup screen links to the package under the matching release tag, so a store running WooCommerce for Claude `0.4.0` points at the `v0.4.0` workflow skills package.
+
+After uploading the package in Claude, enable the plugin. The uploaded agent plugin still assumes the store-side WooCommerce for Claude MCP server is connected, so complete the WordPress setup screen first or make sure Claude already has the store MCP connection.
+
 ## Local branch testing
 
 When testing an unmerged branch, point Claude Code at the local checkout instead of the GitHub marketplace. This avoids reinstalling the default branch:

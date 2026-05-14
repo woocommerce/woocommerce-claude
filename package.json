@@ -1,6 +1,6 @@
 {
   "name": "woocommerce-claude",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
   "packageManager": "pnpm@10.33.0",
@@ -18,6 +18,7 @@
     "build": "wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
     "build:production": "NODE_ENV=production wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
     "plugin-zip": "pnpm run build:production && wp-scripts plugin-zip",
+    "agent-plugin-zip": "cd agent-plugin && zip -r -FS ../woocommerce-claude-agent-plugin.zip .claude-plugin skills",
     "start": "wp-build --watch"
   },
   "wpPlugin": {
