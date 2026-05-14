@@ -25,6 +25,8 @@
  * @package WooCommerce\Claude\Tests
  */
 
+use WooCommerce\Claude\Setup\RestApiKey;
+
 /**
  * Authentication tests for WooCommerce\Claude\Plugin::authenticate_mcp_request().
  */
@@ -50,6 +52,8 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 			$_SERVER['HTTP_AUTHORIZATION']
 		);
 		$this->wipe_test_rows();
+		delete_option( RestApiKey::OPTION_KEY_ID );
+		delete_option( RestApiKey::OPTION_LAST_SEEN );
 	}
 
 	/**
@@ -58,6 +62,8 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	public function tear_down() {
 		$_SERVER = $this->original_server;
 		$this->wipe_test_rows();
+		delete_option( RestApiKey::OPTION_KEY_ID );
+		delete_option( RestApiKey::OPTION_LAST_SEEN );
 		parent::tear_down();
 	}
 
@@ -197,6 +203,38 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Setup-managed keys record a last-seen timestamp after a real MCP auth hit.
+	 */
+	public function test_setup_key_authentication_marks_external_connection_seen() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$cred    = $this->insert_api_key( $user_id, 'read' );
+		$key_id  = $this->key_id_for_credential( $cred );
+		update_option( RestApiKey::OPTION_KEY_ID, $key_id, false );
+		$this->set_basic_auth( $cred );
+
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+
+		$this->assertTrue( $result );
+		$this->assertGreaterThan( 0, (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 ) );
+	}
+
+	/**
+	 * Ordinary WC API keys may authenticate, but they do not mark the setup flow
+	 * as connected because they are not the generated store connection key.
+	 */
+	public function test_untracked_key_authentication_does_not_mark_external_connection_seen() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$cred    = $this->insert_api_key( $user_id, 'read' );
+		update_option( RestApiKey::OPTION_KEY_ID, 999999, false );
+		$this->set_basic_auth( $cred );
+
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( new \WP_REST_Request() );
+
+		$this->assertTrue( $result );
+		$this->assertFalse( get_option( RestApiKey::OPTION_LAST_SEEN, false ) );
+	}
+
+	/**
 	 * Insert a WC API key row with the given user_id and permissions
 	 * scope. Returns the joined `ck_xxx:cs_xxx` credential string.
 	 *
@@ -225,6 +263,26 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		);
 
 		return $consumer_key . ':' . $consumer_secret;
+	}
+
+	/**
+	 * Return the database key_id for a fixture credential.
+	 *
+	 * @param string $credential Joined `ck_xxx:cs_xxx`.
+	 * @return int
+	 */
+	private function key_id_for_credential( $credential ) {
+		global $wpdb;
+
+		list( $consumer_key ) = explode( ':', $credential, 2 );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- test fixture lookup.
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT key_id FROM {$wpdb->prefix}woocommerce_api_keys WHERE consumer_key = %s",
+				wc_api_hash( $consumer_key )
+			)
+		);
 	}
 
 	/**

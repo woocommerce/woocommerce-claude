@@ -120,6 +120,12 @@
 				}
 			});
 		});
+
+		document.querySelectorAll('[data-woocommerce-claude-copy-text]').forEach(function (button) {
+			button.addEventListener('click', function () {
+				copyText(button.getAttribute('data-woocommerce-claude-copy-text'), button);
+			});
+		});
 	}
 
 	function init() {

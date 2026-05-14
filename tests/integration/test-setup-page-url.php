@@ -13,21 +13,20 @@ use WooCommerce\Claude\Setup\SetupPage;
 class Test_Setup_Page_Url extends WP_UnitTestCase {
 
 	/**
-	 * The setup helper should target the DIY section now that AI Insights
-	 * owns the default section.
+	 * The setup helper should target the consolidated setup overview by default.
 	 */
-	public function test_setup_url_targets_setup_section_by_default() {
+	public function test_setup_url_targets_default_section_by_default() {
 		$query = $this->query_args_from_url( SetupPage::url() );
 
 		$this->assertSame( 'wc-settings', $query['page'] );
 		$this->assertSame( SetupPage::SETTINGS_TAB, $query['tab'] );
-		$this->assertSame( 'setup', $query['section'] );
+		$this->assertArrayNotHasKey( 'section', $query );
 	}
 
 	/**
-	 * Redirect notices should be preserved while staying on the DIY section.
+	 * Redirect notices should be preserved while staying on the consolidated setup overview.
 	 */
-	public function test_setup_url_preserves_extra_args_on_setup_section() {
+	public function test_setup_url_preserves_extra_args_on_default_section() {
 		$query = $this->query_args_from_url(
 			SetupPage::url(
 				array(
@@ -36,7 +35,7 @@ class Test_Setup_Page_Url extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( 'setup', $query['section'] );
+		$this->assertArrayNotHasKey( 'section', $query );
 		$this->assertSame( 'key_generated', $query['notice'] );
 	}
 

@@ -35,6 +35,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->wipe_owned_rows();
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
+		delete_option( RestApiKey::OPTION_LAST_SEEN );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
 	}
 
@@ -45,6 +46,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->wipe_owned_rows();
 		delete_option( RestApiKey::OPTION_CREDENTIAL );
 		delete_option( RestApiKey::OPTION_KEY_ID );
+		delete_option( RestApiKey::OPTION_LAST_SEEN );
 		delete_option( RestApiKey::PROVISIONING_LOCK );
 		parent::tear_down();
 	}
@@ -86,6 +88,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	public function test_revoke_removes_the_tracked_row() {
 		$helper = new RestApiKey();
 		$helper->get_or_create();
+		update_option( RestApiKey::OPTION_LAST_SEEN, 12345, false );
 		$this->assertSame( 1, $this->count_owned_rows() );
 
 		$helper->revoke();
@@ -93,6 +96,7 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->count_owned_rows(), 'Row removed.' );
 		$this->assertFalse( get_option( RestApiKey::OPTION_CREDENTIAL ) );
 		$this->assertFalse( get_option( RestApiKey::OPTION_KEY_ID ) );
+		$this->assertFalse( get_option( RestApiKey::OPTION_LAST_SEEN ) );
 	}
 
 	/**
