@@ -49,13 +49,6 @@ function woocommerce_claude_tests_load_plugins() {
 	}
 	require_once $wc_candidates[0];
 
-	// Force-enable the DIFM feature flag before plugin boot so DIFM
-	// integration tests run against the registered surface. Production
-	// defaults to off until the surface is ready to ship.
-	if ( ! defined( 'WOOCOMMERCE_CLAUDE_ENABLE_DIFM' ) ) {
-		define( 'WOOCOMMERCE_CLAUDE_ENABLE_DIFM', true );
-	}
-
 	require_once $plugin_dir . '/woocommerce-claude/woocommerce-claude.php';
 
 	// Prevent WooCommerce's own check_version() hook (plugins_loaded) from

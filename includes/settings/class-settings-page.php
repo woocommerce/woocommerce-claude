@@ -14,10 +14,9 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Registers the "WooCommerce for Claude" tab in WooCommerce > Settings.
  *
- * The setup view is the production default. When DIFM is enabled, the tab also
- * exposes the Bring Your Own Key field used by AI Insights. The key field is
- * deliberately custom-rendered so a stored Anthropic key is never sent back to
- * the browser.
+ * The default view renders the Connect-to-Claude setup screen first, then the
+ * Bring Your Own Key field used by AI Insights. The key field is deliberately
+ * custom-rendered so a stored Anthropic key is never sent back to the browser.
  */
 class SettingsPage extends \WC_Settings_Page {
 
@@ -72,12 +71,6 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return array<string,string>
 	 */
 	public function get_sections() {
-		if ( ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
-			return array(
-				'' => __( 'Setup', 'woocommerce-claude' ),
-			);
-		}
-
 		return array(
 			''      => __( 'AI Insights', 'woocommerce-claude' ),
 			'setup' => __( 'Setup', 'woocommerce-claude' ),
@@ -88,19 +81,13 @@ class SettingsPage extends \WC_Settings_Page {
 	 * The default section contains the AI Insights key fields.
 	 *
 	 * The AI Insights section configures the Anthropic API key DIFM
-	 * (Do-It-For-Me) uses for server-side AI calls. It's gated behind
-	 * `Plugin::is_difm_enabled()` so a production install with the DIFM
-	 * surface still in development doesn't expose the field. The setup
-	 * wizard (rendered by `output()`) stays visible — it's about
-	 * connecting Claude Desktop to the MCP server, not DIFM.
+	 * (Do-It-For-Me) uses for server-side AI calls. The setup wizard lives
+	 * in the `setup` section and handles connecting Claude Desktop to the
+	 * MCP server.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	protected function get_settings_for_default_section() {
-		if ( ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
-			return array();
-		}
-
 		return array(
 			array(
 				'type'  => 'title',
@@ -133,13 +120,12 @@ class SettingsPage extends \WC_Settings_Page {
 	 *
 	 * The Setup section shows the Claude Desktop connection wizard and hides
 	 * WC's Save button (no form fields, all actions are link-based).
-	 * The default section renders Setup unless DIFM is enabled, in which case
-	 * it renders the Anthropic API key field for AI Insights.
+	 * The default AI Insights section renders the Anthropic API key field.
 	 */
 	public function output() {
 		global $current_section;
 
-		if ( 'setup' === $current_section || ! \WooCommerce\Claude\Plugin::is_difm_enabled() ) {
+		if ( 'setup' === $current_section ) {
 			SetupPage::render_setup_view();
 			return;
 		}
@@ -156,16 +142,17 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	private function get_difm_section_description() {
 		$constant_name = $this->get_api_key_constant_name();
+		$requirement   = __( 'AI Insights requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
 
 		if ( '' !== $constant_name ) {
 			return sprintf(
 				/* translators: %s: PHP constant name. */
 				__( 'Your Anthropic API key is configured via the <code>%s</code> server constant. The field below is disabled; edit the constant in <code>wp-config.php</code> instead.', 'woocommerce-claude' ),
 				esc_html( $constant_name )
-			);
+			) . ' ' . $requirement;
 		}
 
-		return __( 'Paste your Anthropic API key to get AI-powered insights in your WooCommerce dashboard. Your key is stored in the WordPress database. For higher security, define <code>WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY</code> in <code>wp-config.php</code> instead.', 'woocommerce-claude' );
+		return __( 'Paste your Anthropic API key to get AI-powered insights in your WooCommerce dashboard. Your key is stored in the WordPress database. For higher security, define <code>WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY</code> in <code>wp-config.php</code> instead.', 'woocommerce-claude' ) . ' ' . $requirement;
 	}
 
 	/**

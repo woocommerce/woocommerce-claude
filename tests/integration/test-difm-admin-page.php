@@ -14,17 +14,25 @@ use WooCommerce\Claude\Settings\SettingsPage;
 class Test_Difm_Admin_Page extends WP_UnitTestCase {
 
 	/**
+	 * Test-only filter for the generated boot runtime requirement.
+	 */
+	const RUNTIME_FILTER = 'woocommerce_claude_difm_has_required_runtime';
+
+	/**
 	 * Reset API-key and menu state before each test.
 	 */
 	public function set_up() {
 		parent::set_up();
 
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user    = get_userdata( $user_id );
+		$user->add_cap( 'manage_woocommerce' );
 		wp_set_current_user( $user_id );
 
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
 		$this->remove_ai_insights_submenu();
+		add_filter( self::RUNTIME_FILTER, '__return_true' );
 	}
 
 	/**
@@ -34,6 +42,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
 		$this->remove_ai_insights_submenu();
+		remove_all_filters( self::RUNTIME_FILTER );
 
 		parent::tear_down();
 	}
@@ -56,6 +65,34 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		( new DifmAdminPage() )->add_menu_page();
 
 		$this->assertTrue( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
+	}
+
+	/**
+	 * The WooCommerce submenu is hidden until the boot runtime is available.
+	 */
+	public function test_ai_insights_submenu_is_not_registered_without_required_runtime() {
+		remove_all_filters( self::RUNTIME_FILTER );
+		add_filter( self::RUNTIME_FILTER, '__return_false' );
+		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-test', 'no' );
+
+		( new DifmAdminPage() )->add_menu_page();
+
+		$this->assertFalse( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
+	}
+
+	/**
+	 * A configured key with no boot runtime shows the merchant-facing requirement.
+	 */
+	public function test_missing_runtime_notice_is_rendered_with_api_key() {
+		remove_all_filters( self::RUNTIME_FILTER );
+		add_filter( self::RUNTIME_FILTER, '__return_false' );
+		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-test', 'no' );
+
+		ob_start();
+		( new DifmAdminPage() )->render_missing_runtime_notice();
+		$notice = ob_get_clean();
+
+		$this->assertStringContainsString( 'requires Gutenberg or WordPress 7.0', $notice );
 	}
 
 	/**
