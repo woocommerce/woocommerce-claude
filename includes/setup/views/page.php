@@ -448,7 +448,7 @@ $can_use_step2_actions = $has_key;
 				<ol class="woocommerce-claude-setup__steps">
 					<li><?php esc_html_e( 'Download the workflow skills zip below.', 'woocommerce-claude' ); ?></li>
 					<li><?php esc_html_e( 'In Claude Desktop, open Customize -> Personal plugins -> Upload plugins.', 'woocommerce-claude' ); ?></li>
-					<li><?php esc_html_e( 'Upload the zip file, enable the plugin, then reload plugins if Claude asks.', 'woocommerce-claude' ); ?></li>
+					<li><?php esc_html_e( 'Upload the zip file and enable the plugin.', 'woocommerce-claude' ); ?></li>
 				</ol>
 
 				<?php if ( ! $can_use_step2_actions ) : ?>

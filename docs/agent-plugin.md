@@ -134,7 +134,7 @@ The upload file is the companion agent plugin package, not the WordPress `woocom
 
 Tagged releases publish this package as `woocommerce-claude-agent-plugin.zip`. The WordPress setup screen links to the package under the matching release tag, so a store running WooCommerce for Claude `0.4.0` points at the `v0.4.0` workflow skills package.
 
-After uploading the package in Claude, enable the plugin or reload plugins if prompted. The uploaded agent plugin still assumes the store-side WooCommerce for Claude MCP server is connected, so complete the WordPress setup screen first or make sure Claude already has the store MCP connection.
+After uploading the package in Claude, enable the plugin. The uploaded agent plugin still assumes the store-side WooCommerce for Claude MCP server is connected, so complete the WordPress setup screen first or make sure Claude already has the store MCP connection.
 
 ## Local branch testing
 
