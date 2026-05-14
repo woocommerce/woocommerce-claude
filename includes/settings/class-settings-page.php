@@ -202,8 +202,8 @@ class SettingsPage extends \WC_Settings_Page {
 		$connected_label  = __( 'Connected', 'woocommerce-claude' );
 		$ready_label      = __( 'Ready', 'woocommerce-claude' );
 		$not_set_up_label = __( 'Not set up', 'woocommerce-claude' );
-		$ai_open          = ( $has_ai_key && ! $show_ai_insights ) ? '' : 'open';
-		$external_open    = ( $has_external_key && '' === $setup_notice_code ) ? '' : 'open';
+		$ai_open          = $show_ai_insights ? 'open' : '';
+		$external_open    = '' === $setup_notice_code ? '' : 'open';
 		$ai_status_label  = $has_ai_key ? $ready_label : $not_set_up_label;
 		$ai_status_class  = $has_ai_key ? 'woocommerce-claude-setup__pill--ready' : 'woocommerce-claude-setup__pill--off';
 		if ( $has_external_use ) {
