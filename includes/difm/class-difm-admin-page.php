@@ -84,8 +84,12 @@ class DifmAdminPage {
 	 */
 	public function on_init() {
 		// Register the sidebar menu item for the boot navigation shell.
-		if ( $this->has_api_key() ) {
-			$this->register_boot_menu_item();
+		if ( $this->has_api_key() && function_exists( 'wcai_register_woocommerce_claude_insights_menu_item' ) ) {
+			wcai_register_woocommerce_claude_insights_menu_item(
+				'ai-insights',
+				__( 'AI Insights', 'woocommerce-claude' ),
+				'/'
+			);
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
@@ -122,22 +126,5 @@ class DifmAdminPage {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		return AnthropicClient::has_api_key();
-	}
-
-	/**
-	 * Register the AI Insights item in the generated boot sidebar menu.
-	 *
-	 * @return void
-	 */
-	protected function register_boot_menu_item() {
-		if ( ! function_exists( 'wcai_register_woocommerce_claude_insights_menu_item' ) ) {
-			return;
-		}
-
-		wcai_register_woocommerce_claude_insights_menu_item(
-			'ai-insights',
-			__( 'AI Insights', 'woocommerce-claude' ),
-			'/'
-		);
 	}
 }
