@@ -32,6 +32,7 @@ class CatalogSchemaAbility {
 				'label'               => __( 'Catalog schema', 'woocommerce-claude' ),
 				'description'         => __( 'Catalog schema — category tree, attribute terms, and product type distribution. Aggregated via the plugin\'s knowledge providers.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(

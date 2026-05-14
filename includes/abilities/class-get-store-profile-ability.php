@@ -37,6 +37,7 @@ class GetStoreProfileAbility {
 				'label'               => __( 'Get store profile', 'woocommerce-claude' ),
 				'description'         => __( "Get the store's identity, configuration, payment methods, shipping zones, and features. This goes beyond WooCommerce core MCP by providing structured store knowledge for AI reasoning. Use this first to understand the store context.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(
