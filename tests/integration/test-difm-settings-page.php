@@ -93,8 +93,10 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->assertLessThan( strpos( $html, 'Chat in WordPress admin' ), strpos( $html, 'Connect Claude apps' ) );
 		$this->assertStringContainsString( 'Anthropic API Key', $html );
 		$this->assertStringContainsString( 'Step 1: Create a store connection key', $html );
+		$this->assertStringContainsString( 'Step 3: Add guide workflows (optional)', $html );
 		$this->assertStringContainsString( 'Download skills', $html );
 		$this->assertStringContainsString( 'woocommerce-claude-setup__accordion', $html );
+		$this->assertStringNotContainsString( 'Optional: Add guided workflows', $html );
 		$this->assertStringNotContainsString( '<details class="woocommerce-claude-setup__accordion" open>', $html );
 		$this->assertStringNotContainsString( 'Download Claude workflow skills', $html );
 		$this->assertStringNotContainsString( 'You can set up one or both options.', $html );

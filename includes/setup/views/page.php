@@ -410,7 +410,7 @@ $is_embedded           = isset( $is_embedded ) ? (bool) $is_embedded : false;
 		$agent_plugin_cli_command  = "claude plugin marketplace add woocommerce/woocommerce-claude\nclaude plugin install woocommerce-claude@woocommerce-claude-ai-toolkit";
 		?>
 		<section class="woocommerce-claude-setup__card">
-			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Optional: Add guided workflows', 'woocommerce-claude' ); ?></h2>
+			<h2 class="woocommerce-claude-setup__card-title"><?php esc_html_e( 'Step 3: Add guide workflows (optional)', 'woocommerce-claude' ); ?></h2>
 			<p class="woocommerce-claude-setup__card-lede">
 				<?php esc_html_e( 'For guided reviews using slash commands, install the companion Claude agent plugin after Claude can connect to your store.', 'woocommerce-claude' ); ?>
 			</p>
