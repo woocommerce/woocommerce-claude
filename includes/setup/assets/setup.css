@@ -298,46 +298,6 @@ select.woocommerce-claude-setup__input {
 	line-height: 1.5;
 }
 
-/* ---- Usage-data opt-in (mirrors WC core's onboarding pattern) ---- */
-
-.woocommerce-claude-setup__optin {
-	display: flex;
-	align-items: flex-start;
-	gap: 12px;
-}
-
-/*
- * WP admin ships `input[type=checkbox] { margin: -.25rem .25rem 0 0; }`
- * which has higher specificity (0,1,1) than a plain class selector
- * (0,1,0). Without the chained `input[type=checkbox]` here our margin
- * declarations would silently lose the cascade and the checkbox would
- * float ~4px above where we want it. The leading `2px` lands the
- * checkbox's centre on the cap-height of the first line of label text.
- */
-input[type=checkbox].woocommerce-claude-setup__optin-checkbox {
-	flex-shrink: 0;
-	margin: 2px 0 0 0;
-}
-
-.woocommerce-claude-setup__optin-label {
-	flex: 1 1 auto;
-	min-width: 0;
-	font-size: 13px;
-	line-height: 1.55;
-	color: #1d2327;
-	cursor: pointer;
-}
-
-.woocommerce-claude-setup__optin-learn {
-	color: #2271b1;
-	text-decoration: underline;
-}
-
-.woocommerce-claude-setup__optin-learn:hover,
-.woocommerce-claude-setup__optin-learn:focus {
-	color: #135e96;
-}
-
 /* ---- Tabs (setup cards) ---- */
 
 .woocommerce-claude-setup__tabs {

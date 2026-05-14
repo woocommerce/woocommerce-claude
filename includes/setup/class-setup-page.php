@@ -11,7 +11,7 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Setup view rendered inside the WooCommerce Settings → WooCommerce for Claude
- * Setup section. Walks a store owner through connecting WooCommerce for Claude
+ * DIY section. Walks a store owner through connecting WooCommerce for Claude
  * to Claude Desktop (one-click .mcpb download with the API key
  * embedded) or to other MCP clients via a copy-paste JSON snippet.
  *
@@ -43,16 +43,15 @@ class SetupPage {
 	 */
 	const SETTINGS_TAB = 'woocommerce-claude';
 
-	const ACTION_DOWNLOAD         = 'woocommerce_claude_download_mcpb';
-	const ACTION_REGEN_KEY        = 'woocommerce_claude_regenerate_key';
-	const ACTION_DISCONNECT       = 'woocommerce_claude_disconnect';
-	const ACTION_GENERATE_KEY     = 'woocommerce_claude_generate_key';
-	const ACTION_TOGGLE_TELEMETRY = 'woocommerce_claude_toggle_telemetry';
+	const ACTION_DOWNLOAD     = 'woocommerce_claude_download_mcpb';
+	const ACTION_REGEN_KEY    = 'woocommerce_claude_regenerate_key';
+	const ACTION_DISCONNECT   = 'woocommerce_claude_disconnect';
+	const ACTION_GENERATE_KEY = 'woocommerce_claude_generate_key';
 
 	/**
 	 * Option name for the anonymised-usage-data toggle. New installs are
 	 * opted in via the activation hook in the main plugin file; the
-	 * setup view exposes a toggle so merchants can flip it without
+	 * Settings section exposes a toggle so merchants can flip it without
 	 * leaving the WooCommerce for Claude tab. Plugin::maybe_add_tracks_handler
 	 * reads this same option to decide whether to register TracksHandler.
 	 */
@@ -68,8 +67,6 @@ class SetupPage {
 		add_action( 'admin_post_' . self::ACTION_REGEN_KEY, array( __CLASS__, 'handle_regenerate_key' ) );
 		add_action( 'admin_post_' . self::ACTION_DISCONNECT, array( __CLASS__, 'handle_disconnect' ) );
 		add_action( 'admin_post_' . self::ACTION_GENERATE_KEY, array( __CLASS__, 'handle_generate_key' ) );
-		add_action( 'admin_post_' . self::ACTION_TOGGLE_TELEMETRY, array( __CLASS__, 'handle_toggle_telemetry' ) );
-
 		// Restrict the setup credential to the WooCommerce for Claude MCP endpoint only.
 		// WC's API key auth runs at priority 10 on `determine_current_user`;
 		// `rest_authentication_errors` runs after that and before the
@@ -84,7 +81,7 @@ class SetupPage {
 	}
 
 	/**
-	 * Build the URL of the setup page (WC Settings → WooCommerce for Claude → Setup).
+	 * Build the URL of the DIY setup page.
 	 *
 	 * @param array<string,string|int> $args Extra query args.
 	 * @return string
@@ -192,7 +189,7 @@ class SetupPage {
 
 	/**
 	 * Render the setup view. Called by SettingsPage::output() when the
-	 * Setup section is active. Outputs HTML directly.
+	 * DIY section is active. Outputs HTML directly.
 	 *
 	 * Computes `$is_owner` — whether the current user is the WP user
 	 * the WC API key is bound to. WC API keys authenticate as their
@@ -392,23 +389,6 @@ class SetupPage {
 	}
 
 	/**
-	 * Flip the anonymised-usage-data toggle. The desired end state is
-	 * passed in the `enable` query arg (`1` = on, `0` = off) so the link
-	 * is idempotent under double-submit — clicking the same nonced URL
-	 * twice lands on the same value rather than racing back to the prior
-	 * state.
-	 */
-	public static function handle_toggle_telemetry() {
-		self::guard( self::ACTION_TOGGLE_TELEMETRY );
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce already verified by self::guard().
-		$enable = isset( $_GET['enable'] ) && '1' === (string) $_GET['enable'];
-		update_option( self::TELEMETRY_OPTION, $enable ? 'yes' : 'no' );
-
-		self::redirect( $enable ? 'telemetry_enabled' : 'telemetry_disabled' );
-	}
-
-	/**
 	 * Add a "Setup" link to the plugin's row on the Plugins screen.
 	 *
 	 * @param array<int|string,string> $links Existing links.
@@ -428,8 +408,8 @@ class SetupPage {
 	}
 
 	/**
-	 * Enqueue the page's CSS and JS, only on the WC Settings → Hey
-	 * Woo Setup section.
+	 * Enqueue the page's CSS and JS, only on the WC Settings →
+	 * WooCommerce for Claude DIY section.
 	 *
 	 * @param string $hook_suffix Current admin hook suffix.
 	 */
@@ -453,11 +433,7 @@ class SetupPage {
 		wp_enqueue_style( 'woocommerce-claude-setup', $base_url . 'setup.css', array(), $css_ver );
 		wp_enqueue_script( 'woocommerce-claude-setup', $base_url . 'setup.js', array(), $js_ver, true );
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$sec = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
-		if ( 'setup' === $sec ) {
-			wp_add_inline_style( 'woocommerce-claude-setup', '#mainform > p.submit { display: none; }' );
-		}
+		wp_add_inline_style( 'woocommerce-claude-setup', '#mainform > p.submit { display: none; }' );
 	}
 
 	/**
@@ -479,7 +455,7 @@ class SetupPage {
 		$sec  = isset( $_GET['section'] ) ? sanitize_key( wp_unslash( $_GET['section'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && ( '' === $sec || 'setup' === $sec );
+		return 'wc-settings' === $page && self::SETTINGS_TAB === $tab && 'setup' === $sec;
 	}
 
 	/**

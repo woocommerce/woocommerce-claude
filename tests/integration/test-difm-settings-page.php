@@ -6,6 +6,7 @@
  */
 
 use WooCommerce\Claude\Settings\SettingsPage;
+use WooCommerce\Claude\Setup\SetupPage;
 
 /**
  * Tests for SettingsPage DIFM API-key handling.
@@ -23,13 +24,19 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	 * Tear down persisted options and hooks.
 	 */
 	public function tear_down() {
+		global $current_section;
+
 		remove_all_filters( 'pre_http_request' );
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
-		$_POST = array();
+		delete_option( SetupPage::TELEMETRY_OPTION );
+		$_POST           = array();
+		$current_section = '';
 
 		if ( $this->settings_page ) {
 			remove_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this->settings_page, 'render_api_key_field' ) );
+			remove_action( 'woocommerce_admin_field_woocommerce_claude_telemetry', array( $this->settings_page, 'render_telemetry_field' ) );
 			remove_filter( 'woocommerce_admin_settings_sanitize_option_' . SettingsPage::DIFM_API_KEY_OPTION, array( $this->settings_page, 'sanitize_api_key_option' ), 10 );
+			remove_action( 'woocommerce_settings_save_woocommerce-claude', array( $this->settings_page, 'save_telemetry_option' ) );
 			remove_action( 'woocommerce_settings_save_woocommerce-claude', array( $this->settings_page, 'validate_api_key_on_save' ) );
 		}
 
@@ -47,6 +54,74 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'sk-ant-real-secret', $html );
 		$this->assertStringContainsString( SettingsPage::DIFM_API_KEY_SENTINEL, $html );
 		$this->assertStringContainsString( 'type="password"', $html );
+	}
+
+	/**
+	 * The WooCommerce settings sub-navigation keeps AI, DIY, and preferences separate.
+	 */
+	public function test_sections_include_ai_insights_diy_and_settings() {
+		$this->assertSame(
+			array(
+				''         => 'AI Insights',
+				'setup'    => 'DIY',
+				'settings' => 'Settings',
+			),
+			$this->settings_page()->get_sections()
+		);
+	}
+
+	/**
+	 * Usage tracking belongs in Settings, not in the AI Insights key section.
+	 */
+	public function test_ai_insights_section_does_not_render_usage_tracking() {
+		$html = $this->render_settings_html();
+
+		$this->assertStringNotContainsString( 'Usage tracking', $html );
+		$this->assertStringNotContainsString( 'woocommerce-claude-telemetry-optin', $html );
+	}
+
+	/**
+	 * The Settings section renders the native WooCommerce usage-tracking checkbox.
+	 */
+	public function test_settings_section_renders_usage_tracking_toggle() {
+		update_option( SetupPage::TELEMETRY_OPTION, 'yes' );
+
+		$html = $this->render_settings_html( 'get_settings_for_settings_section' );
+
+		$this->assertStringContainsString( 'Usage tracking', $html );
+		$this->assertStringContainsString( 'id="woocommerce-claude-telemetry-optin"', $html );
+		$this->assertStringContainsString( 'name="' . SetupPage::TELEMETRY_OPTION . '"', $html );
+		$this->assertStringContainsString( 'Share anonymised usage data to help improve WooCommerce for Claude', $html );
+		$this->assertStringContainsString( 'Learn more about usage tracking.', $html );
+		$this->assertStringContainsString( 'checked', $html );
+	}
+
+	/**
+	 * Saving another section must not treat the missing checkbox as an opt-out.
+	 */
+	public function test_usage_tracking_save_is_scoped_to_settings_section() {
+		global $current_section;
+
+		update_option( SetupPage::TELEMETRY_OPTION, 'yes' );
+
+		$current_section = '';
+		$_POST           = array();
+		$this->settings_page()->save_telemetry_option();
+
+		$this->assertSame( 'yes', get_option( SetupPage::TELEMETRY_OPTION ) );
+
+		$current_section = 'settings';
+		$_POST           = array();
+		$this->settings_page()->save_telemetry_option();
+
+		$this->assertSame( 'no', get_option( SetupPage::TELEMETRY_OPTION ) );
+
+		$_POST = array(
+			SetupPage::TELEMETRY_OPTION => 'yes',
+		);
+		$this->settings_page()->save_telemetry_option();
+
+		$this->assertSame( 'yes', get_option( SetupPage::TELEMETRY_OPTION ) );
 	}
 
 	/**
@@ -148,11 +223,12 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	/**
 	 * Render the settings fields to HTML.
 	 *
+	 * @param string $method_name Protected settings method to invoke.
 	 * @return string
 	 */
-	private function render_settings_html() {
+	private function render_settings_html( $method_name = 'get_settings_for_default_section' ) {
 		ob_start();
-		\WC_Admin_Settings::output_fields( $this->get_settings_fields() );
+		\WC_Admin_Settings::output_fields( $this->get_settings_fields( $method_name ) );
 		return ob_get_clean();
 	}
 
@@ -168,12 +244,13 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Return the default section fields from the protected settings method.
+	 * Return settings fields from the requested protected settings method.
 	 *
+	 * @param string $method_name Protected settings method to invoke.
 	 * @return array
 	 */
-	private function get_settings_fields() {
-		$method = new \ReflectionMethod( $this->settings_page(), 'get_settings_for_default_section' );
+	private function get_settings_fields( $method_name = 'get_settings_for_default_section' ) {
+		$method = new \ReflectionMethod( $this->settings_page(), $method_name );
 		$method->setAccessible( true );
 		return $method->invoke( $this->settings_page() );
 	}
