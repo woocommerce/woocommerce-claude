@@ -58,6 +58,13 @@ class DifmRestController {
 	const PENDING_LARGE_RANGE_PREFIX = 'woocommerce_claude_difm_large_range_';
 
 	/**
+	 * Workflow slug active for the current request.
+	 *
+	 * @var string
+	 */
+	private $active_workflow_slug = '';
+
+	/**
 	 * Anthropic-visible tool names mapped to registered WordPress abilities.
 	 *
 	 * DIFM exposes the verb-shaped analytics surface rather than the legacy
@@ -174,10 +181,9 @@ class DifmRestController {
 			return rest_ensure_response( array( 'status' => 'no_key' ) );
 		}
 
-		$user_message  = (string) $request->get_param( 'message' );
-		$raw_history   = (array) $request->get_param( 'history' );
-		$client        = new AnthropicClient();
-		$system_prompt = $this->build_system_prompt();
+		$user_message = (string) $request->get_param( 'message' );
+		$raw_history  = (array) $request->get_param( 'history' );
+		$client       = new AnthropicClient();
 
 		$pending_large_range = $this->get_pending_large_range_request();
 		if ( is_array( $pending_large_range ) ) {
@@ -192,6 +198,10 @@ class DifmRestController {
 			}
 
 			if ( $this->is_large_range_affirmation( $user_message ) ) {
+				$pending_workflow           = $this->workflow_from_pending_large_range( $pending_large_range );
+				$this->active_workflow_slug = is_array( $pending_workflow ) ? (string) $pending_workflow['slug'] : '';
+				$this->log_workflow_selected( $pending_workflow );
+				$system_prompt = $this->build_system_prompt( $pending_workflow );
 				return $this->answer_confirmed_large_range_request( $client, $system_prompt, $raw_history, $user_message, $pending_large_range );
 			}
 
@@ -203,8 +213,13 @@ class DifmRestController {
 			);
 		}
 
-		$messages = $this->build_conversation_messages( $raw_history, $user_message );
-		$tools    = $this->build_tool_definitions();
+		$workflow                   = WorkflowSkills::select_for_message( $user_message );
+		$this->active_workflow_slug = is_array( $workflow ) ? (string) $workflow['slug'] : '';
+		$this->log_workflow_selected( $workflow );
+
+		$system_prompt = $this->build_system_prompt( $workflow );
+		$messages      = $this->build_conversation_messages( $raw_history, $user_message );
+		$tools         = $this->build_tool_definitions();
 
 		if ( is_wp_error( $tools ) ) {
 			return rest_ensure_response(
@@ -471,9 +486,10 @@ class DifmRestController {
 	/**
 	 * Build the system prompt for the conversational assistant.
 	 *
+	 * @param array<string,string>|null $workflow Selected workflow, if any.
 	 * @return string
 	 */
-	private function build_system_prompt() {
+	private function build_system_prompt( $workflow = null ) {
 		$store_name           = get_bloginfo( 'name' );
 		$store_url            = get_bloginfo( 'url' );
 		$currency             = get_woocommerce_currency();
@@ -482,7 +498,7 @@ class DifmRestController {
 		$today_ymd            = $today->format( 'Y-m-d' );
 		$last_two_weeks_start = $today->modify( '-13 days' )->format( 'Y-m-d' );
 
-		return sprintf(
+		$prompt = sprintf(
 			'You are an AI assistant for the WooCommerce store "%1$s" (%2$s). '
 			. 'Today is %3$s. The store uses %4$s as its currency. '
 			. 'Use the available tools to fetch live store data — always call the relevant '
@@ -506,6 +522,15 @@ class DifmRestController {
 			esc_html( $last_two_weeks_start ),
 			esc_html( $today_ymd )
 		);
+
+		if ( is_array( $workflow ) ) {
+			$workflow_prompt = WorkflowSkills::prompt_for_difm( $workflow );
+			if ( '' !== $workflow_prompt ) {
+				$prompt .= "\n\n" . $workflow_prompt;
+			}
+		}
+
+		return $prompt;
 	}
 
 	/**
@@ -667,6 +692,27 @@ class DifmRestController {
 		}
 
 		TelemetryHandler::record( 'difm_tool_result', $data );
+	}
+
+	/**
+	 * Log the selected workflow slug without recording merchant prompt text.
+	 *
+	 * @param array<string,string>|null $workflow Selected workflow, if any.
+	 * @return void
+	 */
+	private function log_workflow_selected( $workflow ) {
+		if ( ! is_array( $workflow ) || empty( $workflow['slug'] ) ) {
+			return;
+		}
+
+		TelemetryHandler::record(
+			'difm_workflow_selected',
+			array(
+				'event'    => 'difm_workflow_selected',
+				'workflow' => (string) $workflow['slug'],
+				'match'    => isset( $workflow['match'] ) ? (string) $workflow['match'] : '',
+			)
+		);
 	}
 
 	/**
@@ -1079,6 +1125,7 @@ class DifmRestController {
 				'input'         => $input,
 				'error_data'    => $error_data,
 				'cost_estimate' => isset( $error_data['cost_estimate'] ) && is_array( $error_data['cost_estimate'] ) ? $error_data['cost_estimate'] : array(),
+				'workflow_slug' => $this->active_workflow_slug,
 				'created_at'    => time(),
 			),
 			$ttl
@@ -1093,6 +1140,27 @@ class DifmRestController {
 	private function get_pending_large_range_request() {
 		$pending = get_transient( $this->get_pending_large_range_transient_key() );
 		return is_array( $pending ) ? $pending : null;
+	}
+
+	/**
+	 * Restore a workflow selected before a large-range confirmation.
+	 *
+	 * @param array $pending Stored pending large-range request.
+	 * @return array<string,string>|null
+	 */
+	private function workflow_from_pending_large_range( array $pending ) {
+		$slug = isset( $pending['workflow_slug'] ) ? sanitize_key( (string) $pending['workflow_slug'] ) : '';
+		if ( '' === $slug ) {
+			return null;
+		}
+
+		$workflow = WorkflowSkills::get( $slug );
+		if ( ! is_array( $workflow ) ) {
+			return null;
+		}
+
+		$workflow['match'] = 'pending_large_range';
+		return $workflow;
 	}
 
 	/**
