@@ -31,6 +31,7 @@ class GetReadinessScoreAbility {
 				'label'               => __( 'Get readiness score', 'woocommerce-claude' ),
 				'description'         => __( "Get the store's AI readiness score (0-100) with breakdown by factor: product completeness, schema coverage, policy completeness, and content quality. Requires the WooCommerce for Claude plugin.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(

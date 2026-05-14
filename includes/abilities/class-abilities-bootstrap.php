@@ -31,6 +31,18 @@ class AbilitiesBootstrap {
 	const CATEGORY = 'wc-analytics';
 
 	/**
+	 * Return the schema for abilities that accept no input.
+	 *
+	 * @return array
+	 */
+	public static function empty_input_schema() {
+		return array(
+			'type'       => 'object',
+			'properties' => array(),
+		);
+	}
+
+	/**
 	 * Register the ability category. Must be called on the
 	 * wp_abilities_api_categories_init action (separate from the ability
 	 * init hook).

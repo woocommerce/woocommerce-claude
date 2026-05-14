@@ -34,6 +34,7 @@ class StoreProfileAbility {
 				'label'               => __( 'Store profile', 'woocommerce-claude' ),
 				'description'         => __( 'Store profile — identity, configuration, payment methods, shipping zones, features. Aggregated via the plugin\'s knowledge providers.', 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
+				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
 				'permission_callback' => array( __CLASS__, 'permission_check' ),
 				'meta'                => array(

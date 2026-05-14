@@ -555,6 +555,96 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Zero-argument tool calls are replayed to Anthropic with an object input.
+	 */
+	public function test_chat_replays_empty_tool_input_as_json_object() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$call_count           = 0;
+		$second_call_body     = null;
+		$second_call_raw_body = '';
+		add_filter(
+			'pre_http_request',
+			static function ( $preempt, $parsed_args ) use ( &$call_count, &$second_call_body, &$second_call_raw_body ) {
+				++$call_count;
+
+				if ( 1 === $call_count ) {
+					return array(
+						'response' => array(
+							'code'    => 200,
+							'message' => 'OK',
+						),
+						'body'     => wp_json_encode(
+							array(
+								'type'        => 'message',
+								'stop_reason' => 'tool_use',
+								'content'     => array(
+									array(
+										'type'  => 'tool_use',
+										'id'    => 'toolu_readiness',
+										'name'  => 'get_readiness_score',
+										'input' => array(),
+									),
+								),
+							)
+						),
+						'headers'  => array(),
+					);
+				}
+
+				$second_call_raw_body = isset( $parsed_args['body'] ) ? (string) $parsed_args['body'] : '';
+				$second_call_body     = json_decode( $second_call_raw_body, true );
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'        => 'message',
+							'stop_reason' => 'end_turn',
+							'content'     => array(
+								array(
+									'type' => 'text',
+									'text' => 'Your readiness score is available.',
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_chat( 'Can I get my readiness score?' );
+		$data     = $response->get_data();
+
+		remove_all_filters( 'pre_http_request' );
+
+		$this->assertSame( 2, $call_count );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'Your readiness score is available.', $data['reply'] );
+		$this->assertNotNull( $second_call_body );
+		$messages            = $second_call_body['messages'];
+		$last_user_turn      = end( $messages );
+		$tool_result_content = json_decode( $last_user_turn['content'][0]['content'], true );
+		$this->assertIsArray( $tool_result_content );
+		$this->assertArrayHasKey( 'overall_score', $tool_result_content );
+		$this->assertArrayNotHasKey( 'error_code', $tool_result_content );
+		$this->assertStringContainsString(
+			'"type":"tool_use","id":"toolu_readiness","name":"get_readiness_score","input":{}',
+			$second_call_raw_body
+		);
+		$this->assertStringNotContainsString(
+			'"type":"tool_use","id":"toolu_readiness","name":"get_readiness_score","input":[]',
+			$second_call_raw_body
+		);
+	}
+
+	/**
 	 * Text written before the final render_chart tool call is returned with the chart.
 	 */
 	public function test_chat_returns_text_and_chart_from_final_render_chart_call() {
