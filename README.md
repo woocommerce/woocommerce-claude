@@ -9,7 +9,7 @@ WooCommerce for Claude adds the **intelligence layer** on top: structured store 
 Core MCP: "Claude can talk to your store."
 WooCommerce for Claude: "Claude can understand your store and help you run it better."
 
-This monorepo also contains the [`plugins/hey-woo/`](./plugins/hey-woo/) scaffold for the Hey Woo bring-your-own-key plugin. For now it proves the second plugin package and release zip path against the shared `woocommerce/commerce-abilities` package; the BYOK admin experience remains in WooCommerce for Claude until a later extraction PR.
+This monorepo also contains the [`plugins/hey-woo/`](./plugins/hey-woo/) development copy of the Hey Woo bring-your-own-key admin chat plugin. Hey Woo is tested here against the shared `woocommerce/commerce-abilities` package, but its public issue tracking and plugin releases live in the dedicated [`woocommerce/hey-woo`](https://github.com/woocommerce/hey-woo) repository.
 
 ---
 
@@ -280,10 +280,13 @@ curl -X POST -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/m
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 
-# Build release zips:
+# Build WooCommerce for Claude release zips:
 pnpm run plugin-zip
-pnpm run hey-woo-plugin-zip
 pnpm run agent-plugin-zip
+
+# Build Hey Woo locally as an integration/package smoke test.
+# The public Hey Woo release is produced from https://github.com/woocommerce/hey-woo.
+pnpm run hey-woo-plugin-zip
 ```
 
 ### Pre-push checks
