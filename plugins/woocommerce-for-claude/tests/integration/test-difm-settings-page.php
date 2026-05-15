@@ -41,6 +41,10 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		delete_option( SettingsPage::DIFM_PROVIDER_OPTION );
 		delete_option( 'woocommerce_claude_difm_provider_migrated' );
 		delete_option( SetupPage::TELEMETRY_OPTION );
+		update_option(
+			'active_plugins',
+			array_values( array_diff( (array) get_option( 'active_plugins', array() ), array( 'hey-woo/hey-woo.php' ) ) )
+		);
 		( new RestApiKey() )->revoke();
 		$_POST           = array();
 		$current_section = '';
@@ -116,6 +120,28 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<details class="woocommerce-claude-setup__accordion" open>', $html );
 		$this->assertStringNotContainsString( 'Download Claude workflow skills', $html );
 		$this->assertStringNotContainsString( 'You can set up one or both options.', $html );
+	}
+
+	/**
+	 * Hey Woo owns the WordPress-admin chat setup when both plugins are active.
+	 */
+	public function test_default_section_hides_admin_chat_setup_when_hey_woo_is_active() {
+		global $current_section;
+
+		$this->mark_hey_woo_active();
+
+		$html = $this->render_default_output();
+
+		$this->assertStringContainsString( 'Ask AI in WordPress admin is managed by Hey Woo', $html );
+		$this->assertStringContainsString( 'Connect Claude apps', $html );
+		$this->assertStringNotContainsString( 'Chat in WordPress admin', $html );
+		$this->assertStringNotContainsString( 'Anthropic API Key', $html );
+
+		$current_section = 'ai-insights';
+		$html            = $this->render_default_output();
+
+		$this->assertStringContainsString( 'Ask AI is managed by Hey Woo', $html );
+		$this->assertStringNotContainsString( 'type="password"', $html );
 	}
 
 	/**
@@ -626,6 +652,20 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		}
 
 		return $this->settings_page;
+	}
+
+	/**
+	 * Mark Hey Woo as active in the isolated test options table.
+	 *
+	 * @return void
+	 */
+	private function mark_hey_woo_active() {
+		$active_plugins = (array) get_option( 'active_plugins', array() );
+		if ( ! in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
+			$active_plugins[] = 'hey-woo/hey-woo.php';
+		}
+
+		update_option( 'active_plugins', $active_plugins );
 	}
 
 	/**

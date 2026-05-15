@@ -229,6 +229,11 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		if ( 'ai-insights' === $current_section ) {
+			if ( $this->is_hey_woo_active() ) {
+				$this->render_hey_woo_admin_chat_notice();
+				return;
+			}
+
 			\WC_Admin_Settings::output_fields( $this->get_settings_for_ai_insights_section() );
 			return;
 		}
@@ -244,7 +249,8 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	private function render_setup_overview() {
 		$resolver         = new DifmProviderResolver();
-		$has_ai_provider  = $resolver->has_configured_provider();
+		$hey_woo_active   = $this->is_hey_woo_active();
+		$has_ai_provider  = ! $hey_woo_active && $resolver->has_configured_provider();
 		$external_state   = ( new RestApiKey() )->existing_state();
 		$has_external_key = null !== $external_state;
 		$has_external_use = $has_external_key && 0 < (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 );
@@ -274,7 +280,11 @@ class SettingsPage extends \WC_Settings_Page {
 		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
 			<section class="woocommerce-claude-setup__intro">
 				<h2><?php esc_html_e( 'Set up AI for your store', 'woocommerce-claude' ); ?></h2>
-				<p><?php esc_html_e( 'Connect Claude apps to this store, use AI in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
+				<?php if ( $hey_woo_active ) : ?>
+					<p><?php esc_html_e( 'Connect Claude apps to this store. Ask AI in WordPress admin is managed by Hey Woo.', 'woocommerce-claude' ); ?></p>
+				<?php else : ?>
+					<p><?php esc_html_e( 'Connect Claude apps to this store, use AI in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
+				<?php endif; ?>
 			</section>
 
 			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $external_open ); ?>>
@@ -293,21 +303,39 @@ class SettingsPage extends \WC_Settings_Page {
 				</div>
 			</details>
 
-			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
-				<summary class="woocommerce-claude-setup__accordion-summary">
-					<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
-					<span class="woocommerce-claude-setup__accordion-text">
-						<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
-						<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask AI about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
-					</span>
-					<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
-						<?php echo esc_html( $ai_status_label ); ?>
-					</span>
-				</summary>
-				<div class="woocommerce-claude-setup__accordion-panel">
-					<?php $this->render_ai_insights_setup_panel( $has_ai_provider, $ai_insights_url, $show_ai_insights ); ?>
-				</div>
-			</details>
+			<?php if ( ! $hey_woo_active ) : ?>
+				<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
+					<summary class="woocommerce-claude-setup__accordion-summary">
+						<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
+						<span class="woocommerce-claude-setup__accordion-text">
+							<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
+							<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask AI about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
+						</span>
+						<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
+							<?php echo esc_html( $ai_status_label ); ?>
+						</span>
+					</summary>
+					<div class="woocommerce-claude-setup__accordion-panel">
+						<?php $this->render_ai_insights_setup_panel( $has_ai_provider, $ai_insights_url, $show_ai_insights ); ?>
+					</div>
+				</details>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the direct AI Insights settings section when Hey Woo owns the chat.
+	 *
+	 * @return void
+	 */
+	private function render_hey_woo_admin_chat_notice() {
+		?>
+		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
+			<section class="woocommerce-claude-setup__intro">
+				<h2><?php esc_html_e( 'Ask AI is managed by Hey Woo', 'woocommerce-claude' ); ?></h2>
+				<p><?php esc_html_e( 'Use the Hey Woo settings page to configure the AI provider for WordPress-admin chat.', 'woocommerce-claude' ); ?></p>
+			</section>
 		</div>
 		<?php
 	}
@@ -1072,6 +1100,29 @@ class SettingsPage extends \WC_Settings_Page {
 		 * @param string $constant_name Constant name, or empty string.
 		 */
 		return (string) apply_filters( 'woocommerce_claude_difm_anthropic_key_constant_name', $constant_name );
+	}
+
+	/**
+	 * Whether the Hey Woo plugin owns the WordPress-admin chat surface.
+	 *
+	 * @return bool
+	 */
+	private function is_hey_woo_active() {
+		if ( defined( 'HEY_WOO_PLUGIN_FILE' ) ) {
+			return true;
+		}
+
+		$active_plugins = (array) get_option( 'active_plugins', array() );
+		if ( in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
+			return true;
+		}
+
+		if ( is_multisite() ) {
+			$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
+			return isset( $network_plugins['hey-woo/hey-woo.php'] );
+		}
+
+		return false;
 	}
 
 	/**
