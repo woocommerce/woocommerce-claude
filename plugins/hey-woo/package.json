@@ -9,9 +9,50 @@
     "README.md",
     "LICENSE",
     "hey-woo.php",
+    "build",
+    "includes",
+    "skills",
     "vendor"
   ],
   "scripts": {
-    "plugin-zip": "../woocommerce-for-claude/node_modules/.bin/wp-scripts plugin-zip"
+    "build": "NODE_PATH=../woocommerce-for-claude/node_modules ../woocommerce-for-claude/node_modules/.bin/wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "build:production": "NODE_ENV=production NODE_PATH=../woocommerce-for-claude/node_modules ../woocommerce-for-claude/node_modules/.bin/wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "plugin-zip": "pnpm run build:production && ../woocommerce-for-claude/node_modules/.bin/wp-scripts plugin-zip"
+  },
+  "wpPlugin": {
+    "name": "heywoo",
+    "packageNamespace": "hey-woo",
+    "handlePrefix": "hey-woo",
+    "pages": [
+      {
+        "id": "hey-woo-insights",
+        "init": [ "@hey-woo/init" ]
+      }
+    ],
+    "externalNamespaces": {
+      "wordpress": {
+        "global": "wp",
+        "handlePrefix": "wp"
+      }
+    }
+  },
+  "dependencies": {
+    "@automattic/charts": "^1.3.0",
+    "@wordpress/boot": "0.11.0",
+    "@wordpress/components": "33.0.0",
+    "@wordpress/data": "10.44.0",
+    "@wordpress/element": "^6.35.0",
+    "@wordpress/i18n": "^6.9.0",
+    "@wordpress/icons": "^12.0.0",
+    "@wordpress/route": "0.10.0",
+    "markdown-it": "^14.1.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.0",
+    "@wordpress/build": "0.13.0",
+    "@wordpress/scripts": "32.1.0",
+    "browserslist": "4.28.2"
   }
 }

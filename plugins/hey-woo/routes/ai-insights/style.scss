@@ -1,0 +1,460 @@
+/**
+ * Hey Woo conversational assistant — admin page styles.
+ *
+ * Scoped to .hey-woo-page to avoid leaking into the boot shell chrome.
+ */
+
+// ── Page shell ──────────────────────────────────────────────────────────────
+
+.hey-woo-page {
+	display: flex;
+	flex-direction: column;
+	height: calc(100vh - 16px);
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 0 16px;
+	box-sizing: border-box;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	color: #1e1e1e;
+}
+
+// ── Chat header ─────────────────────────────────────────────────────────────
+
+.hey-woo-chat-header {
+	padding: 18px 0 14px;
+	border-bottom: 1px solid #e0e0e0;
+	flex-shrink: 0;
+
+	&__title {
+		font-size: 20px;
+		font-weight: 600;
+		margin: 0 0 4px;
+		color: #1e1e1e;
+	}
+
+	&__subtitle {
+		font-size: 13px;
+		color: #757575;
+		margin: 0;
+	}
+}
+
+// ── Message history ──────────────────────────────────────────────────────────
+
+.hey-woo-messages {
+	flex: 1;
+	overflow-y: auto;
+	padding: 20px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	min-height: 0;
+
+	&__empty {
+		color: #757575;
+		font-size: 14px;
+		text-align: center;
+		margin: auto;
+		max-width: 400px;
+		line-height: 1.6;
+	}
+}
+
+// ── Chat bubbles ─────────────────────────────────────────────────────────────
+
+.hey-woo-bubble {
+	max-width: 76%;
+	padding: 12px 14px;
+	border-radius: 8px;
+	line-height: 1.55;
+	font-size: 14px;
+	box-sizing: border-box;
+
+	&__role {
+		display: block;
+		font-size: 11px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 4px;
+		opacity: 0.65;
+	}
+
+	&__content {
+		margin: 0;
+		word-break: break-word;
+
+		&--plain {
+			white-space: pre-wrap;
+		}
+
+		&--markdown {
+			overflow-x: auto;
+			white-space: normal;
+
+			p,
+			ul,
+			ol,
+			h1,
+			h2,
+			h3,
+			h4,
+			h5,
+			h6,
+			table,
+			hr {
+				margin: 0 0 10px;
+			}
+
+			> :last-child {
+				margin-bottom: 0;
+			}
+
+			h1,
+			h2,
+			h3,
+			h4,
+			h5,
+			h6 {
+				font-size: 14px;
+				line-height: 1.4;
+				font-weight: 600;
+			}
+
+			ul,
+			ol {
+				padding-left: 20px;
+			}
+
+			li + li {
+				margin-top: 4px;
+			}
+
+			a {
+				color: #007cba;
+			}
+
+			hr {
+				border: 0;
+				border-top: 1px solid #dcdcde;
+			}
+
+			table {
+				width: max-content;
+				min-width: 100%;
+				max-width: 100%;
+				border-collapse: collapse;
+				font-size: 13px;
+				line-height: 1.4;
+			}
+
+			th,
+			td {
+				padding: 6px 8px;
+				border: 1px solid #dcdcde;
+				text-align: left;
+				vertical-align: top;
+			}
+
+			th {
+				background: #f6f7f7;
+				font-weight: 600;
+			}
+		}
+	}
+
+	&--user {
+		align-self: flex-end;
+		background: #3858e9;
+		color: #fff;
+
+		.hey-woo-bubble__role {
+			color: rgba(255, 255, 255, 0.8);
+		}
+	}
+
+	&--assistant {
+		align-self: flex-start;
+		background: #fff;
+		border: 1px solid #e0e0e0;
+		color: #1e1e1e;
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02);
+	}
+
+	&--typing {
+		padding: 12px 16px;
+	}
+}
+
+// ── Typing indicator ─────────────────────────────────────────────────────────
+
+.hey-woo-typing-indicator {
+	display: inline-flex;
+	gap: 4px;
+	align-items: center;
+	height: 18px;
+
+	span {
+		width: 6px;
+		height: 6px;
+		background: #757575;
+		border-radius: 50%;
+		animation: hey-woo-bounce 1.2s ease-in-out infinite;
+
+		&:nth-child(1) { animation-delay: 0s; }
+		&:nth-child(2) { animation-delay: 0.2s; }
+		&:nth-child(3) { animation-delay: 0.4s; }
+	}
+}
+
+@keyframes hey-woo-bounce {
+	0%, 80%, 100% { transform: translateY(0); }
+	40%           { transform: translateY(-6px); }
+}
+
+// ── Compose bar ──────────────────────────────────────────────────────────────
+
+.hey-woo-input {
+	display: flex;
+	align-items: flex-end;
+	gap: 12px;
+	padding: 12px 0;
+	border-top: 1px solid #e0e0e0;
+	flex-shrink: 0;
+	background: #fff;
+
+	&__main {
+		position: relative;
+		flex: 1;
+		min-width: 0;
+	}
+
+	&__textarea {
+		margin-bottom: 0;
+
+		.components-base-control__field {
+			margin-bottom: 0;
+		}
+
+		.components-textarea-control__input {
+			min-height: 48px;
+			padding: 10px 12px;
+			resize: none;
+			line-height: 1.45;
+		}
+
+		.components-textarea-control__input:disabled {
+			background: #f0f0f1;
+			cursor: not-allowed;
+		}
+	}
+
+	&__commands {
+		position: absolute;
+		right: 0;
+		bottom: calc(100% + 8px);
+		left: 0;
+		z-index: 5;
+		max-height: 280px;
+		overflow-y: auto;
+		padding: 4px;
+		border: 1px solid #dcdcde;
+		border-radius: 4px;
+		background: #fff;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	&__command {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 2px 12px;
+		width: 100%;
+		min-height: 48px;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: #1e1e1e;
+		text-align: left;
+		cursor: pointer;
+
+		&:hover,
+		&.is-active {
+			background: #f0f6fc;
+		}
+
+		&:focus-visible {
+			outline: 2px solid #3858e9;
+			outline-offset: -2px;
+		}
+	}
+
+	&__command-title {
+		min-width: 0;
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.35;
+	}
+
+	&__command-slug {
+		color: #3858e9;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+		font-size: 12px;
+		line-height: 1.35;
+		white-space: nowrap;
+	}
+
+	&__command-description {
+		grid-column: 1 / -1;
+		overflow: hidden;
+		color: #757575;
+		font-size: 12px;
+		line-height: 1.35;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&__commands-empty {
+		padding: 10px;
+		color: #757575;
+		font-size: 13px;
+	}
+
+	&__send {
+		white-space: nowrap;
+		flex-shrink: 0;
+
+		&:disabled,
+		&[aria-disabled="true"] {
+			opacity: 0.45;
+			cursor: default;
+		}
+	}
+}
+
+@media (max-width: 720px) {
+	.hey-woo-input {
+		&__command {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		&__command-slug {
+			white-space: normal;
+			word-break: break-word;
+		}
+	}
+}
+
+// ── Error bar ────────────────────────────────────────────────────────────────
+
+.hey-woo-error-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 10px 14px;
+	background: #fcf0f1;
+	border: 1px solid #cc1818;
+	border-radius: 4px;
+	font-size: 13px;
+	color: #cc1818;
+
+	&__dismiss {
+		color: #cc1818;
+		font-size: 12px;
+		height: auto;
+		padding: 0 4px;
+	}
+}
+
+// ── No-key / empty states ────────────────────────────────────────────────────
+
+.hey-woo-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	text-align: center;
+	padding: 40px 24px;
+	gap: 16px;
+
+	&__icon {
+		font-size: 48px;
+		line-height: 1;
+	}
+
+	&__heading {
+		font-size: 20px;
+		font-weight: 600;
+		margin: 0;
+		color: #1e1e1e;
+	}
+
+	&__message {
+		font-size: 14px;
+		color: #50575e;
+		max-width: 440px;
+		line-height: 1.6;
+		margin: 0;
+	}
+
+	&__cta {
+		margin-top: 8px;
+	}
+}
+
+// ── Inline charts ────────────────────────────────────────────────────────────
+
+.hey-woo-charts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	grid-auto-rows: auto;
+	gap: 10px;
+	margin-top: 12px;
+
+	// Cap at two columns regardless of bubble width.
+	> * {
+		min-width: 0; // prevent grid blowout
+	}
+
+	&:has(> :nth-child(3)) {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+// Widen the assistant bubble when it contains charts.
+.hey-woo-bubble--assistant:has(.hey-woo-charts) {
+	max-width: 92%;
+}
+
+.hey-woo-chart {
+	margin: 0;
+	padding: 0;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	overflow: hidden;
+	background: #fff;
+
+	&__title {
+		padding: 10px 14px 4px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #3c434a;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+	}
+
+	&__canvas {
+		height: 260px;
+		padding: 4px 8px 8px;
+		overflow-x: auto;
+		overflow-y: hidden;
+	}
+
+	&__plot {
+		width: 100%;
+		min-width: 100%;
+		height: 100%;
+	}
+}

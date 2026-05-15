@@ -54,9 +54,9 @@ fi
 step "PHPCS (WordPress-Extra + Docs + WooCommerce)"
 composer --working-dir="$PLUGIN_DIR" run phpcs
 
-step "Hey Woo scaffold checks"
+step "Hey Woo checks"
 composer --working-dir="$HEY_WOO_PLUGIN_DIR" validate --strict
-"$PLUGIN_DIR/vendor/bin/phpcs" --standard="$PLUGIN_DIR/phpcs.xml.dist" "$HEY_WOO_PLUGIN_DIR/hey-woo.php"
+"$PLUGIN_DIR/vendor/bin/phpcs" --standard="$PLUGIN_DIR/phpcs.xml.dist" --runtime-set text_domain hey-woo "$HEY_WOO_PLUGIN_DIR/hey-woo.php" "$HEY_WOO_PLUGIN_DIR/includes"
 
 # 4. Composer dependency audit. Respects config.audit.ignore in the plugin's
 #    composer.json —
