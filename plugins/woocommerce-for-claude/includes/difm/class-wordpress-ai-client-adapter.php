@@ -439,8 +439,9 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			$timeout = self::REQUEST_TIMEOUT;
 		}
 
-		$timeout_key = defined( $request_options_class . '::KEY_TIMEOUT' )
-			? constant( $request_options_class . '::KEY_TIMEOUT' )
+		$timeout_key_constant = $request_options_class . '::KEY_TIMEOUT';
+		$timeout_key          = defined( $timeout_key_constant )
+			? constant( $timeout_key_constant )
 			: 'timeout';
 
 		try {
@@ -475,6 +476,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			}
 
 			if ( $this->content_contains_tool_result( $content ) ) {
+				// Mid-loop continuation: the real user prompt is already in history.
 				return __( 'Continue using the tool results.', 'woocommerce-claude' );
 			}
 		}

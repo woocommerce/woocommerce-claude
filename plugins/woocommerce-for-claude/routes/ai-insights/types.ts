@@ -59,6 +59,7 @@ export interface ModuleData {
 	userName: string;
 	currency: string;
 	hasKey: boolean;
+	providerMode: 'connector' | 'legacy';
 	provider: string;
 	conversations: StoredConversation[];
 }

@@ -21,6 +21,9 @@ class DifmProviderResolver {
 
 	/**
 	 * Provider selection values.
+	 *
+	 * `wordpress_ai` exists only to normalise saved values from the earlier
+	 * hybrid provider selector.
 	 */
 	const PROVIDER_AUTO         = 'auto';
 	const PROVIDER_WORDPRESS_AI = 'wordpress_ai';
@@ -67,15 +70,8 @@ class DifmProviderResolver {
 				return $provider;
 			}
 
-			$legacy_values = array(
-				self::PROVIDER_AUTO,
-				self::PROVIDER_WORDPRESS_AI,
-			);
-
-			if ( in_array( $provider, $legacy_values, true ) || ! in_array( $provider, $configured_provider_ids, true ) ) {
-				$default_provider_id = WordPressAiClientAdapter::get_default_provider_id();
-				return '' !== $default_provider_id ? $default_provider_id : self::PROVIDER_AUTO;
-			}
+			$default_provider_id = WordPressAiClientAdapter::get_default_provider_id();
+			return '' !== $default_provider_id ? $default_provider_id : self::PROVIDER_AUTO;
 		}
 
 		return self::PROVIDER_ANTHROPIC === $provider ? self::PROVIDER_ANTHROPIC : self::PROVIDER_AUTO;

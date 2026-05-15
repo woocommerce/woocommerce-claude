@@ -115,6 +115,7 @@ class DifmAdminPage {
 			'userName'      => wp_get_current_user()->display_name,
 			'currency'      => get_woocommerce_currency_symbol(),
 			'hasKey'        => $resolver->has_configured_provider(),
+			'providerMode'  => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
 			'provider'      => DifmProviderResolver::get_selected_provider(),
 			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
 		);

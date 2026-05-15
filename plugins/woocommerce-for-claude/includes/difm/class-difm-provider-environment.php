@@ -241,6 +241,17 @@ class DifmProviderEnvironment {
 				$provider->setRequestAuthentication( new $auth_class( $api_key ) );
 			}
 		} catch ( \Throwable $e ) {
+			if ( function_exists( 'wc_get_logger' ) ) {
+				wc_get_logger()->warning(
+					sprintf(
+						/* translators: 1: AI provider ID, 2: exception message. */
+						__( 'WooCommerce for Claude could not refresh the %1$s AI connector registry credentials after settings save: %2$s', 'woocommerce-claude' ),
+						$provider_id,
+						$e->getMessage()
+					),
+					array( 'source' => 'woocommerce-claude' )
+				);
+			}
 			return;
 		}
 	}

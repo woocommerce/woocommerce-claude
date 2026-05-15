@@ -57,7 +57,6 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
 
 		// Knowledge system.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
