@@ -25,6 +25,15 @@ define( 'WOOCOMMERCE_CLAUDE_VERSION', '0.4.2' );
 define( 'WOOCOMMERCE_CLAUDE_PLUGIN_FILE', __FILE__ );
 define( 'WOOCOMMERCE_CLAUDE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
+$woocommerce_claude_autoload = WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/autoload.php';
+if ( ! class_exists( \WooCommerce\CommerceAbilities\Loader::class ) && file_exists( $woocommerce_claude_autoload ) ) {
+	require_once $woocommerce_claude_autoload;
+}
+
+if ( class_exists( \WooCommerce\CommerceAbilities\Loader::class ) ) {
+	\WooCommerce\CommerceAbilities\Loader::init();
+}
+
 /**
  * Declare HPOS compatibility.
  */

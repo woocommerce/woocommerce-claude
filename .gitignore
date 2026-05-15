@@ -6,6 +6,8 @@ package-lock.json
 # Build artifacts
 build/
 packages/*/build-module/
+plugins/*/build/
+plugins/*/packages/*/build-module/
 *.zip
 .wp-env/
 .wp-env.override.json
@@ -14,7 +16,9 @@ packages/*/build-module/
 
 # Composer dependencies and PHPUnit cache.
 vendor/
+plugins/*/vendor/
 .phpunit.cache/
+plugins/*/.phpunit.cache/
 .phpunit.result.cache
 
 # Local credentials and Claude config.

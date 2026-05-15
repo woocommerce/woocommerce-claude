@@ -5,7 +5,8 @@
     <!-- Files to scan. -->
     <file>woocommerce-claude.php</file>
     <file>includes</file>
-    <file>tools</file>
+    <file>../../php-packages/commerce-abilities/src</file>
+    <file>../../tools</file>
     <file>tests</file>
 
     <!-- Excluded paths. -->
@@ -66,6 +67,6 @@
 
     <!-- Dev tooling scripts run via wp eval-file and don't need full file headers. -->
     <rule ref="Squiz.Commenting.FileComment.Missing">
-        <exclude-pattern>tools/*</exclude-pattern>
+        <exclude-pattern>../../tools/*</exclude-pattern>
     </rule>
 </ruleset>

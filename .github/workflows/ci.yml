@@ -26,13 +26,15 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/composer
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.json') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('plugins/woocommerce-for-claude/composer.json', 'plugins/woocommerce-for-claude/composer.lock', 'php-packages/*/composer.json') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
+        working-directory: plugins/woocommerce-for-claude
         run: composer install --no-progress --prefer-dist --no-interaction
 
       - name: Run PHPCS
+        working-directory: plugins/woocommerce-for-claude
         run: composer run phpcs
 
   phpunit:
@@ -73,14 +75,16 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/composer
-          key: ${{ runner.os }}-composer-${{ hashFiles('composer.json') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('plugins/woocommerce-for-claude/composer.json', 'plugins/woocommerce-for-claude/composer.lock', 'php-packages/*/composer.json') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Composer install
+        working-directory: plugins/woocommerce-for-claude
         run: composer install --no-progress --prefer-dist --no-interaction
 
       - name: Install WP test environment
         run: ./bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 latest
 
       - name: Run PHPUnit
+        working-directory: plugins/woocommerce-for-claude
         run: composer run test-unit
