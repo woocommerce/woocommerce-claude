@@ -25,7 +25,6 @@ class DifmProviderResolver {
 	const PROVIDER_AUTO         = 'auto';
 	const PROVIDER_WORDPRESS_AI = 'wordpress_ai';
 	const PROVIDER_ANTHROPIC    = 'anthropic';
-	const PROVIDER_OPENAI       = 'openai';
 
 	/**
 	 * Return all supported provider option values.
@@ -33,11 +32,13 @@ class DifmProviderResolver {
 	 * @return array<int,string>
 	 */
 	public static function provider_values() {
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
+			return WordPressAiClientAdapter::get_configured_provider_ids();
+		}
+
 		return array(
 			self::PROVIDER_AUTO,
-			self::PROVIDER_WORDPRESS_AI,
 			self::PROVIDER_ANTHROPIC,
-			self::PROVIDER_OPENAI,
 		);
 	}
 
@@ -59,7 +60,25 @@ class DifmProviderResolver {
 	public static function normalise_provider( $provider ) {
 		$provider = is_string( $provider ) ? sanitize_key( $provider ) : self::PROVIDER_AUTO;
 
-		return in_array( $provider, self::provider_values(), true ) ? $provider : self::PROVIDER_AUTO;
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
+			$configured_provider_ids = WordPressAiClientAdapter::get_configured_provider_ids();
+
+			if ( in_array( $provider, $configured_provider_ids, true ) ) {
+				return $provider;
+			}
+
+			$legacy_values = array(
+				self::PROVIDER_AUTO,
+				self::PROVIDER_WORDPRESS_AI,
+			);
+
+			if ( in_array( $provider, $legacy_values, true ) || ! in_array( $provider, $configured_provider_ids, true ) ) {
+				$default_provider_id = WordPressAiClientAdapter::get_default_provider_id();
+				return '' !== $default_provider_id ? $default_provider_id : self::PROVIDER_AUTO;
+			}
+		}
+
+		return self::PROVIDER_ANTHROPIC === $provider ? self::PROVIDER_ANTHROPIC : self::PROVIDER_AUTO;
 	}
 
 	/**
@@ -85,11 +104,11 @@ class DifmProviderResolver {
 			return $filtered_client;
 		}
 
-		if ( self::PROVIDER_AUTO === $selected_provider ) {
-			return $this->resolve_auto_client();
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
+			return $this->resolve_connector_client( $selected_provider );
 		}
 
-		return $this->resolve_pinned_client( $selected_provider );
+		return $this->resolve_legacy_client();
 	}
 
 	/**
@@ -113,25 +132,11 @@ class DifmProviderResolver {
 			return true;
 		}
 
-		if ( self::PROVIDER_AUTO === $selected_provider ) {
-			return WordPressAiClientAdapter::has_api_key()
-				|| AnthropicClient::has_api_key()
-				|| OpenAIResponsesClient::has_api_key();
-		}
-
-		if ( self::PROVIDER_WORDPRESS_AI === $selected_provider ) {
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
 			return WordPressAiClientAdapter::has_api_key();
 		}
 
-		if ( self::PROVIDER_ANTHROPIC === $selected_provider ) {
-			return AnthropicClient::has_api_key();
-		}
-
-		if ( self::PROVIDER_OPENAI === $selected_provider ) {
-			return OpenAIResponsesClient::has_api_key();
-		}
-
-		return false;
+		return AnthropicClient::has_api_key();
 	}
 
 	/**
@@ -140,26 +145,28 @@ class DifmProviderResolver {
 	 * @return array<string,array<string,mixed>>
 	 */
 	public function get_provider_statuses() {
-		return array(
-			self::PROVIDER_WORDPRESS_AI => array(
-				'label'      => self::provider_label( self::PROVIDER_WORDPRESS_AI ),
-				'available'  => WordPressAiClientAdapter::is_supported(),
-				'configured' => WordPressAiClientAdapter::has_api_key(),
-				'status'     => WordPressAiClientAdapter::get_status(),
-			),
-			self::PROVIDER_ANTHROPIC    => array(
-				'label'      => self::provider_label( self::PROVIDER_ANTHROPIC ),
+		if ( ! DifmProviderEnvironment::is_connector_mode() ) {
+			return array(
+				self::PROVIDER_ANTHROPIC => array(
+					'label'      => self::provider_label( self::PROVIDER_ANTHROPIC ),
+					'available'  => true,
+					'configured' => AnthropicClient::has_api_key(),
+					'status'     => AnthropicClient::has_api_key() ? 'configured' : 'unconfigured',
+				),
+			);
+		}
+
+		$statuses = array();
+		foreach ( WordPressAiClientAdapter::get_configured_provider_ids() as $provider_id ) {
+			$statuses[ $provider_id ] = array(
+				'label'      => self::provider_label( $provider_id ),
 				'available'  => true,
-				'configured' => AnthropicClient::has_api_key(),
-				'status'     => AnthropicClient::has_api_key() ? 'configured' : 'unconfigured',
-			),
-			self::PROVIDER_OPENAI       => array(
-				'label'      => self::provider_label( self::PROVIDER_OPENAI ),
-				'available'  => true,
-				'configured' => OpenAIResponsesClient::has_api_key(),
-				'status'     => OpenAIResponsesClient::has_api_key() ? 'configured' : 'unconfigured',
-			),
-		);
+				'configured' => true,
+				'status'     => 'configured',
+			);
+		}
+
+		return $statuses;
 	}
 
 	/**
@@ -169,13 +176,15 @@ class DifmProviderResolver {
 	 * @return string
 	 */
 	public static function provider_label( $provider ) {
+		if ( DifmProviderEnvironment::is_connector_mode() && ! in_array( $provider, array( self::PROVIDER_AUTO, self::PROVIDER_WORDPRESS_AI ), true ) ) {
+			return WordPressAiClientAdapter::get_provider_label( $provider );
+		}
+
 		switch ( $provider ) {
 			case self::PROVIDER_WORDPRESS_AI:
 				return __( 'WordPress AI connectors', 'woocommerce-claude' );
 			case self::PROVIDER_ANTHROPIC:
 				return __( 'Anthropic', 'woocommerce-claude' );
-			case self::PROVIDER_OPENAI:
-				return __( 'OpenAI', 'woocommerce-claude' );
 			case self::PROVIDER_AUTO:
 			default:
 				return __( 'Auto', 'woocommerce-claude' );
@@ -183,28 +192,13 @@ class DifmProviderResolver {
 	}
 
 	/**
-	 * Resolve auto mode.
-	 *
-	 * Priority for new installs:
-	 *   1. WordPress AI/Core AI Client with configured connector credentials.
-	 *   2. Plugin-owned Anthropic BYOK.
-	 *   3. Plugin-owned OpenAI BYOK.
-	 *
-	 * Existing Anthropic installs are migrated to pinned Anthropic mode.
+	 * Resolve legacy direct-Anthropic mode.
 	 *
 	 * @return DifmAiClientInterface|\WP_Error
 	 */
-	private function resolve_auto_client() {
-		if ( WordPressAiClientAdapter::has_api_key() ) {
-			return new WordPressAiClientAdapter();
-		}
-
+	private function resolve_legacy_client() {
 		if ( AnthropicClient::has_api_key() ) {
 			return new AnthropicClient();
-		}
-
-		if ( OpenAIResponsesClient::has_api_key() ) {
-			return new OpenAIResponsesClient();
 		}
 
 		return new \WP_Error(
@@ -215,48 +209,41 @@ class DifmProviderResolver {
 	}
 
 	/**
-	 * Resolve a pinned provider.
+	 * Resolve strict WordPress connector mode.
 	 *
-	 * @param string $provider Provider value.
+	 * @param string $provider_id Native WordPress AI provider ID.
 	 * @return DifmAiClientInterface|\WP_Error
 	 */
-	private function resolve_pinned_client( $provider ) {
-		switch ( $provider ) {
-			case self::PROVIDER_WORDPRESS_AI:
-				if ( WordPressAiClientAdapter::has_api_key() ) {
-					return new WordPressAiClientAdapter();
-				}
-				return new \WP_Error(
-					'no_ai_provider',
-					__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' ),
-					array( 'status' => 400 )
-				);
-
-			case self::PROVIDER_ANTHROPIC:
-				if ( AnthropicClient::has_api_key() ) {
-					return new AnthropicClient();
-				}
-				return new \WP_Error(
-					'no_ai_provider',
-					__( 'No Anthropic API key is configured.', 'woocommerce-claude' ),
-					array( 'status' => 400 )
-				);
-
-			case self::PROVIDER_OPENAI:
-				if ( OpenAIResponsesClient::has_api_key() ) {
-					return new OpenAIResponsesClient();
-				}
-				return new \WP_Error(
-					'no_ai_provider',
-					__( 'No OpenAI API key is configured.', 'woocommerce-claude' ),
-					array( 'status' => 400 )
-				);
+	private function resolve_connector_client( $provider_id ) {
+		if ( ! WordPressAiClientAdapter::is_supported() ) {
+			return new \WP_Error(
+				'wordpress_ai_unavailable',
+				__( 'WordPress AI connectors are not available on this site.', 'woocommerce-claude' ),
+				array( 'status' => 400 )
+			);
 		}
 
-		return new \WP_Error(
-			'unknown_ai_provider',
-			__( 'The selected AI provider is not supported.', 'woocommerce-claude' ),
-			array( 'status' => 400 )
-		);
+		$configured_provider_ids = WordPressAiClientAdapter::get_configured_provider_ids();
+		if ( empty( $configured_provider_ids ) ) {
+			return new \WP_Error(
+				'no_ai_provider',
+				__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		if ( ! in_array( $provider_id, $configured_provider_ids, true ) ) {
+			$provider_id = WordPressAiClientAdapter::get_default_provider_id();
+		}
+
+		if ( '' === $provider_id ) {
+			return new \WP_Error(
+				'no_ai_provider',
+				__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		return new WordPressAiClientAdapter( $provider_id );
 	}
 }

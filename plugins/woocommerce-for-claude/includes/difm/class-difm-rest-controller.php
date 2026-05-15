@@ -1098,6 +1098,10 @@ class DifmRestController {
 			return (object) array();
 		}
 
+		if ( $this->is_array_schema_node( $schema ) && ! isset( $schema['items'] ) ) {
+			$schema['items'] = $this->default_array_items_schema( $parent_key );
+		}
+
 		foreach ( $schema as $key => $value ) {
 			$schema[ $key ] = $this->normalise_tool_input_schema( $value, (string) $key );
 		}
@@ -1107,6 +1111,41 @@ class DifmRestController {
 		}
 
 		return $schema;
+	}
+
+	/**
+	 * Whether a JSON Schema node declares array type.
+	 *
+	 * @param array $schema Schema node.
+	 * @return bool
+	 */
+	private function is_array_schema_node( array $schema ) {
+		if ( ! isset( $schema['type'] ) ) {
+			return false;
+		}
+
+		if ( 'array' === $schema['type'] ) {
+			return true;
+		}
+
+		return is_array( $schema['type'] ) && in_array( 'array', $schema['type'], true );
+	}
+
+	/**
+	 * Return a valid item schema for intentionally-loose array parameters.
+	 *
+	 * @param string $parent_key Parent schema key.
+	 * @return array|object
+	 */
+	private function default_array_items_schema( $parent_key ) {
+		if ( 'filters' === $parent_key ) {
+			return array(
+				'type'       => 'object',
+				'properties' => (object) array(),
+			);
+		}
+
+		return (object) array();
 	}
 
 	/**

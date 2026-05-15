@@ -154,7 +154,7 @@ class DifmAiTelemetry {
 	}
 
 	/**
-	 * Extract tool names from Anthropic-style or OpenAI Responses-style bodies.
+	 * Extract tool names from provider request bodies.
 	 *
 	 * @param array $body Provider request body.
 	 * @return array<int,string>

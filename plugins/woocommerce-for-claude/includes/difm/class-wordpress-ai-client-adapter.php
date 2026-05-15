@@ -22,6 +22,36 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 	const PROVIDER = 'wordpress_ai';
 
 	/**
+	 * HTTP request timeout in seconds for WordPress AI connector calls.
+	 */
+	const REQUEST_TIMEOUT = 90;
+
+	/**
+	 * Selected native WordPress AI provider ID.
+	 *
+	 * @var string
+	 */
+	private $provider_id = '';
+
+	/**
+	 * Constructor.
+	 *
+	 * @param string $provider_id Native WordPress AI provider ID.
+	 */
+	public function __construct( $provider_id = '' ) {
+		$this->provider_id = is_string( $provider_id ) ? sanitize_key( $provider_id ) : '';
+	}
+
+	/**
+	 * Return the selected native WordPress AI provider ID.
+	 *
+	 * @return string
+	 */
+	public function get_provider_id() {
+		return $this->provider_id;
+	}
+
+	/**
 	 * Whether the WordPress AI Client primitives needed by AI Insights exist.
 	 *
 	 * @return bool
@@ -65,25 +95,76 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			return (bool) $filtered_credentials;
 		}
 
-		$has_valid_ai_credentials = 'WordPress\\AI\\has_valid_ai_credentials';
-		if ( function_exists( $has_valid_ai_credentials ) ) {
-			try {
-				return (bool) $has_valid_ai_credentials();
-			} catch ( \Throwable $e ) {
-				return false;
+		return ! empty( self::get_configured_provider_ids() );
+	}
+
+	/**
+	 * Return configured WordPress AI provider IDs keyed to labels.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function get_configured_provider_options() {
+		$options = array();
+
+		foreach ( self::get_configured_provider_ids() as $provider_id ) {
+			$options[ $provider_id ] = self::get_provider_label( $provider_id );
+		}
+
+		return $options;
+	}
+
+	/**
+	 * Return configured WordPress AI provider IDs from the native registry.
+	 *
+	 * @return array<int,string>
+	 */
+	public static function get_configured_provider_ids() {
+		$provider_ids = array();
+
+		if ( self::is_supported() ) {
+			$registry = self::get_ai_registry();
+			if (
+				is_object( $registry )
+				&& method_exists( $registry, 'getRegisteredProviderIds' )
+				&& method_exists( $registry, 'hasProvider' )
+				&& method_exists( $registry, 'isProviderConfigured' )
+			) {
+				try {
+					foreach ( (array) $registry->getRegisteredProviderIds() as $provider_id ) {
+						if ( ! is_string( $provider_id ) || '' === $provider_id ) {
+							continue;
+						}
+
+						if ( ! self::is_ai_provider_connector( $provider_id ) ) {
+							continue;
+						}
+
+						if ( ! $registry->hasProvider( $provider_id ) ) {
+							continue;
+						}
+
+						if ( ! $registry->isProviderConfigured( $provider_id ) ) {
+							continue;
+						}
+
+						$provider_ids[] = $provider_id;
+					}
+				} catch ( \Throwable $e ) {
+					$provider_ids = array();
+				}
 			}
 		}
 
-		$has_ai_credentials = 'WordPress\\AI\\has_ai_credentials';
-		if ( function_exists( $has_ai_credentials ) ) {
-			try {
-				return (bool) $has_ai_credentials();
-			} catch ( \Throwable $e ) {
-				return false;
-			}
-		}
+		/**
+		 * Filter configured WordPress AI provider IDs for tests and integrations.
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param array<int,string> $provider_ids Configured provider IDs.
+		 */
+		$provider_ids = apply_filters( 'woocommerce_claude_difm_wordpress_ai_configured_provider_ids', $provider_ids );
 
-		return self::has_connector_setting_key();
+		return self::normalise_provider_ids( $provider_ids );
 	}
 
 	/**
@@ -97,6 +178,25 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		}
 
 		return self::has_api_key() ? 'supported_configured' : 'supported_unconfigured';
+	}
+
+	/**
+	 * Return the preferred configured WordPress AI provider ID.
+	 *
+	 * @return string
+	 */
+	public static function get_default_provider_id() {
+		return self::get_preferred_provider_id();
+	}
+
+	/**
+	 * Return a human-readable label for a native provider ID.
+	 *
+	 * @param string $provider_id Native WordPress AI provider ID.
+	 * @return string
+	 */
+	public static function get_provider_label( $provider_id ) {
+		return DifmProviderEnvironment::get_connector_label( $provider_id );
 	}
 
 	/**
@@ -124,12 +224,13 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			);
 		}
 
-		$prompt     = $this->extract_current_prompt( $messages );
-		$body       = $this->build_telemetry_body( $messages, $tools, $prompt );
-		$body_json  = wp_json_encode( $body );
-		$body_json  = is_string( $body_json ) ? $body_json : '';
-		$request_id = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : uniqid( 'difm_', true );
-		$start_ms   = microtime( true );
+		$prompt      = $this->extract_current_prompt( $messages );
+		$body        = $this->build_telemetry_body( $messages, $tools, $prompt );
+		$body_json   = wp_json_encode( $body );
+		$body_json   = is_string( $body_json ) ? $body_json : '';
+		$request_id  = function_exists( 'wp_generate_uuid4' ) ? wp_generate_uuid4() : uniqid( 'difm_', true );
+		$start_ms    = microtime( true );
+		$provider_id = '' !== $this->provider_id ? $this->provider_id : self::get_preferred_provider_id();
 
 		DifmAiTelemetry::record_request( self::PROVIDER, '', $body, $body_json, $request_id, $context );
 
@@ -139,28 +240,28 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 				return $builder;
 			}
 
-			if ( '' !== $system && method_exists( $builder, 'using_system_instruction' ) ) {
+			if ( '' !== $provider_id && $this->is_builder_method_callable( $builder, 'using_provider' ) ) {
+				$builder = $builder->using_provider( $provider_id );
+			}
+
+			if ( '' !== $system && $this->is_builder_method_callable( $builder, 'using_system_instruction' ) ) {
 				$builder = $builder->using_system_instruction( $system );
 			}
 
-			if ( method_exists( $builder, 'using_max_tokens' ) ) {
+			if ( $this->is_builder_method_callable( $builder, 'using_max_tokens' ) ) {
 				$builder = $builder->using_max_tokens( $max_tokens );
 			}
 
-			$declarations = $this->build_function_declarations( $tools );
-			if ( ! empty( $declarations ) && method_exists( $builder, 'using_function_declarations' ) ) {
-				$builder = $builder->using_function_declarations( $declarations );
-			}
+			$builder = $this->apply_request_timeout( $builder );
 
-			foreach ( $this->extract_function_responses( $messages ) as $function_response ) {
-				if ( method_exists( $builder, 'with_function_response' ) ) {
-					$builder = $builder->with_function_response( $function_response );
-				}
+			$declarations = $this->build_function_declarations( $tools );
+			if ( ! empty( $declarations ) && $this->is_builder_method_callable( $builder, 'using_function_declarations' ) ) {
+				$builder = $builder->using_function_declarations( ...$declarations );
 			}
 
 			$history = $this->build_history( $messages );
-			if ( ! empty( $history ) && method_exists( $builder, 'with_history' ) ) {
-				$builder = $builder->with_history( $history );
+			if ( ! empty( $history ) && $this->is_builder_method_callable( $builder, 'with_history' ) ) {
+				$builder = $builder->with_history( ...$history );
 			}
 
 			$result = $builder->generate_text_result();
@@ -204,24 +305,155 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 	}
 
 	/**
-	 * Check default connector API key settings for a lightweight fallback.
+	 * Return the WordPress AI Client default registry when available.
 	 *
+	 * @return object|null
+	 */
+	private static function get_ai_registry() {
+		$class = 'WordPress\\AiClient\\AiClient';
+		if ( ! class_exists( $class ) || ! method_exists( $class, 'defaultRegistry' ) ) {
+			return null;
+		}
+
+		try {
+			return $class::defaultRegistry();
+		} catch ( \Throwable $e ) {
+			return null;
+		}
+	}
+
+	/**
+	 * Whether a provider ID belongs to a native WordPress AI provider connector.
+	 *
+	 * @param string $provider_id Provider ID.
 	 * @return bool
 	 */
-	private static function has_connector_setting_key() {
-		foreach ( array( 'connectors_ai_openai_api_key', 'connectors_ai_anthropic_api_key', 'connectors_ai_google_api_key' ) as $option ) {
-			if ( '' !== (string) get_option( $option, '' ) ) {
-				return true;
+	private static function is_ai_provider_connector( $provider_id ) {
+		if ( ! function_exists( 'wp_get_connectors' ) ) {
+			return true;
+		}
+
+		$connectors = wp_get_connectors();
+		if ( empty( $connectors ) || ! isset( $connectors[ $provider_id ] ) ) {
+			return true;
+		}
+
+		return isset( $connectors[ $provider_id ]['type'] ) && 'ai_provider' === $connectors[ $provider_id ]['type'];
+	}
+
+	/**
+	 * Return the preferred configured WordPress AI provider ID.
+	 *
+	 * @return string
+	 */
+	private static function get_preferred_provider_id() {
+		$configured_ids = self::get_configured_provider_ids();
+		if ( empty( $configured_ids ) ) {
+			return '';
+		}
+
+		$preference = array( 'anthropic', 'openai', 'google' );
+
+		/**
+		 * Filter the WordPress AI provider preference order for AI Insights.
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param array<int,string> $preference     Provider IDs in priority order.
+		 * @param array<int,string> $configured_ids Configured provider IDs.
+		 */
+		$preference = apply_filters( 'woocommerce_claude_difm_wordpress_ai_provider_preference', $preference, $configured_ids );
+		$preference = self::normalise_provider_ids( $preference );
+
+		foreach ( $preference as $provider_id ) {
+			if ( in_array( $provider_id, $configured_ids, true ) ) {
+				return $provider_id;
 			}
 		}
 
-		foreach ( array( 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_API_KEY' ) as $constant ) {
-			if ( defined( $constant ) && '' !== (string) constant( $constant ) ) {
-				return true;
+		return (string) reset( $configured_ids );
+	}
+
+	/**
+	 * Normalise a provider ID list.
+	 *
+	 * @param mixed $provider_ids Provider IDs.
+	 * @return array<int,string>
+	 */
+	private static function normalise_provider_ids( $provider_ids ) {
+		if ( ! is_array( $provider_ids ) ) {
+			return array();
+		}
+
+		$normalised = array();
+		foreach ( $provider_ids as $provider_id ) {
+			if ( ! is_string( $provider_id ) ) {
+				continue;
+			}
+
+			$provider_id = sanitize_key( $provider_id );
+			if ( '' !== $provider_id && ! in_array( $provider_id, $normalised, true ) ) {
+				$normalised[] = $provider_id;
 			}
 		}
 
-		return false;
+		return $normalised;
+	}
+
+	/**
+	 * Whether the WP AI builder can call a fluent method.
+	 *
+	 * @param object $builder Builder object.
+	 * @param string $method  Snake_case method name.
+	 * @return bool
+	 */
+	private function is_builder_method_callable( $builder, $method ) {
+		return is_object( $builder ) && is_callable( array( $builder, $method ) );
+	}
+
+	/**
+	 * Apply the plugin's chat timeout to native connector requests when supported.
+	 *
+	 * @param object $builder Builder object.
+	 * @return object
+	 */
+	private function apply_request_timeout( $builder ) {
+		if ( ! $this->is_builder_method_callable( $builder, 'using_request_options' ) ) {
+			return $builder;
+		}
+
+		$request_options_class = 'WordPress\\AiClient\\Providers\\Http\\DTO\\RequestOptions';
+		if ( ! class_exists( $request_options_class ) || ! method_exists( $request_options_class, 'fromArray' ) ) {
+			return $builder;
+		}
+
+		/**
+		 * Filter the WordPress AI connector request timeout used by Ask AI.
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param float $timeout Timeout in seconds.
+		 */
+		$timeout = apply_filters( 'woocommerce_claude_difm_wordpress_ai_request_timeout', self::REQUEST_TIMEOUT );
+		if ( ! is_numeric( $timeout ) || (float) $timeout < 0 ) {
+			$timeout = self::REQUEST_TIMEOUT;
+		}
+
+		$timeout_key = defined( $request_options_class . '::KEY_TIMEOUT' )
+			? constant( $request_options_class . '::KEY_TIMEOUT' )
+			: 'timeout';
+
+		try {
+			return $builder->using_request_options(
+				$request_options_class::fromArray(
+					array(
+						$timeout_key => (float) $timeout,
+					)
+				)
+			);
+		} catch ( \Throwable $e ) {
+			return $builder;
+		}
 	}
 
 	/**
@@ -240,6 +472,10 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			$content = isset( $message['content'] ) ? $message['content'] : '';
 			if ( is_string( $content ) ) {
 				return $content;
+			}
+
+			if ( $this->content_contains_tool_result( $content ) ) {
+				return __( 'Continue using the tool results.', 'woocommerce-claude' );
 			}
 		}
 
@@ -303,80 +539,40 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 	}
 
 	/**
-	 * Extract FunctionResponse DTOs from tool result turns.
-	 *
-	 * @param array $messages Conversation messages.
-	 * @return array
-	 */
-	private function extract_function_responses( array $messages ) {
-		$class = 'WordPress\\AiClient\\Tools\\DTO\\FunctionResponse';
-		if ( ! class_exists( $class ) ) {
-			return array();
-		}
-
-		$responses = array();
-		foreach ( $messages as $message ) {
-			if ( ! is_array( $message ) || ! isset( $message['content'] ) || ! is_array( $message['content'] ) ) {
-				continue;
-			}
-
-			foreach ( $message['content'] as $block ) {
-				if ( ! is_array( $block ) || ! isset( $block['type'] ) || 'tool_result' !== $block['type'] ) {
-					continue;
-				}
-
-				$response_body = isset( $block['content'] ) ? json_decode( (string) $block['content'], true ) : array();
-				if ( ! is_array( $response_body ) ) {
-					$response_body = array( 'result' => isset( $block['content'] ) ? (string) $block['content'] : '' );
-				}
-
-				try {
-					$responses[] = new $class(
-						isset( $block['tool_use_id'] ) ? (string) $block['tool_use_id'] : '',
-						'',
-						$response_body
-					);
-				} catch ( \Throwable $e ) {
-					continue;
-				}
-			}
-		}
-
-		return $responses;
-	}
-
-	/**
 	 * Build history DTOs when the local AI Client exposes message classes.
 	 *
 	 * @param array $messages Conversation messages.
 	 * @return array
 	 */
 	private function build_history( array $messages ) {
-		$message_part_class  = $this->first_existing_class(
+		$message_part_class      = $this->first_existing_class(
 			array(
 				'WordPress\\AiClient\\Messages\\DTO\\MessagePart',
 				'WordPress\\AiClient\\Common\\DTO\\MessagePart',
 			)
 		);
-		$user_message_class  = $this->first_existing_class(
+		$user_message_class      = $this->first_existing_class(
 			array(
 				'WordPress\\AiClient\\Messages\\DTO\\UserMessage',
 				'WordPress\\AiClient\\Common\\DTO\\UserMessage',
 			)
 		);
-		$model_message_class = $this->first_existing_class(
+		$model_message_class     = $this->first_existing_class(
 			array(
 				'WordPress\\AiClient\\Messages\\DTO\\ModelMessage',
 				'WordPress\\AiClient\\Common\\DTO\\ModelMessage',
 			)
 		);
-		$function_call_class = 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall';
+		$function_call_class     = 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall';
+		$function_response_class = 'WordPress\\AiClient\\Tools\\DTO\\FunctionResponse';
 
 		if ( '' === $message_part_class || '' === $user_message_class || '' === $model_message_class ) {
 			return array();
 		}
 
-		$history_messages = array_slice( $messages, 0, max( 0, count( $messages ) - 1 ) );
+		$history_messages = $this->last_message_is_current_text_prompt( $messages )
+			? array_slice( $messages, 0, max( 0, count( $messages ) - 1 ) )
+			: $messages;
 		$history          = array();
 
 		foreach ( $history_messages as $message ) {
@@ -385,7 +581,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			}
 
 			try {
-				$parts = $this->message_parts_for_history( $message['content'], $message_part_class, $function_call_class );
+				$parts = $this->message_parts_for_history( $message['content'], $message_part_class, $function_call_class, $function_response_class );
 				if ( empty( $parts ) ) {
 					continue;
 				}
@@ -407,9 +603,10 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 	 * @param mixed  $content             Message content.
 	 * @param string $message_part_class  MessagePart class name.
 	 * @param string $function_call_class FunctionCall class name.
+	 * @param string $function_response_class FunctionResponse class name.
 	 * @return array
 	 */
-	private function message_parts_for_history( $content, $message_part_class, $function_call_class ) {
+	private function message_parts_for_history( $content, $message_part_class, $function_call_class, $function_response_class ) {
 		if ( is_string( $content ) && '' !== $content ) {
 			return array( new $message_part_class( $content ) );
 		}
@@ -429,7 +626,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 			}
 
 			if ( 'tool_use' === $block['type'] && class_exists( $function_call_class ) ) {
-				$input   = isset( $block['input'] ) && is_array( $block['input'] ) ? $block['input'] : array();
+				$input   = isset( $block['input'] ) ? $this->normalise_function_call_args_for_history( $block['input'] ) : null;
 				$parts[] = new $message_part_class(
 					new $function_call_class(
 						isset( $block['id'] ) ? (string) $block['id'] : '',
@@ -438,9 +635,91 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 					)
 				);
 			}
+
+			if ( 'tool_result' === $block['type'] && class_exists( $function_response_class ) ) {
+				$parts[] = new $message_part_class(
+					new $function_response_class(
+						isset( $block['tool_use_id'] ) ? (string) $block['tool_use_id'] : '',
+						null,
+						$this->normalise_function_response_body_for_history( $block )
+					)
+				);
+			}
 		}
 
 		return $parts;
+	}
+
+	/**
+	 * Whether the final message is the current text prompt, not history.
+	 *
+	 * @param array $messages Conversation messages.
+	 * @return bool
+	 */
+	private function last_message_is_current_text_prompt( array $messages ) {
+		if ( empty( $messages ) ) {
+			return false;
+		}
+
+		$message = end( $messages );
+		return is_array( $message )
+			&& isset( $message['role'], $message['content'] )
+			&& 'user' === $message['role']
+			&& is_string( $message['content'] );
+	}
+
+	/**
+	 * Whether a content array contains tool results.
+	 *
+	 * @param mixed $content Message content.
+	 * @return bool
+	 */
+	private function content_contains_tool_result( $content ) {
+		if ( ! is_array( $content ) ) {
+			return false;
+		}
+
+		foreach ( $content as $block ) {
+			if ( is_array( $block ) && isset( $block['type'] ) && 'tool_result' === $block['type'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Decode a tool result block for FunctionResponse history replay.
+	 *
+	 * @param array $block Tool result block.
+	 * @return mixed
+	 */
+	private function normalise_function_response_body_for_history( array $block ) {
+		$content = isset( $block['content'] ) ? (string) $block['content'] : '';
+		$decoded = '' !== $content ? json_decode( $content, true ) : null;
+
+		return null === $decoded ? array( 'result' => $content ) : $decoded;
+	}
+
+	/**
+	 * Normalise tool-call args before replaying history through WP AI Client.
+	 *
+	 * The native Anthropic connector converts null args to an empty JSON object.
+	 * Passing an empty PHP array would encode as [] and Anthropic rejects that.
+	 *
+	 * @param mixed $input Tool-call input.
+	 * @return mixed
+	 */
+	private function normalise_function_call_args_for_history( $input ) {
+		if ( is_object( $input ) ) {
+			return $input;
+		}
+
+		if ( ! is_array( $input ) || empty( $input ) ) {
+			return null;
+		}
+
+		return $input;
 	}
 
 	/**

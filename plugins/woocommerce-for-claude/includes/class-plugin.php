@@ -135,8 +135,8 @@ class Plugin {
 		// register, so we only require the class files here and let the hooks
 		// instantiate as needed.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-provider-environment.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-openai-responses-client.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';

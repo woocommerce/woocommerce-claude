@@ -8,7 +8,6 @@
 use WooCommerce\Claude\Difm\AnthropicClient;
 use WooCommerce\Claude\Difm\DifmAiClientInterface;
 use WooCommerce\Claude\Difm\DifmProviderResolver;
-use WooCommerce\Claude\Difm\OpenAIResponsesClient;
 use WooCommerce\Claude\Difm\WordPressAiClientAdapter;
 
 /**
@@ -21,21 +20,30 @@ class Test_Difm_Provider_Resolver extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		remove_all_filters( 'woocommerce_claude_difm_ai_client' );
+		remove_all_filters( 'woocommerce_claude_difm_connector_mode' );
 		remove_all_filters( 'woocommerce_claude_difm_wordpress_ai_supported' );
 		remove_all_filters( 'woocommerce_claude_difm_wordpress_ai_has_credentials' );
+		remove_all_filters( 'woocommerce_claude_difm_wordpress_ai_configured_provider_ids' );
 		delete_option( DifmProviderResolver::PROVIDER_OPTION );
 		delete_option( 'woocommerce_claude_anthropic_api_key' );
 		delete_option( 'hey_woo_anthropic_api_key' );
-		delete_option( OpenAIResponsesClient::API_KEY_OPTION );
 		delete_option( 'woocommerce_claude_options_migrated' );
 		delete_option( 'woocommerce_claude_difm_provider_migrated' );
 		parent::tear_down();
 	}
 
 	/**
-	 * Auto mode falls back to a direct Anthropic key.
+	 * WP 6.9 mode ignores WordPress AI availability and uses direct Anthropic.
 	 */
-	public function test_auto_mode_resolves_anthropic_when_anthropic_key_exists() {
+	public function test_legacy_mode_ignores_wordpress_ai_and_resolves_anthropic() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_false' );
+		add_filter( 'woocommerce_claude_difm_wordpress_ai_supported', '__return_true' );
+		add_filter(
+			'woocommerce_claude_difm_wordpress_ai_configured_provider_ids',
+			static function () {
+				return array( 'openai' );
+			}
+		);
 		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 
 		$client = ( new DifmProviderResolver() )->resolve_client();
@@ -44,47 +52,173 @@ class Test_Difm_Provider_Resolver extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Auto mode falls back to a direct OpenAI key when Anthropic is absent.
+	 * WP 7.0 connector mode ignores direct Anthropic keys until migrated.
 	 */
-	public function test_auto_mode_resolves_openai_when_only_openai_key_exists() {
-		update_option( OpenAIResponsesClient::API_KEY_OPTION, 'sk-openai-test' );
+	public function test_connector_mode_ignores_direct_anthropic_key_until_migrated() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_true' );
+		add_filter( 'woocommerce_claude_difm_wordpress_ai_supported', '__return_true' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
 
-		$client = ( new DifmProviderResolver() )->resolve_client();
+		$result = ( new DifmProviderResolver() )->resolve_client();
 
-		$this->assertInstanceOf( OpenAIResponsesClient::class, $client );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'no_ai_provider', $result->get_error_code() );
 	}
 
 	/**
-	 * Auto mode prefers WordPress AI connector credentials when available.
+	 * WP 7.0 connector mode resolves the selected configured connector provider.
 	 */
-	public function test_auto_mode_prefers_wordpress_ai_when_available() {
+	public function test_connector_mode_resolves_selected_configured_provider() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_true' );
 		add_filter( 'woocommerce_claude_difm_wordpress_ai_supported', '__return_true' );
-		add_filter( 'woocommerce_claude_difm_wordpress_ai_has_credentials', '__return_true' );
-		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
-		update_option( OpenAIResponsesClient::API_KEY_OPTION, 'sk-openai-test' );
+		add_filter(
+			'woocommerce_claude_difm_wordpress_ai_configured_provider_ids',
+			static function () {
+				return array( 'anthropic', 'openai' );
+			}
+		);
+		update_option( DifmProviderResolver::PROVIDER_OPTION, 'openai' );
 
 		$client = ( new DifmProviderResolver() )->resolve_client();
 
 		$this->assertInstanceOf( WordPressAiClientAdapter::class, $client );
+		$this->assertSame( 'openai', $client->get_provider_id() );
 	}
 
 	/**
-	 * A pinned provider is honoured even when another provider has a key.
+	 * Empty tool-use input is replayed as null args so WP's Anthropic connector sends `{}`.
 	 */
-	public function test_pinned_provider_is_honoured() {
-		update_option( DifmProviderResolver::PROVIDER_OPTION, DifmProviderResolver::PROVIDER_OPENAI );
-		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
-		update_option( OpenAIResponsesClient::API_KEY_OPTION, 'sk-openai-test' );
+	public function test_wordpress_ai_adapter_replays_empty_tool_input_as_null_args() {
+		$this->register_fake_wp_ai_history_dtos();
+
+		$adapter = new WordPressAiClientAdapter( 'anthropic' );
+		$method  = new \ReflectionMethod( $adapter, 'build_history' );
+		$method->setAccessible( true );
+
+		$history = $method->invoke(
+			$adapter,
+			array(
+				array(
+					'role'    => 'assistant',
+					'content' => array(
+						array(
+							'type' => 'text',
+							'text' => 'I will check that.',
+						),
+						array(
+							'type'  => 'tool_use',
+							'id'    => 'toolu_readiness',
+							'name'  => 'get_readiness_score',
+							'input' => array(),
+						),
+					),
+				),
+				array(
+					'role'    => 'user',
+					'content' => 'Continue.',
+				),
+			)
+		);
+
+		$this->assertCount( 1, $history );
+		$parts         = $history[0]->getParts();
+		$function_call = $parts[1]->getFunctionCall();
+		$this->assertNull( $function_call->getArgs() );
+	}
+
+	/**
+	 * Tool result turns stay in ordered history immediately after tool_use turns.
+	 */
+	public function test_wordpress_ai_adapter_replays_tool_result_turns_in_ordered_history() {
+		$this->register_fake_wp_ai_history_dtos();
+
+		$adapter = new WordPressAiClientAdapter( 'anthropic' );
+		$method  = new \ReflectionMethod( $adapter, 'build_history' );
+		$method->setAccessible( true );
+
+		$history = $method->invoke(
+			$adapter,
+			array(
+				array(
+					'role'    => 'user',
+					'content' => 'What is the readiness of my store?',
+				),
+				array(
+					'role'    => 'assistant',
+					'content' => array(
+						array(
+							'type'  => 'tool_use',
+							'id'    => 'toolu_readiness',
+							'name'  => 'get_readiness_score',
+							'input' => array(),
+						),
+					),
+				),
+				array(
+					'role'    => 'user',
+					'content' => array(
+						array(
+							'type'        => 'tool_result',
+							'tool_use_id' => 'toolu_readiness',
+							'content'     => '{"overall_score":82}',
+						),
+					),
+				),
+			)
+		);
+
+		$this->assertCount( 3, $history );
+		$parts             = $history[2]->getParts();
+		$function_response = $parts[0]->getFunctionResponse();
+		$this->assertSame( 'toolu_readiness', $function_response->getId() );
+		$this->assertSame( array( 'overall_score' => 82 ), $function_response->getResponse() );
+	}
+
+	/**
+	 * Legacy connector option values normalise to a configured provider.
+	 */
+	public function test_connector_mode_normalises_legacy_values_to_configured_provider() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_true' );
+		add_filter( 'woocommerce_claude_difm_wordpress_ai_supported', '__return_true' );
+		add_filter(
+			'woocommerce_claude_difm_wordpress_ai_configured_provider_ids',
+			static function () {
+				return array( 'google', 'anthropic' );
+			}
+		);
+
+		update_option( DifmProviderResolver::PROVIDER_OPTION, DifmProviderResolver::PROVIDER_AUTO );
+
+		$this->assertSame( 'anthropic', DifmProviderResolver::get_selected_provider() );
+
+		update_option( DifmProviderResolver::PROVIDER_OPTION, DifmProviderResolver::PROVIDER_WORDPRESS_AI );
 
 		$client = ( new DifmProviderResolver() )->resolve_client();
 
-		$this->assertInstanceOf( OpenAIResponsesClient::class, $client );
+		$this->assertInstanceOf( WordPressAiClientAdapter::class, $client );
+		$this->assertSame( 'anthropic', $client->get_provider_id() );
 	}
 
 	/**
-	 * No configured provider returns a controlled WP_Error.
+	 * Unknown legacy direct values fall back to direct-Anthropic auto mode.
+	 */
+	public function test_legacy_unknown_provider_value_falls_back_to_direct_anthropic() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_false' );
+		update_option( DifmProviderResolver::PROVIDER_OPTION, 'openai' );
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+
+		$client = ( new DifmProviderResolver() )->resolve_client();
+
+		$this->assertSame( DifmProviderResolver::PROVIDER_AUTO, DifmProviderResolver::get_selected_provider() );
+		$this->assertInstanceOf( AnthropicClient::class, $client );
+	}
+
+	/**
+	 * No configured provider returns a controlled WP_Error in legacy mode.
 	 */
 	public function test_no_key_returns_provider_error() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_false' );
+
 		$result = ( new DifmProviderResolver() )->resolve_client();
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
@@ -95,6 +229,7 @@ class Test_Difm_Provider_Resolver extends WP_UnitTestCase {
 	 * The upgrade migration pins existing Anthropic installs to Anthropic.
 	 */
 	public function test_upgrade_migration_pins_existing_anthropic_key() {
+		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_false' );
 		delete_option( DifmProviderResolver::PROVIDER_OPTION );
 		delete_option( 'woocommerce_claude_options_migrated' );
 		delete_option( 'woocommerce_claude_difm_provider_migrated' );
@@ -140,5 +275,29 @@ class Test_Difm_Provider_Resolver extends WP_UnitTestCase {
 		$client = ( new DifmProviderResolver() )->resolve_client();
 
 		$this->assertInstanceOf( DifmAiClientInterface::class, $client );
+	}
+
+	/**
+	 * Register tiny fake WP AI DTOs for history-conversion tests.
+	 *
+	 * @return void
+	 */
+	private function register_fake_wp_ai_history_dtos() {
+		require_once __DIR__ . '/class-wp-ai-test-dto-double.php';
+
+		if (
+			class_exists( 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall' )
+			&& ! is_a( 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall', WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, true )
+		) {
+			$this->markTestSkipped( 'Native WP AI Client DTOs are already loaded.' );
+		}
+
+		if ( ! class_exists( 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall' ) ) {
+			class_alias( WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, 'WordPress\\AiClient\\Tools\\DTO\\FunctionCall' );
+			class_alias( WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, 'WordPress\\AiClient\\Tools\\DTO\\FunctionResponse' );
+			class_alias( WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, 'WordPress\\AiClient\\Messages\\DTO\\MessagePart' );
+			class_alias( WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, 'WordPress\\AiClient\\Messages\\DTO\\ModelMessage' );
+			class_alias( WooCommerce_Claude_Test_Wp_Ai_Dto_Double::class, 'WordPress\\AiClient\\Messages\\DTO\\UserMessage' );
+		}
 	}
 }
