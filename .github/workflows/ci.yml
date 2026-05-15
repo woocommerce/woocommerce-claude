@@ -41,8 +41,8 @@ jobs:
         working-directory: plugins/hey-woo
         run: composer validate --strict
 
-      - name: Run PHPCS for Hey Woo scaffold
-        run: plugins/woocommerce-for-claude/vendor/bin/phpcs --standard=plugins/woocommerce-for-claude/phpcs.xml.dist plugins/hey-woo/hey-woo.php
+      - name: Run PHPCS for Hey Woo
+        run: plugins/woocommerce-for-claude/vendor/bin/phpcs --standard=plugins/woocommerce-for-claude/phpcs.xml.dist --runtime-set text_domain hey-woo plugins/hey-woo/hey-woo.php plugins/hey-woo/includes
 
   phpunit:
     name: PHPUnit (integration)

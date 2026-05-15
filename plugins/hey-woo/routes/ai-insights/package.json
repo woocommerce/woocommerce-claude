@@ -1,0 +1,9 @@
+{
+	"private": true,
+	"name": "_@hey-woo/ai-insights-route",
+	"version": "1.0.0",
+	"route": {
+		"path": "/",
+		"page": "hey-woo-insights"
+	}
+}

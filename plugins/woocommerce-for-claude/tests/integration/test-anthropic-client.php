@@ -43,6 +43,14 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Hey Woo owns its own BYOK option; WooCommerce for Claude must not use it.
+	 */
+	public function test_get_api_key_ignores_hey_woo_option_value() {
+		update_option( 'hey_woo_anthropic_api_key', 'sk-ant-hey-woo-key' );
+		$this->assertSame( '', AnthropicClient::get_api_key() );
+	}
+
+	/**
 	 * Asserts has_api_key() returns false when no key is set.
 	 */
 	public function test_has_api_key_returns_false_without_key() {

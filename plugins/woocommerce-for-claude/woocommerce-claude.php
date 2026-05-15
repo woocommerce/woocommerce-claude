@@ -145,7 +145,6 @@ function woocommerce_claude_migrate_legacy_options() {
 	}
 	$map = array(
 		'woo_ai_connect_telemetry_enabled' => 'woocommerce_claude_telemetry_enabled',
-		'hey_woo_anthropic_api_key'        => 'woocommerce_claude_anthropic_api_key',
 	);
 	foreach ( $map as $old_key => $new_key ) {
 		$old_value = get_option( $old_key, null );

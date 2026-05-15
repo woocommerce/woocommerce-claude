@@ -98,6 +98,52 @@ function hey_woo_add_action_once( $hook_name, $callback ) {
 }
 
 /**
+ * Load Hey Woo runtime classes.
+ */
+function hey_woo_load_runtime_files() {
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-telemetry-handler.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+}
+
+/**
+ * Register the Hey Woo WooCommerce settings tab.
+ *
+ * WC includes WC_Settings_Page before firing this filter, so the settings
+ * class is safe to load here.
+ *
+ * @param array $pages Registered settings pages.
+ * @return array
+ */
+function hey_woo_register_settings_page( $pages ) {
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
+	$pages[] = new \WooCommerce\HeyWoo\Settings\SettingsPage();
+	return $pages;
+}
+
+/**
+ * Initialise the Hey Woo BYOK runtime.
+ */
+function hey_woo_init_runtime() {
+	hey_woo_load_runtime_files();
+
+	\WooCommerce\HeyWoo\Telemetry\TelemetryHandler::init();
+
+	add_filter( 'woocommerce_get_settings_pages', 'hey_woo_register_settings_page' );
+
+	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
+	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
+	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
+}
+
+/**
  * Declare HPOS compatibility.
  */
 add_action(
@@ -145,6 +191,7 @@ add_action(
 	function () {
 		if ( hey_woo_check_requirements() ) {
 			hey_woo_init_commerce_abilities();
+			hey_woo_init_runtime();
 		}
 	}
 );

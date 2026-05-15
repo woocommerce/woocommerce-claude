@@ -39,19 +39,9 @@ class SettingsPage extends \WC_Settings_Page {
 	const DIFM_API_KEY_CLEAR_FIELD = 'woocommerce_claude_anthropic_api_key_clear';
 
 	/**
-	 * Legacy option name from the pre-rename branch.
-	 */
-	const LEGACY_DIFM_API_KEY_OPTION = 'hey_woo_anthropic_api_key';
-
-	/**
 	 * Server constant name for the Anthropic key.
 	 */
 	const DIFM_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY';
-
-	/**
-	 * Legacy server constant name from the pre-rename branch.
-	 */
-	const LEGACY_DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
 
 	/**
 	 * User-meta flag used to show the AI Insights CTA immediately after saving.
@@ -176,6 +166,11 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		if ( 'ai-insights' === $current_section ) {
+			if ( $this->is_hey_woo_active() ) {
+				$this->render_hey_woo_admin_chat_notice();
+				return;
+			}
+
 			\WC_Admin_Settings::output_fields( $this->get_settings_for_ai_insights_section() );
 			return;
 		}
@@ -190,7 +185,8 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return void
 	 */
 	private function render_setup_overview() {
-		$has_ai_key       = '' !== $this->get_api_key_constant_name() || '' !== $this->get_saved_api_key();
+		$hey_woo_active   = $this->is_hey_woo_active();
+		$has_ai_key       = ! $hey_woo_active && ( '' !== $this->get_api_key_constant_name() || '' !== $this->get_saved_api_key() );
 		$external_state   = ( new RestApiKey() )->existing_state();
 		$has_external_key = null !== $external_state;
 		$has_external_use = $has_external_key && 0 < (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 );
@@ -220,7 +216,11 @@ class SettingsPage extends \WC_Settings_Page {
 		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
 			<section class="woocommerce-claude-setup__intro">
 				<h2><?php esc_html_e( 'Set up Claude for your store', 'woocommerce-claude' ); ?></h2>
-				<p><?php esc_html_e( 'Connect Claude apps to this store, use Claude in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
+				<?php if ( $hey_woo_active ) : ?>
+					<p><?php esc_html_e( 'Connect Claude apps to this store. Ask Claude in WordPress admin is managed by Hey Woo.', 'woocommerce-claude' ); ?></p>
+				<?php else : ?>
+					<p><?php esc_html_e( 'Connect Claude apps to this store, use Claude in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
+				<?php endif; ?>
 			</section>
 
 			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $external_open ); ?>>
@@ -239,21 +239,39 @@ class SettingsPage extends \WC_Settings_Page {
 				</div>
 			</details>
 
-			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
-				<summary class="woocommerce-claude-setup__accordion-summary">
-					<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
-					<span class="woocommerce-claude-setup__accordion-text">
-						<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
-						<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask Claude about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
-					</span>
-					<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
-						<?php echo esc_html( $ai_status_label ); ?>
-					</span>
-				</summary>
-				<div class="woocommerce-claude-setup__accordion-panel">
-					<?php $this->render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights ); ?>
-				</div>
-			</details>
+			<?php if ( ! $hey_woo_active ) : ?>
+				<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
+					<summary class="woocommerce-claude-setup__accordion-summary">
+						<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
+						<span class="woocommerce-claude-setup__accordion-text">
+							<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
+							<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask Claude about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
+						</span>
+						<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
+							<?php echo esc_html( $ai_status_label ); ?>
+						</span>
+					</summary>
+					<div class="woocommerce-claude-setup__accordion-panel">
+						<?php $this->render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights ); ?>
+					</div>
+				</details>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the direct AI Insights settings section when Hey Woo owns the chat.
+	 *
+	 * @return void
+	 */
+	private function render_hey_woo_admin_chat_notice() {
+		?>
+		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
+			<section class="woocommerce-claude-setup__intro">
+				<h2><?php esc_html_e( 'Ask Claude is managed by Hey Woo', 'woocommerce-claude' ); ?></h2>
+				<p><?php esc_html_e( 'Use the Hey Woo settings page to configure the Anthropic API key for WordPress-admin chat.', 'woocommerce-claude' ); ?></p>
+			</section>
 		</div>
 		<?php
 	}
@@ -482,7 +500,6 @@ class SettingsPage extends \WC_Settings_Page {
 
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
-			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 			$this->clear_ai_insights_saved_notice();
 			return null;
 		}
@@ -524,7 +541,6 @@ class SettingsPage extends \WC_Settings_Page {
 
 		if ( $this->is_api_key_clear_requested() ) {
 			delete_option( self::DIFM_API_KEY_OPTION );
-			delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 			$this->clear_ai_insights_saved_notice();
 			return;
 		}
@@ -646,24 +662,38 @@ class SettingsPage extends \WC_Settings_Page {
 			return self::DIFM_API_KEY_CONSTANT;
 		}
 
-		if ( defined( self::LEGACY_DIFM_API_KEY_CONSTANT ) ) {
-			return self::LEGACY_DIFM_API_KEY_CONSTANT;
-		}
-
 		return '';
 	}
 
 	/**
-	 * Return the saved API key, including the pre-rename option fallback.
+	 * Whether the Hey Woo plugin owns the WordPress-admin chat surface.
+	 *
+	 * @return bool
+	 */
+	private function is_hey_woo_active() {
+		if ( defined( 'HEY_WOO_PLUGIN_FILE' ) ) {
+			return true;
+		}
+
+		$active_plugins = (array) get_option( 'active_plugins', array() );
+		if ( in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
+			return true;
+		}
+
+		if ( is_multisite() ) {
+			$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
+			return isset( $network_plugins['hey-woo/hey-woo.php'] );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Return the saved API key.
 	 *
 	 * @return string Saved API key, or empty string.
 	 */
 	private function get_saved_api_key() {
-		$current_key = (string) get_option( self::DIFM_API_KEY_OPTION, '' );
-		if ( '' !== $current_key ) {
-			return $current_key;
-		}
-
-		return (string) get_option( self::LEGACY_DIFM_API_KEY_OPTION, '' );
+		return (string) get_option( self::DIFM_API_KEY_OPTION, '' );
 	}
 }
