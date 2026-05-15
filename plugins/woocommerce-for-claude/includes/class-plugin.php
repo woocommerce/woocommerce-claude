@@ -164,10 +164,14 @@ class Plugin {
 		// WooCommerce Settings tab.
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
 
-		// AI Insights admin page + REST controllers.
-		( new Difm\DifmAdminPage() )->register();
-		( new Difm\DifmRestController() )->register();
-		( new Difm\DifmConversationsController() )->register();
+		// AI Insights admin page + REST controllers. Hey Woo owns the BYOK
+		// admin-chat product when it is installed, so avoid registering the
+		// legacy WooCommerce for Claude surface beside it.
+		if ( ! $this->is_hey_woo_active() ) {
+			( new Difm\DifmAdminPage() )->register();
+			( new Difm\DifmRestController() )->register();
+			( new Difm\DifmConversationsController() )->register();
+		}
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.
@@ -240,6 +244,29 @@ class Plugin {
 			$handlers[] = new Telemetry\Handlers\TracksHandler();
 		}
 		return $handlers;
+	}
+
+	/**
+	 * Whether the Hey Woo plugin is active in this request.
+	 *
+	 * @return bool
+	 */
+	private function is_hey_woo_active() {
+		if ( defined( 'HEY_WOO_PLUGIN_FILE' ) ) {
+			return true;
+		}
+
+		$active_plugins = (array) get_option( 'active_plugins', array() );
+		if ( in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
+			return true;
+		}
+
+		if ( is_multisite() ) {
+			$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
+			return isset( $network_plugins['hey-woo/hey-woo.php'] );
+		}
+
+		return false;
 	}
 
 	/**

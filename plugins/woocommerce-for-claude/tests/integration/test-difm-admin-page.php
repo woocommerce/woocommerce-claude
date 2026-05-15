@@ -31,7 +31,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		wp_set_current_user( $user_id );
 
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
+		delete_option( 'hey_woo_anthropic_api_key' );
 		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		add_filter( self::RUNTIME_FILTER, '__return_true' );
@@ -42,7 +42,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
+		delete_option( 'hey_woo_anthropic_api_key' );
 		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		remove_all_filters( self::RUNTIME_FILTER );
