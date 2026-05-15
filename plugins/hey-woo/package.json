@@ -1,0 +1,17 @@
+{
+  "name": "hey-woo",
+  "version": "0.4.2",
+  "description": "Bring-your-own-key WooCommerce assistant plugin.",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "hey-woo.php",
+    "vendor"
+  ],
+  "scripts": {
+    "plugin-zip": "../woocommerce-for-claude/node_modules/.bin/wp-scripts plugin-zip"
+  }
+}
