@@ -223,8 +223,13 @@
 	flex-shrink: 0;
 	background: #fff;
 
-	&__textarea {
+	&__main {
+		position: relative;
 		flex: 1;
+		min-width: 0;
+	}
+
+	&__textarea {
 		margin-bottom: 0;
 
 		.components-base-control__field {
@@ -244,6 +249,77 @@
 		}
 	}
 
+	&__commands {
+		position: absolute;
+		right: 0;
+		bottom: calc(100% + 8px);
+		left: 0;
+		z-index: 5;
+		max-height: 280px;
+		overflow-y: auto;
+		padding: 4px;
+		border: 1px solid #dcdcde;
+		border-radius: 4px;
+		background: #fff;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	&__command {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 2px 12px;
+		width: 100%;
+		min-height: 48px;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: #1e1e1e;
+		text-align: left;
+		cursor: pointer;
+
+		&:hover,
+		&.is-active {
+			background: #f0f6fc;
+		}
+
+		&:focus-visible {
+			outline: 2px solid #3858e9;
+			outline-offset: -2px;
+		}
+	}
+
+	&__command-title {
+		min-width: 0;
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.35;
+	}
+
+	&__command-slug {
+		color: #3858e9;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+		font-size: 12px;
+		line-height: 1.35;
+		white-space: nowrap;
+	}
+
+	&__command-description {
+		grid-column: 1 / -1;
+		overflow: hidden;
+		color: #757575;
+		font-size: 12px;
+		line-height: 1.35;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	&__commands-empty {
+		padding: 10px;
+		color: #757575;
+		font-size: 13px;
+	}
+
 	&__send {
 		white-space: nowrap;
 		flex-shrink: 0;
@@ -252,6 +328,19 @@
 		&[aria-disabled="true"] {
 			opacity: 0.45;
 			cursor: default;
+		}
+	}
+}
+
+@media (max-width: 720px) {
+	.hey-woo-input {
+		&__command {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		&__command-slug {
+			white-space: normal;
+			word-break: break-word;
 		}
 	}
 }
