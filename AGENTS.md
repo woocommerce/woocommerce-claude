@@ -30,12 +30,9 @@ hey-woo/
 │       ├── woocommerce-claude.php        # Plugin bootstrap (HPOS declaration, requirements, options migration)
 │       ├── includes/
 │       │   ├── class-plugin.php          # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
-│       │   ├── abilities/                # One file per skill. wc-analytics/* (analytics tools),
-│       │   │                             # woocommerce-claude/* (store/readiness/search tools), wc-knowledge/*
-│       │   │                             # (resources), wc-prompts/* (prompts), woocommerce-claude-integrations/*
-│       │   │                             # (dev-only prototype scaffolds — gated by wp_get_environment_type)
-│       │   ├── api/                      # REST controllers + AnalyticsController (shared SQL helper —
-│       │   │                             # no REST routes; abilities call into it)
+│       │   ├── abilities/                # Claude-specific tools/resources/prompts plus compatibility aliases
+│       │   │                             # for shared wc-analytics classes
+│       │   ├── api/                      # REST controllers + AnalyticsController compatibility alias
 │       │   ├── knowledge/                # Provider pattern (store profile / catalog / product / policy)
 │       │   ├── scoring/                  # Engine + 4 factors (product, schema, content, policy)
 │       │   ├── settings/                 # WC > Settings > WooCommerce for Claude tab
@@ -43,7 +40,8 @@ hey-woo/
 │       ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
 │       └── skills/                       # Reference Claude Code / Codex workflow skills
 ├── php-packages/
-│   └── commerce-abilities/               # Composer path package; packaging spike only, no analytics extraction yet
+│   └── commerce-abilities/               # Composer path package; owns shared wc-analytics abilities,
+│                                         # AnalyticsService, and LargeRangeGate
 ├── tools/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
@@ -79,10 +77,10 @@ pnpm exec wp-env run cli -- wp eval-file /tmp/seed.php
 These are validated decisions. **MUST NOT** relitigate without strong new signal.
 
 - **Plugin-owned MCP server.** WooCommerce for Claude registers its own MCP server at `/wp-json/woocommerce-claude/mcp` via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`). The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('woocommerce-claude', 'woocommerce-claude', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts. Auth uses an `X-MCP-API-Key: ck:cs` header backed by a standard WC REST API key. The earlier "ride on WC's `woocommerce-mcp` server via `woocommerce_mcp_include_ability`" approach is gone — that endpoint is being deprecated upstream.
-- **Single Abilities API namespace.** Every analytics skill is at `wp-abilities/v1/abilities/wc-analytics/{skill}/run`. Earlier custom `woocommerce-claude/v1/analytics/*` REST routes were folded into Abilities so MCP and direct callers hit one surface.
+- **Single Abilities API namespace.** Every analytics skill is at `wp-abilities/v1/abilities/wc-analytics/{skill}/run`. The shared `woocommerce/commerce-abilities` package registers those `wc-analytics/*` abilities; WooCommerce for Claude keeps MCP curation/auth and backwards-compatible PHP aliases.
 - **Three plugin-owned ability prefixes**, declared in `Plugin::OWNED_ABILITY_NAMESPACES`: `wc-analytics/`, `woocommerce-claude/`, `woocommerce-claude-integrations/`. The WC auth scope filter trusts only routes under these prefixes — a WooCommerce for Claude consumer key cannot be replayed against abilities registered by other plugins. Adding a fourth prefix is a single-edit operation; the `Plugin::mcp_tool_ability_ids()` curated list must be updated in lockstep.
 - **Aggregated-only privacy by default.** PII gate (`woocommerce_claude_allow_customer_pii`) is off; merchants opt in only when chaining with email/CRM MCPs that need real addresses. `wc_string_to_bool` reads the option (not `(bool)` — `'no'` would otherwise be truthy).
-- **HPOS-compatible.** Declared via `FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true)`. SQL must read from HPOS tables (`wp_wc_orders_meta` for attribution) when available, falling back to `wp_postmeta` only when HPOS isn't enabled. The runtime branch lives in `AnalyticsController::get_order_meta_source()`.
+- **HPOS-compatible.** Declared via `FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true)`. SQL must read from HPOS tables (`wp_wc_orders_meta` for attribution) when available, falling back to `wp_postmeta` only when HPOS isn't enabled. The runtime branch lives in `AnalyticsService::get_order_meta_source()` (also reachable through the plugin's `AnalyticsController` compatibility alias).
 - **No background work.** No cron, no polling, no sync jobs. The plugin runs only when an MCP/REST request arrives. This is the contract that lets the perf doc say "lighter than loading WC Analytics a few times an hour."
 - **Transient cache with stable keys.** Never pass live `DateTime` objects into cache-key generation; normalise to `Y-m-d H:i:s` strings before hashing. WC core's DataStore cache has a known microseconds-in-key bug — don't reach for it.
 
@@ -121,7 +119,15 @@ A new analytics skill needs **code + PHPUnit test + two static-sweep constants**
 
 The full how-to is in CONTRIBUTING.md (`Adding a new analytics Skill`). Don't shortcut the test — the coverage guard is the substitute for "did anyone actually verify this against real data?"
 
-This section is about registered analytics Abilities under `plugins/woocommerce-for-claude/includes/abilities/`, not agent-side workflow skills under `plugins/woocommerce-for-claude/skills/`. If the current MCP tools already return the needed data and the change is just an opinionated workflow ("weekly review", "refund triage", "catalogue cleanup plan"), add or update a `plugins/woocommerce-for-claude/skills/<name>/SKILL.md` file instead of adding a new MCP ability.
+This section is about registered analytics Abilities under `php-packages/commerce-abilities/src/Abilities/`, not agent-side workflow skills under `plugins/woocommerce-for-claude/skills/`. If the current MCP tools already return the needed data and the change is just an opinionated workflow ("weekly review", "refund triage", "catalogue cleanup plan"), add or update a `plugins/woocommerce-for-claude/skills/<name>/SKILL.md` file instead of adding a new MCP ability.
+
+### Composer path package refresh
+
+`woocommerce/commerce-abilities` is installed with `"symlink": false` so release zips vendor a real copy of the shared package. After editing files under `php-packages/commerce-abilities/`, refresh the plugin vendor mirror and lock metadata:
+
+```bash
+composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerce-abilities --no-progress --prefer-dist
+```
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 

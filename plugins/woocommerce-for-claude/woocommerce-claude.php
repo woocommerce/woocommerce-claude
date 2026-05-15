@@ -25,13 +25,78 @@ define( 'WOOCOMMERCE_CLAUDE_VERSION', '0.4.2' );
 define( 'WOOCOMMERCE_CLAUDE_PLUGIN_FILE', __FILE__ );
 define( 'WOOCOMMERCE_CLAUDE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
-$woocommerce_claude_autoload = WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/autoload.php';
-if ( ! class_exists( \WooCommerce\CommerceAbilities\Loader::class ) && file_exists( $woocommerce_claude_autoload ) ) {
-	require_once $woocommerce_claude_autoload;
+woocommerce_claude_load_commerce_abilities();
+
+/**
+ * Load the vendored commerce-abilities package classes.
+ *
+ * Composer's generated autoloader class name is stable for the same lock file,
+ * so wp-env's PHPUnit bootstrap and production/test double mount can fatal if
+ * multiple plugin copies require their own vendor/autoload.php. The runtime
+ * package currently has no third-party dependencies, so load the shared package
+ * files directly and skip classes an earlier package copy already provided.
+ */
+function woocommerce_claude_load_commerce_abilities() {
+	$woocommerce_claude_package_dir = WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/';
+	$woocommerce_claude_classes     = array(
+		\WooCommerce\CommerceAbilities\Loader::class => 'loader.php',
+		\WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class => 'Abilities/class-analytics-bootstrap.php',
+		\WooCommerce\CommerceAbilities\Abilities\LargeRangeGate::class => 'Abilities/class-large-range-gate.php',
+		\WooCommerce\CommerceAbilities\Abilities\ConfirmLargeRangeAbility::class => 'Abilities/class-confirm-large-range-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\AnalyticsTotalsAbility::class => 'Abilities/class-analytics-totals-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\AnalyticsBreakdownAbility::class => 'Abilities/class-analytics-breakdown-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\AnalyticsSeriesAbility::class => 'Abilities/class-analytics-series-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\AnalyticsRowsAbility::class => 'Abilities/class-analytics-rows-ability.php',
+		\WooCommerce\CommerceAbilities\Analytics\AnalyticsService::class => 'Analytics/class-analytics-service.php',
+	);
+
+	foreach ( $woocommerce_claude_classes as $class_name => $relative_path ) {
+		$file = $woocommerce_claude_package_dir . $relative_path;
+		if ( ! class_exists( $class_name, false ) && file_exists( $file ) ) {
+			require_once $file;
+		}
+	}
 }
 
-if ( class_exists( \WooCommerce\CommerceAbilities\Loader::class ) ) {
-	\WooCommerce\CommerceAbilities\Loader::init();
+/**
+ * Initialise the shared commerce abilities package.
+ *
+ * The direct hook fallback covers the mixed-version case where an older no-op
+ * Loader class exists before this plugin is loaded.
+ */
+function woocommerce_claude_init_commerce_abilities() {
+	if ( class_exists( \WooCommerce\CommerceAbilities\Loader::class ) ) {
+		\WooCommerce\CommerceAbilities\Loader::init();
+	}
+
+	if ( class_exists( \WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class ) ) {
+		woocommerce_claude_add_action_once(
+			'wp_abilities_api_categories_init',
+			array( \WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class, 'register_category' )
+		);
+		woocommerce_claude_add_action_once(
+			'wp_abilities_api_init',
+			array( \WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class, 'register_abilities' )
+		);
+	}
+}
+
+/**
+ * Add a WordPress action only when the exact callback is not registered.
+ *
+ * @param string $hook_name Hook name.
+ * @param array  $callback  Static method callback.
+ */
+function woocommerce_claude_add_action_once( $hook_name, $callback ) {
+	if ( ! function_exists( 'add_action' ) ) {
+		return;
+	}
+
+	if ( function_exists( 'has_action' ) && false !== has_action( $hook_name, $callback ) ) {
+		return;
+	}
+
+	add_action( $hook_name, $callback );
 }
 
 /**
@@ -98,6 +163,7 @@ add_action(
 	'plugins_loaded',
 	function () {
 		if ( woocommerce_claude_check_requirements() ) {
+			woocommerce_claude_init_commerce_abilities();
 			woocommerce_claude_migrate_legacy_options();
 			require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/class-plugin.php';
 			\WooCommerce\Claude\Plugin::instance();
