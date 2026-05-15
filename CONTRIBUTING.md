@@ -38,13 +38,15 @@ There is **no separate MCP server process** — WooCommerce for Claude registers
 
 | Path | What |
 |---|---|
-| `includes/abilities/` | Ability classes — one file per skill. `wc-analytics/*` for analytics tools, `woocommerce-claude/*` for store/readiness tools, `wc-knowledge/*` for resources, `wc-prompts/*` for prompts. Bootstrap in `class-abilities-bootstrap.php`. |
-| `includes/api/class-analytics-controller.php` | Shared analytics data-access helper. Holds the SQL + response assembly for every skill; no REST routes of its own. |
-| `includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
-| `includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
-| `includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
-| `includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
-| `skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
+| `plugins/woocommerce-for-claude/` | Product plugin package. Owns the WordPress plugin bootstrap, MCP endpoint, Claude setup, admin UI, tests, and release zip build. |
+| `plugins/woocommerce-for-claude/includes/abilities/` | Ability classes — one file per skill. `wc-analytics/*` for analytics tools, `woocommerce-claude/*` for store/readiness tools, `wc-knowledge/*` for resources, `wc-prompts/*` for prompts. Bootstrap in `class-abilities-bootstrap.php`. |
+| `plugins/woocommerce-for-claude/includes/api/class-analytics-controller.php` | Shared analytics data-access helper. Holds the SQL + response assembly for every skill; no REST routes of its own. |
+| `plugins/woocommerce-for-claude/includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
+| `plugins/woocommerce-for-claude/includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
+| `plugins/woocommerce-for-claude/includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
+| `plugins/woocommerce-for-claude/includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
+| `plugins/woocommerce-for-claude/skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
+| `php-packages/commerce-abilities/` | Composer path package for future shared ability code. The packaging spike adds only a no-op loader; analytics logic still lives in the product plugin until the extraction phase. |
 
 ## Privacy rule
 
@@ -56,7 +58,7 @@ The AI is talking to a **merchant**, not to the plugin's developer. A merchant u
 
 When a gap is hit, steer the merchant to something they can action: a setting, a connector, a manual workflow, or an honest "this isn't something we can answer."
 
-Every MCP tool description in `includes/abilities/class-*-ability.php` carries this rule in its `WHAT THIS CAN'T ANSWER` block.
+Every MCP tool description in `plugins/woocommerce-for-claude/includes/abilities/class-*-ability.php` carries this rule in its `WHAT THIS CAN'T ANSWER` block.
 
 ## WooCommerce tables we use
 
@@ -106,7 +108,7 @@ The script mirrors `.github/workflows/ci.yml` line-for-line, so the same checks 
 
 ## Extending the analytics surface
 
-Before adding a new MCP ability or analytics subject, ask whether the current tools already return the data. If the missing piece is an opinionated workflow over existing data — for example a weekly store review, refund triage, or catalogue cleanup plan — add or update an agent-side Skill under `skills/` instead. Abilities are data primitives; Skills are workflows.
+Before adding a new MCP ability or analytics subject, ask whether the current tools already return the data. If the missing piece is an opinionated workflow over existing data — for example a weekly store review, refund triage, or catalogue cleanup plan — add or update an agent-side Skill under `plugins/woocommerce-for-claude/skills/` instead. Abilities are data primitives; Skills are workflows.
 
 The MCP surface is four verb-shaped tools: `wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`. Most new analytics work means adding a `subject` to one of those tools (and the corresponding `fetch_*` helper on `AnalyticsController`), not minting a new top-level tool.
 
@@ -128,11 +130,11 @@ The high-level shape:
 
 6. **Pre-compute anything the AI would otherwise derive by hand.** Comparisons, deltas, percentages — and *ratios between any two returned fields* too. If a demo shows the AI computing `field_a / field_b` from the response to answer a question, that division should live in the endpoint. Every arithmetic step the AI does is a hallucination risk.
 
-7. **Mandatory PHPUnit integration tests** — `tests/integration/test-<verb>.php` already exists; extend its data provider with the new subject and add per-subject assertions for the data layer. The coverage guard in `tests/integration/test-ability-registration.php` is per-verb-tool, not per-subject.
+7. **Mandatory PHPUnit integration tests** — `plugins/woocommerce-for-claude/tests/integration/test-<verb>.php` already exists; extend its data provider with the new subject and add per-subject assertions for the data layer. The coverage guard in `plugins/woocommerce-for-claude/tests/integration/test-ability-registration.php` is per-verb-tool, not per-subject.
 
 ### What every test extension looks like
 
-For data-layer assertions, look at the existing per-subject integration tests in `tests/integration/` — they call `AnalyticsController::fetch_*` directly and pin response invariants against fixture data. For verb-tool wiring (schema validation, dispatch routing, telemetry payload), extend the matching `test-<verb>.php` file's subject-routing data provider and add per-subject assertions on the result.
+For data-layer assertions, look at the existing per-subject integration tests in `plugins/woocommerce-for-claude/tests/integration/` — they call `AnalyticsController::fetch_*` directly and pin response invariants against fixture data. For verb-tool wiring (schema validation, dispatch routing, telemetry payload), extend the matching `test-<verb>.php` file's subject-routing data provider and add per-subject assertions on the result.
 
 Shared shape every per-subject data-layer test follows:
 
@@ -177,7 +179,7 @@ Good (forces substitution):
 > Bad: "You'd need the planned get_customer_value skill to surface it properly."
 > Good: "That question is about cohort retention — following specific customer groups over time to see when they come back. That longitudinal view isn't in the current tools. For a manual version, export the customer list from WP Admin > WooCommerce > Customers with a date filter and pivot in a spreadsheet."
 
-**Corollary: static sweeps as behavioural-test proxies.** When a guardrail is about the AI's runtime behaviour — something you can only truly test with a paid, flaky API call against a real model — look instead for a static property the tool description itself should satisfy. A regex sweep of the ability description strings (`includes/abilities/class-*-ability.php`) catches the class of regression where the bad/good phrasing pair is absent from the description in the first place. Lives at `tests/integration/test-ability-description-guardrails.php` and runs on every `./bin/check`.
+**Corollary: static sweeps as behavioural-test proxies.** When a guardrail is about the AI's runtime behaviour — something you can only truly test with a paid, flaky API call against a real model — look instead for a static property the tool description itself should satisfy. A regex sweep of the ability description strings (`plugins/woocommerce-for-claude/includes/abilities/class-*-ability.php`) catches the class of regression where the bad/good phrasing pair is absent from the description in the first place. Lives at `plugins/woocommerce-for-claude/tests/integration/test-ability-description-guardrails.php` and runs on every `./bin/check`.
 
 ### Narrative-layer drift is a pre-compute trigger too
 

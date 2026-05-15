@@ -20,6 +20,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_DIR="$REPO_ROOT/plugins/woocommerce-for-claude"
 cd "$REPO_ROOT"
 
 step() {
@@ -32,9 +33,9 @@ fail() {
 }
 
 # 1. PHP deps.
-if [ ! -d vendor ]; then
+if [ ! -x "$PLUGIN_DIR/vendor/bin/phpcs" ] || [ ! -x "$PLUGIN_DIR/vendor/bin/phpunit" ]; then
 	step "Installing PHP dev dependencies (composer install)"
-	composer install --no-progress --prefer-dist
+	composer install --working-dir="$PLUGIN_DIR" --no-progress --prefer-dist
 fi
 
 if ! command -v pnpm >/dev/null 2>&1; then
@@ -50,14 +51,15 @@ fi
 
 # 3. PHPCS.
 step "PHPCS (WordPress-Extra + Docs + WooCommerce)"
-composer run phpcs
+composer --working-dir="$PLUGIN_DIR" run phpcs
 
-# 4. Composer dependency audit. Respects config.audit.ignore in composer.json —
+# 4. Composer dependency audit. Respects config.audit.ignore in the plugin's
+#    composer.json —
 #    PHPUnit advisories are test-only and pre-justified there. --no-dev would
 #    skip the audit entirely since there are no production PHP deps, so run
 #    the full audit and trust the ignore list.
 step "Composer: dependency audit"
-composer audit || fail "composer audit reported new vulnerabilities — fix or add a justified ignore to composer.json's config.audit.ignore."
+composer --working-dir="$PLUGIN_DIR" audit || fail "composer audit reported new vulnerabilities — fix or add a justified ignore to plugins/woocommerce-for-claude/composer.json's config.audit.ignore."
 
 # 5. PHPUnit smoke test inside the wp-env tests-cli container.
 if ! docker ps --format '{{.Names}}' | grep -q 'tests-cli'; then

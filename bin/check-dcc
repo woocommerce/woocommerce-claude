@@ -38,7 +38,7 @@ PLUGIN_SLUG="wca-data-consistency"
 
 # Path inside the wp-env container where the repo is mounted
 # (via the `mappings` entry in .wp-env.json).
-CONTAINER_REPO_PATH="wp-content/plugins/hey-woo-tests"
+CONTAINER_REPO_PATH="wp-content/plugins/hey-woo-monorepo"
 
 log() {
 	printf '  %s\n' "$1"
@@ -82,7 +82,7 @@ order_count_raw="$(
 # Trim any wp-env wrapper lines that leaked into stdout (rare but seen in CI).
 order_count="$(printf '%s\n' "$order_count_raw" | grep -oE '[0-9]+' | tail -n1 || true)"
 if [ -z "$order_count" ] || [ "$order_count" = "0" ]; then
-	skip "wp_wc_order_stats is empty — run 'pnpm exec wp-env run cli -- wp eval-file wp-content/plugins/hey-woo-tests/tools/seed-demo-store.php' to populate"
+	skip "wp_wc_order_stats is empty — run 'pnpm exec wp-env run cli -- wp eval-file wp-content/plugins/hey-woo-monorepo/tools/seed-demo-store.php' to populate"
 fi
 
 log "Dev store has $order_count order-stats rows — running DCC."

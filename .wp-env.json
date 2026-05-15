@@ -2,7 +2,8 @@
   "core": "WordPress/WordPress#6.9",
   "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip", "https://downloads.wordpress.org/plugin/gutenberg.zip"],
   "mappings": {
-    "wp-content/plugins/woocommerce-claude": ".",
+    "wp-content/plugins/hey-woo-monorepo": ".",
+    "wp-content/plugins/woocommerce-claude": "./plugins/woocommerce-for-claude",
     "wp-content/mu-plugins": "./tools/mu-plugins"
   },
   "config": {
@@ -16,7 +17,7 @@
   "env": {
     "tests": {
       "mappings": {
-        "wp-content/plugins/woocommerce-claude-tests": "."
+        "wp-content/plugins/woocommerce-claude-tests": "./plugins/woocommerce-for-claude"
       }
     }
   }

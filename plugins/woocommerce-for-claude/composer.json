@@ -4,8 +4,18 @@
     "type": "wordpress-plugin",
     "license": "GPL-3.0-or-later",
     "require": {
-        "php": ">=7.4"
+        "php": ">=7.4",
+        "woocommerce/commerce-abilities": "0.1.0"
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../php-packages/commerce-abilities",
+            "options": {
+                "symlink": false
+            }
+        }
+    ],
     "require-dev": {
         "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
         "phpcompatibility/phpcompatibility-wp": "^2.1",

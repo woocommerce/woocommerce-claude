@@ -1,1 +1,6 @@
+packages:
+  - plugins/*
+  - plugins/*/packages/*
+  - plugins/*/routes/*
+
 minimumReleaseAge: 10080

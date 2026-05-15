@@ -19,38 +19,34 @@ WordPress plugin, PHP 7.4+, GPL-3.0-or-later. Public repo — never commit secre
 **Re-stating the two highest-stakes rules** because they're load-bearing for every ability description and a single violation ships to a public release:
 
 - **Privacy.** Analytics responses are aggregated counts/sums/averages only. No customer names, emails, or addresses unless the `woocommerce_claude_allow_customer_pii` option is opt-in **and** the response shape clearly justifies it. Default off.
-- **Merchant scope.** The AI is talking to a merchant. They can't add a tool, register a REST endpoint, or edit plugin code. Tool descriptions and merchant-facing text MUST NOT suggest "a future X skill would answer this" — substitute with something the merchant can action (a setting, a manual workflow, a connector, or an honest "this isn't something we can answer"). The static guardrail-sweep test (`tests/integration/test-ability-description-guardrails.php`) catches the obvious violations on every `./bin/check`.
+- **Merchant scope.** The AI is talking to a merchant. They can't add a tool, register a REST endpoint, or edit plugin code. Tool descriptions and merchant-facing text MUST NOT suggest "a future X skill would answer this" — substitute with something the merchant can action (a setting, a manual workflow, a connector, or an honest "this isn't something we can answer"). The static guardrail-sweep test (`plugins/woocommerce-for-claude/tests/integration/test-ability-description-guardrails.php`) catches the obvious violations on every `./bin/check`.
 
 ## Layout
 
 ```
-woocommerce-claude/
-├── woocommerce-claude.php               # Plugin bootstrap (HPOS declaration, requirements, options migration)
-├── includes/
-│   ├── class-plugin.php      # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
-│   ├── abilities/            # One file per skill. wc-analytics/* (analytics tools),
-│   │                         # woocommerce-claude/* (store/readiness/search tools), wc-knowledge/*
-│   │                         # (resources), wc-prompts/* (prompts), woocommerce-claude-integrations/*
-│   │                         # (dev-only prototype scaffolds — gated by wp_get_environment_type)
-│   ├── api/                  # REST controllers + AnalyticsController (shared SQL helper —
-│   │                         # no REST routes; abilities call into it)
-│   ├── knowledge/            # Provider pattern (store profile / catalog / product / policy)
-│   ├── scoring/              # Engine + 4 factors (product, schema, content, policy)
-│   ├── settings/             # WC > Settings > WooCommerce for Claude tab
-│   └── telemetry/            # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
-├── tests/integration/        # PHPUnit; runs inside wp-env tests-cli container
+hey-woo/
+├── plugins/
+│   └── woocommerce-for-claude/
+│       ├── woocommerce-claude.php        # Plugin bootstrap (HPOS declaration, requirements, options migration)
+│       ├── includes/
+│       │   ├── class-plugin.php          # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
+│       │   ├── abilities/                # One file per skill. wc-analytics/* (analytics tools),
+│       │   │                             # woocommerce-claude/* (store/readiness/search tools), wc-knowledge/*
+│       │   │                             # (resources), wc-prompts/* (prompts), woocommerce-claude-integrations/*
+│       │   │                             # (dev-only prototype scaffolds — gated by wp_get_environment_type)
+│       │   ├── api/                      # REST controllers + AnalyticsController (shared SQL helper —
+│       │   │                             # no REST routes; abilities call into it)
+│       │   ├── knowledge/                # Provider pattern (store profile / catalog / product / policy)
+│       │   ├── scoring/                  # Engine + 4 factors (product, schema, content, policy)
+│       │   ├── settings/                 # WC > Settings > WooCommerce for Claude tab
+│       │   └── telemetry/                # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
+│       ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
+│       └── skills/                       # Reference Claude Code / Codex workflow skills
+├── php-packages/
+│   └── commerce-abilities/               # Composer path package; packaging spike only, no analytics extraction yet
 ├── tools/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
-├── skills/                   # Reference Claude Code / Codex workflow skills
-│   ├── README.md             # Skills index and tools-vs-skills guidance
-│   ├── weekly-store-review
-│   ├── revenue-drop-triage
-│   ├── failed-order-triage
-│   ├── refund-triage
-│   ├── catalog-audit
-│   ├── product-content-generator
-│   └── store-health-monitor
 ├── bin/
 │   ├── check                 # Local CI mirror — PHPCS + composer audit + PHPUnit + DCC
 │   └── check-dcc             # Data Consistency Checker (gated; auto-skips if not installed)
@@ -92,13 +88,13 @@ These are validated decisions. **MUST NOT** relitigate without strong new signal
 
 ## Stack
 
-- **PHP 7.4+** (Composer platform pinned to 7.4 to match CI; PHPCompatibilityWP enforces the floor)
+- **PHP 7.4+** (the plugin Composer platform is pinned to 7.4 to match CI; PHPCompatibilityWP enforces the floor)
 - **WordPress 6.9+** (Abilities API requires it)
 - **WooCommerce 10.6+** (tested up to 10.7)
 - **PHPCS:** `WordPress-Extra` + `WordPress-Docs` + `WooCommerce` rulesets via `dealerdirect/phpcodesniffer-composer-installer`
 - **PHPUnit 9.6** + `yoast/phpunit-polyfills` — runs *inside* the wp-env `tests-cli` container, not on host PHP
 - **pnpm 10.33.0** for Node tooling (`packageManager` is pinned in `package.json`)
-- **`@wordpress/scripts plugin-zip`** for release builds; CI tag (`v*`) triggers `.github/workflows/release.yml`
+- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-for-claude.zip` from `plugins/woocommerce-for-claude/`
 
 ## Common pitfalls
 
@@ -118,18 +114,18 @@ Local wp-env runs on plain HTTP. The WooCommerce for Claude MCP transport (`WP\M
 
 ### Two-step skill addition
 
-A new analytics skill needs **code + PHPUnit test + two static-sweep constants** in the same PR. The coverage guard at `tests/integration/test-ability-registration.php` fails CI when:
+A new analytics skill needs **code + PHPUnit test + two static-sweep constants** in the same PR. The coverage guard at `plugins/woocommerce-for-claude/tests/integration/test-ability-registration.php` fails CI when:
 
 1. The new ability ID isn't in `Test_Ability_Registration::EXPECTED_ABILITY_IDS`, **or**
-2. There's no `tests/integration/test-<slug>.php` file with at least one `test_*` method.
+2. There's no `plugins/woocommerce-for-claude/tests/integration/test-<slug>.php` file with at least one `test_*` method.
 
 The full how-to is in CONTRIBUTING.md (`Adding a new analytics Skill`). Don't shortcut the test — the coverage guard is the substitute for "did anyone actually verify this against real data?"
 
-This section is about registered analytics Abilities under `includes/abilities/`, not agent-side workflow skills under `skills/`. If the current MCP tools already return the needed data and the change is just an opinionated workflow ("weekly review", "refund triage", "catalogue cleanup plan"), add or update a `skills/<name>/SKILL.md` file instead of adding a new MCP ability.
+This section is about registered analytics Abilities under `plugins/woocommerce-for-claude/includes/abilities/`, not agent-side workflow skills under `plugins/woocommerce-for-claude/skills/`. If the current MCP tools already return the needed data and the change is just an opinionated workflow ("weekly review", "refund triage", "catalogue cleanup plan"), add or update a `plugins/woocommerce-for-claude/skills/<name>/SKILL.md` file instead of adding a new MCP ability.
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 
-`.wp-env.json` mounts the repo into the dev environment as `woocommerce-claude` and into the **tests** environment as `woocommerce-claude-tests`. The PHPUnit container's working dir is `wp-content/plugins/woocommerce-claude-tests` — that's why `bootstrap.php` does `glob($plugin_dir . '/woocommerce-claude/...')` to find the production-side mount when loading WC. Don't rename either mount; the bootstrap and the CI workflow both rely on the slug.
+`.wp-env.json` mounts `plugins/woocommerce-for-claude` into the dev environment as `woocommerce-claude` and into the **tests** environment as `woocommerce-claude-tests`. The PHPUnit container's working dir is `wp-content/plugins/woocommerce-claude-tests` — that's why `bootstrap.php` loads the production-side `woocommerce-claude/woocommerce-claude.php` mount when loading WC. Don't rename either mount; the bootstrap and the CI workflow both rely on the slug.
 
 ### British English
 
@@ -145,4 +141,4 @@ The plugin is published as a UK-Automattic-shaped product (default seed store is
   3. Tool/ability descriptions don't violate the merchant-scope rule (the description-guardrail sweep enforces the obvious cases; review catches the rest).
   4. CONTRIBUTING.md "Design patterns worth knowing" section updated when a new reusable pattern is established.
   5. AGENTS.md (this file) updated when a new gotcha, command, or convention is introduced.
-- **Don't commit `woocommerce-claude.zip`.** It's checked into the repo as a one-off artefact, but `*.zip` is in `.gitignore` and the release workflow rebuilds it from the tag. Don't update it in regular commits.
+- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-for-claude.zip` and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.

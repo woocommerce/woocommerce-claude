@@ -36,8 +36,8 @@ require_once $_tests_dir . '/includes/functions.php';
  *
  * Plugin slugs are resolved at runtime: wp-env mounts WooCommerce as
  * `woocommerce*` (the .latest-stable zip lands at `woocommerce.latest-stable/`),
- * and our plugin at `woocommerce-claude/` (destination slug of the `./plugin`
- * mount in `.wp-env.json`).
+ * and our plugin at `woocommerce-claude/` (destination slug of the
+ * `./plugins/woocommerce-for-claude` mount in `.wp-env.json`).
  */
 function woocommerce_claude_tests_load_plugins() {
 	$plugin_dir = defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins';

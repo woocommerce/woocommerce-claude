@@ -25,6 +25,7 @@ WP_CORE_DIR=${WP_CORE_DIR:-/tmp/wordpress/src}
 WP_TESTS_DIR=${WP_TESTS_DIR:-/tmp/wordpress/tests/phpunit}
 PLUGIN_DIR="$WP_CORE_DIR/wp-content/plugins"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_SOURCE_DIR="$REPO_DIR/plugins/woocommerce-for-claude"
 
 # Resolve "latest" to a concrete semver string (needed for the SVN tag path).
 if [ "$WP_VERSION" = "latest" ]; then
@@ -92,4 +93,4 @@ if [ ! -f "$PLUGIN_DIR/woocommerce/woocommerce.php" ]; then
 fi
 
 # ── Plugin under test ──────────────────────────────────────────────────────────
-ln -sfn "$REPO_DIR" "$PLUGIN_DIR/woocommerce-claude"
+ln -sfn "$PLUGIN_SOURCE_DIR" "$PLUGIN_DIR/woocommerce-claude"
