@@ -32,21 +32,23 @@ Scoring engine
 
 There is **no separate MCP server process** — WooCommerce for Claude registers its own MCP server via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`) and owns the single endpoint at `/wp-json/woocommerce-claude/mcp`. The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('woocommerce-claude', 'woocommerce-claude', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts.
 
-**Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). This is the standard path for anything that exposes actions or tools to AI systems.
+**Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). The shared `woocommerce/commerce-abilities` Composer package owns the `wc-analytics/*` ability classes, the large-range gate, and the SQL-backed analytics service; WooCommerce for Claude owns MCP curation, auth, setup, and product-specific abilities.
 
 ### Key directories
 
 | Path | What |
 |---|---|
 | `plugins/woocommerce-for-claude/` | Product plugin package. Owns the WordPress plugin bootstrap, MCP endpoint, Claude setup, admin UI, tests, and release zip build. |
-| `plugins/woocommerce-for-claude/includes/abilities/` | Ability classes — one file per skill. `wc-analytics/*` for analytics tools, `woocommerce-claude/*` for store/readiness tools, `wc-knowledge/*` for resources, `wc-prompts/*` for prompts. Bootstrap in `class-abilities-bootstrap.php`. |
-| `plugins/woocommerce-for-claude/includes/api/class-analytics-controller.php` | Shared analytics data-access helper. Holds the SQL + response assembly for every skill; no REST routes of its own. |
+| `php-packages/commerce-abilities/src/Abilities/` | Shared `wc-analytics/*` ability classes plus `LargeRangeGate` and the analytics bootstrap. |
+| `php-packages/commerce-abilities/src/Analytics/class-analytics-service.php` | Shared analytics data-access service. Holds the SQL + response assembly for every analytics subject; no REST routes of its own. |
+| `plugins/woocommerce-for-claude/includes/abilities/` | WooCommerce for Claude product abilities — `woocommerce-claude/*` tools, `wc-knowledge/*` resources, `wc-prompts/*` prompts, dev-only integration scaffolds, and backwards-compatible aliases for the shared analytics classes. Bootstrap in `class-abilities-bootstrap.php`. |
+| `plugins/woocommerce-for-claude/includes/api/class-analytics-controller.php` | Backwards-compatible alias to `AnalyticsService` for existing tests and extension code. New shared analytics code should call `AnalyticsService` directly. |
 | `plugins/woocommerce-for-claude/includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
 | `plugins/woocommerce-for-claude/includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
 | `plugins/woocommerce-for-claude/includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
 | `plugins/woocommerce-for-claude/includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `plugins/woocommerce-for-claude/skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
-| `php-packages/commerce-abilities/` | Composer path package for future shared ability code. The packaging spike adds only a no-op loader; analytics logic still lives in the product plugin until the extraction phase. |
+| `php-packages/commerce-abilities/` | Composer path package vendored into release zips. Installed with `"symlink": false`, so refresh it with `composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerce-abilities --no-progress --prefer-dist` after editing shared package files. |
 
 ## Privacy rule
 
@@ -58,7 +60,7 @@ The AI is talking to a **merchant**, not to the plugin's developer. A merchant u
 
 When a gap is hit, steer the merchant to something they can action: a setting, a connector, a manual workflow, or an honest "this isn't something we can answer."
 
-Every MCP tool description in `plugins/woocommerce-for-claude/includes/abilities/class-*-ability.php` carries this rule in its `WHAT THIS CAN'T ANSWER` block.
+Every MCP tool description in `php-packages/commerce-abilities/src/Abilities/class-*-ability.php` and `plugins/woocommerce-for-claude/includes/abilities/class-*-ability.php` carries this rule in its `WHAT THIS CAN'T ANSWER` block when it exposes merchant-facing tool guidance.
 
 ## WooCommerce tables we use
 
@@ -70,7 +72,7 @@ Every MCP tool description in `plugins/woocommerce-for-claude/includes/abilities
 | `wc_order_coupon_lookup` | Coupon usage per order |
 | `wc_order_tax_lookup` | Tax collected per rate per order |
 | `wc_order_addresses` | Billing/shipping addresses (HPOS) |
-| `wp_wc_orders_meta` (HPOS) **or** `wp_postmeta` (classic) | Order meta including attribution data (origin, utm_source, utm_medium, utm_campaign, utm_term, utm_content, device_type). Detect at query time by table existence — see the `get_order_meta_source()` helper in `class-analytics-controller.php`. |
+| `wp_wc_orders_meta` (HPOS) **or** `wp_postmeta` (classic) | Order meta including attribution data (origin, utm_source, utm_medium, utm_campaign, utm_term, utm_content, device_type). Detect at query time by table existence — see the `get_order_meta_source()` helper in `AnalyticsService`. |
 
 ## Known edge cases
 
@@ -110,7 +112,7 @@ The script mirrors `.github/workflows/ci.yml` line-for-line, so the same checks 
 
 Before adding a new MCP ability or analytics subject, ask whether the current tools already return the data. If the missing piece is an opinionated workflow over existing data — for example a weekly store review, refund triage, or catalogue cleanup plan — add or update an agent-side Skill under `plugins/woocommerce-for-claude/skills/` instead. Abilities are data primitives; Skills are workflows.
 
-The MCP surface is four verb-shaped tools: `wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`. Most new analytics work means adding a `subject` to one of those tools (and the corresponding `fetch_*` helper on `AnalyticsController`), not minting a new top-level tool.
+The MCP surface is four verb-shaped tools: `wc-analytics-totals`, `wc-analytics-breakdown`, `wc-analytics-series`, `wc-analytics-rows`. Most new analytics work means adding a `subject` to one of those tools (and the corresponding `fetch_*` helper on `AnalyticsService`), not minting a new top-level tool.
 
 The high-level shape:
 
@@ -122,7 +124,7 @@ The high-level shape:
    - "Over time" → `wc-analytics-series`
    - "Show me the actual records" → `wc-analytics-rows`
 
-3. **Add the data layer to `AnalyticsController`** — a `public static fetch_<subject>()` helper with SQL + response assembly. Mirror the parameter shape of an existing sibling (e.g. `fetch_revenue_summary` for new totals subjects).
+3. **Add the data layer to `AnalyticsService`** — a `public static fetch_<subject>()` helper with SQL + response assembly. Mirror the parameter shape of an existing sibling (e.g. `fetch_revenue_summary` for new totals subjects).
 
 4. **Wire it into the verb tool** — extend the `subject` enum in the matching `class-analytics-<verb>-ability.php` schema, add a dispatch arm in `dispatch()`, extend the consolidated describe heredoc with a new `SUBJECT = <name>` section. For breakdown, also extend `validate_dimension()` and `default_dimension_for()`.
 
@@ -134,14 +136,14 @@ The high-level shape:
 
 ### What every test extension looks like
 
-For data-layer assertions, look at the existing per-subject integration tests in `plugins/woocommerce-for-claude/tests/integration/` — they call `AnalyticsController::fetch_*` directly and pin response invariants against fixture data. For verb-tool wiring (schema validation, dispatch routing, telemetry payload), extend the matching `test-<verb>.php` file's subject-routing data provider and add per-subject assertions on the result.
+For data-layer assertions, look at the existing per-subject integration tests in `plugins/woocommerce-for-claude/tests/integration/` — they call the analytics service directly through the `AnalyticsController` compatibility alias and pin response invariants against fixture data. For verb-tool wiring (schema validation, dispatch routing, telemetry payload), extend the matching `test-<verb>.php` file's subject-routing data provider and add per-subject assertions on the result.
 
 Shared shape every per-subject data-layer test follows:
 
 1. **File-level docblock** pinning the invariants this test class guards.
 2. **`use \WooCommerce\Claude\Tests\Integration\AnalyticsFixtures;`** — provides `seed_customer()`, `seed_paid_order()`, `seed_refund_order()`, etc.
 3. **`set_up()`** seeds the deterministic fixture for all tests in the class.
-4. **Direct `AnalyticsController::fetch_<subject>(...)` calls** — verb-tool wiring is exercised separately in `test-<verb>.php`.
+4. **Direct analytics service calls** — currently via `AnalyticsController::fetch_<subject>(...)` in tests for compatibility; verb-tool wiring is exercised separately in `test-<verb>.php`.
 5. **One `test_*` method per invariant** — one assertion cluster per question the merchant will ask.
 
 Also update two static-sweep constants when adding any new MCP tool:

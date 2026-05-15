@@ -2,12 +2,10 @@
 /**
  * Abilities API bootstrap.
  *
- * Registers the `wc-analytics` ability category and wires up every
- * analytics skill under the WordPress 6.9 Abilities API. Skills 1–5
- * originally used custom `woocommerce-claude/v1/analytics/` REST routes;
- * E5 (2026-04-17) folded them into this file alongside the original
- * Abilities-first skill (get-customer-value) so everything ships on
- * `wp-abilities/v1` and only one namespace is callable.
+ * Registers WooCommerce for Claude product abilities under the WordPress
+ * 6.9 Abilities API. Shared `wc-analytics/*` abilities now live in the
+ * commerce-abilities package; this bootstrap owns Claude-specific tools,
+ * resources, prompts, and local/dev integration scaffolds.
  *
  * Customer-level PII (real names / emails) is never surfaced to AI
  * analytics responses — every skill returns pseudonymised `Customer #N`
@@ -21,7 +19,7 @@ namespace WooCommerce\Claude\Abilities;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Bootstraps the wc-analytics ability category and abilities.
+ * Bootstraps WooCommerce for Claude product abilities.
  */
 class AbilitiesBootstrap {
 
@@ -62,19 +60,12 @@ class AbilitiesBootstrap {
 	}
 
 	/**
-	 * Register all analytics abilities. Called on wp_abilities_api_init.
+	 * Register WooCommerce for Claude product abilities. Called on wp_abilities_api_init.
 	 */
 	public static function register_abilities() {
 		if ( ! function_exists( 'wp_register_ability' ) ) {
 			return;
 		}
-
-		// Verb-shaped analytics tools — totals / breakdown / series / rows.
-		ConfirmLargeRangeAbility::register();
-		AnalyticsTotalsAbility::register();
-		AnalyticsBreakdownAbility::register();
-		AnalyticsSeriesAbility::register();
-		AnalyticsRowsAbility::register();
 
 		// External integrations (woocommerce-claude-integrations/*) — dev/local only.
 		// Prototype scaffold; only register in local/development so merchants

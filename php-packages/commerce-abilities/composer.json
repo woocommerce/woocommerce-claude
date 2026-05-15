@@ -1,8 +1,7 @@
 {
     "name": "woocommerce/commerce-abilities",
-    "description": "Shared commerce ability scaffolding for WooCommerce AI products.",
+    "description": "Shared commerce analytics abilities for WooCommerce AI products.",
     "type": "library",
-    "version": "0.1.0",
     "license": "GPL-3.0-or-later",
     "autoload": {
         "classmap": [

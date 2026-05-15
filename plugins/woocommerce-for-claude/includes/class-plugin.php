@@ -73,24 +73,26 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-policy-completeness.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/scoring/factors/class-content-quality.php';
 
-		// REST API (store knowledge + readiness — analytics lives under Abilities).
+		// REST API (store knowledge + readiness — analytics lives in commerce-abilities).
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-store-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-catalog-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-products-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-readiness-controller.php';
-		// AnalyticsController is now a shared data-access helper (no REST
-		// routes of its own) — required so ability classes can call into it.
+		// Backwards-compatible alias to the shared analytics service (no REST
+		// routes of its own).
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/api/class-analytics-controller.php';
 
-		// Abilities API — every analytics skill is exposed here.
+		// Shared analytics compatibility aliases. The commerce-abilities
+		// package owns registration; these keep old PHP class references stable.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-large-range-gate.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-confirm-large-range-ability.php';
-		// Verb-shaped analytics tools — totals / breakdown / series / rows.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-totals-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-breakdown-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-series-ability.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-analytics-rows-ability.php';
+
+		// Abilities API — Claude-specific tools, resources, prompts, and dev scaffolds.
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
 
 		// External-integration abilities (woocommerce-claude-integrations/*) — dev/local only.
 		// The GA4 ability is a prototype scaffold; only register it in local and
@@ -155,10 +157,8 @@ class Plugin {
 		add_action( 'rest_api_init', array( API\ProductsController::class, 'register_routes' ) );
 		add_action( 'rest_api_init', array( API\ReadinessController::class, 'register_routes' ) );
 
-		// Abilities API — the analytics category and six abilities. Category
-		// must exist before any ability claims it, so they register on separate
-		// hooks.
-		add_action( 'wp_abilities_api_categories_init', array( Abilities\AbilitiesBootstrap::class, 'register_category' ) );
+		// Abilities API — commerce-abilities registers the shared wc-analytics
+		// category/tools; this plugin registers Claude-specific surfaces.
 		add_action( 'wp_abilities_api_init', array( Abilities\AbilitiesBootstrap::class, 'register_abilities' ) );
 
 		// WooCommerce Settings tab.
