@@ -522,8 +522,8 @@ class DifmRestController {
 			. 'Never expose internal field names (e.g. metrics.net_sales) in your responses — use plain English only. '
 			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow. '
 				. 'Chart rendering rules — follow these exactly: '
-				. '(1) Always write your full text reply first, then call render_chart as your final action. Never call render_chart before finishing your text. '
-				. '(2) For any question about trends, daily/weekly/monthly performance, or comparisons across products/categories — always call render_chart. Charts complement your text; they do not replace it. Do not skip the chart because you already wrote a table — include both. '
+				. '(1) Write your complete text reply first. Then, if the chart conditions below apply, you MUST call render_chart as your final action. Never call render_chart before finishing your text. '
+				. '(2) You MUST call render_chart if: the merchant asked for a chart, graph, or trend view; OR your answer contains time-series or category data with multiple data points. This applies even if you already wrote a table — include both. If you reference a chart in your text (e.g. "the chart below"), you MUST call render_chart. '
 				. '(3) Populate series.data directly from the tool result already in your context — do not call an analytics tool again just to chart it. '
 				. '(4) Chart type: use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. '
 				. '(5) Skip render_chart only for single-scalar totals answers where no series or breakdown data was retrieved.',
