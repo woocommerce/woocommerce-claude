@@ -1,0 +1,50 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "886b8c0860b4ebb047b05785ccb6a84a",
+    "packages": [
+        {
+            "name": "woocommerce/commerce-abilities",
+            "version": "0.2.0",
+            "dist": {
+                "type": "path",
+                "url": "../../php-packages/commerce-abilities",
+                "reference": "7e12a82f1ac485b4a12aaf9ee9d921984f7c01e2"
+            },
+            "require": {
+                "php": ">=7.4"
+            },
+            "type": "library",
+            "autoload": {
+                "classmap": [
+                    "src/"
+                ]
+            },
+            "license": [
+                "GPL-3.0-or-later"
+            ],
+            "description": "Shared commerce analytics abilities for WooCommerce AI products.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=7.4"
+    },
+    "platform-dev": {},
+    "platform-overrides": {
+        "php": "7.4.0"
+    },
+    "plugin-api-version": "2.9.0"
+}

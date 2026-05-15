@@ -3,6 +3,7 @@
   "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip", "https://downloads.wordpress.org/plugin/gutenberg.zip"],
   "mappings": {
     "wp-content/plugins/hey-woo-monorepo": ".",
+    "wp-content/plugins/hey-woo": "./plugins/hey-woo",
     "wp-content/plugins/woocommerce-claude": "./plugins/woocommerce-for-claude",
     "wp-content/mu-plugins": "./tools/mu-plugins"
   },

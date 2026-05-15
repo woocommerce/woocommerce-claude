@@ -21,6 +21,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_DIR="$REPO_ROOT/plugins/woocommerce-for-claude"
+HEY_WOO_PLUGIN_DIR="$REPO_ROOT/plugins/hey-woo"
 cd "$REPO_ROOT"
 
 step() {
@@ -52,6 +53,10 @@ fi
 # 3. PHPCS.
 step "PHPCS (WordPress-Extra + Docs + WooCommerce)"
 composer --working-dir="$PLUGIN_DIR" run phpcs
+
+step "Hey Woo scaffold checks"
+composer --working-dir="$HEY_WOO_PLUGIN_DIR" validate --strict
+"$PLUGIN_DIR/vendor/bin/phpcs" --standard="$PLUGIN_DIR/phpcs.xml.dist" "$HEY_WOO_PLUGIN_DIR/hey-woo.php"
 
 # 4. Composer dependency audit. Respects config.audit.ignore in the plugin's
 #    composer.json —

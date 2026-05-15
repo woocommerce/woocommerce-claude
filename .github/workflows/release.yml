@@ -8,17 +8,16 @@ name: Release Plugin
 # build + validation path.
 #
 # Prerequisites (enforced at runtime, workflow fails fast if not met):
-#   - The `version` input must match the `Version:` header in
-#     plugins/woocommerce-for-claude/woocommerce-claude.php. Bump the header
-#     on a PR and merge it first, then dispatch this workflow with the matching
-#     version.
+#   - The `version` input must match the `Version:` headers in the WordPress
+#     plugin packages. Bump the headers on a PR and merge it first, then
+#     dispatch this workflow with the matching version.
 #   - The tag `v<version>` must not already exist on the remote.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, e.g. 0.1.0 (must match the WooCommerce for Claude plugin header)'
+        description: 'Release version, e.g. 0.1.0 (must match WordPress plugin headers)'
         required: true
         type: string
       draft:
@@ -42,23 +41,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Validate version input matches plugin header
+      - name: Validate version input matches plugin headers
         run: |
           # Strip an optional leading 'v' so both "0.1.0" and "v0.1.0" are accepted.
           INPUT_VERSION="${{ inputs.version }}"
           INPUT_VERSION="${INPUT_VERSION#v}"
 
-          HEADER_VERSION="$(awk '/^ \* Version:/ { print $3; exit }' plugins/woocommerce-for-claude/woocommerce-claude.php)"
-          if [[ -z "${HEADER_VERSION}" ]]; then
-            echo "ERROR: could not read Version header from plugins/woocommerce-for-claude/woocommerce-claude.php" >&2
-            exit 1
-          fi
+          for PLUGIN_FILE in plugins/woocommerce-for-claude/woocommerce-claude.php plugins/hey-woo/hey-woo.php; do
+            HEADER_VERSION="$(awk '/^ \* Version:/ { print $3; exit }' "${PLUGIN_FILE}")"
+            if [[ -z "${HEADER_VERSION}" ]]; then
+              echo "ERROR: could not read Version header from ${PLUGIN_FILE}" >&2
+              exit 1
+            fi
 
-          if [[ "${INPUT_VERSION}" != "${HEADER_VERSION}" ]]; then
-            echo "ERROR: input version '${INPUT_VERSION}' does not match the Version header ('${HEADER_VERSION}')." >&2
-            echo "       Bump plugins/woocommerce-for-claude/woocommerce-claude.php on a PR first, merge it, then re-run this workflow." >&2
-            exit 1
-          fi
+            if [[ "${INPUT_VERSION}" != "${HEADER_VERSION}" ]]; then
+              echo "ERROR: input version '${INPUT_VERSION}' does not match ${PLUGIN_FILE}'s Version header ('${HEADER_VERSION}')." >&2
+              echo "       Bump plugin headers on a PR first, merge it, then re-run this workflow." >&2
+              exit 1
+            fi
+          done
 
           echo "VERSION=${INPUT_VERSION}" >> "$GITHUB_ENV"
           echo "TAG_NAME=v${INPUT_VERSION}" >> "$GITHUB_ENV"
@@ -100,6 +101,9 @@ jobs:
       - name: Build WordPress plugin zip
         run: pnpm run plugin-zip
 
+      - name: Build Hey Woo plugin zip
+        run: pnpm run hey-woo-plugin-zip
+
       - name: Build Claude agent plugin zip
         run: pnpm run agent-plugin-zip
 
@@ -109,11 +113,16 @@ jobs:
             echo "ERROR: woocommerce-for-claude.zip not found" >&2
             exit 1
           fi
+          if [ ! -f hey-woo.zip ]; then
+            echo "ERROR: hey-woo.zip not found" >&2
+            exit 1
+          fi
           if [ ! -f woocommerce-claude-agent-plugin.zip ]; then
             echo "ERROR: woocommerce-claude-agent-plugin.zip not found" >&2
             exit 1
           fi
           unzip -t woocommerce-for-claude.zip
+          unzip -t hey-woo.zip
           unzip -t woocommerce-claude-agent-plugin.zip
 
       - name: Upload workflow artifact
@@ -122,6 +131,7 @@ jobs:
           name: woocommerce-claude-${{ env.VERSION }}
           path: |
             woocommerce-for-claude.zip
+            hey-woo.zip
             woocommerce-claude-agent-plugin.zip
           retention-days: 30
 
@@ -133,6 +143,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           files: |
             woocommerce-for-claude.zip
+            hey-woo.zip
             woocommerce-claude-agent-plugin.zip
           generate_release_notes: true
           draft: ${{ inputs.draft }}

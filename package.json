@@ -1,7 +1,7 @@
 {
-  "name": "hey-woo",
+  "name": "hey-woo-monorepo",
   "version": "0.4.2",
-  "description": "Monorepo for WooCommerce for Claude and shared commerce abilities.",
+  "description": "Monorepo for WooCommerce for Claude, Hey Woo, and shared commerce abilities.",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "build": "pnpm --dir plugins/woocommerce-for-claude run build",
     "build:production": "pnpm --dir plugins/woocommerce-for-claude run build:production",
     "plugin-zip": "composer install --working-dir=plugins/woocommerce-for-claude --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader && pnpm --dir plugins/woocommerce-for-claude run plugin-zip && cp plugins/woocommerce-for-claude/woocommerce-for-claude.zip woocommerce-for-claude.zip",
+    "hey-woo-plugin-zip": "composer install --working-dir=plugins/hey-woo --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader && pnpm --dir plugins/hey-woo run plugin-zip && cp plugins/hey-woo/hey-woo.zip hey-woo.zip",
     "agent-plugin-zip": "cd agent-plugin && zip -r -FS ../woocommerce-claude-agent-plugin.zip .claude-plugin skills",
     "start": "pnpm --dir plugins/woocommerce-for-claude run start"
   },

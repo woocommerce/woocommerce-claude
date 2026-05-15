@@ -26,19 +26,20 @@ WordPress plugin, PHP 7.4+, GPL-3.0-or-later. Public repo — never commit secre
 ```
 hey-woo/
 ├── plugins/
-│   └── woocommerce-for-claude/
-│       ├── woocommerce-claude.php        # Plugin bootstrap (HPOS declaration, requirements, options migration)
-│       ├── includes/
-│       │   ├── class-plugin.php          # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
-│       │   ├── abilities/                # Claude-specific tools/resources/prompts plus compatibility aliases
-│       │   │                             # for shared wc-analytics classes
-│       │   ├── api/                      # REST controllers + AnalyticsController compatibility alias
-│       │   ├── knowledge/                # Provider pattern (store profile / catalog / product / policy)
-│       │   ├── scoring/                  # Engine + 4 factors (product, schema, content, policy)
-│       │   ├── settings/                 # WC > Settings > WooCommerce for Claude tab
-│       │   └── telemetry/                # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
-│       ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
-│       └── skills/                       # Reference Claude Code / Codex workflow skills
+│   ├── woocommerce-for-claude/
+│   │   ├── woocommerce-claude.php        # Plugin bootstrap (HPOS declaration, requirements, options migration)
+│   │   ├── includes/
+│   │   │   ├── class-plugin.php          # Singleton — wires hooks, boots WP MCP adapter, registers own MCP server
+│   │   │   ├── abilities/                # Claude-specific tools/resources/prompts plus compatibility aliases
+│   │   │   │                             # for shared wc-analytics classes
+│   │   │   ├── api/                      # REST controllers + AnalyticsController compatibility alias
+│   │   │   ├── knowledge/                # Provider pattern (store profile / catalog / product / policy)
+│   │   │   ├── scoring/                  # Engine + 4 factors (product, schema, content, policy)
+│   │   │   ├── settings/                 # WC > Settings > WooCommerce for Claude tab
+│   │   │   └── telemetry/                # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
+│   │   ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
+│   │   └── skills/                       # Reference Claude Code / Codex workflow skills
+│   └── hey-woo/                          # BYOK plugin package scaffold; consumes commerce-abilities
 ├── php-packages/
 │   └── commerce-abilities/               # Composer path package; owns shared wc-analytics abilities,
 │                                         # AnalyticsService, and LargeRangeGate
@@ -46,11 +47,11 @@ hey-woo/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
 ├── bin/
-│   ├── check                 # Local CI mirror — PHPCS + composer audit + PHPUnit + DCC
+│   ├── check                 # Local CI mirror — PHPCS + Hey Woo scaffold checks + audit + PHPUnit + DCC
 │   └── check-dcc             # Data Consistency Checker (gated; auto-skips if not installed)
 ├── docs/performance-and-hosting.md
-├── .wp-env.json              # wp-env (port 8888, mounts plugin + tools/mu-plugins)
-└── .github/workflows/        # ci.yml (PHPCS + PHPUnit) · release.yml (tag → plugin zip)
+├── .wp-env.json              # wp-env (port 8888, mounts plugins + tools/mu-plugins)
+└── .github/workflows/        # ci.yml (PHPCS + PHPUnit) · release.yml (tag → plugin zips)
 ```
 
 ## Local dev
@@ -92,7 +93,7 @@ These are validated decisions. **MUST NOT** relitigate without strong new signal
 - **PHPCS:** `WordPress-Extra` + `WordPress-Docs` + `WooCommerce` rulesets via `dealerdirect/phpcodesniffer-composer-installer`
 - **PHPUnit 9.6** + `yoast/phpunit-polyfills` — runs *inside* the wp-env `tests-cli` container, not on host PHP
 - **pnpm 10.33.0** for Node tooling (`packageManager` is pinned in `package.json`)
-- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-for-claude.zip` from `plugins/woocommerce-for-claude/`
+- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-for-claude.zip` from `plugins/woocommerce-for-claude/`, and `pnpm run hey-woo-plugin-zip` builds `hey-woo.zip` from `plugins/hey-woo/`
 
 ## Common pitfalls
 
@@ -123,10 +124,11 @@ This section is about registered analytics Abilities under `php-packages/commerc
 
 ### Composer path package refresh
 
-`woocommerce/commerce-abilities` is installed with `"symlink": false` so release zips vendor a real copy of the shared package. After editing files under `php-packages/commerce-abilities/`, refresh the plugin vendor mirror and lock metadata:
+`woocommerce/commerce-abilities` is installed with `"symlink": false` so release zips vendor a real copy of the shared package. After editing files under `php-packages/commerce-abilities/`, refresh each consuming plugin's vendor mirror and lock metadata:
 
 ```bash
 composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerce-abilities --no-progress --prefer-dist
+composer update --working-dir=plugins/hey-woo woocommerce/commerce-abilities --no-progress --prefer-dist
 ```
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
@@ -147,4 +149,4 @@ The plugin is published as a UK-Automattic-shaped product (default seed store is
   3. Tool/ability descriptions don't violate the merchant-scope rule (the description-guardrail sweep enforces the obvious cases; review catches the rest).
   4. CONTRIBUTING.md "Design patterns worth knowing" section updated when a new reusable pattern is established.
   5. AGENTS.md (this file) updated when a new gotcha, command, or convention is introduced.
-- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-for-claude.zip` and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.
+- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-for-claude.zip`, `hey-woo.zip`, and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.

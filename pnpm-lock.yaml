@@ -58,6 +58,8 @@ importers:
         specifier: 4.28.2
         version: 4.28.2
 
+  plugins/hey-woo: {}
+
   plugins/woocommerce-for-claude/packages/conversations: {}
 
   plugins/woocommerce-for-claude/packages/init:

@@ -39,6 +39,7 @@ There is **no separate MCP server process** — WooCommerce for Claude registers
 | Path | What |
 |---|---|
 | `plugins/woocommerce-for-claude/` | Product plugin package. Owns the WordPress plugin bootstrap, MCP endpoint, Claude setup, admin UI, tests, and release zip build. |
+| `plugins/hey-woo/` | Hey Woo BYOK plugin package scaffold. Proves the second WordPress plugin package, shared `commerce-abilities` consumption, and `hey-woo.zip` release build before product logic moves. |
 | `php-packages/commerce-abilities/src/Abilities/` | Shared `wc-analytics/*` ability classes plus `LargeRangeGate` and the analytics bootstrap. |
 | `php-packages/commerce-abilities/src/Analytics/class-analytics-service.php` | Shared analytics data-access service. Holds the SQL + response assembly for every analytics subject; no REST routes of its own. |
 | `plugins/woocommerce-for-claude/includes/abilities/` | WooCommerce for Claude product abilities — `woocommerce-claude/*` tools, `wc-knowledge/*` resources, `wc-prompts/*` prompts, dev-only integration scaffolds, and backwards-compatible aliases for the shared analytics classes. Bootstrap in `class-abilities-bootstrap.php`. |
@@ -48,7 +49,7 @@ There is **no separate MCP server process** — WooCommerce for Claude registers
 | `plugins/woocommerce-for-claude/includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
 | `plugins/woocommerce-for-claude/includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `plugins/woocommerce-for-claude/skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |
-| `php-packages/commerce-abilities/` | Composer path package vendored into release zips. Installed with `"symlink": false`, so refresh it with `composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerce-abilities --no-progress --prefer-dist` after editing shared package files. |
+| `php-packages/commerce-abilities/` | Composer path package vendored into release zips. Installed with `"symlink": false`, so refresh each consuming plugin's vendor mirror and lock metadata after editing shared package files. |
 
 ## Privacy rule
 
@@ -98,7 +99,7 @@ if ( false !== $cached ) {
 
 ## Pre-push checks: `./bin/check`
 
-Runs the full lint/test suite locally — PHPCS (WordPress + Docs), composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
+Runs the full lint/test suite locally — PHPCS (WordPress + Docs), Hey Woo scaffold lint/Composer checks, composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
 
 ```bash
 pnpm install              # first run only
