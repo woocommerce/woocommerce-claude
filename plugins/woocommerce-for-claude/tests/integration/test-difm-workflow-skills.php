@@ -30,6 +30,7 @@ class Test_Difm_Workflow_Skills extends WP_UnitTestCase {
 		global $wp_rest_server;
 		$wp_rest_server = new \WP_REST_Server();
 		$this->server   = $wp_rest_server;
+		update_option( 'woocommerce_claude_difm_provider', 'anthropic' );
 		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- This action is documented in wp-includes/rest-api.php.
 		do_action( 'rest_api_init' );
 	}
@@ -40,6 +41,7 @@ class Test_Difm_Workflow_Skills extends WP_UnitTestCase {
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		delete_option( 'woocommerce_claude_difm_provider' );
 		parent::tear_down();
 	}
 

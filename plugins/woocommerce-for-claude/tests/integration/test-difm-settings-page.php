@@ -6,6 +6,7 @@
  */
 
 use WooCommerce\Claude\Settings\SettingsPage;
+use WooCommerce\Claude\Difm\DifmProviderResolver;
 use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
@@ -29,11 +30,10 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 
 		remove_all_filters( 'pre_http_request' );
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
+		delete_option( SettingsPage::OPENAI_API_KEY_OPTION );
+		delete_option( SettingsPage::DIFM_PROVIDER_OPTION );
+		delete_option( 'woocommerce_claude_difm_provider_migrated' );
 		delete_option( SetupPage::TELEMETRY_OPTION );
-		update_option(
-			'active_plugins',
-			array_values( array_diff( (array) get_option( 'active_plugins', array() ), array( 'hey-woo/hey-woo.php' ) ) )
-		);
 		( new RestApiKey() )->revoke();
 		$_POST           = array();
 		$current_section = '';
@@ -42,8 +42,11 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 
 		if ( $this->settings_page ) {
 			remove_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this->settings_page, 'render_api_key_field' ) );
+			remove_action( 'woocommerce_admin_field_woocommerce_claude_wp_ai_status', array( $this->settings_page, 'render_wordpress_ai_status_field' ) );
 			remove_action( 'woocommerce_admin_field_woocommerce_claude_telemetry', array( $this->settings_page, 'render_telemetry_field' ) );
+			remove_filter( 'woocommerce_admin_settings_sanitize_option_' . SettingsPage::DIFM_PROVIDER_OPTION, array( $this->settings_page, 'sanitize_provider_option' ), 10 );
 			remove_filter( 'woocommerce_admin_settings_sanitize_option_' . SettingsPage::DIFM_API_KEY_OPTION, array( $this->settings_page, 'sanitize_api_key_option' ), 10 );
+			remove_filter( 'woocommerce_admin_settings_sanitize_option_' . SettingsPage::OPENAI_API_KEY_OPTION, array( $this->settings_page, 'sanitize_api_key_option' ), 10 );
 			remove_action( 'woocommerce_settings_save_woocommerce-claude', array( $this->settings_page, 'save_telemetry_option' ) );
 			remove_action( 'woocommerce_settings_save_woocommerce-claude', array( $this->settings_page, 'validate_api_key_on_save' ) );
 		}
@@ -65,13 +68,27 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A saved OpenAI key is also never rendered back to the admin HTML.
+	 */
+	public function test_saved_openai_api_key_is_masked_in_rendered_settings_html() {
+		update_option( SettingsPage::OPENAI_API_KEY_OPTION, 'sk-openai-real-secret', 'no' );
+
+		$html = $this->render_settings_html();
+
+		$this->assertStringNotContainsString( 'sk-openai-real-secret', $html );
+		$this->assertStringContainsString( SettingsPage::DIFM_API_KEY_SENTINEL, $html );
+		$this->assertStringContainsString( 'OpenAI API key', $html );
+	}
+
+	/**
 	 * The WooCommerce settings sub-navigation keeps only consolidated setup and preferences visible.
 	 */
 	public function test_sections_include_setup_and_settings() {
 		$this->assertSame(
 			array(
-				''         => 'Setup',
-				'settings' => 'Settings',
+				''            => 'Setup',
+				'ai-insights' => 'AI provider',
+				'settings'    => 'Settings',
 			),
 			$this->settings_page()->get_sections()
 		);
@@ -91,11 +108,13 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->settings_page()->output();
 		$html = ob_get_clean();
 
-		$this->assertStringContainsString( 'Set up Claude for your store', $html );
+		$this->assertStringContainsString( 'Set up AI for your store', $html );
 		$this->assertStringContainsString( 'Chat in WordPress admin', $html );
 		$this->assertStringContainsString( 'Connect Claude apps', $html );
 		$this->assertLessThan( strpos( $html, 'Chat in WordPress admin' ), strpos( $html, 'Connect Claude apps' ) );
-		$this->assertStringContainsString( 'Anthropic API Key', $html );
+		$this->assertStringContainsString( 'AI provider', $html );
+		$this->assertStringContainsString( 'Anthropic API key', $html );
+		$this->assertStringContainsString( 'OpenAI API key', $html );
 		$this->assertStringContainsString( 'Step 1: Create a store connection key', $html );
 		$this->assertStringContainsString( 'Step 3: Add guide workflows (optional)', $html );
 		$this->assertStringContainsString( 'Download skills', $html );
@@ -107,29 +126,7 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Hey Woo owns the WordPress-admin chat setup when both plugins are active.
-	 */
-	public function test_default_section_hides_admin_chat_setup_when_hey_woo_is_active() {
-		global $current_section;
-
-		$this->mark_hey_woo_active();
-
-		$html = $this->render_default_output();
-
-		$this->assertStringContainsString( 'Ask Claude in WordPress admin is managed by Hey Woo', $html );
-		$this->assertStringContainsString( 'Connect Claude apps', $html );
-		$this->assertStringNotContainsString( 'Chat in WordPress admin', $html );
-		$this->assertStringNotContainsString( 'Anthropic API Key', $html );
-
-		$current_section = 'ai-insights';
-		$html            = $this->render_default_output();
-
-		$this->assertStringContainsString( 'Ask Claude is managed by Hey Woo', $html );
-		$this->assertStringNotContainsString( 'type="password"', $html );
-	}
-
-	/**
-	 * The Ask Claude CTA is a post-save affordance, not a persistent second action.
+	 * The Ask AI CTA is a post-save affordance, not a persistent second action.
 	 */
 	public function test_open_ai_insights_button_only_renders_after_saving_key_form() {
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
@@ -140,7 +137,7 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-existing', 'no' );
 
 		$html = $this->render_default_output();
-		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
+		$this->assertStringNotContainsString( 'Open Ask AI', $html );
 
 		$_POST = array(
 			SettingsPage::DIFM_API_KEY_OPTION => SettingsPage::DIFM_API_KEY_SENTINEL,
@@ -148,14 +145,14 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		$this->settings_page()->validate_api_key_on_save();
 
 		$html = $this->render_default_output();
-		$this->assertStringContainsString( 'Open Ask Claude', $html );
+		$this->assertStringContainsString( 'Open Ask AI', $html );
 		$this->assertMatchesRegularExpression(
-			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Chat in WordPress admin[\s\S]*Open Ask Claude[\s\S]*<\/details>/',
+			'/<details class="woocommerce-claude-setup__accordion" open>[\s\S]*Chat in WordPress admin[\s\S]*Open Ask AI[\s\S]*<\/details>/',
 			$html
 		);
 
 		$html = $this->render_default_output();
-		$this->assertStringNotContainsString( 'Open Ask Claude', $html );
+		$this->assertStringNotContainsString( 'Open Ask AI', $html );
 	}
 
 	/**
@@ -296,6 +293,45 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The provider setting is saved and unknown values fall back to auto.
+	 */
+	public function test_provider_option_is_sanitised() {
+		$this->save_settings(
+			array(
+				SettingsPage::DIFM_PROVIDER_OPTION => DifmProviderResolver::PROVIDER_OPENAI,
+			)
+		);
+
+		$this->assertSame( DifmProviderResolver::PROVIDER_OPENAI, get_option( SettingsPage::DIFM_PROVIDER_OPTION ) );
+
+		$this->save_settings(
+			array(
+				SettingsPage::DIFM_PROVIDER_OPTION => 'unsupported-provider',
+			)
+		);
+
+		$this->assertSame( DifmProviderResolver::PROVIDER_AUTO, get_option( SettingsPage::DIFM_PROVIDER_OPTION ) );
+	}
+
+	/**
+	 * The explicit OpenAI clear checkbox removes only the saved OpenAI key.
+	 */
+	public function test_openai_clear_checkbox_removes_saved_key() {
+		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-existing', 'no' );
+		update_option( SettingsPage::OPENAI_API_KEY_OPTION, 'sk-openai-existing', 'no' );
+
+		$this->save_settings(
+			array(
+				SettingsPage::OPENAI_API_KEY_OPTION      => SettingsPage::DIFM_API_KEY_SENTINEL,
+				SettingsPage::OPENAI_API_KEY_CLEAR_FIELD => 'yes',
+			)
+		);
+
+		$this->assertSame( 'sk-ant-existing', get_option( SettingsPage::DIFM_API_KEY_OPTION ) );
+		$this->assertFalse( get_option( SettingsPage::OPENAI_API_KEY_OPTION, false ) );
+	}
+
+	/**
 	 * Invalid keys submitted through settings save are removed after validation.
 	 */
 	public function test_invalid_key_is_removed_on_settings_validation() {
@@ -388,20 +424,6 @@ class Test_Difm_Settings_Page extends WP_UnitTestCase {
 		}
 
 		return $this->settings_page;
-	}
-
-	/**
-	 * Mark Hey Woo as active in the isolated test options table.
-	 *
-	 * @return void
-	 */
-	private function mark_hey_woo_active() {
-		$active_plugins = (array) get_option( 'active_plugins', array() );
-		if ( ! in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
-			$active_plugins[] = 'hey-woo/hey-woo.php';
-		}
-
-		update_option( 'active_plugins', $active_plugins );
 	}
 
 	/**

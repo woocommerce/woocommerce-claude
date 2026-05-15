@@ -3,7 +3,7 @@
  * REST controller for WooCommerce for Claude AI Insights endpoints.
  *
  * Routes:
- *   POST /woocommerce-claude/v1/difm/chat — Send a chat message; returns Claude's reply.
+ *   POST /woocommerce-claude/v1/difm/chat — Send a chat message; returns the AI reply.
  *
  * @package WooCommerce\Claude\Difm
  */
@@ -45,7 +45,7 @@ class DifmRestController {
 	const RENDER_CHART_TOOL = 'render_chart';
 
 	/**
-	 * Maximum number of Anthropic API calls per chat request (including tool-use rounds).
+	 * Maximum number of AI provider calls per chat request (including tool-use rounds).
 	 *
 	 * Each tool-use round costs one API call. Five iterations allows for four rounds
 	 * of tool calls followed by a final answer, which comfortably covers complex queries.
@@ -65,7 +65,7 @@ class DifmRestController {
 	private $active_workflow_slug = '';
 
 	/**
-	 * Anthropic-visible tool names mapped to registered WordPress abilities.
+	 * Provider-visible tool names mapped to registered WordPress abilities.
 	 *
 	 * DIFM exposes the verb-shaped analytics surface rather than the legacy
 	 * one-ability-per-report tools. The four analytics tools carry the richer
@@ -88,7 +88,7 @@ class DifmRestController {
 	);
 
 	/**
-	 * Return the DIFM Anthropic tool allowlist.
+	 * Return the DIFM tool allowlist.
 	 *
 	 * Tests use this to detect drift between the allowlist and registered abilities.
 	 *
@@ -169,21 +169,33 @@ class DifmRestController {
 	}
 
 	/**
-	 * POST /woocommerce-claude/v1/difm/chat — send a message and return Claude's reply.
+	 * POST /woocommerce-claude/v1/difm/chat — send a message and return the AI reply.
 	 *
 	 * @param \WP_REST_Request $request Incoming request.
 	 * @return \WP_REST_Response
 	 */
 	public function send_chat_message( \WP_REST_Request $request ) {
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		$resolver = new DifmProviderResolver();
+		$client   = $resolver->resolve_client();
+		if ( is_wp_error( $client ) ) {
+			if ( in_array( $client->get_error_code(), array( 'no_ai_provider', 'no_api_key', 'wordpress_ai_unavailable' ), true ) ) {
+				return rest_ensure_response( array( 'status' => 'no_key' ) );
+			}
 
-		if ( ! AnthropicClient::has_api_key() ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $client->get_error_message(),
+				)
+			);
+		}
+
+		if ( ! $client instanceof DifmAiClientInterface ) {
 			return rest_ensure_response( array( 'status' => 'no_key' ) );
 		}
 
 		$user_message = (string) $request->get_param( 'message' );
 		$raw_history  = (array) $request->get_param( 'history' );
-		$client       = new AnthropicClient();
 
 		$pending_large_range = $this->get_pending_large_range_request();
 		if ( is_array( $pending_large_range ) ) {
@@ -236,15 +248,15 @@ class DifmRestController {
 	/**
 	 * Run a chat completion with optional tool calls.
 	 *
-	 * @param AnthropicClient $client        Anthropic client.
-	 * @param string          $system_prompt System prompt.
-	 * @param array           $messages      Conversation messages.
-	 * @param array           $tools         Anthropic-format tool definitions.
-	 * @param string          $empty_reply_fallback Fallback text for empty non-chart replies.
-	 * @param bool            $chart_requested Whether the merchant explicitly asked for a chart.
+	 * @param DifmAiClientInterface $client               AI provider client.
+	 * @param string                $system_prompt        System prompt.
+	 * @param array                 $messages             Conversation messages.
+	 * @param array                 $tools                Provider-neutral tool definitions.
+	 * @param string                $empty_reply_fallback Fallback text for empty non-chart replies.
+	 * @param bool                  $chart_requested      Whether the merchant explicitly asked for a chart.
 	 * @return \WP_REST_Response
 	 */
-	private function answer_with_tools( AnthropicClient $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '', $chart_requested = false ) {
+	private function answer_with_tools( DifmAiClientInterface $client, $system_prompt, array $messages, array $tools, $empty_reply_fallback = '', $chart_requested = false ) {
 		$chart_specs           = array();
 		$chart_retry_attempted = false;
 		$iterations            = 0;
@@ -284,7 +296,7 @@ class DifmRestController {
 					$chart_retry_attempted = true;
 					$messages[]            = array(
 						'role'    => 'assistant',
-						'content' => $this->normalise_anthropic_assistant_content( $content ),
+						'content' => $this->normalise_assistant_content( $content ),
 					);
 					$messages[]            = array(
 						'role'    => 'user',
@@ -364,7 +376,7 @@ class DifmRestController {
 
 			$messages[] = array(
 				'role'    => 'assistant',
-				'content' => $this->normalise_anthropic_assistant_content( $content ),
+				'content' => $this->normalise_assistant_content( $content ),
 			);
 			$messages[] = array(
 				'role'    => 'user',
@@ -421,7 +433,7 @@ class DifmRestController {
 	/**
 	 * Whether the current tool set can render charts.
 	 *
-	 * @param array $tools Anthropic-format tool definitions.
+	 * @param array $tools Provider-neutral tool definitions.
 	 * @return bool
 	 */
 	private function has_render_chart_tool( array $tools ) {
@@ -564,7 +576,7 @@ class DifmRestController {
 	}
 
 	/**
-	 * Extract the first text block from an Anthropic response.
+	 * Extract the first text block from a normalised AI response.
 	 *
 	 * @param array $content Response content blocks.
 	 * @return string
@@ -580,7 +592,7 @@ class DifmRestController {
 	}
 
 	/**
-	 * Execute a single Anthropic tool call through the registered ability.
+	 * Execute a single model-requested tool call through the registered ability.
 	 *
 	 * @param string $name  Tool name as sent by Claude (snake_case).
 	 * @param array  $input Tool input parameters from Claude.
@@ -646,7 +658,7 @@ class DifmRestController {
 	 *
 	 * @param string $tool_name Tool name.
 	 * @param array  $input     Tool input.
-	 * @param string $tool_id   Anthropic tool_use ID.
+	 * @param string $tool_id   Provider tool call ID.
 	 * @param string $ability_id Backing WordPress ability ID.
 	 * @param string $phase     Tool phase.
 	 * @return void
@@ -778,9 +790,9 @@ class DifmRestController {
 	}
 
 	/**
-	 * Build Anthropic tool definitions from WordPress ability metadata.
+	 * Build provider-neutral tool definitions from WordPress ability metadata.
 	 *
-	 * @return array|\WP_Error Anthropic-format tool definitions, or a controlled error.
+	 * @return array|\WP_Error Provider-neutral tool definitions, or a controlled error.
 	 */
 	private function build_tool_definitions() {
 		$tools = array();
@@ -819,7 +831,7 @@ class DifmRestController {
 					'properties' => (object) array(),
 				);
 			}
-			$input_schema = $this->normalise_anthropic_input_schema( $input_schema );
+			$input_schema = $this->normalise_tool_input_schema( $input_schema );
 			$input_schema = $this->strip_schema_descriptions( $input_schema );
 
 			$tools[] = array(
@@ -835,14 +847,14 @@ class DifmRestController {
 	}
 
 	/**
-	 * Return the compact Anthropic-facing description for a DIFM tool.
+	 * Return the compact model-facing description for a DIFM tool.
 	 *
 	 * Ability descriptions are intentionally long because they double as MCP
-	 * guardrails. AI Insights sends tool definitions on every Anthropic request,
+	 * guardrails. AI Insights sends tool definitions on every provider request,
 	 * so it uses a compact routing guide and leaves the full descriptions on the
 	 * public MCP surface.
 	 *
-	 * @param string $tool_name            Anthropic-visible tool name.
+	 * @param string $tool_name            Provider-visible tool name.
 	 * @param string $fallback_description Ability metadata description.
 	 * @return string
 	 */
@@ -901,7 +913,7 @@ class DifmRestController {
 	}
 
 	/**
-	 * Remove nested schema descriptions from Anthropic tool input schemas.
+	 * Remove nested schema descriptions from tool input schemas.
 	 *
 	 * The compact tool description carries the routing guidance; keeping every
 	 * per-property description repeats the same information in a costly form.
@@ -924,7 +936,7 @@ class DifmRestController {
 	}
 
 	/**
-	 * Return the Anthropic tool definition for the render_chart pseudo-tool.
+	 * Return the tool definition for the render_chart pseudo-tool.
 	 *
 	 * This tool is never executed server-side; the controller captures the spec
 	 * and forwards it to the frontend as part of the response payload.
@@ -1042,16 +1054,16 @@ class DifmRestController {
 	}
 
 	/**
-	 * Normalise assistant content before replaying it to Anthropic.
+	 * Normalise assistant content before replaying it to the provider.
 	 *
-	 * Anthropic requires every `tool_use.input` to be a JSON object. PHP decodes
+	 * Some providers require every `tool_use.input` to be a JSON object. PHP decodes
 	 * `{}` as an empty array and would otherwise re-encode zero-argument tool
-	 * calls as `[]`, which the next Messages API request rejects.
+	 * calls as `[]`, which the next provider request can reject.
 	 *
-	 * @param array $content Assistant content blocks from Anthropic.
+	 * @param array $content Assistant content blocks.
 	 * @return array
 	 */
-	private function normalise_anthropic_assistant_content( array $content ) {
+	private function normalise_assistant_content( array $content ) {
 		foreach ( $content as $index => $block ) {
 			if ( ! is_array( $block ) || ! isset( $block['type'] ) || 'tool_use' !== $block['type'] ) {
 				continue;
@@ -1070,13 +1082,13 @@ class DifmRestController {
 	 * Normalise JSON Schema maps so PHP encodes empty objects as `{}`, not `[]`.
 	 *
 	 * WordPress ability schemas are PHP arrays. Empty object-shaped schema maps
-	 * such as `properties` otherwise become JSON arrays, which Anthropic rejects.
+	 * such as `properties` otherwise become JSON arrays, which providers can reject.
 	 *
 	 * @param mixed  $schema     Schema node.
 	 * @param string $parent_key Parent schema key.
 	 * @return mixed
 	 */
-	private function normalise_anthropic_input_schema( $schema, $parent_key = '' ) {
+	private function normalise_tool_input_schema( $schema, $parent_key = '' ) {
 		if ( ! is_array( $schema ) ) {
 			return $schema;
 		}
@@ -1087,7 +1099,7 @@ class DifmRestController {
 		}
 
 		foreach ( $schema as $key => $value ) {
-			$schema[ $key ] = $this->normalise_anthropic_input_schema( $value, (string) $key );
+			$schema[ $key ] = $this->normalise_tool_input_schema( $value, (string) $key );
 		}
 
 		if ( isset( $schema['type'] ) && 'object' === $schema['type'] && ! isset( $schema['properties'] ) ) {
@@ -1113,7 +1125,7 @@ class DifmRestController {
 	}
 
 	/**
-	 * Convert non-gated tool errors into structured JSON for Anthropic.
+	 * Convert non-gated tool errors into structured JSON for the provider.
 	 *
 	 * @param \WP_Error $error Tool error.
 	 * @return array
@@ -1253,14 +1265,14 @@ class DifmRestController {
 	/**
 	 * Execute the stored request after explicit merchant confirmation.
 	 *
-	 * @param AnthropicClient $client        Anthropic client.
-	 * @param string          $system_prompt System prompt.
-	 * @param array           $raw_history   Raw history from request.
-	 * @param string          $user_message  Current user message.
-	 * @param array           $pending       Stored pending request.
+	 * @param DifmAiClientInterface $client        AI provider client.
+	 * @param string                $system_prompt System prompt.
+	 * @param array                 $raw_history   Raw history from request.
+	 * @param string                $user_message  Current user message.
+	 * @param array                 $pending       Stored pending request.
 	 * @return \WP_REST_Response
 	 */
-	private function answer_confirmed_large_range_request( AnthropicClient $client, $system_prompt, array $raw_history, $user_message, array $pending ) {
+	private function answer_confirmed_large_range_request( DifmAiClientInterface $client, $system_prompt, array $raw_history, $user_message, array $pending ) {
 		$tool_name  = isset( $pending['tool_name'] ) ? (string) $pending['tool_name'] : '';
 		$input      = isset( $pending['input'] ) && is_array( $pending['input'] ) ? $pending['input'] : array();
 		$error_data = isset( $pending['error_data'] ) && is_array( $pending['error_data'] ) ? $pending['error_data'] : array();

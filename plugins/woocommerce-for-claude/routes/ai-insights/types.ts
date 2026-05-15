@@ -21,7 +21,7 @@ export interface ChartSpec {
 }
 
 /**
- * A single chat message — either from the merchant or from Claude.
+ * A single chat message - either from the merchant or from the assistant.
  */
 export interface ChatMessage {
 	id: number;
@@ -59,5 +59,6 @@ export interface ModuleData {
 	userName: string;
 	currency: string;
 	hasKey: boolean;
+	provider: string;
 	conversations: StoredConversation[];
 }

@@ -56,6 +56,7 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
 
 		// Knowledge system.
@@ -129,11 +130,15 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
 
-		// DIFM — AI Insights (Bring Your Own Key). The admin page, REST
-		// controller, and Anthropic client are loaded lazily by the hooks they
+		// DIFM — AI Insights (AI provider). The admin page, REST
+		// controller, and provider clients are loaded lazily by the hooks they
 		// register, so we only require the class files here and let the hooks
 		// instantiate as needed.
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-openai-responses-client.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
+		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';

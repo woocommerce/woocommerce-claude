@@ -1,6 +1,6 @@
 <?php
 /**
- * Anthropic request telemetry helpers.
+ * Back-compatible Anthropic telemetry facade.
  *
  * @package WooCommerce\Claude
  */
@@ -10,7 +10,7 @@ namespace WooCommerce\Claude\Telemetry;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Builds and dispatches Anthropic API telemetry payloads.
+ * Builds and dispatches generic AI telemetry payloads for Anthropic callers.
  */
 class AnthropicTelemetry {
 
@@ -24,16 +24,8 @@ class AnthropicTelemetry {
 	 * @return void
 	 */
 	public static function record_request( array $body, $body_json, $request_id, array $context = array() ) {
-		TelemetryHandler::record(
-			'anthropic_request',
-			array_merge(
-				self::build_request_context( $body, $body_json, $context ),
-				array(
-					'event'      => 'anthropic_request',
-					'request_id' => $request_id,
-				)
-			)
-		);
+		$model = isset( $body['model'] ) ? (string) $body['model'] : '';
+		DifmAiTelemetry::record_request( 'anthropic', $model, $body, $body_json, $request_id, $context );
 	}
 
 	/**
@@ -45,15 +37,7 @@ class AnthropicTelemetry {
 	 * @return void
 	 */
 	public static function record_transport_error( $request_id, $duration_ms, $error_code ) {
-		TelemetryHandler::record(
-			'anthropic_transport_error',
-			array(
-				'event'       => 'anthropic_transport_error',
-				'request_id'  => $request_id,
-				'duration_ms' => $duration_ms,
-				'error_code'  => $error_code,
-			)
-		);
+		DifmAiTelemetry::record_transport_error( 'anthropic', '', $request_id, $duration_ms, $error_code );
 	}
 
 	/**
@@ -66,13 +50,8 @@ class AnthropicTelemetry {
 	 * @return void
 	 */
 	public static function record_response( $request_id, $status_code, $duration_ms, $decoded ) {
-		TelemetryHandler::record(
-			'anthropic_response',
-			array_merge(
-				array( 'event' => 'anthropic_response' ),
-				self::build_response_context( $request_id, $status_code, $duration_ms, $decoded )
-			)
-		);
+		$model = is_array( $decoded ) && isset( $decoded['model'] ) ? (string) $decoded['model'] : '';
+		DifmAiTelemetry::record_response( 'anthropic', $model, $request_id, $status_code, $duration_ms, $decoded );
 	}
 
 	/**

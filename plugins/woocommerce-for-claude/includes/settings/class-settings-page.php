@@ -7,6 +7,10 @@
 
 namespace WooCommerce\Claude\Settings;
 
+use WooCommerce\Claude\Difm\AnthropicClient;
+use WooCommerce\Claude\Difm\DifmProviderResolver;
+use WooCommerce\Claude\Difm\OpenAIResponsesClient;
+use WooCommerce\Claude\Difm\WordPressAiClientAdapter;
 use WooCommerce\Claude\Setup\RestApiKey;
 use WooCommerce\Claude\Setup\SetupPage;
 
@@ -18,15 +22,30 @@ defined( 'ABSPATH' ) || exit;
  * The default view renders a neutral setup overview. The Bring Your Own Key
  * field used by AI Insights, the external-access setup view, and plugin-level
  * settings live in their own sections.
- * The key field is deliberately custom-rendered so a stored Anthropic key is
+ * Provider key fields are deliberately custom-rendered so stored API keys are
  * never sent back to the browser.
  */
 class SettingsPage extends \WC_Settings_Page {
 
 	/**
+	 * Option name that stores the selected AI provider.
+	 */
+	const DIFM_PROVIDER_OPTION = 'woocommerce_claude_difm_provider';
+
+	/**
 	 * Option name that stores the merchant's Anthropic API key.
 	 */
 	const DIFM_API_KEY_OPTION = 'woocommerce_claude_anthropic_api_key';
+
+	/**
+	 * Back-compatible alias for the Anthropic key option.
+	 */
+	const ANTHROPIC_API_KEY_OPTION = self::DIFM_API_KEY_OPTION;
+
+	/**
+	 * Option name that stores the merchant's OpenAI API key.
+	 */
+	const OPENAI_API_KEY_OPTION = 'woocommerce_claude_openai_api_key';
 
 	/**
 	 * Fixed masked value rendered when a database key is configured.
@@ -39,9 +58,29 @@ class SettingsPage extends \WC_Settings_Page {
 	const DIFM_API_KEY_CLEAR_FIELD = 'woocommerce_claude_anthropic_api_key_clear';
 
 	/**
+	 * Field name for explicitly removing a saved OpenAI API key.
+	 */
+	const OPENAI_API_KEY_CLEAR_FIELD = 'woocommerce_claude_openai_api_key_clear';
+
+	/**
+	 * Legacy option name from the pre-rename branch.
+	 */
+	const LEGACY_DIFM_API_KEY_OPTION = 'hey_woo_anthropic_api_key';
+
+	/**
 	 * Server constant name for the Anthropic key.
 	 */
 	const DIFM_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY';
+
+	/**
+	 * Legacy server constant name from the pre-rename branch.
+	 */
+	const LEGACY_DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
+
+	/**
+	 * Server constant name for the OpenAI key.
+	 */
+	const OPENAI_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_OPENAI_KEY';
 
 	/**
 	 * User-meta flag used to show the AI Insights CTA immediately after saving.
@@ -57,8 +96,11 @@ class SettingsPage extends \WC_Settings_Page {
 		parent::__construct();
 
 		add_action( 'woocommerce_admin_field_woocommerce_claude_api_key', array( $this, 'render_api_key_field' ) );
+		add_action( 'woocommerce_admin_field_woocommerce_claude_wp_ai_status', array( $this, 'render_wordpress_ai_status_field' ) );
 		add_action( 'woocommerce_admin_field_woocommerce_claude_telemetry', array( $this, 'render_telemetry_field' ) );
+		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::DIFM_PROVIDER_OPTION, array( $this, 'sanitize_provider_option' ), 10, 3 );
 		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::DIFM_API_KEY_OPTION, array( $this, 'sanitize_api_key_option' ), 10, 3 );
+		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::OPENAI_API_KEY_OPTION, array( $this, 'sanitize_api_key_option' ), 10, 3 );
 		add_action( 'woocommerce_settings_save_woocommerce-claude', array( $this, 'save_telemetry_option' ) );
 		add_action( 'woocommerce_settings_save_woocommerce-claude', array( $this, 'validate_api_key_on_save' ) );
 	}
@@ -70,17 +112,17 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	public function get_sections() {
 		return array(
-			''         => __( 'Setup', 'woocommerce-claude' ),
-			'settings' => __( 'Settings', 'woocommerce-claude' ),
+			''            => __( 'Setup', 'woocommerce-claude' ),
+			'ai-insights' => __( 'AI provider', 'woocommerce-claude' ),
+			'settings'    => __( 'Settings', 'woocommerce-claude' ),
 		);
 	}
 
 	/**
-	 * The AI Insights section contains the Anthropic API key fields.
+	 * The AI Insights section contains AI provider configuration.
 	 *
-	 * The AI Insights section configures the Anthropic API key used for
-	 * server-side AI calls. The setup wizard lives in the `setup` section and
-	 * handles connecting Claude Desktop to the MCP server.
+	 * The setup wizard lives in the `setup` section and handles connecting
+	 * Claude Desktop/Code to the MCP server.
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
@@ -88,17 +130,42 @@ class SettingsPage extends \WC_Settings_Page {
 		return array(
 			array(
 				'type'  => 'title',
-				'title' => __( 'AI Insights', 'woocommerce-claude' ),
+				'title' => __( 'AI provider', 'woocommerce-claude' ),
 				'id'    => 'woocommerce_claude_difm_section',
 				'desc'  => $this->get_difm_section_description(),
 			),
 			array(
+				'type'     => 'select',
+				'id'       => self::DIFM_PROVIDER_OPTION,
+				'title'    => __( 'AI provider', 'woocommerce-claude' ),
+				'desc'     => __( 'Auto uses WordPress AI connector-managed credentials first when available, then direct keys below.', 'woocommerce-claude' ),
+				'default'  => DifmProviderResolver::PROVIDER_AUTO,
+				'options'  => $this->get_provider_options(),
+				'autoload' => false,
+			),
+			array(
+				'type'  => 'woocommerce_claude_wp_ai_status',
+				'id'    => 'woocommerce_claude_wordpress_ai_status',
+				'title' => __( 'WordPress AI', 'woocommerce-claude' ),
+			),
+			array(
 				'type'     => 'woocommerce_claude_api_key',
-				'id'       => self::DIFM_API_KEY_OPTION,
-				'title'    => __( 'Anthropic API Key', 'woocommerce-claude' ),
-				'desc'     => __( 'Starts with <code>sk-ant-</code>. The real key is used only for server-side AI calls and is never rendered back into this page.', 'woocommerce-claude' ),
+				'id'       => self::ANTHROPIC_API_KEY_OPTION,
+				'title'    => __( 'Anthropic API key', 'woocommerce-claude' ),
+				'desc'     => __( 'Starts with <code>sk-ant-</code>. Used only for direct Anthropic server-side AI calls and never rendered back into this page.', 'woocommerce-claude' ),
+				'provider' => DifmProviderResolver::PROVIDER_ANTHROPIC,
 				'default'  => '',
 				'autoload' => false,
+			),
+			array(
+				'type'        => 'woocommerce_claude_api_key',
+				'id'          => self::OPENAI_API_KEY_OPTION,
+				'title'       => __( 'OpenAI API key', 'woocommerce-claude' ),
+				'desc'        => __( 'Used only for direct OpenAI server-side AI calls and never rendered back into this page.', 'woocommerce-claude' ),
+				'provider'    => DifmProviderResolver::PROVIDER_OPENAI,
+				'placeholder' => 'sk-...',
+				'default'     => '',
+				'autoload'    => false,
 			),
 			array(
 				'type' => 'sectionend',
@@ -150,7 +217,7 @@ class SettingsPage extends \WC_Settings_Page {
 	 * The default section shows a neutral setup overview and hides WC's Save
 	 * button (no form fields). The external-access section shows the Claude app
 	 * connection wizard. The Settings section renders plugin-level preferences.
-	 * The AI Insights section renders the Anthropic API key field.
+	 * The AI Insights section renders AI provider fields.
 	 */
 	public function output() {
 		global $current_section;
@@ -166,11 +233,6 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		if ( 'ai-insights' === $current_section ) {
-			if ( $this->is_hey_woo_active() ) {
-				$this->render_hey_woo_admin_chat_notice();
-				return;
-			}
-
 			\WC_Admin_Settings::output_fields( $this->get_settings_for_ai_insights_section() );
 			return;
 		}
@@ -185,8 +247,8 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return void
 	 */
 	private function render_setup_overview() {
-		$hey_woo_active   = $this->is_hey_woo_active();
-		$has_ai_key       = ! $hey_woo_active && ( '' !== $this->get_api_key_constant_name() || '' !== $this->get_saved_api_key() );
+		$resolver         = new DifmProviderResolver();
+		$has_ai_provider  = $resolver->has_configured_provider();
 		$external_state   = ( new RestApiKey() )->existing_state();
 		$has_external_key = null !== $external_state;
 		$has_external_use = $has_external_key && 0 < (int) get_option( RestApiKey::OPTION_LAST_SEEN, 0 );
@@ -194,14 +256,14 @@ class SettingsPage extends \WC_Settings_Page {
 		$setup_notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
 
 		$ai_insights_url  = admin_url( 'admin.php?page=woocommerce-claude-insights' );
-		$show_ai_insights = $has_ai_key && $this->consume_ai_insights_saved_notice();
+		$show_ai_insights = $has_ai_provider && $this->consume_ai_insights_saved_notice();
 		$connected_label  = __( 'Connected', 'woocommerce-claude' );
 		$ready_label      = __( 'Ready', 'woocommerce-claude' );
 		$not_set_up_label = __( 'Not set up', 'woocommerce-claude' );
 		$ai_open          = $show_ai_insights ? 'open' : '';
 		$external_open    = '' === $setup_notice_code ? '' : 'open';
-		$ai_status_label  = $has_ai_key ? $ready_label : $not_set_up_label;
-		$ai_status_class  = $has_ai_key ? 'woocommerce-claude-setup__pill--ready' : 'woocommerce-claude-setup__pill--off';
+		$ai_status_label  = $has_ai_provider ? $ready_label : $not_set_up_label;
+		$ai_status_class  = $has_ai_provider ? 'woocommerce-claude-setup__pill--ready' : 'woocommerce-claude-setup__pill--off';
 		if ( $has_external_use ) {
 			$external_status_label = $connected_label;
 			$external_status_class = 'woocommerce-claude-setup__pill--live';
@@ -215,12 +277,8 @@ class SettingsPage extends \WC_Settings_Page {
 		?>
 		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
 			<section class="woocommerce-claude-setup__intro">
-				<h2><?php esc_html_e( 'Set up Claude for your store', 'woocommerce-claude' ); ?></h2>
-				<?php if ( $hey_woo_active ) : ?>
-					<p><?php esc_html_e( 'Connect Claude apps to this store. Ask Claude in WordPress admin is managed by Hey Woo.', 'woocommerce-claude' ); ?></p>
-				<?php else : ?>
-					<p><?php esc_html_e( 'Connect Claude apps to this store, use Claude in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
-				<?php endif; ?>
+				<h2><?php esc_html_e( 'Set up AI for your store', 'woocommerce-claude' ); ?></h2>
+				<p><?php esc_html_e( 'Connect Claude apps to this store, use AI in WordPress admin, or enable both. Each option has its own setup and can be changed later.', 'woocommerce-claude' ); ?></p>
 			</section>
 
 			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $external_open ); ?>>
@@ -239,39 +297,21 @@ class SettingsPage extends \WC_Settings_Page {
 				</div>
 			</details>
 
-			<?php if ( ! $hey_woo_active ) : ?>
-				<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
-					<summary class="woocommerce-claude-setup__accordion-summary">
-						<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
-						<span class="woocommerce-claude-setup__accordion-text">
-							<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
-							<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask Claude about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
-						</span>
-						<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
-							<?php echo esc_html( $ai_status_label ); ?>
-						</span>
-					</summary>
-					<div class="woocommerce-claude-setup__accordion-panel">
-						<?php $this->render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights ); ?>
-					</div>
-				</details>
-			<?php endif; ?>
-		</div>
-		<?php
-	}
-
-	/**
-	 * Render the direct AI Insights settings section when Hey Woo owns the chat.
-	 *
-	 * @return void
-	 */
-	private function render_hey_woo_admin_chat_notice() {
-		?>
-		<div class="woocommerce-claude-setup woocommerce-claude-setup--overview">
-			<section class="woocommerce-claude-setup__intro">
-				<h2><?php esc_html_e( 'Ask Claude is managed by Hey Woo', 'woocommerce-claude' ); ?></h2>
-				<p><?php esc_html_e( 'Use the Hey Woo settings page to configure the Anthropic API key for WordPress-admin chat.', 'woocommerce-claude' ); ?></p>
-			</section>
+			<details class="woocommerce-claude-setup__accordion" <?php echo esc_attr( $ai_open ); ?>>
+				<summary class="woocommerce-claude-setup__accordion-summary">
+					<span class="woocommerce-claude-setup__option-icon dashicons dashicons-format-chat" aria-hidden="true"></span>
+					<span class="woocommerce-claude-setup__accordion-text">
+						<span class="woocommerce-claude-setup__accordion-title"><?php esc_html_e( 'Chat in WordPress admin', 'woocommerce-claude' ); ?></span>
+						<span class="woocommerce-claude-setup__accordion-description"><?php esc_html_e( 'Ask AI about store performance, orders, customer trends, and products without leaving WooCommerce.', 'woocommerce-claude' ); ?></span>
+					</span>
+					<span class="woocommerce-claude-setup__pill <?php echo esc_attr( $ai_status_class ); ?>">
+						<?php echo esc_html( $ai_status_label ); ?>
+					</span>
+				</summary>
+				<div class="woocommerce-claude-setup__accordion-panel">
+					<?php $this->render_ai_insights_setup_panel( $has_ai_provider, $ai_insights_url, $show_ai_insights ); ?>
+				</div>
+			</details>
 		</div>
 		<?php
 	}
@@ -279,23 +319,23 @@ class SettingsPage extends \WC_Settings_Page {
 	/**
 	 * Render the AI Insights key setup controls inside the setup accordion.
 	 *
-	 * @param bool   $has_ai_key      Whether an Anthropic key is already configured.
+	 * @param bool   $has_ai_provider Whether an AI provider is already configured.
 	 * @param string $ai_insights_url URL for the AI Insights admin page.
 	 * @param bool   $show_ai_insights_link Whether to show the AI Insights CTA.
 	 * @return void
 	 */
-	private function render_ai_insights_setup_panel( $has_ai_key, $ai_insights_url, $show_ai_insights_link ) {
+	private function render_ai_insights_setup_panel( $has_ai_provider, $ai_insights_url, $show_ai_insights_link ) {
 		?>
 		<p class="woocommerce-claude-setup__card-lede"><?php echo wp_kses_post( $this->get_difm_section_description() ); ?></p>
 
-		<?php if ( $has_ai_key ) : ?>
+		<?php if ( $has_ai_provider ) : ?>
 			<div class="woocommerce-claude-setup__banner woocommerce-claude-setup__banner--info">
 				<span class="woocommerce-claude-setup__banner-icon" aria-hidden="true">
 					<span class="dashicons dashicons-yes-alt"></span>
 				</span>
 				<div class="woocommerce-claude-setup__banner-body">
-					<strong><?php esc_html_e( 'Ask Claude is ready in WordPress admin.', 'woocommerce-claude' ); ?></strong>
-					<p><?php esc_html_e( 'You can open the chat, replace the saved key, or remove it from this section.', 'woocommerce-claude' ); ?></p>
+					<strong><?php esc_html_e( 'Ask AI is ready in WordPress admin.', 'woocommerce-claude' ); ?></strong>
+					<p><?php esc_html_e( 'You can open the chat, change the provider, replace a saved key, or remove a saved key from this section.', 'woocommerce-claude' ); ?></p>
 				</div>
 			</div>
 		<?php endif; ?>
@@ -303,11 +343,33 @@ class SettingsPage extends \WC_Settings_Page {
 		<table class="form-table woocommerce-claude-setup__embedded-form" role="presentation">
 			<tbody>
 				<?php
+				$this->render_provider_select_field(
+					array(
+						'id'    => self::DIFM_PROVIDER_OPTION,
+						'title' => __( 'AI provider', 'woocommerce-claude' ),
+						'desc'  => __( 'Auto uses WordPress AI connector-managed credentials first when available, then direct keys below.', 'woocommerce-claude' ),
+					)
+				);
+				$this->render_wordpress_ai_status_field(
+					array(
+						'title' => __( 'WordPress AI', 'woocommerce-claude' ),
+					)
+				);
 				$this->render_api_key_field(
 					array(
-						'id'    => self::DIFM_API_KEY_OPTION,
-						'title' => __( 'Anthropic API Key', 'woocommerce-claude' ),
-						'desc'  => __( 'Starts with <code>sk-ant-</code>. The real key is used only for server-side AI calls and is never rendered back into this page.', 'woocommerce-claude' ),
+						'id'       => self::ANTHROPIC_API_KEY_OPTION,
+						'title'    => __( 'Anthropic API key', 'woocommerce-claude' ),
+						'desc'     => __( 'Starts with <code>sk-ant-</code>. Used only for direct Anthropic server-side AI calls and never rendered back into this page.', 'woocommerce-claude' ),
+						'provider' => DifmProviderResolver::PROVIDER_ANTHROPIC,
+					)
+				);
+				$this->render_api_key_field(
+					array(
+						'id'          => self::OPENAI_API_KEY_OPTION,
+						'title'       => __( 'OpenAI API key', 'woocommerce-claude' ),
+						'desc'        => __( 'Used only for direct OpenAI server-side AI calls and never rendered back into this page.', 'woocommerce-claude' ),
+						'provider'    => DifmProviderResolver::PROVIDER_OPENAI,
+						'placeholder' => 'sk-...',
 					)
 				);
 				?>
@@ -320,7 +382,7 @@ class SettingsPage extends \WC_Settings_Page {
 			</button>
 			<?php if ( $show_ai_insights_link ) : ?>
 				<a class="button button-secondary" href="<?php echo esc_url( $ai_insights_url ); ?>">
-					<?php esc_html_e( 'Open Ask Claude', 'woocommerce-claude' ); ?>
+					<?php esc_html_e( 'Open Ask AI', 'woocommerce-claude' ); ?>
 				</a>
 			<?php endif; ?>
 		</div>
@@ -335,18 +397,91 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return string
 	 */
 	private function get_difm_section_description() {
-		$constant_name = $this->get_api_key_constant_name();
-		$requirement   = __( 'Ask Claude requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
+		$anthropic_constant = $this->get_api_key_constant_name( DifmProviderResolver::PROVIDER_ANTHROPIC );
+		$openai_constant    = $this->get_api_key_constant_name( DifmProviderResolver::PROVIDER_OPENAI );
+		$requirement        = __( 'Ask AI requires WordPress 7.0 or later. On WordPress 6.9, install and activate the Gutenberg plugin.', 'woocommerce-claude' );
 
-		if ( '' !== $constant_name ) {
+		if ( '' !== $anthropic_constant || '' !== $openai_constant ) {
+			$constant_names = implode( ', ', array_filter( array( $anthropic_constant, $openai_constant ) ) );
 			return sprintf(
 				/* translators: %s: PHP constant name. */
-				__( 'Your Anthropic API key is configured via the <code>%s</code> server constant. The field below is disabled; edit the constant in <code>wp-config.php</code> instead.', 'woocommerce-claude' ),
-				esc_html( $constant_name )
+				__( 'One or more direct API keys are configured via server constants: <code>%s</code>. Matching fields below are disabled; edit the constants in <code>wp-config.php</code> instead.', 'woocommerce-claude' ),
+				esc_html( $constant_names )
 			) . ' ' . $requirement;
 		}
 
-		return __( 'Paste your Anthropic API key to get AI-powered insights in your WooCommerce dashboard. Your key is stored in the WordPress database. For higher security, define <code>WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY</code> in <code>wp-config.php</code> instead.', 'woocommerce-claude' ) . ' ' . $requirement;
+		return __( 'Choose how Ask AI should reach an AI model. Auto uses WordPress AI connector-managed credentials first when available, then direct Anthropic or OpenAI keys. Direct keys are stored in the WordPress database; for higher security, define <code>WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY</code> or <code>WOOCOMMERCE_CLAUDE_OPENAI_KEY</code> in <code>wp-config.php</code> instead.', 'woocommerce-claude' ) . ' ' . $requirement;
+	}
+
+	/**
+	 * Return provider select options.
+	 *
+	 * @return array<string,string>
+	 */
+	private function get_provider_options() {
+		return array(
+			DifmProviderResolver::PROVIDER_AUTO         => __( 'Auto', 'woocommerce-claude' ),
+			DifmProviderResolver::PROVIDER_WORDPRESS_AI => __( 'WordPress AI connectors', 'woocommerce-claude' ),
+			DifmProviderResolver::PROVIDER_ANTHROPIC    => __( 'Anthropic', 'woocommerce-claude' ),
+			DifmProviderResolver::PROVIDER_OPENAI       => __( 'OpenAI', 'woocommerce-claude' ),
+		);
+	}
+
+	/**
+	 * Render the provider select row inside the embedded setup form.
+	 *
+	 * @param array $value Field definition.
+	 * @return void
+	 */
+	private function render_provider_select_field( $value ) {
+		$field_id    = isset( $value['id'] ) ? $value['id'] : self::DIFM_PROVIDER_OPTION;
+		$title       = isset( $value['title'] ) ? $value['title'] : '';
+		$description = isset( $value['desc'] ) ? $value['desc'] : '';
+		$selected    = DifmProviderResolver::get_selected_provider();
+		?>
+		<tr>
+			<th scope="row" class="titledesc">
+				<label for="<?php echo esc_attr( $field_id ); ?>"><?php echo esc_html( $title ); ?></label>
+			</th>
+			<td class="forminp forminp-select">
+				<select name="<?php echo esc_attr( $field_id ); ?>" id="<?php echo esc_attr( $field_id ); ?>" class="wc-enhanced-select">
+					<?php foreach ( $this->get_provider_options() as $value_key => $label ) : ?>
+						<option value="<?php echo esc_attr( $value_key ); ?>" <?php selected( $selected, $value_key ); ?>>
+							<?php echo esc_html( $label ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+				<?php if ( '' !== $description ) : ?>
+					<p class="description"><?php echo wp_kses_post( $description ); ?></p>
+				<?php endif; ?>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Render WordPress AI connector availability/status.
+	 *
+	 * @param array $value Field definition.
+	 * @return void
+	 */
+	public function render_wordpress_ai_status_field( $value ) {
+		$title  = isset( $value['title'] ) ? $value['title'] : '';
+		$status = WordPressAiClientAdapter::get_status();
+		?>
+		<tr>
+			<th scope="row" class="titledesc"><?php echo esc_html( $title ); ?></th>
+			<td class="forminp forminp-woocommerce-claude-wp-ai-status">
+				<?php if ( 'supported_configured' === $status ) : ?>
+					<p><?php esc_html_e( 'WordPress AI connector support is available and configured.', 'woocommerce-claude' ); ?></p>
+				<?php elseif ( 'supported_unconfigured' === $status ) : ?>
+					<p><?php esc_html_e( 'WordPress AI connector support is available, but no AI provider connector is configured yet.', 'woocommerce-claude' ); ?></p>
+				<?php else : ?>
+					<p><?php esc_html_e( 'WordPress AI connectors are not available on this site. You can use a direct Anthropic or OpenAI key below.', 'woocommerce-claude' ); ?></p>
+				<?php endif; ?>
+			</td>
+		</tr>
+		<?php
 	}
 
 	/**
@@ -420,19 +555,37 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
+	 * Sanitise the AI provider option.
+	 *
+	 * @param mixed $value     Value already sanitised by WooCommerce.
+	 * @param array $option    Field definition.
+	 * @param mixed $raw_value Raw posted value.
+	 * @return string
+	 */
+	public function sanitize_provider_option( $value, $option, $raw_value ) {
+		unset( $value, $option );
+
+		return DifmProviderResolver::normalise_provider( $raw_value );
+	}
+
+	/**
 	 * Render a masked API key field that never outputs the stored secret.
 	 *
 	 * @param array $value WooCommerce settings field definition.
 	 * @return void
 	 */
 	public function render_api_key_field( $value ) {
-		$has_constant = '' !== $this->get_api_key_constant_name();
-		$stored_key   = $this->get_saved_api_key();
-		$field_value  = ( ! $has_constant && '' !== $stored_key ) ? self::DIFM_API_KEY_SENTINEL : '';
-		$field_id     = isset( $value['id'] ) ? $value['id'] : self::DIFM_API_KEY_OPTION;
+		$provider     = isset( $value['provider'] ) ? DifmProviderResolver::normalise_provider( $value['provider'] ) : DifmProviderResolver::PROVIDER_ANTHROPIC;
+		$field_id     = isset( $value['id'] ) ? $value['id'] : $this->api_key_option_for_provider( $provider );
 		$field_name   = isset( $value['field_name'] ) ? $value['field_name'] : $field_id;
 		$title        = isset( $value['title'] ) ? $value['title'] : '';
 		$description  = isset( $value['desc'] ) ? $value['desc'] : '';
+		$placeholder  = isset( $value['placeholder'] ) ? (string) $value['placeholder'] : ( DifmProviderResolver::PROVIDER_ANTHROPIC === $provider ? 'sk-ant-...' : 'sk-...' );
+		$constant     = $this->get_api_key_constant_name( $provider );
+		$has_constant = '' !== $constant;
+		$stored_key   = $this->get_saved_api_key( $provider );
+		$field_value  = ( ! $has_constant && '' !== $stored_key ) ? self::DIFM_API_KEY_SENTINEL : '';
+		$clear_field  = $this->api_key_clear_field_for_provider( $provider );
 		?>
 		<tr>
 			<th scope="row" class="titledesc">
@@ -445,7 +598,7 @@ class SettingsPage extends \WC_Settings_Page {
 					type="password"
 					value="<?php echo esc_attr( $field_value ); ?>"
 					class="regular-input"
-					placeholder="sk-ant-..."
+					placeholder="<?php echo esc_attr( $placeholder ); ?>"
 					autocomplete="new-password"
 					<?php disabled( $has_constant ); ?>
 				/>
@@ -458,17 +611,17 @@ class SettingsPage extends \WC_Settings_Page {
 						printf(
 							/* translators: %s: PHP constant name. */
 							esc_html__( 'This key is managed by the %s server constant.', 'woocommerce-claude' ),
-							esc_html( $this->get_api_key_constant_name() )
+							esc_html( $constant )
 						);
 						?>
 					</p>
 				<?php elseif ( '' !== $stored_key ) : ?>
 					<p class="description"><?php esc_html_e( 'A key is currently saved. Leave this field unchanged to keep it.', 'woocommerce-claude' ); ?></p>
-					<label for="<?php echo esc_attr( self::DIFM_API_KEY_CLEAR_FIELD ); ?>">
+					<label for="<?php echo esc_attr( $clear_field ); ?>">
 						<input
 							type="checkbox"
-							name="<?php echo esc_attr( self::DIFM_API_KEY_CLEAR_FIELD ); ?>"
-							id="<?php echo esc_attr( self::DIFM_API_KEY_CLEAR_FIELD ); ?>"
+							name="<?php echo esc_attr( $clear_field ); ?>"
+							id="<?php echo esc_attr( $clear_field ); ?>"
 							value="yes"
 						/>
 						<?php esc_html_e( 'Remove saved key', 'woocommerce-claude' ); ?>
@@ -492,19 +645,24 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return string|null Value to save, or null to skip updating the option.
 	 */
 	public function sanitize_api_key_option( $value, $option, $raw_value ) {
-		unset( $value, $option );
+		unset( $value );
 
-		if ( '' !== $this->get_api_key_constant_name() ) {
+		$option_id = isset( $option['id'] ) ? (string) $option['id'] : self::ANTHROPIC_API_KEY_OPTION;
+		$provider  = $this->provider_for_api_key_option( $option_id );
+
+		if ( '' !== $this->get_api_key_constant_name( $provider ) ) {
 			return null;
 		}
 
-		if ( $this->is_api_key_clear_requested() ) {
-			delete_option( self::DIFM_API_KEY_OPTION );
-			$this->clear_ai_insights_saved_notice();
+		if ( $this->is_api_key_clear_requested( $provider ) ) {
+			$this->delete_api_key_option( $provider );
+			if ( ! ( new DifmProviderResolver() )->has_configured_provider() ) {
+				$this->clear_ai_insights_saved_notice();
+			}
 			return null;
 		}
 
-		$current_key   = $this->get_saved_api_key();
+		$current_key   = $this->get_saved_api_key( $provider );
 		$submitted_key = is_string( $raw_value ) ? trim( $raw_value ) : '';
 
 		if ( '' === $submitted_key || self::DIFM_API_KEY_SENTINEL === $submitted_key ) {
@@ -517,12 +675,14 @@ class SettingsPage extends \WC_Settings_Page {
 	/**
 	 * Whether the explicit remove-key checkbox was submitted.
 	 *
+	 * @param string $provider Provider value.
 	 * @return bool
 	 */
-	private function is_api_key_clear_requested() {
+	private function is_api_key_clear_requested( $provider = DifmProviderResolver::PROVIDER_ANTHROPIC ) {
+		$field = $this->api_key_clear_field_for_provider( $provider );
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
-		$clear = isset( $_POST[ self::DIFM_API_KEY_CLEAR_FIELD ] )
-			? sanitize_text_field( wp_unslash( $_POST[ self::DIFM_API_KEY_CLEAR_FIELD ] ) )
+		$clear = isset( $_POST[ $field ] )
+			? sanitize_text_field( wp_unslash( $_POST[ $field ] ) )
 			: '';
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
@@ -530,79 +690,109 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Validate the Anthropic API key immediately after settings are saved.
+	 * Validate direct API keys immediately after settings are saved.
 	 *
 	 * @return void
 	 */
 	public function validate_api_key_on_save() {
-		if ( '' !== $this->get_api_key_constant_name() ) {
-			return;
-		}
-
-		if ( $this->is_api_key_clear_requested() ) {
-			delete_option( self::DIFM_API_KEY_OPTION );
-			$this->clear_ai_insights_saved_notice();
-			return;
-		}
-
-		if ( ! $this->is_api_key_field_submitted() ) {
-			return;
-		}
-
 		// phpcs:disable WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- API keys may contain characters that sanitizers would corrupt; validate with Anthropic instead.
-		$submitted_key = isset( $_POST[ self::DIFM_API_KEY_OPTION ] ) && is_string( $_POST[ self::DIFM_API_KEY_OPTION ] )
-			? trim( wp_unslash( $_POST[ self::DIFM_API_KEY_OPTION ] ) )
-			: '';
+		$ai_provider_form_submitted = isset( $_POST[ self::DIFM_PROVIDER_OPTION ] )
+			|| isset( $_POST[ self::ANTHROPIC_API_KEY_OPTION ] )
+			|| isset( $_POST[ self::OPENAI_API_KEY_OPTION ] )
+			|| isset( $_POST[ self::DIFM_API_KEY_CLEAR_FIELD ] )
+			|| isset( $_POST[ self::OPENAI_API_KEY_CLEAR_FIELD ] );
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
-		if ( '' === $submitted_key || self::DIFM_API_KEY_SENTINEL === $submitted_key ) {
-			if ( '' !== $this->get_saved_api_key() ) {
-				$this->mark_ai_insights_saved_notice();
-			}
+		if ( ! $ai_provider_form_submitted ) {
 			return;
 		}
 
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
-		$result = \WooCommerce\Claude\Difm\AnthropicClient::validate_key( $submitted_key );
+		foreach ( array( DifmProviderResolver::PROVIDER_ANTHROPIC, DifmProviderResolver::PROVIDER_OPENAI ) as $provider ) {
+			if ( '' !== $this->get_api_key_constant_name( $provider ) ) {
+				continue;
+			}
 
-		if ( is_wp_error( $result ) ) {
-			$auth_failure = in_array( $result->get_error_code(), array( 'invalid_key', 'empty_key' ), true );
+			if ( $this->is_api_key_clear_requested( $provider ) ) {
+				$this->delete_api_key_option( $provider );
+				continue;
+			}
 
-			if ( $auth_failure ) {
-				delete_option( self::DIFM_API_KEY_OPTION );
-				$this->clear_ai_insights_saved_notice();
+			if ( ! $this->is_api_key_field_submitted( $provider ) ) {
+				continue;
+			}
+
+			$submitted_key = $this->get_submitted_api_key( $provider );
+			if ( '' === $submitted_key || self::DIFM_API_KEY_SENTINEL === $submitted_key ) {
+				continue;
+			}
+
+			$result = DifmProviderResolver::PROVIDER_OPENAI === $provider
+				? OpenAIResponsesClient::validate_key( $submitted_key )
+				: AnthropicClient::validate_key( $submitted_key );
+
+			if ( is_wp_error( $result ) ) {
+				$auth_failure = in_array( $result->get_error_code(), array( 'invalid_key', 'empty_key' ), true );
+
+				if ( $auth_failure ) {
+					$this->delete_api_key_option( $provider );
+
+					\WC_Admin_Settings::add_error(
+						sprintf(
+							/* translators: 1: provider name, 2: error message. */
+							__( 'WooCommerce for Claude: %1$s API key is invalid and has been removed - %2$s', 'woocommerce-claude' ),
+							DifmProviderResolver::provider_label( $provider ),
+							$result->get_error_message()
+						)
+					);
+					continue;
+				}
 
 				\WC_Admin_Settings::add_error(
 					sprintf(
-						/* translators: %s: error message from Anthropic. */
-						__( 'WooCommerce for Claude: Anthropic API key is invalid and has been removed — %s', 'woocommerce-claude' ),
-						$result->get_error_message()
-					)
-				);
-				return;
-			} else {
-				\WC_Admin_Settings::add_error(
-					sprintf(
-						/* translators: %s: error message. */
-						__( 'WooCommerce for Claude: Anthropic API key was saved but could not be verified right now — %s', 'woocommerce-claude' ),
+						/* translators: 1: provider name, 2: error message. */
+						__( 'WooCommerce for Claude: %1$s API key was saved but could not be verified right now - %2$s', 'woocommerce-claude' ),
+						DifmProviderResolver::provider_label( $provider ),
 						$result->get_error_message()
 					)
 				);
 			}
 		}
 
-		$this->mark_ai_insights_saved_notice();
+		if ( ( new DifmProviderResolver() )->has_configured_provider() ) {
+			$this->mark_ai_insights_saved_notice();
+		} else {
+			$this->clear_ai_insights_saved_notice();
+		}
 	}
 
 	/**
-	 * Whether the Anthropic API key field was part of the submitted form.
+	 * Whether a direct API key field was part of the submitted form.
 	 *
+	 * @param string $provider Provider value.
 	 * @return bool
 	 */
-	private function is_api_key_field_submitted() {
+	private function is_api_key_field_submitted( $provider = DifmProviderResolver::PROVIDER_ANTHROPIC ) {
+		$field = $this->api_key_option_for_provider( $provider );
+
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
-		return isset( $_POST[ self::DIFM_API_KEY_OPTION ] );
+		return isset( $_POST[ $field ] );
+	}
+
+	/**
+	 * Return a submitted direct API key without corrupting provider-specific characters.
+	 *
+	 * @param string $provider Provider value.
+	 * @return string
+	 */
+	private function get_submitted_api_key( $provider ) {
+		$field = $this->api_key_option_for_provider( $provider );
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- API keys may contain characters that sanitizers would corrupt; validate with the provider instead.
+		return isset( $_POST[ $field ] ) && is_string( $_POST[ $field ] )
+			? trim( wp_unslash( $_POST[ $field ] ) )
+			: '';
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 	}
 
 	/**
@@ -653,47 +843,95 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Return the server constant currently providing the Anthropic key.
+	 * Return the server constant currently providing a direct provider key.
 	 *
+	 * @param string $provider Provider value.
 	 * @return string Constant name, or empty string.
 	 */
-	private function get_api_key_constant_name() {
+	private function get_api_key_constant_name( $provider = DifmProviderResolver::PROVIDER_ANTHROPIC ) {
+		if ( DifmProviderResolver::PROVIDER_OPENAI === $provider ) {
+			return defined( self::OPENAI_API_KEY_CONSTANT ) ? self::OPENAI_API_KEY_CONSTANT : '';
+		}
+
 		if ( defined( self::DIFM_API_KEY_CONSTANT ) ) {
 			return self::DIFM_API_KEY_CONSTANT;
+		}
+
+		if ( defined( self::LEGACY_DIFM_API_KEY_CONSTANT ) ) {
+			return self::LEGACY_DIFM_API_KEY_CONSTANT;
 		}
 
 		return '';
 	}
 
 	/**
-	 * Whether the Hey Woo plugin owns the WordPress-admin chat surface.
+	 * Return the saved direct API key.
 	 *
-	 * @return bool
+	 * @param string $provider Provider value.
+	 * @return string Saved API key, or empty string.
 	 */
-	private function is_hey_woo_active() {
-		if ( defined( 'HEY_WOO_PLUGIN_FILE' ) ) {
-			return true;
+	private function get_saved_api_key( $provider = DifmProviderResolver::PROVIDER_ANTHROPIC ) {
+		if ( DifmProviderResolver::PROVIDER_OPENAI === $provider ) {
+			return (string) get_option( self::OPENAI_API_KEY_OPTION, '' );
 		}
 
-		$active_plugins = (array) get_option( 'active_plugins', array() );
-		if ( in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
-			return true;
+		$current_key = (string) get_option( self::ANTHROPIC_API_KEY_OPTION, '' );
+		if ( '' !== $current_key ) {
+			return $current_key;
 		}
 
-		if ( is_multisite() ) {
-			$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
-			return isset( $network_plugins['hey-woo/hey-woo.php'] );
-		}
-
-		return false;
+		return (string) get_option( self::LEGACY_DIFM_API_KEY_OPTION, '' );
 	}
 
 	/**
-	 * Return the saved API key.
+	 * Return the direct API key option for a provider.
 	 *
-	 * @return string Saved API key, or empty string.
+	 * @param string $provider Provider value.
+	 * @return string Option name.
 	 */
-	private function get_saved_api_key() {
-		return (string) get_option( self::DIFM_API_KEY_OPTION, '' );
+	private function api_key_option_for_provider( $provider ) {
+		return DifmProviderResolver::PROVIDER_OPENAI === $provider
+			? self::OPENAI_API_KEY_OPTION
+			: self::ANTHROPIC_API_KEY_OPTION;
+	}
+
+	/**
+	 * Return the clear checkbox field for a provider.
+	 *
+	 * @param string $provider Provider value.
+	 * @return string Field name.
+	 */
+	private function api_key_clear_field_for_provider( $provider ) {
+		return DifmProviderResolver::PROVIDER_OPENAI === $provider
+			? self::OPENAI_API_KEY_CLEAR_FIELD
+			: self::DIFM_API_KEY_CLEAR_FIELD;
+	}
+
+	/**
+	 * Determine provider from a direct API key option.
+	 *
+	 * @param string $option Option name.
+	 * @return string Provider value.
+	 */
+	private function provider_for_api_key_option( $option ) {
+		return self::OPENAI_API_KEY_OPTION === $option
+			? DifmProviderResolver::PROVIDER_OPENAI
+			: DifmProviderResolver::PROVIDER_ANTHROPIC;
+	}
+
+	/**
+	 * Delete a direct API key option and any legacy alias.
+	 *
+	 * @param string $provider Provider value.
+	 * @return void
+	 */
+	private function delete_api_key_option( $provider ) {
+		if ( DifmProviderResolver::PROVIDER_OPENAI === $provider ) {
+			delete_option( self::OPENAI_API_KEY_OPTION );
+			return;
+		}
+
+		delete_option( self::ANTHROPIC_API_KEY_OPTION );
+		delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 	}
 }

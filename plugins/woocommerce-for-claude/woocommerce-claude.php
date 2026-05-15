@@ -140,19 +140,46 @@ function woocommerce_claude_wc_missing_notice() {
  * cost on subsequent loads is a single get_option() call.
  */
 function woocommerce_claude_migrate_legacy_options() {
-	if ( get_option( 'woocommerce_claude_options_migrated' ) ) {
+	if ( ! get_option( 'woocommerce_claude_options_migrated' ) ) {
+		$map = array(
+			'woo_ai_connect_telemetry_enabled' => 'woocommerce_claude_telemetry_enabled',
+			'hey_woo_anthropic_api_key'        => 'woocommerce_claude_anthropic_api_key',
+		);
+		foreach ( $map as $old_key => $new_key ) {
+			$old_value = get_option( $old_key, null );
+			if ( null !== $old_value && false === get_option( $new_key, false ) ) {
+				update_option( $new_key, $old_value );
+			}
+		}
+		update_option( 'woocommerce_claude_options_migrated', '1' );
+	}
+
+	woocommerce_claude_migrate_difm_provider_option();
+}
+
+/**
+ * Pin existing Anthropic installs to Anthropic before auto mode is introduced.
+ *
+ * New installs keep the implicit `auto` default by leaving the provider option
+ * absent. Existing installs with an Anthropic key are pinned so an update cannot
+ * silently move them to a different provider.
+ */
+function woocommerce_claude_migrate_difm_provider_option() {
+	if ( get_option( 'woocommerce_claude_difm_provider_migrated' ) ) {
 		return;
 	}
-	$map = array(
-		'woo_ai_connect_telemetry_enabled' => 'woocommerce_claude_telemetry_enabled',
-	);
-	foreach ( $map as $old_key => $new_key ) {
-		$old_value = get_option( $old_key, null );
-		if ( null !== $old_value && false === get_option( $new_key, false ) ) {
-			update_option( $new_key, $old_value );
-		}
+
+	$provider_is_absent = false === get_option( 'woocommerce_claude_difm_provider', false );
+	$has_anthropic_key  = '' !== (string) get_option( 'woocommerce_claude_anthropic_api_key', '' )
+		|| '' !== (string) get_option( 'hey_woo_anthropic_api_key', '' )
+		|| ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) && '' !== (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY )
+		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY );
+
+	if ( $provider_is_absent && $has_anthropic_key ) {
+		update_option( 'woocommerce_claude_difm_provider', 'anthropic' );
 	}
-	update_option( 'woocommerce_claude_options_migrated', '1' );
+
+	update_option( 'woocommerce_claude_difm_provider_migrated', '1' );
 }
 
 /**
