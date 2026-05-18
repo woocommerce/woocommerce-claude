@@ -1,0 +1,17 @@
+{
+	"private": true,
+	"name": "_@woocommerce-claude/idea-board",
+	"version": "1.0.0",
+	"type": "module",
+	"wpScript": true,
+	"module": "build-module/index.mjs",
+	"wpScriptModuleExports": "./build-module/index.mjs",
+	"dependencies": {
+		"@dnd-kit/core": "^6.3.1",
+		"@dnd-kit/sortable": "^10.0.0",
+		"@dnd-kit/utilities": "^3.2.2",
+		"@wordpress/components": "33.0.0",
+		"@wordpress/element": "^6.29.0",
+		"@wordpress/i18n": "^6.9.0"
+	}
+}

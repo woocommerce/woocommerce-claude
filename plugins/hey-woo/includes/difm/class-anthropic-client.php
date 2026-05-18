@@ -107,10 +107,11 @@ class AnthropicClient implements DifmAiClientInterface {
 	 * @param string $system     System prompt (optional).
 	 * @param array  $tools      Anthropic tool definitions (optional).
 	 * @param int    $max_tokens Maximum tokens to generate.
+	 * @param int    $timeout    Optional HTTP timeout override in seconds.
 	 * @param array  $context    Optional diagnostic context for logging.
 	 * @return array|\WP_Error   Decoded response array, or WP_Error on failure.
 	 */
-	public function messages( array $messages, $system = '', array $tools = array(), $max_tokens = 4096, array $context = array() ) {
+	public function messages( array $messages, $system = '', array $tools = array(), $max_tokens = 4096, $timeout = null, array $context = array() ) {
 		$api_key = self::get_api_key();
 		if ( '' === $api_key ) {
 			return new \WP_Error( 'no_api_key', __( 'No Anthropic API key is configured.', 'hey-woo' ) );
@@ -139,10 +140,12 @@ class AnthropicClient implements DifmAiClientInterface {
 
 		DifmAiTelemetry::record_request( 'anthropic', $model, $body, $body_json, $request_id, $context );
 
+		$request_timeout = null === $timeout ? self::REQUEST_TIMEOUT : max( 1, (int) $timeout );
+
 		$response = wp_remote_post(
 			self::API_BASE . '/messages',
 			array(
-				'timeout' => self::REQUEST_TIMEOUT,
+				'timeout' => $request_timeout,
 				'headers' => array(
 					'x-api-key'         => $api_key,
 					'anthropic-version' => self::API_VERSION,

@@ -6,8 +6,10 @@ package-lock.json
 # Build artifacts
 build/
 packages/*/build-module/
+packages/*/build-style/
 plugins/*/build/
 plugins/*/packages/*/build-module/
+plugins/*/packages/*/build-style/
 *.zip
 .wp-env/
 .wp-env.override.json

@@ -114,6 +114,7 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-idea-board-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
 }
 
@@ -158,6 +159,26 @@ function hey_woo_register_settings_page( $pages ) {
 }
 
 /**
+ * Option name controlling whether the editable idea-board surface is enabled.
+ *
+ * Stored as the WooCommerce-conventional 'yes' / 'no' string.
+ */
+define( 'HEY_WOO_IDEA_BOARD_ENABLED_OPTION', 'hey_woo_enable_idea_board' );
+
+/**
+ * Whether the editable idea board is enabled.
+ *
+ * The idea board is nested under the wider AI Insights surface but keeps a
+ * separate flag so it can be shown only on stores that explicitly opt in
+ * while the board workflow is still being tested.
+ *
+ * @return bool
+ */
+function hey_woo_is_idea_board_enabled() {
+	return 'yes' === get_option( HEY_WOO_IDEA_BOARD_ENABLED_OPTION, 'no' );
+}
+
+/**
  * Initialise the Hey Woo BYOK runtime.
  */
 function hey_woo_init_runtime() {
@@ -167,9 +188,15 @@ function hey_woo_init_runtime() {
 
 	add_filter( 'woocommerce_get_settings_pages', 'hey_woo_register_settings_page' );
 
-	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
+	$idea_board_enabled = hey_woo_is_idea_board_enabled();
+
+	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage( $idea_board_enabled ) )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
+
+	if ( $idea_board_enabled ) {
+		( new \WooCommerce\HeyWoo\Difm\IdeaBoardRestController() )->register();
+	}
 }
 
 /**

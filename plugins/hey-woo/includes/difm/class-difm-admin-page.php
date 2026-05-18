@@ -32,6 +32,22 @@ class DifmAdminPage {
 	const MENU_SLUG = 'hey-woo-insights';
 
 	/**
+	 * Whether to expose the idea-board menu item and page data.
+	 *
+	 * @var bool
+	 */
+	private $idea_board_enabled = false;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param bool $idea_board_enabled Whether the idea board is enabled.
+	 */
+	public function __construct( $idea_board_enabled = false ) {
+		$this->idea_board_enabled = (bool) $idea_board_enabled;
+	}
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -100,6 +116,14 @@ class DifmAdminPage {
 				__( 'Ask AI', 'hey-woo' ),
 				'/'
 			);
+
+			if ( $this->idea_board_enabled ) {
+				heywoo_register_hey_woo_insights_menu_item(
+					'idea-board',
+					__( 'Idea board', 'hey-woo' ),
+					'/idea-board'
+				);
+			}
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
@@ -109,15 +133,16 @@ class DifmAdminPage {
 		$resolver = new DifmProviderResolver();
 
 		$data = array(
-			'nonce'         => wp_create_nonce( 'wp_rest' ),
-			'restBase'      => rest_url( 'hey-woo/v1/difm' ),
-			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
-			'userName'      => wp_get_current_user()->display_name,
-			'currency'      => get_woocommerce_currency_symbol(),
-			'hasKey'        => $resolver->has_configured_provider(),
-			'providerMode'  => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
-			'provider'      => DifmProviderResolver::get_selected_provider(),
-			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
+			'nonce'            => wp_create_nonce( 'wp_rest' ),
+			'restBase'         => rest_url( 'hey-woo/v1/difm' ),
+			'settingsUrl'      => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
+			'userName'         => wp_get_current_user()->display_name,
+			'currency'         => get_woocommerce_currency_symbol(),
+			'hasKey'           => $resolver->has_configured_provider(),
+			'providerMode'     => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
+			'provider'         => DifmProviderResolver::get_selected_provider(),
+			'conversations'    => DifmConversationsController::get_recent_conversations( $user_id ),
+			'ideaBoardEnabled' => $this->idea_board_enabled,
 		);
 
 		// Register an inline-only script handle so print_footer_scripts() outputs the data.

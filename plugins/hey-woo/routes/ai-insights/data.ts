@@ -24,6 +24,7 @@ const DEFAULTS: ModuleData = {
 	providerMode: 'legacy',
 	provider: 'auto',
 	conversations: [],
+	ideaBoardEnabled: false,
 };
 
 /** Singleton module data, populated by PHP via wp_add_inline_script(). */

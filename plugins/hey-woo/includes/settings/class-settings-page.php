@@ -146,6 +146,15 @@ class SettingsPage extends \WC_Settings_Page {
 		}
 
 		$settings[] = array(
+			'type'     => 'checkbox',
+			'id'       => 'hey_woo_enable_idea_board',
+			'title'    => __( 'Idea board', 'hey-woo' ),
+			'desc'     => __( 'Show the editable idea board in AI Insights.', 'hey-woo' ),
+			'default'  => 'no',
+			'autoload' => false,
+		);
+
+		$settings[] = array(
 			'type' => 'sectionend',
 			'id'   => 'hey_woo_difm_section',
 		);

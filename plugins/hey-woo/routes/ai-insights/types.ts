@@ -62,4 +62,5 @@ export interface ModuleData {
 	providerMode: 'connector' | 'legacy';
 	provider: string;
 	conversations: StoredConversation[];
+	ideaBoardEnabled: boolean;
 }
