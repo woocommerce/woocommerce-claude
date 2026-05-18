@@ -29,6 +29,13 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	protected $admin_user_id = 0;
 
 	/**
+	 * Whether the Hey Woo idea-board REST callback has been hooked for this process.
+	 *
+	 * @var bool
+	 */
+	protected static $idea_board_routes_hooked = false;
+
+	/**
 	 * Set up a REST server for each test.
 	 */
 	public function set_up() {
@@ -37,6 +44,13 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		global $wp_rest_server;
 		$wp_rest_server = new \WP_REST_Server();
 		$this->server   = $wp_rest_server;
+
+		$this->load_hey_woo_idea_board_controller();
+		update_option( 'hey_woo_enable_idea_board', 'yes' );
+		if ( ! self::$idea_board_routes_hooked ) {
+			( new IdeaBoardRestController() )->register();
+			self::$idea_board_routes_hooked = true;
+		}
 		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- This action is documented in wp-includes/rest-api.php.
 		do_action( 'rest_api_init' );
 	}
@@ -47,9 +61,12 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( 'woocommerce_claude_anthropic_api_key' );
+		delete_option( 'hey_woo_enable_idea_board' );
 		delete_option( IdeaBoardRestController::SAVED_BOARD_OPTION );
 		$this->delete_idea_board_transients();
+		self::$idea_board_routes_hooked = false;
 		parent::tear_down();
+		$this->delete_woocommerce_analytics_fixture_rows();
 	}
 
 	/**
@@ -58,6 +75,8 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	public function test_route_is_registered() {
 		$routes = $this->server->get_routes();
 
+		$this->assertTrue( class_exists( IdeaBoardRestController::class ) );
+		$this->assertSame( 'yes', get_option( 'hey_woo_enable_idea_board' ) );
 		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::ROUTE, $routes );
 		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::SAVE_ROUTE, $routes );
 		$this->assertArrayHasKey( '/' . IdeaBoardRestController::NAMESPACE . IdeaBoardRestController::BRAINSTORM_ROUTE, $routes );
@@ -135,7 +154,7 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$product_id  = $this->seed_simple_product(
 			array(
 				'name'  => 'Canvas Tote',
-				'sku'   => 'TOTE-CANVAS',
+				'sku'   => 'TOTE-CANVAS-' . wp_rand(),
 				'price' => 42,
 			)
 		);
@@ -522,7 +541,7 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$product_id  = $this->seed_simple_product(
 			array(
 				'name'  => 'Canvas Tote',
-				'sku'   => 'TOTE-CANVAS',
+				'sku'   => 'TOTE-CANVAS-' . wp_rand(),
 				'price' => 42,
 			)
 		);
@@ -779,9 +798,102 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'ok', $data['status'] );
 		$this->assertSame( 'analytics_fallback', $data['board']['content']['source'] );
-		$this->assertSame( array( 'revenue-baseline', 'product-focus', 'customer-context' ), wp_list_pluck( $data['board']['cards'], 'id' ) );
+		$this->assertNotEmpty( $data['board']['cards'] );
 		$this->assertSame( array( 'insight' ), array_values( array_unique( wp_list_pluck( $data['board']['cards'], 'kind' ) ) ) );
-		$this->assertStringContainsString( 'paid orders', $data['board']['decisionBrief']['whatChanged'] );
+		$this->assertStringContainsString( 'signals ready to investigate', $data['board']['decisionBrief']['whatChanged'] );
+	}
+
+	/**
+	 * Initial fallback starts with commercially problematic aggregated signals.
+	 */
+	public function test_idea_board_fallback_prioritises_problematic_aggregated_signals() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		$product_id  = $this->seed_simple_product(
+			array(
+				'name'         => 'Noise Cancelling Headphones',
+				'sku'          => 'HEADPHONES-' . wp_rand(),
+				'price'        => 100,
+				'stock_status' => 'outofstock',
+			)
+		);
+		$customer_id = $this->seed_customer( 'idea-board-fallback-' . wp_rand() . '@example.test' );
+
+		$this->seed_paid_order(
+			array(
+				'customer_id' => $customer_id,
+				'total'       => 100.00,
+				'date'        => current_datetime()->modify( '-5 days' )->format( 'Y-m-d H:i:s' ),
+				'items'       => array(
+					array(
+						'product_id' => $product_id,
+						'qty'        => 1,
+					),
+				),
+			)
+		);
+
+		for ( $i = 0; $i < 4; ++$i ) {
+			$this->seed_paid_order(
+				array(
+					'customer_id' => $customer_id,
+					'total'       => 100.00,
+					'date'        => current_datetime()->modify( '-100 days' )->format( 'Y-m-d H:i:s' ),
+					'items'       => array(
+						array(
+							'product_id' => $product_id,
+							'qty'        => 1,
+						),
+					),
+				)
+			);
+		}
+
+		add_filter(
+			'pre_http_request',
+			static function () {
+				return array(
+					'response' => array(
+						'code'    => 200,
+						'message' => 'OK',
+					),
+					'body'     => wp_json_encode(
+						array(
+							'type'    => 'message',
+							'content' => array(
+								array(
+									'type' => 'text',
+									'text' => wp_json_encode(
+										array(
+											'summary' => 'Signals are available.',
+											'decisionBrief' => array(
+												'whatChanged' => 'Revenue changed.',
+											),
+										)
+									),
+								),
+							),
+						)
+					),
+					'headers'  => array(),
+				);
+			}
+		);
+
+		$response = $this->dispatch_idea_board( true );
+		$data     = $response->get_data();
+		$ids      = wp_list_pluck( $data['board']['cards'], 'id' );
+		$cards    = $this->cards_by_id( $data['board']['cards'] );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 'analytics_fallback', $data['board']['content']['source'] );
+		$this->assertSame( 'revenue-order-drop', $ids[0] );
+		$this->assertContains( 'top-products-out-of-stock', $ids );
+		$this->assertSame( array( 'revenue_protection', 'conversion', 'aov' ), $cards['revenue-order-drop']['revenueLevers'] );
+		$this->assertSame( array( 'inventory', 'conversion', 'revenue_protection' ), $cards['top-products-out-of-stock']['revenueLevers'] );
+		$this->assertStringContainsString( 'Noise Cancelling Headphones', $cards['top-products-out-of-stock']['evidenceDetails']['involvedProducts'] );
 	}
 
 	/**
@@ -921,11 +1033,166 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'answer', $notes[1]['kind'] );
 		$this->assertSame( 'ai', $notes[1]['createdBy'] );
 		$this->assertSame( 'stock-question', $notes[1]['parentCardId'] );
-		$this->assertStringContainsString( 'merchant input', $notes[1]['body'] );
+		$this->assertStringContainsString( 'headphones still need merchant input', $notes[1]['body'] );
 		$this->assertSame( 'ready_to_reanalyse', $data['board']['sessions'][0]['status'] );
 
 		$saved = get_option( IdeaBoardRestController::SAVED_BOARD_OPTION, array() );
 		$this->assertSame( $notes[1]['id'], $saved['payload']['board']['notes'][1]['id'] );
+	}
+
+	/**
+	 * AI answers do not keep the confusing merchant-input-needed prefix.
+	 */
+	public function test_idea_board_question_answer_rewrites_merchant_input_needed_prefix() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				return $this->anthropic_text_response(
+					wp_json_encode(
+						array(
+							'answer' => '**Merchant input needed:** Supplier records are not part of the current store data.',
+						)
+					)
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_question_answer( $this->sample_reanalysis_board(), 'stock-question' );
+		$data     = $response->get_data();
+		$notes    = $data['board']['notes'];
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertStringStartsWith( 'AI can\'t answer this from the current store data.', $notes[1]['body'] );
+		$this->assertStringNotContainsString( 'Merchant input needed', $notes[1]['body'] );
+	}
+
+	/**
+	 * Product and substitute questions receive current catalogue context.
+	 */
+	public function test_idea_board_question_answer_includes_catalogue_context_for_product_questions() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		$audio_term = wp_insert_term( 'Audio', 'product_cat' );
+		$audio_id   = is_array( $audio_term ) ? (int) $audio_term['term_id'] : 0;
+		$this->seed_simple_product(
+			array(
+				'name'         => 'Noise Cancelling Headphones',
+				'sku'          => 'HEADPHONES-NOISE-' . wp_rand(),
+				'price'        => 199,
+				'stock_status' => 'outofstock',
+				'category_ids' => array( $audio_id ),
+			)
+		);
+		$this->seed_simple_product(
+			array(
+				'name'         => 'Premium Wireless Headphones',
+				'sku'          => 'HEADPHONES-WIRELESS-' . wp_rand(),
+				'price'        => 149,
+				'stock_status' => 'instock',
+				'category_ids' => array( $audio_id ),
+			)
+		);
+		$this->seed_simple_product(
+			array(
+				'name'         => 'Classic Hoodie',
+				'sku'          => 'HOODIE-CLASSIC-' . wp_rand(),
+				'price'        => 59,
+				'stock_status' => 'instock',
+			)
+		);
+
+		$board = $this->sample_reanalysis_board();
+		foreach ( $board['cards'] as &$card ) {
+			if ( 'stock-question' === $card['id'] ) {
+				$card['title']         = 'How many type of headphones do we have?';
+				$card['body']          = 'This relates to similar products that may be in stock.';
+				$card['answerability'] = 'ai';
+				$card['createdBy']     = 'merchant';
+			}
+		}
+		unset( $card );
+
+		$captured_bodies = array();
+		add_filter(
+			'pre_http_request',
+			function ( $preempt, $parsed_args ) use ( &$captured_bodies ) {
+				$captured_bodies[] = json_decode( $parsed_args['body'], true );
+
+				return $this->anthropic_text_response(
+					wp_json_encode(
+						array(
+							'answer' => 'The current catalogue context lists two headphone products: Noise Cancelling Headphones and Premium Wireless Headphones.',
+						)
+					)
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_question_answer( $board, 'stock-question' );
+		$data     = $response->get_data();
+		$prompt   = json_decode( $captured_bodies[0]['messages'][0]['content'], true );
+		$matches  = array_column( $prompt['catalogueContext']['matchingProducts'], 'name' );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertTrue( $prompt['catalogueContext']['available'] );
+		$this->assertContains( 'headphones', $prompt['catalogueContext']['detectedTerms'] );
+		$this->assertContains( 'headphone', $prompt['catalogueContext']['detectedTerms'] );
+		$this->assertContains( 'Noise Cancelling Headphones', $matches );
+		$this->assertContains( 'Premium Wireless Headphones', $matches );
+		$this->assertStringContainsString( 'two headphone products', $data['board']['notes'][1]['body'] );
+	}
+
+	/**
+	 * AI-generated linked questions can be answered even when their wording is broad.
+	 */
+	public function test_idea_board_question_answer_allows_ai_linked_question_without_keywords() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		$board = $this->sample_reanalysis_board();
+		foreach ( $board['cards'] as &$card ) {
+			if ( 'stock-question' === $card['id'] ) {
+				$card['title'] = 'What changed most?';
+				$card['body']  = 'Use the linked signal and board context to answer this.';
+			}
+		}
+		unset( $card );
+
+		$call_count = 0;
+		add_filter(
+			'pre_http_request',
+			function () use ( &$call_count ) {
+				++$call_count;
+
+				return $this->anthropic_text_response(
+					wp_json_encode(
+						array(
+							'body' => 'The linked signal still points to unavailable best-sellers, so supplier timing is the main blocker.',
+						)
+					)
+				);
+			}
+		);
+
+		$response = $this->dispatch_idea_board_question_answer( $board, 'stock-question' );
+		$data     = $response->get_data();
+		$notes    = $data['board']['notes'];
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame( 1, $call_count );
+		$this->assertSame( 'answer', $notes[1]['kind'] );
+		$this->assertStringContainsString( 'unavailable best-sellers', $notes[1]['body'] );
 	}
 
 	/**
@@ -938,8 +1205,9 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$board = $this->sample_reanalysis_board();
 		foreach ( $board['cards'] as &$card ) {
 			if ( 'stock-question' === $card['id'] ) {
-				$card['title'] = 'What is the weather today?';
-				$card['body']  = 'Can you tell me whether it will rain this afternoon?';
+				$card['title']     = 'What is the weather today?';
+				$card['body']      = 'Can you tell me whether it will rain this afternoon?';
+				$card['createdBy'] = 'merchant';
 			}
 		}
 		unset( $card );
@@ -1052,6 +1320,40 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Re-analysis accepts JSON split across multiple Anthropic text blocks.
+	 */
+	public function test_idea_board_reanalysis_parses_multi_text_block_response() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				return $this->anthropic_text_blocks_response(
+					array(
+						'Here is the JSON: {"summary":"The board can keep moving after the supplied context.",',
+						'"decision_brief":{"what_changed":"Merchant context changed the stock decision.","commercial_why":"Inventory risk is tied to revenue protection.","biggest_unknowns":"Campaign budget remains unclear.","best_next_move":"Review the draft before changing traffic.","upside_risk":"Upside is protected demand; risk is pausing too much."},"newCards":[',
+						wp_json_encode( $this->valid_reanalysis_action_card() ),
+						']}',
+					)
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_reanalysis( $this->sample_reanalysis_board() );
+		$data     = $response->get_data();
+		$cards    = $this->cards_by_id( $data['board']['cards'] );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertArrayHasKey( 'pause-ads', $cards );
+		$this->assertSame( 'Merchant context changed the stock decision.', $data['board']['decisionBrief']['whatChanged'] );
+		$this->assertSame( 'Review the draft before changing traffic.', $data['board']['decisionBrief']['bestNextMove'] );
+	}
+
+	/**
 	 * POST /difm/idea-board/reanalyse does not add actions while required merchant gates are unanswered.
 	 */
 	public function test_idea_board_reanalysis_blocks_actions_when_required_merchant_gates_are_unanswered() {
@@ -1088,6 +1390,84 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Both-answerable required gates also block draft action cards until answered.
+	 */
+	public function test_idea_board_reanalysis_blocks_actions_when_required_both_gates_are_unanswered() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		$board          = $this->sample_reanalysis_board();
+		$board['notes'] = array();
+		foreach ( $board['cards'] as &$card ) {
+			if ( 'stock-question' === $card['id'] ) {
+				$card['answerability'] = 'both';
+			}
+		}
+		unset( $card );
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				return $this->anthropic_text_response( wp_json_encode( $this->valid_reanalysis_new_cards_payload() ) );
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_reanalysis( $board );
+		$data     = $response->get_data();
+		$cards    = $this->cards_by_id( $data['board']['cards'] );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertArrayNotHasKey( 'pause-ads', $cards );
+	}
+
+	/**
+	 * AI draft actions need concrete scorecard fields before they are usable.
+	 */
+	public function test_idea_board_reanalysis_requires_action_scorecard_fields() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				$action = $this->valid_reanalysis_action_card();
+				unset( $action['primaryMetric'], $action['successCriteria'], $action['evidenceDetails']['metricBaseline'] );
+
+				return $this->anthropic_text_response(
+					wp_json_encode(
+						array(
+							'summary'       => 'The action is too thin to prioritise.',
+							'decisionBrief' => $this->valid_decision_brief(),
+							'newCards'      => array( $action ),
+						)
+					)
+				);
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_reanalysis( $this->sample_reanalysis_board() );
+		$data     = $response->get_data();
+		$cards    = $this->cards_by_id( $data['board']['cards'] );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertArrayNotHasKey( 'pause-ads', $cards );
+		$this->assertSame(
+			array(
+				'stock-context',
+				'stock-out-signal',
+				'stock-question',
+			),
+			$this->sorted_card_ids( $data['board']['cards'] )
+		);
+	}
+
+	/**
 	 * POST /difm/idea-board/reanalyse accepts summary-only responses and keeps the board intact.
 	 */
 	public function test_idea_board_reanalysis_accepts_summary_only_response() {
@@ -1100,8 +1480,13 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 				return $this->anthropic_text_response(
 					wp_json_encode(
 						array(
-							'summary'  => 'The stock-out signal still needs supplier and campaign context before action.',
-							'newCards' => array(),
+							'summary'        => 'The stock-out signal still needs supplier and campaign context before action.',
+							'decision_brief' => array(
+								'what_changed'   => 'No safe action changed yet.',
+								'commercial_why' => 'Inventory risk still controls revenue protection.',
+								'best_next_move' => 'Answer the required blocker before drafting action.',
+							),
+							'newCards'       => array(),
 						)
 					)
 				);
@@ -1116,6 +1501,8 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$this->assertSame( 'ok', $data['status'] );
 		$this->assertSame( 'The stock-out signal still needs supplier and campaign context before action.', $data['board']['summary'] );
+		$this->assertSame( 'No safe action changed yet.', $data['board']['decisionBrief']['whatChanged'] );
+		$this->assertSame( 'Answer the required blocker before drafting action.', $data['board']['decisionBrief']['bestNextMove'] );
 		$this->assertSame(
 			array(
 				'stock-context',
@@ -1124,6 +1511,40 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 			),
 			$this->sorted_card_ids( $data['board']['cards'] )
 		);
+	}
+
+	/**
+	 * POST /difm/idea-board/reanalyse preserves the board when AI returns prose instead of JSON.
+	 */
+	public function test_idea_board_reanalysis_preserves_board_when_response_has_no_json() {
+		update_option( 'woocommerce_claude_anthropic_api_key', 'sk-ant-test' );
+		$this->set_admin_user();
+
+		add_filter(
+			'pre_http_request',
+			function () {
+				return $this->anthropic_text_response( 'I would prioritise the stock-out question first, then the payment pipeline.' );
+			},
+			10,
+			3
+		);
+
+		$response = $this->dispatch_idea_board_reanalysis( $this->sample_reanalysis_board() );
+		$data     = $response->get_data();
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( 'ok', $data['status'] );
+		$this->assertSame(
+			array(
+				'stock-context',
+				'stock-out-signal',
+				'stock-question',
+			),
+			$this->sorted_card_ids( $data['board']['cards'] )
+		);
+		$this->assertStringContainsString( 'kept intact', $data['board']['summary'] );
+		$this->assertStringContainsString( 'no new scored action', $data['board']['decisionBrief']['whatChanged'] );
+		$this->assertSame( 'analysed', $data['board']['sessions'][0]['status'] );
 	}
 
 	/**
@@ -1189,6 +1610,26 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	private function set_admin_user() {
 		$this->admin_user_id = $this->factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $this->admin_user_id );
+	}
+
+	/**
+	 * Load the moved Hey Woo idea-board controller without booting the whole Hey Woo plugin.
+	 *
+	 * @return void
+	 */
+	private function load_hey_woo_idea_board_controller() {
+		$hey_woo_dir = ( defined( 'WP_PLUGIN_DIR' ) ? WP_PLUGIN_DIR : ABSPATH . 'wp-content/plugins' ) . '/hey-woo/';
+		if ( ! defined( 'HEY_WOO_PLUGIN_DIR' ) ) {
+			define( 'HEY_WOO_PLUGIN_DIR', $hey_woo_dir );
+		}
+
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-telemetry-handler.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-idea-board-rest-controller.php';
 	}
 
 	/**
@@ -1642,6 +2083,36 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Build a successful Anthropic response with multiple text blocks.
+	 *
+	 * @param array $texts Text blocks returned by Anthropic.
+	 * @return array
+	 */
+	private function anthropic_text_blocks_response( array $texts ) {
+		$content = array();
+		foreach ( $texts as $text ) {
+			$content[] = array(
+				'type' => 'text',
+				'text' => (string) $text,
+			);
+		}
+
+		return array(
+			'response' => array(
+				'code'    => 200,
+				'message' => 'OK',
+			),
+			'body'     => wp_json_encode(
+				array(
+					'type'    => 'message',
+					'content' => $content,
+				)
+			),
+			'headers'  => array(),
+		);
+	}
+
+	/**
 	 * Return sorted card IDs.
 	 *
 	 * @param array $cards Board cards.
@@ -1685,5 +2156,29 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 				$timeout_like
 			)
 		);
+	}
+
+	/**
+	 * Clear WooCommerce custom analytics/order tables touched by the idea-board fixtures.
+	 *
+	 * @return void
+	 */
+	private function delete_woocommerce_analytics_fixture_rows() {
+		global $wpdb;
+
+		foreach ( array(
+			'wc_order_product_lookup',
+			'wc_order_tax_lookup',
+			'wc_order_stats',
+			'wc_customer_lookup',
+			'wc_product_meta_lookup',
+			'wc_orders_meta',
+			'wc_order_addresses',
+			'wc_order_operational_data',
+			'wc_orders',
+		) as $table ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test cleanup for known custom WooCommerce tables.
+			$wpdb->query( "DELETE FROM {$wpdb->prefix}{$table}" );
+		}
 	}
 }

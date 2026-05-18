@@ -111,7 +111,9 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	const [ actionReviewDate, setActionReviewDate ] = useState( getDefaultReviewDate() );
 	const [ actionSuccessCriteria, setActionSuccessCriteria ] = useState( '' );
 	const [ detailCardId, setDetailCardId ] = useState( '' );
+	const [ focusedCardId, setFocusedCardId ] = useState( '' );
 	const noteTextareaRef = useRef< HTMLTextAreaElement | null >( null );
+	const hasInitialisedActiveSessionRef = useRef( false );
 	// Timer ref used to coalesce rapid-fire saves (drag moves, scorecard <select> changes)
 	// so we don't POST on every individual event.
 	const saveDebouncePendingRef = useRef< ReturnType< typeof setTimeout > | null >( null );
@@ -127,7 +129,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	const isBusy = status === 'loading' || status === 'saving' || status === 'brainstorming' || status === 'reanalysing' || status === 'answering';
 	const insights = useMemo( () => getInsightCards( board ), [ board ] );
 	const sessions = board?.sessions || [];
-	const activeSession = sessions.find( ( session ) => session.id === activeSessionId ) || sessions[0] || null;
+	const activeSession = activeSessionId ? sessions.find( ( session ) => session.id === activeSessionId ) || null : null;
 	const activeRootIds = activeSession ? activeSession.rootInsightIds : selectedInsightIds;
 	const activeInsights = insights.filter( ( insight ) => activeRootIds.includes( insight.id ) );
 	const activeSessionCards = activeSession ? cardsForSession( board, activeSession ) : [];
@@ -153,19 +155,42 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 	) );
 	const canReanalyse = Boolean( board && activeSession && readyToReanalyse && ! isBusy );
 
+	const leaveActiveSession = useCallback( () => {
+		hasInitialisedActiveSessionRef.current = true;
+		setActiveSessionId( '' );
+		setSignalsCollapsed( false );
+		setNoteTargetId( '' );
+		setDetailCardId( '' );
+		setFocusedCardId( '' );
+		setIsCreatingQuestion( false );
+		setIsCreatingAction( false );
+		setBoardView( 'canvas' );
+	}, [] );
+
+	const clearBrainstormSelection = useCallback( () => {
+		setSelectedInsightIds( [] );
+		leaveActiveSession();
+		setFeedbackMessage( '' );
+	}, [ leaveActiveSession ] );
+
 	useEffect( () => {
 		if ( ! board ) {
 			return;
 		}
-		if ( activeSessionId && board.sessions.some( ( session ) => session.id === activeSessionId ) ) {
+		if ( activeSessionId && ! board.sessions.some( ( session ) => session.id === activeSessionId ) ) {
+			leaveActiveSession();
 			return;
 		}
+		if ( activeSessionId || hasInitialisedActiveSessionRef.current ) {
+			return;
+		}
+		hasInitialisedActiveSessionRef.current = true;
 		const firstSession = board.sessions[0];
 		if ( firstSession ) {
 			setActiveSessionId( firstSession.id );
 			setSelectedInsightIds( firstSession.rootInsightIds );
 		}
-	}, [ activeSessionId, board ] );
+	}, [ activeSessionId, board, leaveActiveSession ] );
 
 	useEffect( () => {
 		if ( ! feedbackMessage ) {
@@ -175,7 +200,17 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		return () => window.clearTimeout( timeout );
 	}, [ feedbackMessage ] );
 
+	useEffect( () => {
+		if ( focusedCardId && ! canvasItems.some( ( item ) => item.card.id === focusedCardId ) ) {
+			setFocusedCardId( '' );
+		}
+		if ( detailCardId && ! canvasItems.some( ( item ) => item.card.id === detailCardId ) ) {
+			setDetailCardId( '' );
+		}
+	}, [ canvasItems, detailCardId, focusedCardId ] );
+
 	const selectDatePreset = ( nextDays: number ) => {
+		hasInitialisedActiveSessionRef.current = true;
 		setSelectedDays( nextDays );
 		setSelectedInsightIds( [] );
 		setActiveSessionId( '' );
@@ -196,14 +231,18 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		setActionReviewDate( getDefaultReviewDate() );
 		setActionSuccessCriteria( '' );
 		setDetailCardId( '' );
+		setFocusedCardId( '' );
 	};
 
 	const toggleInsight = useCallback( ( insightId: string ) => {
+		if ( activeSessionId ) {
+			leaveActiveSession();
+		}
 		setSelectedInsightIds( ( previous ) => previous.includes( insightId )
 			? previous.filter( ( id ) => id !== insightId )
 			: [ ...previous, insightId ]
 		);
-	}, [] );
+	}, [ activeSessionId, leaveActiveSession ] );
 
 	const openSession = ( session: IdeaBoardSession ) => {
 		setActiveSessionId( session.id );
@@ -215,6 +254,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		setIsCreatingAction( false );
 		setBoardView( 'canvas' );
 		setDetailCardId( '' );
+		setFocusedCardId( '' );
 	};
 
 	const startBrainstorm = async () => {
@@ -233,13 +273,20 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 			setIsCreatingAction( false );
 			setBoardView( 'canvas' );
 			setDetailCardId( '' );
+			setFocusedCardId( '' );
 			setFeedbackMessage( __( 'Brainstorm started. Add answers or context, then re-analyse to turn it into draft actions.', 'woocommerce-claude' ) );
 		}
 	};
 
+	const showCardDetails = useCallback( ( card: IdeaBoardCard ) => {
+		setFocusedCardId( card.id );
+		setDetailCardId( card.id );
+	}, [] );
+
 	const prepareAnswer = ( card: IdeaBoardCard ) => {
 		setNoteKind( 'answer' );
 		setNoteTargetId( card.id );
+		setFocusedCardId( card.id );
 		setFeedbackMessage( __( 'Add the answer below. The session will be ready to re-analyse once it is saved.', 'woocommerce-claude' ) );
 		window.setTimeout( () => noteTextareaRef.current?.focus(), 0 );
 	};
@@ -380,7 +427,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		setQuestionTitle( '' );
 		setQuestionBody( '' );
 		setIsCreatingQuestion( false );
-		setDetailCardId( card.id );
+		showCardDetails( card );
 		setFeedbackMessage( __( 'Question added. Answer it with the team or ask AI when the board has enough context.', 'woocommerce-claude' ) );
 	};
 
@@ -391,7 +438,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 
 		const nextBoard = await answerQuestion( board, card.id );
 		if ( nextBoard ) {
-			setDetailCardId( card.id );
+			showCardDetails( card );
 			setFeedbackMessage( __( 'AI added an answer to the question. Review it before re-analysing.', 'woocommerce-claude' ) );
 		}
 	};
@@ -492,7 +539,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		setActionReviewDate( getDefaultReviewDate() );
 		setActionSuccessCriteria( '' );
 		setIsCreatingAction( false );
-		setFeedbackMessage( __( 'Proposed action added to the brainstorm board. Accept it when it is ready for the queue.', 'woocommerce-claude' ) );
+		setFeedbackMessage( __( 'Proposed action added to the brainstorm board. Accept it when the scorecard is complete.', 'woocommerce-claude' ) );
 	};
 
 	const removeCard = ( card: IdeaBoardCard ) => {
@@ -527,6 +574,9 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 		if ( detailCardId === card.id ) {
 			setDetailCardId( '' );
 		}
+		if ( focusedCardId === card.id ) {
+			setFocusedCardId( '' );
+		}
 		setFeedbackMessage( __( 'Card removed. Re-analyse is ready so AI can respond to the changed workspace.', 'woocommerce-claude' ) );
 	};
 
@@ -535,7 +585,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 			return;
 		}
 		if ( ! isActionScorecardComplete( card ) ) {
-			setDetailCardId( card.id );
+			showCardDetails( card );
 			setFeedbackMessage( __( 'Complete the action scorecard before accepting this draft.', 'woocommerce-claude' ) );
 			return;
 		}
@@ -562,7 +612,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 
 		updateBoard( updatedBoard );
 		void saveBoard( updatedBoard, board );
-		setFeedbackMessage( __( 'Action accepted and added to the queue.', 'woocommerce-claude' ) );
+		setFeedbackMessage( __( 'Action accepted and kept in accepted actions.', 'woocommerce-claude' ) );
 	};
 
 	const updateActionMetadata = ( card: IdeaBoardCard, updates: Partial< IdeaBoardCard > ) => {
@@ -758,7 +808,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 										{ __( 'Start brainstorm', 'woocommerce-claude' ) }
 									</Button>
 									{ selectedInsightIds.length > 0 && (
-										<Button variant="tertiary" onClick={ () => setSelectedInsightIds( [] ) } disabled={ isBusy }>
+										<Button variant="tertiary" onClick={ clearBrainstormSelection } disabled={ isBusy }>
 											{ __( 'Clear', 'woocommerce-claude' ) }
 										</Button>
 									) }
@@ -787,12 +837,33 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 						{ activeSession ? (
 								<>
 									<header className="hey-woo-idea-session__header">
-										<div>
+										<div className="hey-woo-idea-session__bar">
 											<div className="hey-woo-idea-session__eyebrow">
 												{ __( 'Brainstorm board', 'woocommerce-claude' ) }
 												<StatusPill status={ activeSession.status } />
 												<span>{ signalCountLabel( activeInsights.length ) }</span>
 											</div>
+											<div className="hey-woo-idea-session__actions">
+												<Button variant="secondary" onClick={ () => setIsCreatingQuestion( ( value ) => ! value ) } disabled={ isBusy || board.cards.length >= MAX_CARDS }>
+													{ __( 'Create question', 'woocommerce-claude' ) }
+												</Button>
+												<Button variant="secondary" onClick={ () => setIsCreatingAction( ( value ) => ! value ) } disabled={ isBusy || board.cards.length >= MAX_CARDS }>
+													{ __( 'Create action', 'woocommerce-claude' ) }
+												</Button>
+												<Button variant={ readyToReanalyse ? 'primary' : 'secondary' } onClick={ () => board && reanalyse( board ) } disabled={ ! canReanalyse }>
+													{ status === 'reanalysing'
+														? __( 'Re-analysing', 'woocommerce-claude' )
+														: blockerCount > 0
+															? sprintf(
+																/* translators: %d: blocker count. */
+																blockerCount === 1 ? __( '%d blocker left before draft actions', 'woocommerce-claude' ) : __( '%d blockers left before draft actions', 'woocommerce-claude' ),
+																blockerCount
+															)
+															: __( 'Re-analyse with context', 'woocommerce-claude' ) }
+												</Button>
+											</div>
+										</div>
+										<div className="hey-woo-idea-session__intro">
 											<h2>{ __( 'Decide what to do next', 'woocommerce-claude' ) }</h2>
 											<p>{ __( 'Investigate store signals, add context, and turn the best ideas into revenue actions.', 'woocommerce-claude' ) }</p>
 											{ ! readyToReanalyse && (
@@ -800,33 +871,6 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 													{ __( 'Answer a question or add context to make this ready for re-analysis.', 'woocommerce-claude' ) }
 												</p>
 											) }
-										</div>
-										<div className="hey-woo-idea-session__actions">
-											<div className="hey-woo-idea-view-toggle" role="group" aria-label={ __( 'Board view', 'woocommerce-claude' ) }>
-												<Button variant={ boardView === 'canvas' ? 'primary' : 'secondary' } onClick={ () => setBoardView( 'canvas' ) } disabled={ isBusy }>
-													{ __( 'Canvas', 'woocommerce-claude' ) }
-												</Button>
-												<Button variant={ boardView === 'decision' ? 'primary' : 'secondary' } onClick={ () => setBoardView( 'decision' ) } disabled={ isBusy }>
-													{ __( 'Decision', 'woocommerce-claude' ) }
-												</Button>
-											</div>
-											<Button variant="secondary" onClick={ () => setIsCreatingQuestion( ( value ) => ! value ) } disabled={ isBusy || board.cards.length >= MAX_CARDS }>
-												{ __( 'Create question', 'woocommerce-claude' ) }
-											</Button>
-											<Button variant="secondary" onClick={ () => setIsCreatingAction( ( value ) => ! value ) } disabled={ isBusy || board.cards.length >= MAX_CARDS }>
-												{ __( 'Create action', 'woocommerce-claude' ) }
-											</Button>
-											<Button variant={ readyToReanalyse ? 'primary' : 'secondary' } onClick={ () => board && reanalyse( board ) } disabled={ ! canReanalyse }>
-												{ status === 'reanalysing'
-													? __( 'Re-analysing', 'woocommerce-claude' )
-													: blockerCount > 0
-														? sprintf(
-															/* translators: %d: blocker count. */
-															blockerCount === 1 ? __( '%d blocker left before draft actions', 'woocommerce-claude' ) : __( '%d blockers left before draft actions', 'woocommerce-claude' ),
-															blockerCount
-														)
-														: __( 'Re-analyse with context', 'woocommerce-claude' ) }
-											</Button>
 										</div>
 									</header>
 
@@ -965,17 +1009,30 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 										</form>
 									) }
 
+									<div className="hey-woo-idea-view-bar">
+										<div className="hey-woo-idea-view-toggle" role="group" aria-label={ __( 'Board view', 'woocommerce-claude' ) }>
+											<Button variant={ boardView === 'canvas' ? 'primary' : 'secondary' } onClick={ () => setBoardView( 'canvas' ) } disabled={ isBusy }>
+												{ __( 'Canvas', 'woocommerce-claude' ) }
+											</Button>
+											<Button variant={ boardView === 'decision' ? 'primary' : 'secondary' } onClick={ () => setBoardView( 'decision' ) } disabled={ isBusy }>
+												{ __( 'Decision', 'woocommerce-claude' ) }
+											</Button>
+										</div>
+									</div>
+
 									{ boardView === 'canvas' ? (
 										<BrainstormCanvas
 											items={ canvasItems }
 											notesByParent={ notesByParent }
 											detailItem={ detailItem || null }
+											focusedCardId={ focusedCardId }
 											isBusy={ isBusy }
 											minimiseAnswered={ activeSession.status === 'analysed' }
 											onDragEnd={ handleCanvasDragEnd }
+											onFocusCard={ setFocusedCardId }
 											onAnswer={ prepareAnswer }
 											onAnswerWithAI={ answerQuestionWithAI }
-											onDetails={ ( card ) => setDetailCardId( card.id ) }
+											onDetails={ showCardDetails }
 											onCloseDetails={ () => setDetailCardId( '' ) }
 											onRemove={ removeCard }
 											onAcceptAction={ acceptAction }
@@ -991,7 +1048,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 											isBusy={ isBusy }
 											onAnswer={ prepareAnswer }
 											onAnswerWithAI={ answerQuestionWithAI }
-											onDetails={ ( card ) => setDetailCardId( card.id ) }
+											onDetails={ showCardDetails }
 											onRemove={ removeCard }
 											onAcceptAction={ acceptAction }
 										/>
@@ -1068,7 +1125,7 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 								</>
 						) : (
 							<div className="hey-woo-idea-empty-session">
-								<h2>{ __( 'No brainstorm session yet', 'woocommerce-claude' ) }</h2>
+								<h2>{ sessions.length > 0 ? __( 'New brainstorm', 'woocommerce-claude' ) : __( 'No brainstorm session yet', 'woocommerce-claude' ) }</h2>
 								{ activeInsights.length > 0 ? (
 									<>
 										<div className="hey-woo-idea-insight-grid">
@@ -1081,15 +1138,15 @@ export function IdeaBoard( { restBase, nonce, days = 90 }: IdeaBoardProps ) {
 										</Button>
 									</>
 								) : (
-									<p>{ __( 'Select one or more store signals.', 'woocommerce-claude' ) }</p>
+									<p>{ __( 'Select one or more store signals to start with a blank canvas.', 'woocommerce-claude' ) }</p>
 								) }
 							</div>
 						) }
 					</section>
 
-					<aside className="hey-woo-idea-actions" aria-label={ __( 'Action queue', 'woocommerce-claude' ) }>
+					<aside className="hey-woo-idea-actions" aria-label={ __( 'Accepted actions', 'woocommerce-claude' ) }>
 						<PanelHeader
-							title={ __( 'Action queue', 'woocommerce-claude' ) }
+							title={ __( 'Accepted actions', 'woocommerce-claude' ) }
 							count={ globalActions.length }
 							description={ __( 'Accepted actions from brainstorm sessions.', 'woocommerce-claude' ) }
 						/>
@@ -1225,12 +1282,12 @@ const SignalCard = memo( function SignalCard( {
 				onChange={ () => onToggle( insight.id ) }
 			/>
 			<span className="hey-woo-idea-signal__body">
+				<strong>{ insight.title }</strong>
 				<span className="hey-woo-idea-signal__badges">
 					<span>{ severityLabel( insight.severity ) }</span>
 					{ insight.estimatedImpact && <span>{ insight.estimatedImpact }</span> }
 					{ isRelated && <span>{ __( 'Related', 'woocommerce-claude' ) }</span> }
 				</span>
-				<strong>{ insight.title }</strong>
 				<span>{ insight.body }</span>
 				{ insight.evidence && <em>{ insight.evidence }</em> }
 				{ insight.whyItMatters && <small>{ insight.whyItMatters }</small> }
@@ -1444,9 +1501,11 @@ function BrainstormCanvas( {
 	items,
 	notesByParent,
 	detailItem,
+	focusedCardId,
 	isBusy,
 	minimiseAnswered,
 	onDragEnd,
+	onFocusCard,
 	onAnswer,
 	onAnswerWithAI,
 	onDetails,
@@ -1458,9 +1517,11 @@ function BrainstormCanvas( {
 	items: CanvasItem[];
 	notesByParent: Map< string, IdeaBoardData[ 'notes' ] >;
 	detailItem: CanvasItem | null;
+	focusedCardId: string;
 	isBusy: boolean;
 	minimiseAnswered: boolean;
 	onDragEnd: ( event: DragEndEvent ) => void;
+	onFocusCard: ( cardId: string ) => void;
 	onAnswer: ( card: IdeaBoardCard ) => void;
 	onAnswerWithAI: ( card: IdeaBoardCard ) => void;
 	onDetails: ( card: IdeaBoardCard ) => void;
@@ -1481,8 +1542,10 @@ function BrainstormCanvas( {
 								key={ item.card.id }
 								item={ item }
 								notes={ notesByParent.get( item.card.id ) || [] }
+								isFocused={ focusedCardId === item.card.id }
 								isBusy={ isBusy }
 								minimiseAnswered={ minimiseAnswered }
+								onFocus={ onFocusCard }
 								onAnswer={ onAnswer }
 								onAnswerWithAI={ onAnswerWithAI }
 								onDetails={ onDetails }
@@ -1516,8 +1579,10 @@ function BrainstormCanvas( {
 function CanvasStickyCard( props: {
 	item: CanvasItem;
 	notes: IdeaBoardData[ 'notes' ];
+	isFocused: boolean;
 	isBusy: boolean;
 	minimiseAnswered: boolean;
+	onFocus: ( cardId: string ) => void;
 	onAnswer: ( card: IdeaBoardCard ) => void;
 	onAnswerWithAI: ( card: IdeaBoardCard ) => void;
 	onDetails: ( card: IdeaBoardCard ) => void;
@@ -1534,8 +1599,10 @@ function CanvasStickyCard( props: {
 function DraggableCanvasStickyCard( props: {
 	item: CanvasItem;
 	notes: IdeaBoardData[ 'notes' ];
+	isFocused: boolean;
 	isBusy: boolean;
 	minimiseAnswered: boolean;
+	onFocus: ( cardId: string ) => void;
 	onAnswer: ( card: IdeaBoardCard ) => void;
 	onAnswerWithAI: ( card: IdeaBoardCard ) => void;
 	onDetails: ( card: IdeaBoardCard ) => void;
@@ -1561,8 +1628,10 @@ function DraggableCanvasStickyCard( props: {
 function CanvasStickyCardShell( {
 	item,
 	notes,
+	isFocused,
 	isBusy,
 	minimiseAnswered,
+	onFocus,
 	onAnswer,
 	onAnswerWithAI,
 	onDetails,
@@ -1575,8 +1644,10 @@ function CanvasStickyCardShell( {
 }: {
 	item: CanvasItem;
 	notes: IdeaBoardData[ 'notes' ];
+	isFocused: boolean;
 	isBusy: boolean;
 	minimiseAnswered: boolean;
+	onFocus: ( cardId: string ) => void;
 	onAnswer: ( card: IdeaBoardCard ) => void;
 	onAnswerWithAI: ( card: IdeaBoardCard ) => void;
 	onDetails: ( card: IdeaBoardCard ) => void;
@@ -1595,16 +1666,24 @@ function CanvasStickyCardShell( {
 		`hey-woo-idea-sticky--${ card.kind }`,
 		isAnchor ? 'is-anchor' : '',
 		isMinimised ? 'is-minimised' : '',
+		isFocused ? 'is-focused' : '',
 		isDragging ? 'is-dragging' : '',
 	].filter( Boolean ).join( ' ' );
 	const style = {
 		left: `${ position.x }px`,
 		top: `${ position.y }px`,
+		zIndex: isDragging ? 8 : isFocused ? 6 : isAnchor ? 1 : 2,
 		transform: `${ transform ? `${ transform } ` : '' }rotate(${ position.rotation }deg)`,
 	} as CSSProperties;
 
 	return (
-		<article ref={ setNodeRef } className={ className } style={ style }>
+		<article
+			ref={ setNodeRef }
+			className={ className }
+			style={ style }
+			onPointerDownCapture={ () => onFocus( card.id ) }
+			onFocusCapture={ () => onFocus( card.id ) }
+		>
 			<header>
 				<span>{ kindLabel( card.kind ) }</span>
 				{ card.kind === 'question' && (

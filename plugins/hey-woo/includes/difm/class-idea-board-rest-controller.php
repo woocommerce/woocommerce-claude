@@ -234,7 +234,7 @@ class IdeaBoardRestController {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
-				__( 'Permission denied.', 'woocommerce-claude' ),
+				__( 'Permission denied.', 'hey-woo' ),
 				array( 'status' => 403 )
 			);
 		}
@@ -276,7 +276,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'hey-woo' ),
 				)
 			);
 		}
@@ -285,14 +285,14 @@ class IdeaBoardRestController {
 		// a newer version of the board since this client last loaded it.
 		$client_saved_at = isset( $raw_board['savedAt'] ) ? (string) $raw_board['savedAt'] : '';
 		if ( '' !== $client_saved_at ) {
-			$stored = get_option( self::SAVED_BOARD_OPTION, array() );
+			$stored          = get_option( self::SAVED_BOARD_OPTION, array() );
 			$stored_saved_at = isset( $stored['savedAt'] ) ? (string) $stored['savedAt'] : '';
 			if ( '' !== $stored_saved_at && $stored_saved_at !== $client_saved_at ) {
 				return rest_ensure_response(
 					array(
 						'status'  => 'error',
 						'code'    => 'conflict',
-						'message' => __( 'The board was modified by another session. Please refresh and try again.', 'woocommerce-claude' ),
+						'message' => __( 'The board was modified by another session. Please refresh and try again.', 'hey-woo' ),
 					)
 				);
 			}
@@ -331,7 +331,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'Add an Anthropic API key to start a brainstorm session.', 'woocommerce-claude' ),
+					'message' => __( 'Add an Anthropic API key to start a brainstorm session.', 'hey-woo' ),
 				)
 			);
 		}
@@ -341,7 +341,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'hey-woo' ),
 				)
 			);
 		}
@@ -399,7 +399,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'Add an Anthropic API key to answer a question with AI.', 'woocommerce-claude' ),
+					'message' => __( 'Add an Anthropic API key to answer a question with AI.', 'hey-woo' ),
 				)
 			);
 		}
@@ -409,7 +409,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'hey-woo' ),
 				)
 			);
 		}
@@ -430,16 +430,16 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'Choose a valid brainstorm question for AI to answer.', 'woocommerce-claude' ),
+					'message' => __( 'Choose a valid brainstorm question for AI to answer.', 'hey-woo' ),
 				)
 			);
 		}
 
-		if ( ! $this->is_idea_board_question_store_related( $question ) ) {
+		if ( ! $this->is_idea_board_question_store_related( $question ) && ! $this->is_idea_board_ai_linked_question( $question ) ) {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'Ask a question about the store, products, customers, orders, marketing, operations, or the selected insight before using AI to answer it.', 'woocommerce-claude' ),
+					'message' => __( 'Ask a question about the store, products, customers, orders, marketing, operations, or the selected insight before using AI to answer it.', 'hey-woo' ),
 				)
 			);
 		}
@@ -449,7 +449,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'The selected question is not linked to a saved brainstorm session.', 'woocommerce-claude' ),
+					'message' => __( 'The selected question is not linked to a saved brainstorm session.', 'hey-woo' ),
 				)
 			);
 		}
@@ -476,7 +476,7 @@ class IdeaBoardRestController {
 			'body'           => $answer,
 			'kind'           => 'answer',
 			'createdBy'      => 'ai',
-			'authorName'     => __( 'AI', 'woocommerce-claude' ),
+			'authorName'     => __( 'AI', 'hey-woo' ),
 			'createdAt'      => $now,
 		);
 
@@ -518,7 +518,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'Add an Anthropic API key to re-analyse the idea board.', 'woocommerce-claude' ),
+					'message' => __( 'Add an Anthropic API key to re-analyse the idea board.', 'hey-woo' ),
 				)
 			);
 		}
@@ -528,7 +528,7 @@ class IdeaBoardRestController {
 			return rest_ensure_response(
 				array(
 					'status'  => 'error',
-					'message' => __( 'The submitted idea board used an unexpected shape.', 'woocommerce-claude' ),
+					'message' => __( 'The submitted idea board used an unexpected shape.', 'hey-woo' ),
 				)
 			);
 		}
@@ -586,7 +586,7 @@ class IdeaBoardRestController {
 		if ( ! AnthropicClient::has_api_key() ) {
 			return new \WP_Error(
 				'no_anthropic_key',
-				__( 'Add an Anthropic API key to generate the idea board.', 'woocommerce-claude' )
+				__( 'Add an Anthropic API key to generate the idea board.', 'hey-woo' )
 			);
 		}
 
@@ -616,17 +616,17 @@ class IdeaBoardRestController {
 			'status' => 'ok',
 			'board'  => array(
 				'id'              => 'store-idea-board',
-				'title'           => __( 'Idea board', 'woocommerce-claude' ),
+				'title'           => __( 'Idea board', 'hey-woo' ),
 				'period'          => array(
 					'start'      => $dates['start'],
 					'end'        => $dates['end'],
 					'label'      => sprintf(
 						/* translators: %d: number of days. */
-						__( 'Last %d days', 'woocommerce-claude' ),
+						__( 'Last %d days', 'hey-woo' ),
 						$days
 					),
 					'days'       => $days,
-					'comparison' => __( 'Compared with the previous matching period', 'woocommerce-claude' ),
+					'comparison' => __( 'Compared with the previous matching period', 'hey-woo' ),
 				),
 				'currency'        => get_woocommerce_currency(),
 				'headlineMetrics' => array(
@@ -776,8 +776,7 @@ class IdeaBoardRestController {
 
 		$payload = $saved['payload'];
 		$payload = $this->ensure_idea_board_workspace_defaults( $payload );
-		if (
-			! isset( $payload['status'], $payload['board'] )
+		if ( ! isset( $payload['status'], $payload['board'] )
 			|| 'ok' !== $payload['status']
 			|| ! is_array( $payload['board'] )
 			|| ! isset( $payload['board']['cards'] )
@@ -914,7 +913,7 @@ class IdeaBoardRestController {
 				'end'   => $current_dates['end'],
 				'label' => sprintf(
 					/* translators: %d: number of days. */
-					__( 'Last %d days', 'woocommerce-claude' ),
+					__( 'Last %d days', 'hey-woo' ),
 					$days
 				),
 				'days'  => (int) $days,
@@ -997,7 +996,7 @@ class IdeaBoardRestController {
 	 */
 	private function normalise_submitted_idea_board( array $board, $minimum_cards = 1 ) {
 		if ( ! isset( $board['cards'] ) || ! is_array( $board['cards'] ) ) {
-			return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board must include a card list.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board must include a card list.', 'hey-woo' ) );
 		}
 
 		$cards = $this->normalise_submitted_idea_board_cards( $board['cards'], $minimum_cards );
@@ -1020,7 +1019,7 @@ class IdeaBoardRestController {
 
 		$title = isset( $board['title'] ) ? $this->trim_card_text( $board['title'], 90 ) : '';
 		if ( '' === $title ) {
-			$title = __( 'Idea board', 'woocommerce-claude' );
+			$title = __( 'Idea board', 'hey-woo' );
 		}
 
 		return array(
@@ -1061,7 +1060,7 @@ class IdeaBoardRestController {
 					'invalid_submitted_board',
 					sprintf(
 						/* translators: %d: maximum number of cards. */
-						__( 'The submitted idea board must include no more than %d cards.', 'woocommerce-claude' ),
+						__( 'The submitted idea board must include no more than %d cards.', 'hey-woo' ),
 						self::MAX_CARDS
 					)
 				);
@@ -1071,7 +1070,7 @@ class IdeaBoardRestController {
 				'invalid_submitted_board',
 				sprintf(
 					/* translators: %d: maximum number of cards. */
-					__( 'The submitted idea board must include between 1 and %d cards.', 'woocommerce-claude' ),
+					__( 'The submitted idea board must include between 1 and %d cards.', 'hey-woo' ),
 					self::MAX_CARDS
 				)
 			);
@@ -1086,7 +1085,7 @@ class IdeaBoardRestController {
 			}
 
 			if ( isset( $seen_ids[ $normalised['id'] ] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board repeated a card ID.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board repeated a card ID.', 'hey-woo' ) );
 			}
 
 			$seen_ids[ $normalised['id'] ] = true;
@@ -1109,7 +1108,7 @@ class IdeaBoardRestController {
 				'invalid_submitted_board',
 				sprintf(
 					/* translators: %d: maximum number of sessions. */
-					__( 'The submitted idea board must include no more than %d brainstorm sessions.', 'woocommerce-claude' ),
+					__( 'The submitted idea board must include no more than %d brainstorm sessions.', 'hey-woo' ),
 					self::MAX_SESSIONS
 				)
 			);
@@ -1121,27 +1120,27 @@ class IdeaBoardRestController {
 
 		foreach ( $raw_sessions as $session ) {
 			if ( ! is_array( $session ) || empty( $session['id'] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid brainstorm session.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid brainstorm session.', 'hey-woo' ) );
 			}
 
 			$id = sanitize_key( (string) $session['id'] );
 			if ( '' === $id || isset( $seen_ids[ $id ] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board repeated a brainstorm session ID.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board repeated a brainstorm session ID.', 'hey-woo' ) );
 			}
 
 			$root_ids = $this->normalise_root_insight_ids_list( isset( $session['rootInsightIds'] ) && is_array( $session['rootInsightIds'] ) ? $session['rootInsightIds'] : array(), $insight_ids );
 			if ( empty( $root_ids ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'A brainstorm session must be linked to at least one insight.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'A brainstorm session must be linked to at least one insight.', 'hey-woo' ) );
 			}
 
 			$status = isset( $session['status'] ) ? sanitize_key( (string) $session['status'] ) : 'active';
 			if ( ! isset( $this->allowed_session_statuses()[ $status ] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported session status.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported session status.', 'hey-woo' ) );
 			}
 
 			$title = isset( $session['title'] ) ? $this->trim_card_text( $session['title'], 100 ) : '';
 			if ( '' === $title ) {
-				$title = __( 'Brainstorm session', 'woocommerce-claude' );
+				$title = __( 'Brainstorm session', 'hey-woo' );
 			}
 
 			$seen_ids[ $id ] = true;
@@ -1175,7 +1174,7 @@ class IdeaBoardRestController {
 				'invalid_submitted_board',
 				sprintf(
 					/* translators: %d: maximum number of notes. */
-					__( 'The submitted idea board must include no more than %d notes.', 'woocommerce-claude' ),
+					__( 'The submitted idea board must include no more than %d notes.', 'hey-woo' ),
 					self::MAX_NOTES
 				)
 			);
@@ -1189,33 +1188,33 @@ class IdeaBoardRestController {
 
 		foreach ( $raw_notes as $note ) {
 			if ( ! is_array( $note ) || empty( $note['id'] ) || empty( $note['sessionId'] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note.', 'hey-woo' ) );
 			}
 
 			$id         = sanitize_key( (string) $note['id'] );
 			$session_id = sanitize_key( (string) $note['sessionId'] );
 			if ( '' === $id || isset( $seen_ids[ $id ] ) || ! isset( $session_ids[ $session_id ] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note link.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note link.', 'hey-woo' ) );
 			}
 
 			$body = isset( $note['body'] ) ? $this->trim_card_text( $note['body'], 600 ) : '';
 			if ( '' === $body ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'A note cannot be empty.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'A note cannot be empty.', 'hey-woo' ) );
 			}
 
 			$kind = isset( $note['kind'] ) ? sanitize_key( (string) $note['kind'] ) : 'note';
 			if ( ! in_array( $kind, array( 'note', 'answer', 'context' ), true ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported note type.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported note type.', 'hey-woo' ) );
 			}
 
 			$created_by = isset( $note['createdBy'] ) ? sanitize_key( (string) $note['createdBy'] ) : 'merchant';
 			if ( ! in_array( $created_by, array( 'ai', 'merchant' ), true ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported note author.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an unsupported note author.', 'hey-woo' ) );
 			}
 
 			$parent_card_id = isset( $note['parentCardId'] ) ? sanitize_key( (string) $note['parentCardId'] ) : '';
 			if ( '' !== $parent_card_id && ! isset( $card_ids[ $parent_card_id ] ) ) {
-				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note target.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_submitted_board', __( 'The submitted idea board included an invalid note target.', 'hey-woo' ) );
 			}
 
 			$seen_ids[ $id ] = true;
@@ -1227,7 +1226,7 @@ class IdeaBoardRestController {
 				'body'           => $body,
 				'kind'           => $kind,
 				'createdBy'      => $created_by,
-				'authorName'     => isset( $note['authorName'] ) ? $this->trim_card_text( $note['authorName'], 80 ) : __( 'Store team', 'woocommerce-claude' ),
+				'authorName'     => isset( $note['authorName'] ) ? $this->trim_card_text( $note['authorName'], 80 ) : __( 'Store team', 'hey-woo' ),
 				'createdAt'      => isset( $note['createdAt'] ) ? sanitize_text_field( (string) $note['createdAt'] ) : '',
 			);
 		}
@@ -1277,12 +1276,47 @@ class IdeaBoardRestController {
 		$fallback_summary = $this->trim_card_text( $fallback_summary, 220 );
 
 		return array(
-			'whatChanged'     => isset( $brief['whatChanged'] ) ? $this->trim_card_text( $brief['whatChanged'], 220 ) : $fallback_summary,
-			'commercialWhy'   => isset( $brief['commercialWhy'] ) ? $this->trim_card_text( $brief['commercialWhy'], 220 ) : '',
-			'biggestUnknowns' => isset( $brief['biggestUnknowns'] ) ? $this->trim_card_text( $brief['biggestUnknowns'], 220 ) : '',
-			'bestNextMove'    => isset( $brief['bestNextMove'] ) ? $this->trim_card_text( $brief['bestNextMove'], 220 ) : '',
-			'upsideRisk'      => isset( $brief['upsideRisk'] ) ? $this->trim_card_text( $brief['upsideRisk'], 220 ) : '',
+			'whatChanged'     => $this->idea_board_brief_text( $brief, array( 'whatChanged', 'what_changed', 'changed', 'what' ), 220, $fallback_summary ),
+			'commercialWhy'   => $this->idea_board_brief_text( $brief, array( 'commercialWhy', 'commercial_why', 'why_it_matters', 'why' ), 220 ),
+			'biggestUnknowns' => $this->idea_board_brief_text( $brief, array( 'biggestUnknowns', 'biggest_unknowns', 'unknowns' ), 220 ),
+			'bestNextMove'    => $this->idea_board_brief_text( $brief, array( 'bestNextMove', 'best_next_move', 'next_move', 'recommendation' ), 220 ),
+			'upsideRisk'      => $this->idea_board_brief_text( $brief, array( 'upsideRisk', 'upside_risk', 'risk', 'upside_and_risk' ), 220 ),
 		);
+	}
+
+	/**
+	 * Extract a decision brief object from common AI response aliases.
+	 *
+	 * @param  array $container Response object or nested session.
+	 * @return array
+	 */
+	private function idea_board_decision_brief_from( array $container ) {
+		foreach ( array( 'decisionBrief', 'decision_brief', 'decision', 'brief', 'decisionSupport', 'decision_support' ) as $key ) {
+			if ( isset( $container[ $key ] ) && is_array( $container[ $key ] ) ) {
+				return $container[ $key ];
+			}
+		}
+
+		return array();
+	}
+
+	/**
+	 * Return a brief text field from camelCase or snake_case aliases.
+	 *
+	 * @param  array  $brief    Raw brief.
+	 * @param  array  $keys     Candidate keys.
+	 * @param  int    $limit    Character limit.
+	 * @param  string $fallback Fallback text.
+	 * @return string
+	 */
+	private function idea_board_brief_text( array $brief, array $keys, $limit, $fallback = '' ) {
+		foreach ( $keys as $key ) {
+			if ( isset( $brief[ $key ] ) && '' !== trim( (string) $brief[ $key ] ) ) {
+				return $this->trim_card_text( $brief[ $key ], $limit );
+			}
+		}
+
+		return $fallback;
 	}
 
 	/**
@@ -1390,7 +1424,7 @@ class IdeaBoardRestController {
 				return $ai_content;
 			}
 
-			return $this->build_idea_board_fallback_content( $revenue, $orders, $products, $customers, $days );
+			return $this->build_idea_board_fallback_content( $revenue, $orders, $products, $customers, $recs, $days );
 		}
 
 		return array(
@@ -1408,164 +1442,448 @@ class IdeaBoardRestController {
 	 * @param array $orders    Orders payload.
 	 * @param array $products  Product payload.
 	 * @param array $customers Customer payload.
+	 * @param  array $recs      Readiness recommendations payload.
 	 * @param int   $days      Number of trailing days.
 	 * @return array|\WP_Error
 	 */
-	private function build_idea_board_fallback_content( array $revenue, array $orders, array $products, array $customers, $days ) {
+	private function build_idea_board_fallback_content( array $revenue, array $orders, array $products, array $customers, array $recs, $days ) {
 		$currency        = isset( $revenue['currency'] ) ? (string) $revenue['currency'] : get_woocommerce_currency();
 		$net_sales       = isset( $revenue['metrics']['net_sales'] ) ? (float) $revenue['metrics']['net_sales'] : 0.0;
 		$orders_count    = isset( $orders['metrics']['orders_count'] ) ? (int) $orders['metrics']['orders_count'] : 0;
 		$aov             = isset( $revenue['metrics']['average_order_value'] ) ? (float) $revenue['metrics']['average_order_value'] : 0.0;
 		$total_customers = isset( $customers['metrics']['total_customers'] ) ? (int) $customers['metrics']['total_customers'] : 0;
-		$top_product     = $this->first_idea_board_row( $products, array( 'rows', 'items', 'products' ) );
+		$product_rows    = $this->idea_board_payload_rows( $products, array( 'top_products', 'rows', 'items', 'products' ) );
+		$top_product     = ! empty( $product_rows ) ? $product_rows[0] : array();
 		$product_name    = $this->first_idea_board_string( $top_product, array( 'name', 'product_name', 'productName', 'title', 'sku' ) );
 		$product_revenue = $this->first_idea_board_number( $top_product, array( 'net_revenue', 'netRevenue', 'revenue', 'sales' ) );
 		$period_label    = sprintf(
 			/* translators: %d: number of days. */
-			__( 'Last %d days', 'woocommerce-claude' ),
+			__( 'Last %d days', 'hey-woo' ),
 			(int) $days
 		);
+		$cards = array();
 
-		$cards = array(
-			array(
-				'id'               => 'revenue-baseline',
-				'kind'             => 'insight',
-				'stage'            => 'insights',
-				'title'            => __( 'Revenue baseline is ready', 'woocommerce-claude' ),
-				'body'             => sprintf(
-					/* translators: 1: revenue amount, 2: order count. */
-					__( 'The selected period shows %1$s net sales across %2$d paid orders, giving the board a commercial baseline.', 'woocommerce-claude' ),
-					$this->format_idea_board_money( $net_sales, $currency ),
-					$orders_count
-				),
-				'colour'           => 'yellow',
-				'order'            => 0,
-				'prompt'           => __( 'Which revenue lever should we investigate first?', 'woocommerce-claude' ),
-				'confidence'       => 'high',
-				'evidence'         => sprintf(
-					/* translators: 1: revenue amount, 2: order count. */
-					__( '%1$s net sales, %2$d paid orders', 'woocommerce-claude' ),
-					$this->format_idea_board_money( $net_sales, $currency ),
-					$orders_count
-				),
-				'evidenceDetails'  => array(
-					'metricBaseline'    => sprintf(
-						/* translators: 1: revenue amount, 2: order count. */
-						__( '%1$s net sales from %2$d paid orders', 'woocommerce-claude' ),
+		$net_sales_change = $this->idea_board_comparison_change( $revenue, 'net_sales' );
+		$order_change     = $this->idea_board_comparison_change( $revenue, 'orders_count' );
+		if ( empty( $order_change ) ) {
+			$order_change = $this->idea_board_comparison_change( $orders, 'orders_count' );
+		}
+
+		if ( ( ! empty( $net_sales_change ) && 'down' === $net_sales_change['direction'] )
+			|| ( ! empty( $order_change ) && 'down' === $order_change['direction'] )
+		) {
+			$revenue_drop_pct = ! empty( $net_sales_change ) ? abs( (float) $net_sales_change['percent'] ) : 0.0;
+			$order_drop       = ! empty( $order_change ) ? abs( (int) $order_change['amount'] ) : 0;
+			$cards[]          = $this->build_idea_board_fallback_card(
+				array(
+					'id'              => 'revenue-order-drop',
+					'title'           => 0 < $order_drop
+					? sprintf(
+					/* translators: 1: percentage, 2: order count. */
+						__( 'Revenue down %1$s with %2$d fewer orders', 'hey-woo' ),
+						$this->format_idea_board_percent( $revenue_drop_pct ),
+						$order_drop
+					)
+							: sprintf(
+								/* translators: %s: percentage. */
+								__( 'Revenue down %s versus the prior period', 'hey-woo' ),
+								$this->format_idea_board_percent( $revenue_drop_pct )
+							),
+					'body'            => sprintf(
+							/* translators: 1: revenue amount, 2: order count. */
+						__( 'Net sales are %1$s across %2$d paid orders, so the first brainstorm should separate order volume, AOV, product mix, and pipeline before drafting actions.', 'hey-woo' ),
 						$this->format_idea_board_money( $net_sales, $currency ),
 						$orders_count
 					),
-					'comparisonPeriod'  => isset( $revenue['comparison']['period']['label'] ) ? $revenue['comparison']['period']['label'] : __( 'Previous matching period when available', 'woocommerce-claude' ),
-					'involvedOrders'    => __( 'Aggregated paid order count only', 'woocommerce-claude' ),
-					'involvedCustomers' => __( 'Aggregated customer count only', 'woocommerce-claude' ),
-					'confidenceReason'  => __( 'The signal comes directly from WooCommerce Analytics totals.', 'woocommerce-claude' ),
-					'dataFreshness'     => $period_label,
-					'unknowns'          => __( 'The board still needs merchant context before recommending operational changes.', 'woocommerce-claude' ),
-				),
-				'timeframe'        => $period_label,
-				'source'           => __( 'WooCommerce Analytics totals', 'woocommerce-claude' ),
-				'status'           => 'new',
-				'approvalRequired' => false,
-				'revenueLevers'    => array( 'conversion', 'aov', 'retention' ),
-				'severity'         => 0 < $net_sales ? 'medium' : 'low',
-				'estimatedImpact'  => __( 'Use this as the baseline for prioritising revenue actions.', 'woocommerce-claude' ),
-				'whyItMatters'     => __( 'A decision board needs a current revenue baseline before turning signals into actions.', 'woocommerce-claude' ),
-				'createdBy'        => 'ai',
-			),
-			array(
-				'id'               => 'product-focus',
-				'kind'             => 'insight',
-				'stage'            => 'insights',
-				'title'            => $product_name ? __( 'Top product needs context', 'woocommerce-claude' ) : __( 'Catalogue signal needs context', 'woocommerce-claude' ),
-				'body'             => $product_name
-					? sprintf(
-						/* translators: 1: product name, 2: revenue amount. */
-						__( '%1$s is the clearest product signal in the period, with %2$s attributed revenue to validate.', 'woocommerce-claude' ),
-						$product_name,
-						$this->format_idea_board_money( $product_revenue, $currency )
-					)
-					: __( 'Product-level analytics are available for the period, but the board needs a merchant-selected product question next.', 'woocommerce-claude' ),
-				'colour'           => 'blue',
-				'order'            => 1,
-				'prompt'           => __( 'Which product context would change the next decision?', 'woocommerce-claude' ),
-				'confidence'       => $product_name ? 'high' : 'medium',
-				'evidence'         => $product_name ? $product_name : __( 'Product performance analytics available', 'woocommerce-claude' ),
-				'evidenceDetails'  => array(
-					'metricBaseline'   => $product_name ? $this->format_idea_board_money( $product_revenue, $currency ) : __( 'Product performance available in aggregate', 'woocommerce-claude' ),
-					'involvedProducts' => $product_name ? $product_name : __( 'Aggregated product rows only', 'woocommerce-claude' ),
-					'confidenceReason' => __( 'The signal comes from the product performance analytics payload.', 'woocommerce-claude' ),
-					'dataFreshness'    => $period_label,
-					'unknowns'         => __( 'The board does not know stock plans, margin strategy, or campaign intent yet.', 'woocommerce-claude' ),
-				),
-				'timeframe'        => $period_label,
-				'source'           => __( 'WooCommerce product analytics', 'woocommerce-claude' ),
-				'status'           => 'new',
-				'approvalRequired' => false,
-				'revenueLevers'    => array( 'catalogue_quality', 'conversion', 'inventory' ),
-				'severity'         => $product_name ? 'medium' : 'low',
-				'estimatedImpact'  => __( 'Product focus can protect or grow revenue once merchant context is added.', 'woocommerce-claude' ),
-				'whyItMatters'     => __( 'Product signals are often where merchandising, stock, and content decisions become concrete.', 'woocommerce-claude' ),
-				'createdBy'        => 'ai',
-			),
-			array(
-				'id'               => 'customer-context',
-				'kind'             => 'insight',
-				'stage'            => 'insights',
-				'title'            => __( 'Customer context is needed', 'woocommerce-claude' ),
-				'body'             => sprintf(
-					/* translators: 1: customer count, 2: average order value. */
-					__( 'The period includes %1$d customers and %2$s average order value, so retention and AOV questions are worth separating.', 'woocommerce-claude' ),
-					$total_customers,
-					$this->format_idea_board_money( $aov, $currency )
-				),
-				'colour'           => 'green',
-				'order'            => 2,
-				'prompt'           => __( 'What customer behaviour should we separate before acting?', 'woocommerce-claude' ),
-				'confidence'       => 'high',
-				'evidence'         => sprintf(
-					/* translators: 1: customer count, 2: average order value. */
-					__( '%1$d customers, %2$s AOV', 'woocommerce-claude' ),
-					$total_customers,
-					$this->format_idea_board_money( $aov, $currency )
-				),
-				'evidenceDetails'  => array(
-					'metricBaseline'    => sprintf(
-						/* translators: 1: customer count, 2: average order value. */
-						__( '%1$d customers and %2$s average order value', 'woocommerce-claude' ),
-						$total_customers,
-						$this->format_idea_board_money( $aov, $currency )
+					'colour'          => 'pink',
+					'confidence'      => 'high',
+					'evidence'        => 0 < $order_drop
+							? sprintf(
+								/* translators: 1: percentage, 2: order count. */
+								__( '%1$s net-sales drop; %2$d fewer orders', 'hey-woo' ),
+								$this->format_idea_board_percent( $revenue_drop_pct ),
+								$order_drop
+							)
+							: sprintf(
+								/* translators: %s: percentage. */
+								__( '%s net-sales drop', 'hey-woo' ),
+								$this->format_idea_board_percent( $revenue_drop_pct )
+							),
+					'evidenceDetails' => array(
+						'metricBaseline'   => sprintf(
+							/* translators: 1: revenue amount, 2: order count. */
+							__( '%1$s net sales from %2$d paid orders', 'hey-woo' ),
+							$this->format_idea_board_money( $net_sales, $currency ),
+							$orders_count
+						),
+						'comparisonPeriod' => isset( $revenue['comparison']['period']['label'] ) ? $revenue['comparison']['period']['label'] : __( 'Previous matching period', 'hey-woo' ),
+						'involvedOrders'   => __( 'Aggregated paid order movement only', 'hey-woo' ),
+						'unknowns'         => __( 'The board still needs merchant context on stock, campaigns, margin, and operational constraints before action.', 'hey-woo' ),
 					),
-					'involvedCustomers' => __( 'Aggregated customer count only', 'woocommerce-claude' ),
-					'confidenceReason'  => __( 'The signal comes from aggregated customer and revenue analytics.', 'woocommerce-claude' ),
-					'dataFreshness'     => $period_label,
-					'unknowns'          => __( 'The board does not know campaign intent, lifecycle strategy, or contact permissions.', 'woocommerce-claude' ),
+					'revenueLevers'   => array( 'revenue_protection', 'conversion', 'aov' ),
+					'severity'        => $revenue_drop_pct >= 20 ? 'high' : 'medium',
+					'estimatedImpact' => __( 'Revenue protection is likely material because the comparison period moved down.', 'hey-woo' ),
+					'whyItMatters'    => __( 'A decline card keeps the brainstorm anchored to the commercial gap instead of generic optimisation work.', 'hey-woo' ),
 				),
-				'timeframe'        => $period_label,
-				'source'           => __( 'WooCommerce customer analytics', 'woocommerce-claude' ),
-				'status'           => 'new',
-				'approvalRequired' => false,
-				'revenueLevers'    => array( 'retention', 'aov', 'conversion' ),
-				'severity'         => 0 < $total_customers ? 'medium' : 'low',
-				'estimatedImpact'  => __( 'Customer mix can change whether the next action should protect retention, AOV, or conversion.', 'woocommerce-claude' ),
-				'whyItMatters'     => __( 'Retention and AOV work need different questions before they become actions.', 'woocommerce-claude' ),
-				'createdBy'        => 'ai',
-			),
+				count( $cards ),
+				$period_label
+			);
+		}
+
+		$out_of_stock = array_values(
+			array_filter(
+				$product_rows,
+				static function ( $row ) {
+					return isset( $row['stock_status'] ) && 'outofstock' === sanitize_key( (string) $row['stock_status'] );
+				}
+			)
 		);
+		if ( ! empty( $out_of_stock ) ) {
+			$top_count      = max( 1, min( 5, count( $product_rows ) ) );
+			$out_count      = count( $out_of_stock );
+			$product_labels = array();
+			foreach ( array_slice( $out_of_stock, 0, 3 ) as $row ) {
+				$name             = $this->first_idea_board_string( $row, array( 'product_name', 'name', 'title', 'sku' ) );
+				$row_revenue      = $this->first_idea_board_number( $row, array( 'net_revenue', 'netRevenue', 'revenue', 'sales' ) );
+				$product_labels[] = '' !== $name ? $name . ' (' . $this->format_idea_board_money( $row_revenue, $currency ) . ')' : $this->format_idea_board_money( $row_revenue, $currency );
+			}
+			$cards[] = $this->build_idea_board_fallback_card(
+				array(
+					'id'              => 'top-products-out-of-stock',
+					'title'           => sprintf(
+					/* translators: 1: out of stock count, 2: top product count. */
+						__( '%1$d of top %2$d revenue products are out of stock', 'hey-woo' ),
+						$out_count,
+						$top_count
+					),
+					'body'            => sprintf(
+							/* translators: %s: product list. */
+						__( '%s are unavailable among the strongest revenue products, so stock timing and traffic exposure should be clarified before any action.', 'hey-woo' ),
+						implode( ', ', $product_labels )
+					),
+					'colour'          => 'orange',
+					'confidence'      => 'high',
+					'evidence'        => sprintf(
+							/* translators: 1: out of stock count, 2: top product count. */
+						__( '%1$d of top %2$d products by revenue unavailable', 'hey-woo' ),
+						$out_count,
+						$top_count
+					),
+					'evidenceDetails' => array(
+						'metricBaseline'   => sprintf(
+							/* translators: 1: out of stock count, 2: top product count. */
+							__( '%1$d of top %2$d revenue products have stock_status=outofstock', 'hey-woo' ),
+							$out_count,
+							$top_count
+						),
+						'involvedProducts' => implode( ', ', $product_labels ),
+						'unknowns'         => __( 'Supplier ETA, substitute products, campaign traffic, and margin priority require merchant context.', 'hey-woo' ),
+					),
+					'revenueLevers'   => array( 'inventory', 'conversion', 'revenue_protection' ),
+					'severity'        => ( isset( $product_rows[0]['stock_status'] ) && 'outofstock' === sanitize_key( (string) $product_rows[0]['stock_status'] ) ) || $out_count >= ceil( $top_count / 2 ) ? 'critical' : 'high',
+					'estimatedImpact' => __( 'Unavailable top sellers can block demand already proven by revenue ranking.', 'hey-woo' ),
+					'whyItMatters'    => __( 'Stock-outs on high-revenue products are concrete enough to drive a decision gate before campaign or merchandising changes.', 'hey-woo' ),
+				),
+				count( $cards ),
+				$period_label
+			);
+		}
+
+		$pipeline_orders = isset( $orders['pipeline']['orders_count'] ) ? (int) $orders['pipeline']['orders_count'] : ( isset( $revenue['pipeline']['orders_count'] ) ? (int) $revenue['pipeline']['orders_count'] : 0 );
+		$pipeline_value  = isset( $orders['pipeline']['revenue'] ) ? (float) $orders['pipeline']['revenue'] : ( isset( $revenue['pipeline']['revenue'] ) ? (float) $revenue['pipeline']['revenue'] : 0.0 );
+		if ( $pipeline_orders > 0 || $pipeline_value > 0 ) {
+			$age_buckets  = isset( $orders['pipeline']['age_buckets'] ) && is_array( $orders['pipeline']['age_buckets'] ) ? $orders['pipeline']['age_buckets'] : array();
+			$aged_orders  = ( isset( $age_buckets['31-60d'] ) ? (int) $age_buckets['31-60d'] : 0 ) + ( isset( $age_buckets['60d+'] ) ? (int) $age_buckets['60d+'] : 0 );
+			$oldest_days  = isset( $orders['pipeline']['oldest_order_days'] ) && is_numeric( $orders['pipeline']['oldest_order_days'] ) ? (int) $orders['pipeline']['oldest_order_days'] : 0;
+			$aged_percent = $pipeline_orders > 0 ? round( ( $aged_orders / $pipeline_orders ) * 100, 1 ) : 0.0;
+			$cards[]      = $this->build_idea_board_fallback_card(
+				array(
+					'id'              => 'payment-pipeline-ageing',
+					'title'           => $aged_orders > 0
+					? sprintf(
+					/* translators: 1: revenue amount, 2: percentage. */
+						__( '%1$s pipeline has %2$s aged over 30 days', 'hey-woo' ),
+						$this->format_idea_board_money( $pipeline_value, $currency ),
+						$this->format_idea_board_percent( $aged_percent )
+					)
+							: sprintf(
+								/* translators: 1: revenue amount, 2: order count. */
+								__( '%1$s payment pipeline across %2$d orders', 'hey-woo' ),
+								$this->format_idea_board_money( $pipeline_value, $currency ),
+								$pipeline_orders
+							),
+					'body'            => sprintf(
+							/* translators: 1: order count, 2: revenue amount. */
+						__( '%1$d on-hold orders represent %2$s awaiting payment. Treat this as payment pipeline, then check whether age or payment method points to an operational backlog.', 'hey-woo' ),
+						$pipeline_orders,
+						$this->format_idea_board_money( $pipeline_value, $currency )
+					),
+					'colour'          => 'blue',
+					'confidence'      => 'high',
+					'evidence'        => sprintf(
+							/* translators: 1: order count, 2: revenue amount. */
+						__( '%1$d on-hold orders, %2$s pipeline', 'hey-woo' ),
+						$pipeline_orders,
+						$this->format_idea_board_money( $pipeline_value, $currency )
+					),
+					'evidenceDetails' => array(
+						'metricBaseline' => sprintf(
+							/* translators: 1: order count, 2: revenue amount. */
+							__( '%1$d on-hold orders worth %2$s', 'hey-woo' ),
+							$pipeline_orders,
+							$this->format_idea_board_money( $pipeline_value, $currency )
+						),
+						'involvedOrders' => sprintf(
+						/* translators: 1: aged order count, 2: oldest age in days. */
+							__( '%1$d orders are 31+ days old; oldest is %2$d days', 'hey-woo' ),
+							$aged_orders,
+							$oldest_days
+						),
+						'unknowns'       => __( 'Payment method rules, manual follow-up process, and whether these orders are still recoverable need merchant context.', 'hey-woo' ),
+					),
+					'revenueLevers'   => array( 'revenue_protection', 'conversion' ),
+					'severity'        => ( $aged_percent >= 50 || $oldest_days >= 30 ) ? 'high' : 'medium',
+					'estimatedImpact' => __( 'Recovering or clearing payment pipeline can protect cash without treating on-hold value as confirmed lost revenue.', 'hey-woo' ),
+					'whyItMatters'    => __( 'Ageing on-hold orders are a concrete decision signal for operations and payment follow-up.', 'hey-woo' ),
+				),
+				count( $cards ),
+				$period_label
+			);
+		}
+
+		$readiness_recs = $this->idea_board_readiness_recommendation_rows( $recs );
+		if ( ! empty( $readiness_recs ) ) {
+			$rec_titles = array();
+			$high_count = 0;
+			foreach ( array_slice( $readiness_recs, 0, 3 ) as $rec ) {
+				$rec_titles[] = isset( $rec['title'] ) ? $this->trim_card_text( $rec['title'], 90 ) : $this->trim_card_text( isset( $rec['id'] ) ? $rec['id'] : '', 90 );
+				if ( isset( $rec['priority'] ) && 'high' === sanitize_key( (string) $rec['priority'] ) ) {
+					++$high_count;
+				}
+			}
+			$cards[] = $this->build_idea_board_fallback_card(
+				array(
+					'id'              => 'catalogue-readiness-gap',
+					'title'           => __( 'Catalogue readiness gaps could limit conversion', 'hey-woo' ),
+					'body'            => sprintf(
+							/* translators: %s: recommendation titles. */
+						__( '%s are active readiness recommendations. Start with the gaps most likely to affect product confidence or findability.', 'hey-woo' ),
+						implode( '; ', $rec_titles )
+					),
+					'colour'          => 'lime',
+					'confidence'      => 'high',
+					'evidence'        => implode( '; ', $rec_titles ),
+					'evidenceDetails' => array(
+						'metricBaseline'   => sprintf(
+									/* translators: %d: recommendation count. */
+							__( '%d relevant catalogue/content readiness recommendations', 'hey-woo' ),
+							count( $readiness_recs )
+						),
+						'involvedProducts' => __( 'Aggregated recommendation counts only', 'hey-woo' ),
+						'unknowns'         => __( 'The board does not know which products have the highest margin, campaign priority, or stock cover.', 'hey-woo' ),
+					),
+					'revenueLevers'   => array( 'catalogue_quality', 'conversion' ),
+					'severity'        => $high_count > 0 ? 'high' : 'medium',
+					'estimatedImpact' => __( 'Better product content can improve purchase confidence and AI readiness on products already in the catalogue.', 'hey-woo' ),
+					'whyItMatters'    => __( 'Missing descriptions, attributes, images, or structured content can make otherwise sellable products harder to choose.', 'hey-woo' ),
+				),
+				count( $cards ),
+				$period_label
+			);
+		}
+
+		$returning_percent = isset( $customers['metrics']['returning_customer_percent'] ) ? (float) $customers['metrics']['returning_customer_percent'] : null;
+		$new_percent       = isset( $customers['metrics']['new_customer_percent'] ) ? (float) $customers['metrics']['new_customer_percent'] : null;
+		$returning_sales   = isset( $customers['metrics']['returning_customer_net_sales'] ) ? (float) $customers['metrics']['returning_customer_net_sales'] : 0.0;
+		$new_sales         = isset( $customers['metrics']['new_customer_net_sales'] ) ? (float) $customers['metrics']['new_customer_net_sales'] : 0.0;
+		$customer_sales    = $returning_sales + $new_sales;
+		$returning_share   = $customer_sales > 0 ? round( ( $returning_sales / $customer_sales ) * 100, 1 ) : 0.0;
+		if ( $total_customers > 0 && ( $returning_share >= 50 || ( null !== $returning_percent && $returning_percent >= 50 ) || ( null !== $new_percent && $new_percent >= 70 ) ) ) {
+			$cards[] = $this->build_idea_board_fallback_card(
+				array(
+					'id'              => 'customer-mix-signal',
+					'title'           => $returning_share >= 50
+					? sprintf(
+					/* translators: %s: percentage. */
+						__( 'Returning customers drive %s of customer revenue', 'hey-woo' ),
+						$this->format_idea_board_percent( $returning_share )
+					)
+							: __( 'Customer mix needs a retention decision', 'hey-woo' ),
+					'body'            => sprintf(
+							/* translators: 1: customer count, 2: returning customer percentage. */
+						__( 'The period includes %1$d customers and %2$s returning-customer mix, so retention, AOV, and acquisition questions should be separated before action.', 'hey-woo' ),
+						$total_customers,
+						null !== $returning_percent ? $this->format_idea_board_percent( $returning_percent ) : __( 'available', 'hey-woo' )
+					),
+					'colour'          => 'green',
+					'confidence'      => 'high',
+					'evidence'        => sprintf(
+							/* translators: 1: returning revenue share, 2: total customer count. */
+						__( '%1$s returning revenue share; %2$d customers', 'hey-woo' ),
+						$this->format_idea_board_percent( $returning_share ),
+						$total_customers
+					),
+					'evidenceDetails' => array(
+						'metricBaseline'    => sprintf(
+							/* translators: 1: returning revenue amount, 2: new revenue amount. */
+							__( 'Returning customer revenue %1$s; new customer revenue %2$s', 'hey-woo' ),
+							$this->format_idea_board_money( $returning_sales, $currency ),
+							$this->format_idea_board_money( $new_sales, $currency )
+						),
+						'involvedCustomers' => __( 'Aggregated customer segment counts and revenue only', 'hey-woo' ),
+						'unknowns'          => __( 'The board does not know lifecycle permissions, campaign intent, margin, or support constraints.', 'hey-woo' ),
+					),
+					'revenueLevers'   => array( 'retention', 'aov', 'revenue_protection' ),
+					'severity'        => 'medium',
+					'estimatedImpact' => __( 'Customer mix can change whether the next move should protect repeat demand or rebuild acquisition.', 'hey-woo' ),
+					'whyItMatters'    => __( 'New and returning customers imply different commercial levers, so the brainstorm should not flatten them into one generic growth action.', 'hey-woo' ),
+				),
+				count( $cards ),
+				$period_label
+			);
+		}
+
+		if ( empty( $cards ) ) {
+			$cards = array(
+				$this->build_idea_board_fallback_card(
+					array(
+						'id'              => 'revenue-baseline',
+						'title'           => __( 'Revenue baseline is ready', 'hey-woo' ),
+						'body'            => sprintf(
+						/* translators: 1: revenue amount, 2: order count. */
+							__( 'The selected period shows %1$s net sales across %2$d paid orders, giving the board a commercial baseline.', 'hey-woo' ),
+							$this->format_idea_board_money( $net_sales, $currency ),
+							$orders_count
+						),
+						'colour'          => 'yellow',
+						'order'           => 0,
+						'prompt'          => __( 'Which revenue lever should we investigate first?', 'hey-woo' ),
+						'confidence'      => 'high',
+						'evidence'        => sprintf(
+						/* translators: 1: revenue amount, 2: order count. */
+							__( '%1$s net sales, %2$d paid orders', 'hey-woo' ),
+							$this->format_idea_board_money( $net_sales, $currency ),
+							$orders_count
+						),
+						'evidenceDetails' => array(
+							'metricBaseline'    => sprintf(
+								/* translators: 1: revenue amount, 2: order count. */
+								__( '%1$s net sales from %2$d paid orders', 'hey-woo' ),
+								$this->format_idea_board_money( $net_sales, $currency ),
+								$orders_count
+							),
+							'comparisonPeriod'  => isset( $revenue['comparison']['period']['label'] ) ? $revenue['comparison']['period']['label'] : __( 'Previous matching period when available', 'hey-woo' ),
+							'involvedOrders'    => __( 'Aggregated paid order count only', 'hey-woo' ),
+							'involvedCustomers' => __( 'Aggregated customer count only', 'hey-woo' ),
+							'confidenceReason'  => __( 'The signal comes directly from WooCommerce Analytics totals.', 'hey-woo' ),
+							'dataFreshness'     => $period_label,
+							'unknowns'          => __( 'The board still needs merchant context before recommending operational changes.', 'hey-woo' ),
+						),
+						'timeframe'       => $period_label,
+						'source'          => __( 'WooCommerce Analytics totals', 'hey-woo' ),
+						'revenueLevers'   => array( 'conversion', 'aov', 'retention' ),
+						'severity'        => 0 < $net_sales ? 'medium' : 'low',
+						'estimatedImpact' => __( 'Use this as the baseline for prioritising revenue actions.', 'hey-woo' ),
+						'whyItMatters'    => __( 'A decision board needs a current revenue baseline before turning signals into actions.', 'hey-woo' ),
+					),
+					0,
+					$period_label
+				),
+				$this->build_idea_board_fallback_card(
+					array(
+						'id'              => 'product-focus',
+						'title'           => $product_name ? __( 'Top product needs context', 'hey-woo' ) : __( 'Catalogue signal needs context', 'hey-woo' ),
+						'body'            => $product_name
+						? sprintf(
+							/* translators: 1: product name, 2: revenue amount. */
+							__( '%1$s is the clearest product signal in the period, with %2$s attributed revenue to validate.', 'hey-woo' ),
+							$product_name,
+							$this->format_idea_board_money( $product_revenue, $currency )
+						)
+						: __( 'Product-level analytics are available for the period, but the board needs a merchant-selected product question next.', 'hey-woo' ),
+						'colour'          => 'blue',
+						'order'           => 1,
+						'prompt'          => __( 'Which product context would change the next decision?', 'hey-woo' ),
+						'confidence'      => $product_name ? 'high' : 'medium',
+						'evidence'        => $product_name ? $product_name : __( 'Product performance analytics available', 'hey-woo' ),
+						'evidenceDetails' => array(
+							'metricBaseline'   => $product_name ? $this->format_idea_board_money( $product_revenue, $currency ) : __( 'Product performance available in aggregate', 'hey-woo' ),
+							'involvedProducts' => $product_name ? $product_name : __( 'Aggregated product rows only', 'hey-woo' ),
+							'confidenceReason' => __( 'The signal comes from the product performance analytics payload.', 'hey-woo' ),
+							'dataFreshness'    => $period_label,
+							'unknowns'         => __( 'The board does not know stock plans, margin strategy, or campaign intent yet.', 'hey-woo' ),
+						),
+						'timeframe'       => $period_label,
+						'source'          => __( 'WooCommerce product analytics', 'hey-woo' ),
+						'revenueLevers'   => array( 'catalogue_quality', 'conversion', 'inventory' ),
+						'severity'        => $product_name ? 'medium' : 'low',
+						'estimatedImpact' => __( 'Product focus can protect or grow revenue once merchant context is added.', 'hey-woo' ),
+						'whyItMatters'    => __( 'Product signals are often where merchandising, stock, and content decisions become concrete.', 'hey-woo' ),
+					),
+					1,
+					$period_label
+				),
+				$this->build_idea_board_fallback_card(
+					array(
+						'id'              => 'customer-context',
+						'title'           => __( 'Customer context is needed', 'hey-woo' ),
+						'body'            => sprintf(
+						/* translators: 1: customer count, 2: average order value. */
+							__( 'The period includes %1$d customers and %2$s average order value, so retention and AOV questions are worth separating.', 'hey-woo' ),
+							$total_customers,
+							$this->format_idea_board_money( $aov, $currency )
+						),
+						'colour'          => 'green',
+						'order'           => 2,
+						'prompt'          => __( 'What customer behaviour should we separate before acting?', 'hey-woo' ),
+						'confidence'      => 'high',
+						'evidence'        => sprintf(
+						/* translators: 1: customer count, 2: average order value. */
+							__( '%1$d customers, %2$s AOV', 'hey-woo' ),
+							$total_customers,
+							$this->format_idea_board_money( $aov, $currency )
+						),
+						'evidenceDetails' => array(
+							'metricBaseline'    => sprintf(
+								/* translators: 1: customer count, 2: average order value. */
+								__( '%1$d customers and %2$s average order value', 'hey-woo' ),
+								$total_customers,
+								$this->format_idea_board_money( $aov, $currency )
+							),
+							'involvedCustomers' => __( 'Aggregated customer count only', 'hey-woo' ),
+							'confidenceReason'  => __( 'The signal comes from aggregated customer and revenue analytics.', 'hey-woo' ),
+							'dataFreshness'     => $period_label,
+							'unknowns'          => __( 'The board does not know campaign intent, lifecycle strategy, or contact permissions.', 'hey-woo' ),
+						),
+						'timeframe'       => $period_label,
+						'source'          => __( 'WooCommerce customer analytics', 'hey-woo' ),
+						'revenueLevers'   => array( 'retention', 'aov', 'conversion' ),
+						'severity'        => 0 < $total_customers ? 'medium' : 'low',
+						'estimatedImpact' => __( 'Customer mix can change whether the next action should protect retention, AOV, or conversion.', 'hey-woo' ),
+						'whyItMatters'    => __( 'Retention and AOV work need different questions before they become actions.', 'hey-woo' ),
+					),
+					2,
+					$period_label
+				),
+			);
+		} else {
+			$cards = array_slice( $cards, 0, self::MAX_INITIAL_CARDS );
+		}
 
 		$content = $this->normalise_idea_board_initial_content(
 			array(
-				'summary'       => __( 'Review the strongest aggregated store signals, then start a brainstorm from the related insights worth exploring.', 'woocommerce-claude' ),
+				'summary'       => __( 'Review the strongest aggregated store signals, starting with the most commercially problematic ones, then start a brainstorm from the related insights worth exploring.', 'hey-woo' ),
 				'decisionBrief' => array(
 					'whatChanged'     => sprintf(
 						/* translators: 1: revenue amount, 2: order count. */
-						__( 'The period shows %1$s net sales across %2$d paid orders, with product and customer signals ready to investigate.', 'woocommerce-claude' ),
+						__( 'The period shows %1$s net sales across %2$d paid orders, with product, pipeline, catalogue, and customer signals ready to investigate when present.', 'hey-woo' ),
 						$this->format_idea_board_money( $net_sales, $currency ),
 						$orders_count
 					),
-					'commercialWhy'   => __( 'The next decision should stay tied to revenue levers instead of turning every signal into work.', 'woocommerce-claude' ),
-					'biggestUnknowns' => __( 'Stock plans, margin strategy, campaign intent, and customer-contact permissions still need merchant context.', 'woocommerce-claude' ),
-					'bestNextMove'    => __( 'Select the signal that most affects revenue, then add the merchant-only context before drafting actions.', 'woocommerce-claude' ),
-					'upsideRisk'      => __( 'Upside comes from focusing the first action on a measurable lever; risk is acting before the required context is known.', 'woocommerce-claude' ),
+					'commercialWhy'   => __( 'The next decision should start with the clearest commercial constraint instead of turning every signal into work.', 'hey-woo' ),
+					'biggestUnknowns' => __( 'Stock plans, margin strategy, campaign intent, and customer-contact permissions still need merchant context.', 'hey-woo' ),
+					'bestNextMove'    => __( 'Select the signal that most affects revenue, then add the merchant-only context before drafting actions.', 'hey-woo' ),
+					'upsideRisk'      => __( 'Upside comes from focusing the first action on a measurable lever; risk is acting before the required context is known.', 'hey-woo' ),
 				),
 				'cards'         => $cards,
 			)
@@ -1577,6 +1895,128 @@ class IdeaBoardRestController {
 
 		$content['source'] = 'analytics_fallback';
 		return $content;
+	}
+
+	/**
+	 * Build a complete analytics fallback insight card.
+	 *
+	 * @param  array  $card         Card overrides.
+	 * @param  int    $order        Card order.
+	 * @param  string $period_label Period label.
+	 * @return array
+	 */
+	private function build_idea_board_fallback_card( array $card, $order, $period_label ) {
+		$evidence_details = isset( $card['evidenceDetails'] ) && is_array( $card['evidenceDetails'] ) ? $card['evidenceDetails'] : array();
+		unset( $card['evidenceDetails'] );
+
+		return array_merge(
+			array(
+				'kind'             => 'insight',
+				'stage'            => 'insights',
+				'colour'           => 'yellow',
+				'order'            => (int) $order,
+				'prompt'           => __( 'Which merchant-only context would change this decision?', 'hey-woo' ),
+				'confidence'       => 'medium',
+				'evidence'         => '',
+				'evidenceDetails'  => array_merge(
+					array(
+						'metricBaseline'    => '',
+						'comparisonPeriod'  => __( 'Previous matching period when available', 'hey-woo' ),
+						'involvedProducts'  => '',
+						'involvedOrders'    => '',
+						'involvedCustomers' => '',
+						'confidenceReason'  => __( 'The signal comes from aggregated WooCommerce Analytics or readiness data.', 'hey-woo' ),
+						'dataFreshness'     => $period_label,
+						'unknowns'          => __( 'Merchant context is needed before drafting actions.', 'hey-woo' ),
+						'wooLinks'          => array(),
+					),
+					$evidence_details
+				),
+				'timeframe'        => $period_label,
+				'source'           => __( 'Aggregated WooCommerce Analytics', 'hey-woo' ),
+				'status'           => 'new',
+				'approvalRequired' => false,
+				'revenueLevers'    => array( 'revenue_protection' ),
+				'severity'         => 'medium',
+				'estimatedImpact'  => '',
+				'whyItMatters'     => '',
+				'relatedSignalIds' => array(),
+				'rootInsightId'    => '',
+				'createdBy'        => 'ai',
+			),
+			$card
+		);
+	}
+
+	/**
+	 * Return rows from a known analytics payload list.
+	 *
+	 * @param  array $payload Payload.
+	 * @param  array $keys    Candidate list keys.
+	 * @return array
+	 */
+	private function idea_board_payload_rows( array $payload, array $keys ) {
+		foreach ( $keys as $key ) {
+			if ( isset( $payload[ $key ] ) && is_array( $payload[ $key ] ) ) {
+				return array_values(
+					array_filter(
+						$payload[ $key ],
+						static function ( $row ) {
+							return is_array( $row );
+						}
+					)
+				);
+			}
+		}
+
+		return array();
+	}
+
+	/**
+	 * Return a single comparison-change row from an analytics payload.
+	 *
+	 * @param  array  $payload Payload.
+	 * @param  string $key     Metric key.
+	 * @return array
+	 */
+	private function idea_board_comparison_change( array $payload, $key ) {
+		if ( isset( $payload['comparison']['changes'][ $key ] ) && is_array( $payload['comparison']['changes'][ $key ] ) ) {
+			return $payload['comparison']['changes'][ $key ];
+		}
+
+		return array();
+	}
+
+	/**
+	 * Return readiness recommendations that point to product/content gaps.
+	 *
+	 * @param  array $recs Readiness recommendations payload.
+	 * @return array
+	 */
+	private function idea_board_readiness_recommendation_rows( array $recs ) {
+		$rows = isset( $recs['recommendations'] ) && is_array( $recs['recommendations'] ) ? $recs['recommendations'] : $recs;
+		$ids  = array(
+			'missing-descriptions',
+			'missing-images',
+			'missing-attributes',
+			'short-descriptions',
+			'unstructured-descriptions',
+			'missing-alt-text',
+			'missing-seo-descriptions',
+		);
+
+		return array_values(
+			array_filter(
+				$rows,
+				static function ( $row ) use ( $ids ) {
+					if ( ! is_array( $row ) || empty( $row['id'] ) ) {
+						return false;
+					}
+
+					return in_array( sanitize_key( (string) $row['id'] ), $ids, true );
+				}
+			)
+		);
 	}
 
 	/**
@@ -1642,6 +2082,16 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Format a percentage for board text.
+	 *
+	 * @param  float $value Percentage value.
+	 * @return string
+	 */
+	private function format_idea_board_percent( $value ) {
+		return number_format_i18n( (float) $value, 1 ) . '%';
+	}
+
+	/**
 	 * Return the store profile for the idea-board prompt.
 	 *
 	 * @return array
@@ -1678,7 +2128,7 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function request_ai_idea_board_content( array $revenue, array $orders, array $products, array $customers, array $profile, array $recs, $days ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		include_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		$client   = new AnthropicClient();
 		$response = $client->messages(
@@ -1701,12 +2151,12 @@ class IdeaBoardRestController {
 		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
 		$json = $this->extract_json_object( $text );
 		if ( '' === $json ) {
-			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response did not include JSON.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response did not include JSON.', 'hey-woo' ) );
 		}
 
 		$decoded = json_decode( $json, true );
 		if ( ! is_array( $decoded ) ) {
-			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response used an unexpected shape.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response used an unexpected shape.', 'hey-woo' ) );
 		}
 
 		return $this->normalise_idea_board_initial_content( $decoded );
@@ -1719,7 +2169,7 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function request_ai_idea_board_reanalysis( array $board ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		include_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		$client   = new AnthropicClient();
 		$response = $client->messages(
@@ -1741,12 +2191,12 @@ class IdeaBoardRestController {
 		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
 		$json = $this->extract_json_object( $text );
 		if ( '' === $json ) {
-			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response did not include JSON.', 'woocommerce-claude' ) );
+			return $this->fallback_idea_board_reanalysis_content( $board );
 		}
 
 		$decoded = json_decode( $json, true );
 		if ( ! is_array( $decoded ) ) {
-			return new \WP_Error( 'invalid_board_reanalysis', __( 'The idea-board re-analysis response used an unexpected shape.', 'woocommerce-claude' ) );
+			return $this->fallback_idea_board_reanalysis_content( $board );
 		}
 
 		return $this->normalise_idea_board_reanalysis_content( $decoded, $board );
@@ -1760,7 +2210,7 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function request_ai_idea_board_brainstorm( array $board, array $root_insight_ids ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		include_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		$client   = new AnthropicClient();
 		$response = $client->messages(
@@ -1782,12 +2232,12 @@ class IdeaBoardRestController {
 		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
 		$json = $this->extract_json_object( $text );
 		if ( '' === $json ) {
-			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response did not include JSON.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response did not include JSON.', 'hey-woo' ) );
 		}
 
 		$decoded = json_decode( $json, true );
 		if ( ! is_array( $decoded ) ) {
-			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response used an unexpected shape.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response used an unexpected shape.', 'hey-woo' ) );
 		}
 
 		return $this->normalise_idea_board_brainstorm_content( $decoded, $board, $root_insight_ids );
@@ -1801,7 +2251,7 @@ class IdeaBoardRestController {
 	 * @return string|\WP_Error
 	 */
 	private function request_ai_idea_board_question_answer( array $board, array $question ) {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+		include_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 
 		$client   = new AnthropicClient();
 		$response = $client->messages(
@@ -1823,12 +2273,12 @@ class IdeaBoardRestController {
 		$text = $this->extract_text_reply( isset( $response['content'] ) && is_array( $response['content'] ) ? $response['content'] : array() );
 		$json = $this->extract_json_object( $text );
 		if ( '' === $json ) {
-			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response did not include JSON.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response did not include JSON.', 'hey-woo' ) );
 		}
 
 		$decoded = json_decode( $json, true );
 		if ( ! is_array( $decoded ) ) {
-			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response used an unexpected shape.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response used an unexpected shape.', 'hey-woo' ) );
 		}
 
 		return $this->normalise_idea_board_question_answer_content( $decoded );
@@ -1841,12 +2291,13 @@ class IdeaBoardRestController {
 	 */
 	private function build_idea_board_question_answer_system_prompt() {
 		return 'You answer the exact question a WooCommerce merchant asked on a brainstorming board. '
-			. 'Treat exactQuestion as the merchant question to answer directly. Use the submitted board text, decision brief, existing notes, period, currency, and aggregated headline metrics as store context. '
-			. 'Respect the question gate metadata: if answerability is ai or both, answer what can be answered from board facts; if answerability is merchant, name the specific merchant-only fact needed. '
+			. 'Treat exactQuestion as the merchant question to answer directly. Use the submitted board text, decision brief, existing notes, period, currency, aggregated headline metrics, and catalogueContext as store context. '
+			. 'For product inventory, stock, type-count, similar-product, and substitute-product questions, use catalogueContext first and name matching products when present. '
+			. 'Respect the question gate metadata: if answerability is ai or both, answer what can be answered from board facts and catalogueContext; if the question cannot be answered from the supplied context, start with "AI can\'t answer this from the current store data." and stop after naming the missing data source. '
 			. 'You may add general WooCommerce, ecommerce, merchandising, marketing, and product-content reasoning when it helps answer the question. '
 			. 'Clearly distinguish facts from the board from likely interpretations or recommended checks. '
 			. 'Do not fetch live data, infer, or invent supplier data, campaign intent, margin strategy, stock commitments, or customer-level facts that are not already on the board. '
-			. 'Use "merchant input needed" only for facts that truly require private operational knowledge, not as the default opening. '
+			. 'Never write "merchant input needed" or a markdown heading in the answer. '
 			. 'Do not include names, emails, addresses, order IDs, or other PII. '
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
 			. 'Return only valid JSON in this exact shape: {"answer":"..."}. '
@@ -1871,7 +2322,8 @@ class IdeaBoardRestController {
 					'answerability' => $question['answerability'],
 				),
 				'privacy_boundary'  => 'Use only aggregated headline metrics and submitted board text. Do not repeat names, emails, addresses, order IDs, or other PII if a merchant typed them into a card.',
-				'merchant_boundary' => 'Answer store, product, customer, order, marketing, operations, or insight questions. If the answer depends on supplier realities, margin strategy, campaign intent, brand judgement, or operational commitment not present on the board, say which specific fact needs merchant input.',
+				'merchant_boundary' => 'Answer store, product, customer, order, marketing, operations, or insight questions. If the answer depends on supplier realities, margin strategy, campaign intent, brand judgement, or operational commitment not present on the board, say AI cannot answer it from the current store data and name the missing data source.',
+				'catalogueContext'  => $this->build_idea_board_question_catalogue_context( $board, $question ),
 				'question'          => $question,
 				'board'             => array(
 					'id'              => $board['id'],
@@ -1890,6 +2342,227 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Build a small current-catalogue context for product/inventory question answers.
+	 *
+	 * @param array $board    Sanitised board payload.
+	 * @param array $question Question card.
+	 * @return array
+	 */
+	private function build_idea_board_question_catalogue_context( array $board, array $question ) {
+		if ( ! $this->idea_board_question_needs_catalogue_context( $question ) ) {
+			return array(
+				'available' => false,
+				'reason'    => 'The question does not require current product catalogue context.',
+			);
+		}
+		if ( ! function_exists( 'wc_get_products' ) ) {
+			return array(
+				'available' => false,
+				'reason'    => 'WooCommerce product lookup is unavailable in this request.',
+			);
+		}
+
+		$terms    = $this->idea_board_question_catalogue_terms( $board, $question );
+		$limit    = 60;
+		$products = wc_get_products(
+			array(
+				'status'  => array( 'publish' ),
+				'limit'   => $limit,
+				'orderby' => 'title',
+				'order'   => 'ASC',
+				'return'  => 'objects',
+			)
+		);
+
+		$rows    = array();
+		$matches = array();
+		foreach ( $products as $product ) {
+			if ( ! $product instanceof \WC_Product ) {
+				continue;
+			}
+
+			$categories = $this->idea_board_product_category_names( $product );
+			$row        = array(
+				'name'         => $this->trim_card_text( $product->get_name(), 90 ),
+				'sku'          => $this->trim_card_text( $product->get_sku(), 60 ),
+				'type'         => $product->get_type(),
+				'stock_status' => $product->get_stock_status(),
+				'categories'   => $categories,
+			);
+			if ( null !== $product->get_stock_quantity() ) {
+				$row['stock_quantity'] = (int) $product->get_stock_quantity();
+			}
+			if ( '' !== (string) $product->get_price() ) {
+				$row['price'] = (float) $product->get_price();
+			}
+
+			$rows[] = $row;
+			if ( $this->idea_board_catalogue_row_matches_terms( $row, $terms ) ) {
+				$matches[] = $row;
+			}
+		}
+
+		return array(
+			'available'        => true,
+			'scope'            => 'Current published product catalogue sample, including product names, SKUs, stock status, categories, and prices only.',
+			'instruction'      => 'Use matchingProducts for similar-product, substitute-product, stock, and type-count questions. If matchingProducts is empty, say AI cannot identify a catalogue match from the current store data.',
+			'detectedTerms'    => $terms,
+			'productCount'     => count( $rows ),
+			'truncated'        => count( $rows ) >= $limit,
+			'matchingProducts' => array_slice( $matches, 0, 20 ),
+			'products'         => array_slice( $rows, 0, 40 ),
+		);
+	}
+
+	/**
+	 * Whether a question should receive product catalogue context.
+	 *
+	 * @param array $question Question card.
+	 * @return bool
+	 */
+	private function idea_board_question_needs_catalogue_context( array $question ) {
+		$text = strtolower(
+			(string) ( isset( $question['title'] ) ? $question['title'] : '' )
+			. ' '
+			. (string) ( isset( $question['body'] ) ? $question['body'] : '' )
+		);
+
+		foreach ( array( 'catalogue', 'catalog', 'category', 'categories', 'inventory', 'product', 'products', 'sku', 'similar', 'stock', 'substitute', 'type', 'types' ) as $keyword ) {
+			if ( false !== strpos( $text, $keyword ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Extract useful catalogue-match terms from a question and linked cards.
+	 *
+	 * @param array $board    Sanitised board payload.
+	 * @param array $question Question card.
+	 * @return array
+	 */
+	private function idea_board_question_catalogue_terms( array $board, array $question ) {
+		$text = (string) ( isset( $question['title'] ) ? $question['title'] : '' ) . ' ' . (string) ( isset( $question['body'] ) ? $question['body'] : '' );
+		foreach ( $board['cards'] as $card ) {
+			if (
+				! is_array( $card )
+				|| ( isset( $card['id'] ) && $card['id'] === $question['id'] )
+				|| empty( $question['rootInsightIds'] )
+				|| empty( $card['id'] )
+				|| ! in_array( $card['id'], $question['rootInsightIds'], true )
+			) {
+				continue;
+			}
+			$text .= ' ' . (string) ( isset( $card['title'] ) ? $card['title'] : '' ) . ' ' . (string) ( isset( $card['body'] ) ? $card['body'] : '' );
+			if ( isset( $card['evidenceDetails']['involvedProducts'] ) ) {
+				$text .= ' ' . (string) $card['evidenceDetails']['involvedProducts'];
+			}
+		}
+
+		preg_match_all( '/[a-z0-9][a-z0-9-]{2,}/i', strtolower( $text ), $matches );
+		$stopwords = array(
+			'about'      => true,
+			'action'     => true,
+			'and'        => true,
+			'are'        => true,
+			'available'  => true,
+			'board'      => true,
+			'can'        => true,
+			'catalog'    => true,
+			'catalogue'  => true,
+			'could'      => true,
+			'current'    => true,
+			'delayed'    => true,
+			'does'       => true,
+			'for'        => true,
+			'have'       => true,
+			'inventory'  => true,
+			'merchant'   => true,
+			'product'    => true,
+			'products'   => true,
+			'question'   => true,
+			'revenue'    => true,
+			'should'     => true,
+			'similar'    => true,
+			'stock'      => true,
+			'store'      => true,
+			'substitute' => true,
+			'that'       => true,
+			'the'        => true,
+			'this'       => true,
+			'type'       => true,
+			'types'      => true,
+			'what'       => true,
+			'where'      => true,
+			'which'      => true,
+			'with'       => true,
+		);
+
+		$terms = array();
+		foreach ( isset( $matches[0] ) ? $matches[0] : array() as $token ) {
+			$token = sanitize_key( $token );
+			if ( '' === $token || isset( $stopwords[ $token ] ) ) {
+				continue;
+			}
+			$terms[ $token ] = true;
+			if ( strlen( $token ) > 4 && 's' === substr( $token, -1 ) ) {
+				$terms[ substr( $token, 0, -1 ) ] = true;
+			}
+		}
+
+		return array_slice( array_keys( $terms ), 0, 12 );
+	}
+
+	/**
+	 * Return public category names for a product.
+	 *
+	 * @param \WC_Product $product Product.
+	 * @return array
+	 */
+	private function idea_board_product_category_names( \WC_Product $product ) {
+		$names = array();
+		foreach ( $product->get_category_ids() as $term_id ) {
+			$term = get_term( $term_id, 'product_cat' );
+			if ( $term && ! is_wp_error( $term ) ) {
+				$names[] = $this->trim_card_text( $term->name, 60 );
+			}
+		}
+
+		return array_slice( $names, 0, 4 );
+	}
+
+	/**
+	 * Check whether a catalogue row matches extracted terms.
+	 *
+	 * @param array $row   Product row.
+	 * @param array $terms Search terms.
+	 * @return bool
+	 */
+	private function idea_board_catalogue_row_matches_terms( array $row, array $terms ) {
+		if ( empty( $terms ) ) {
+			return false;
+		}
+
+		$haystack = strtolower(
+			(string) ( isset( $row['name'] ) ? $row['name'] : '' )
+			. ' '
+			. (string) ( isset( $row['sku'] ) ? $row['sku'] : '' )
+			. ' '
+			. implode( ' ', isset( $row['categories'] ) && is_array( $row['categories'] ) ? $row['categories'] : array() )
+		);
+
+		foreach ( $terms as $term ) {
+			if ( '' !== $term && false !== strpos( $haystack, strtolower( $term ) ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Build the system prompt for creating a brainstorm session.
 	 *
 	 * @return string
@@ -1901,7 +2574,7 @@ class IdeaBoardRestController {
 			. 'Do not include names, emails, addresses, order IDs, or other PII. '
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
 			. 'Generate linked investigation questions that help a merchant understand related store signals before deciding what to do. '
-			. 'Classify every question with gatePriority required, useful, or optional, and answerability ai, merchant, or both. Put blockers first. '
+		. 'Classify every question with gatePriority required, useful, or optional, and answerability ai, merchant, or both. Required means the answer blocks a safe next action; useful means it improves prioritisation but does not block action; optional means it enriches later context. Put true blockers first. '
 			. 'Questions must mark supplier timing, margin strategy, campaign intent, brand judgement, and discontinuation assumptions as merchant_input_needed unless the submitted board already contains that context. '
 			. 'Do not create action, recommendation, idea, task, or proposed_action cards during brainstorm setup. Actions come later, after merchant context or re-analysis. '
 			. 'Return only valid JSON in this exact shape: {"summary":"...","decisionBrief":{"whatChanged":"...","commercialWhy":"...","biggestUnknowns":"...","bestNextMove":"...","upsideRisk":"..."},"session":{"title":"...","summary":"...","decisionBrief":{"whatChanged":"...","commercialWhy":"...","biggestUnknowns":"...","bestNextMove":"...","upsideRisk":"..."}},"questions":[{"id":"short-slug","title":"...","body":"...","gatePriority":"required|useful|optional","answerability":"ai|merchant|both","revenueLevers":["inventory"],"rootInsightIds":["insight-id"],"parentCardId":"optional-insight-or-question-id"}]}. '
@@ -1959,8 +2632,10 @@ class IdeaBoardRestController {
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
 			. 'The server preserves every submitted card. Do not return existing cards unless you are using the legacy cards field; prefer returning only new cards. '
 			. 'Read selected insight sessions, linked questions, merchant notes, answers, edits, existing draft actions, decision briefs, question gates, evidence details, and revenue levers. '
-			. 'Update the decision brief so it explains what changed, why it matters commercially, the biggest unknowns, the best next move, and upside/risk. '
-			. 'Do not create action cards while a selected session still has required merchant-answerable blockers without answers or context. Add or refine blocker questions instead. '
+		. 'Update the decision brief as decision support, not summary prose: what changed, the commercial why, biggest unknowns, best next move, and upside/risk. '
+		. 'Always return valid JSON, even when no cards are added. '
+		. 'Your first character must be "{" and your last character must be "}". Do not include markdown, prefaces, apologies, or prose outside the JSON object. '
+		. 'Do not create action cards while a selected session still has required merchant-answerable or both-answerable blockers without answers or context. Add or refine blocker questions instead. '
 			. 'Add or refine draft action cards only when the submitted human context makes the next decision clearer. '
 			. 'Mark supplier timing, margin strategy, campaign intent, brand judgement, and discontinuation assumptions as merchant_input_needed unless the merchant already provided that context. '
 			. 'Action cards are drafts only. Any spend, customer contact, ads, prices, refunds, coupons, publishing, or stock commitment must use status approval_required and approvalRequired true. '
@@ -2027,9 +2702,11 @@ class IdeaBoardRestController {
 			. 'Use only the supplied aggregated analytics, store profile, country/location context, and readiness recommendations. '
 			. 'Do not invent customer-level details or include names, emails, addresses, order IDs, or other PII. '
 			. 'The initial board is only the signal stage: create insight cards in stage insights. Do not create questions, human context cards, actions, tasks, or execution workflow cards yet. '
-			. 'Each insight card must reference at least one concrete metric, product, or trend from the analytics. '
+		. 'Prioritise problematic commercial signals before neutral baselines: revenue or order drops, top revenue products out of stock, ageing on-hold payment pipeline, catalogue/readiness gaps such as missing descriptions, attributes, images, or structured content, and material customer-mix signals. '
+		. 'Each insight card must reference at least one concrete metric, product, readiness recommendation, or trend from the analytics. '
 			. 'Every insight card must include revenueLevers, severity, estimatedImpact, whyItMatters, relatedSignalIds, and evidenceDetails. '
-			. 'Also return a decisionBrief with what changed, why it matters commercially, the biggest unknowns, the best next move, and upside/risk. '
+		. 'Use accurate levers: inventory for stock-outs, catalogue_quality for product-content gaps, revenue_protection for drops or pipeline, retention for customer mix, and avoid pricing, margin, or campaign_spend unless the supplied data or merchant context supports it. '
+		. 'Also return a decisionBrief that feels like decision support: what changed, why it matters commercially, the biggest unknowns, the best next move, and upside/risk. '
 			. 'The prompt field must be a specific suggested next question a merchant could ask to investigate the signal. '
 			. 'Confidence rubric: high = directly evidenced by the analytics data; medium = inferred from a pattern; low = speculative or context-only. '
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
@@ -2097,7 +2774,7 @@ class IdeaBoardRestController {
 			return (string) WC()->countries->countries[ $country_code ];
 		}
 
-		return '' !== $country_code ? $country_code : __( 'the store market', 'woocommerce-claude' );
+		return '' !== $country_code ? $country_code : __( 'the store market', 'hey-woo' );
 	}
 
 	/**
@@ -2132,7 +2809,7 @@ class IdeaBoardRestController {
 		}
 
 		if ( count( $decoded['cards'] ) < 1 || count( $decoded['cards'] ) > self::MAX_INITIAL_CARDS ) {
-			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response did not include the expected number of insight cards.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response did not include the expected number of insight cards.', 'hey-woo' ) );
 		}
 
 		$cards    = array();
@@ -2146,11 +2823,11 @@ class IdeaBoardRestController {
 			}
 
 			if ( 'insight' !== $normalised['kind'] || 'insights' !== $normalised['stage'] ) {
-				return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response included a non-insight card.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response included a non-insight card.', 'hey-woo' ) );
 			}
 
 			if ( isset( $seen_ids[ $normalised['id'] ] ) ) {
-				return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response repeated a card ID.', 'woocommerce-claude' ) );
+				return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response repeated a card ID.', 'hey-woo' ) );
 			}
 
 			$seen_ids[ $normalised['id'] ] = true;
@@ -2159,8 +2836,8 @@ class IdeaBoardRestController {
 
 		return array(
 			'cards'         => $this->normalise_card_orders( $cards ),
-			'summary'       => isset( $decoded['summary'] ) ? $this->trim_card_text( $decoded['summary'], 300 ) : __( 'Review the strongest store signals, then start a brainstorm from the related insights worth exploring.', 'woocommerce-claude' ),
-			'decisionBrief' => $this->normalise_idea_board_decision_brief( isset( $decoded['decisionBrief'] ) && is_array( $decoded['decisionBrief'] ) ? $decoded['decisionBrief'] : array(), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : '' ),
+			'summary'       => isset( $decoded['summary'] ) ? $this->trim_card_text( $decoded['summary'], 300 ) : __( 'Review the strongest store signals, then start a brainstorm from the related insights worth exploring.', 'hey-woo' ),
+			'decisionBrief' => $this->normalise_idea_board_decision_brief( $this->idea_board_decision_brief_from( $decoded ), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : '' ),
 		);
 	}
 
@@ -2171,8 +2848,9 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function normalise_idea_board_initial_content_shape( array $decoded ) {
-		if ( empty( $decoded['decisionBrief'] ) && isset( $decoded['decision_brief'] ) && is_array( $decoded['decision_brief'] ) ) {
-			$decoded['decisionBrief'] = $decoded['decision_brief'];
+		$brief = $this->idea_board_decision_brief_from( $decoded );
+		if ( ! empty( $brief ) ) {
+			$decoded['decisionBrief'] = $brief;
 		}
 
 		if ( isset( $decoded['cards'] ) && is_array( $decoded['cards'] ) ) {
@@ -2200,11 +2878,11 @@ class IdeaBoardRestController {
 				if ( empty( $decoded['summary'] ) && isset( $container['summary'] ) ) {
 					$decoded['summary'] = $container['summary'];
 				}
-				if ( empty( $decoded['decisionBrief'] ) && isset( $container['decisionBrief'] ) && is_array( $container['decisionBrief'] ) ) {
-					$decoded['decisionBrief'] = $container['decisionBrief'];
-				}
-				if ( empty( $decoded['decisionBrief'] ) && isset( $container['decision_brief'] ) && is_array( $container['decision_brief'] ) ) {
-					$decoded['decisionBrief'] = $container['decision_brief'];
+				if ( empty( $decoded['decisionBrief'] ) ) {
+					$container_brief = $this->idea_board_decision_brief_from( $container );
+					if ( ! empty( $container_brief ) ) {
+						$decoded['decisionBrief'] = $container_brief;
+					}
 				}
 				$decoded['cards'] = $cards;
 				return $decoded;
@@ -2218,7 +2896,7 @@ class IdeaBoardRestController {
 			);
 		}
 
-		return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response used an unexpected shape.', 'woocommerce-claude' ) );
+		return new \WP_Error( 'invalid_board_content', __( 'The idea-board content response used an unexpected shape.', 'hey-woo' ) );
 	}
 
 	/**
@@ -2338,6 +3016,10 @@ class IdeaBoardRestController {
 				continue;
 			}
 
+			if ( isset( $card['kind'] ) && 'action' === $card['kind'] && ! $this->reanalysis_action_has_concrete_scorecard( $card ) ) {
+				continue;
+			}
+
 			$normalised = $this->normalise_idea_board_card( $card, $index, false, 'invalid_board_reanalysis' );
 			if ( is_wp_error( $normalised ) ) {
 				continue;
@@ -2371,8 +3053,63 @@ class IdeaBoardRestController {
 
 		return array(
 			'cards'         => $this->normalise_card_orders( $cards ),
-			'summary'       => isset( $decoded['summary'] ) ? $this->trim_card_text( $decoded['summary'], 300 ) : __( 'The board has been re-analysed using the current cards and merchant context.', 'woocommerce-claude' ),
-			'decisionBrief' => $this->normalise_idea_board_decision_brief( isset( $decoded['decisionBrief'] ) && is_array( $decoded['decisionBrief'] ) ? $decoded['decisionBrief'] : array(), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : $board['summary'] ),
+			'summary'       => isset( $decoded['summary'] ) ? $this->trim_card_text( $decoded['summary'], 300 ) : __( 'The board has been re-analysed using the current cards and merchant context.', 'hey-woo' ),
+			'decisionBrief' => $this->normalise_idea_board_decision_brief( $this->idea_board_decision_brief_from( $decoded ), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : $board['summary'] ),
+		);
+	}
+
+	/**
+	 * Preserve the board when re-analysis returns prose instead of structured JSON.
+	 *
+	 * @param  array $board Sanitised board submitted by the browser.
+	 * @return array
+	 */
+	private function fallback_idea_board_reanalysis_content( array $board ) {
+		$default_session = $this->default_reanalysis_session( $board );
+		$session_id      = is_array( $default_session ) && isset( $default_session['id'] ) ? (string) $default_session['id'] : '';
+		$blockers        = $this->unanswered_required_merchant_gate_cards( $board, $session_id );
+		$blocker_titles  = array();
+		foreach ( $blockers as $card ) {
+			if ( ! empty( $card['title'] ) ) {
+				$blocker_titles[] = (string) $card['title'];
+			}
+		}
+
+		if ( ! empty( $blocker_titles ) ) {
+			$summary      = __( 'The board was kept intact because required merchant blockers still need answers before draft actions are safe.', 'hey-woo' );
+			$what_changed = sprintf(
+			/* translators: %s: unanswered required question titles. */
+				__( 'Required decision gates remain unanswered: %s.', 'hey-woo' ),
+				implode( '; ', array_slice( $blocker_titles, 0, 3 ) )
+			);
+			$best_next_move = sprintf(
+			/* translators: %s: first unanswered required question title. */
+				__( 'Answer "%s", then re-analyse once that blocker is resolved.', 'hey-woo' ),
+				$blocker_titles[0]
+			);
+			$unknowns = implode( '; ', array_slice( $blocker_titles, 0, 3 ) );
+		} else {
+			$summary        = __( 'The board was kept intact and no new draft actions were added because re-analysis did not return a complete action scorecard.', 'hey-woo' );
+			$what_changed   = __( 'The latest merchant context is saved on the board, but there is no new scored action to review yet.', 'hey-woo' );
+			$best_next_move = __( 'Use the answered blockers to choose the next commercial move, or add sharper context before re-analysing again.', 'hey-woo' );
+			$unknowns       = __( 'The next action still needs a concrete metric, owner, review date, success criteria, and risk check before it is useful for prioritisation.', 'hey-woo' );
+		}
+
+		$decision_brief = $this->normalise_idea_board_decision_brief(
+			array(
+				'whatChanged'     => $what_changed,
+				'commercialWhy'   => __( 'A board should not turn context into an action unless the commercial lever, evidence, and approval risk are clear enough to compare.', 'hey-woo' ),
+				'biggestUnknowns' => $unknowns,
+				'bestNextMove'    => $best_next_move,
+				'upsideRisk'      => __( 'Upside is keeping momentum without inventing work; risk is approving a vague action that cannot be measured.', 'hey-woo' ),
+			),
+			$summary
+		);
+
+		return array(
+			'cards'         => $this->normalise_card_orders( $board['cards'] ),
+			'summary'       => $summary,
+			'decisionBrief' => $decision_brief,
 		);
 	}
 
@@ -2411,15 +3148,16 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function normalise_idea_board_brainstorm_content( array $decoded, array $board, array $root_insight_ids ) {
-		$session_title   = isset( $decoded['session']['title'] ) ? $this->trim_card_text( $decoded['session']['title'], 100 ) : '';
-		$session_summary = isset( $decoded['session']['summary'] ) ? $this->trim_card_text( $decoded['session']['summary'], 400 ) : '';
+		$session         = isset( $decoded['session'] ) && is_array( $decoded['session'] ) ? $decoded['session'] : array();
+		$session_title   = isset( $session['title'] ) ? $this->trim_card_text( $session['title'], 100 ) : '';
+		$session_summary = isset( $session['summary'] ) ? $this->trim_card_text( $session['summary'], 400 ) : '';
 		if ( '' === $session_title ) {
 			$session_title = $this->build_default_session_title( $board['cards'], $root_insight_ids );
 		}
 		if ( '' === $session_summary ) {
-			$session_summary = __( 'A focused brainstorm session is ready for merchant notes, answers, and action review.', 'woocommerce-claude' );
+			$session_summary = __( 'A focused brainstorm session is ready for merchant notes, answers, and action review.', 'hey-woo' );
 		}
-		$session_brief = $this->normalise_idea_board_decision_brief( isset( $decoded['session']['decisionBrief'] ) && is_array( $decoded['session']['decisionBrief'] ) ? $decoded['session']['decisionBrief'] : array(), $session_summary );
+		$session_brief = $this->normalise_idea_board_decision_brief( $this->idea_board_decision_brief_from( $session ), $session_summary );
 
 		$candidates = array();
 		foreach ( array(
@@ -2478,7 +3216,7 @@ class IdeaBoardRestController {
 			$card['confidence']       = isset( $card['confidence'] ) ? $card['confidence'] : 'medium';
 			$card['evidence']         = isset( $card['evidence'] ) ? $card['evidence'] : '';
 			$card['timeframe']        = isset( $card['timeframe'] ) ? $card['timeframe'] : $board['period']['label'];
-			$card['source']           = isset( $card['source'] ) ? $card['source'] : __( 'Brainstorm session', 'woocommerce-claude' );
+			$card['source']           = isset( $card['source'] ) ? $card['source'] : __( 'Brainstorm session', 'hey-woo' );
 			$card['status']           = isset( $card['status'] ) ? $card['status'] : $this->default_status_for_kind( $kind );
 			$card['approvalRequired'] = isset( $card['approvalRequired'] ) ? wc_string_to_bool( $card['approvalRequired'] ) : false;
 			$card['gatePriority']     = isset( $card['gatePriority'] ) ? $card['gatePriority'] : 'required';
@@ -2499,7 +3237,7 @@ class IdeaBoardRestController {
 		}
 
 		if ( empty( $cards ) ) {
-			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response did not include usable questions.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_brainstorm', __( 'The idea-board brainstorm response did not include usable questions.', 'hey-woo' ) );
 		}
 
 		return array(
@@ -2510,7 +3248,7 @@ class IdeaBoardRestController {
 			),
 			'cards'         => $cards,
 			'summary'       => isset( $decoded['summary'] ) ? $this->trim_card_text( $decoded['summary'], 300 ) : $session_summary,
-			'decisionBrief' => $this->normalise_idea_board_decision_brief( isset( $decoded['decisionBrief'] ) && is_array( $decoded['decisionBrief'] ) ? $decoded['decisionBrief'] : array(), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : $session_summary ),
+			'decisionBrief' => $this->normalise_idea_board_decision_brief( $this->idea_board_decision_brief_from( $decoded ), isset( $decoded['summary'] ) ? (string) $decoded['summary'] : $session_summary ),
 		);
 	}
 
@@ -2521,12 +3259,97 @@ class IdeaBoardRestController {
 	 * @return string|\WP_Error
 	 */
 	private function normalise_idea_board_question_answer_content( array $decoded ) {
-		$answer = isset( $decoded['answer'] ) ? $this->trim_card_text( $decoded['answer'], 600 ) : '';
+		$answer = '';
+		foreach ( array( 'answer', 'body', 'text', 'content', 'summary' ) as $key ) {
+			if ( isset( $decoded[ $key ] ) ) {
+				$answer = $this->trim_card_text( $decoded[ $key ], 600 );
+				if ( '' !== $answer ) {
+					break;
+				}
+			}
+		}
 		if ( '' === $answer ) {
-			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response did not include a usable answer.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_question_answer', __( 'The idea-board question answer response did not include a usable answer.', 'hey-woo' ) );
 		}
 
-		return $answer;
+		return $this->normalise_idea_board_question_answer_text( $answer );
+	}
+
+	/**
+	 * Remove model phrasing that makes AI answers sound like task gates.
+	 *
+	 * @param string $answer Normalised answer.
+	 * @return string
+	 */
+	private function normalise_idea_board_question_answer_text( $answer ) {
+		$answer = preg_replace(
+			'/^\s*(?:\*\*)?merchant input needed:?(?:\*\*)?\s*/i',
+			__( 'AI can\'t answer this from the current store data. ', 'hey-woo' ),
+			$answer
+		);
+		$answer = preg_replace(
+			'/(?:\*\*)?merchant input needed:?(?:\*\*)?/i',
+			__( 'AI can\'t answer this from the current store data.', 'hey-woo' ),
+			$answer
+		);
+
+		return $this->trim_card_text( $answer, 600 );
+	}
+
+	/**
+	 * Check that an AI draft action included the scorecard fields needed for prioritisation.
+	 *
+	 * @param  array $card Prepared action card candidate.
+	 * @return bool
+	 */
+	private function reanalysis_action_has_concrete_scorecard( array $card ) {
+		foreach ( array( 'timeToImpact', 'riskApprovalNeeded', 'primaryMetric', 'owner', 'reviewDate', 'successCriteria' ) as $key ) {
+			if ( empty( $card[ $key ] ) || '' === $this->trim_card_text( $card[ $key ], 180 ) ) {
+				return false;
+			}
+		}
+
+		if ( empty( $card['reviewDate'] ) || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $card['reviewDate'] ) ) {
+			return false;
+		}
+
+		if ( empty( $card['actionType'] ) || ! isset( $this->allowed_action_types()[ sanitize_key( (string) $card['actionType'] ) ] ) ) {
+			return false;
+		}
+
+		if ( empty( $card['expectedRevenueImpact'] ) || ! in_array( sanitize_key( (string) $card['expectedRevenueImpact'] ), array( 'low', 'medium', 'high' ), true ) ) {
+			return false;
+		}
+
+		if ( empty( $card['effort'] ) || ! in_array( sanitize_key( (string) $card['effort'] ), array( 'low', 'medium', 'high' ), true ) ) {
+			return false;
+		}
+
+		if ( empty( $card['revenueLevers'] ) || ! is_array( $card['revenueLevers'] ) ) {
+			return false;
+		}
+		$valid_levers = 0;
+		$allowed      = $this->allowed_revenue_levers();
+		foreach ( $card['revenueLevers'] as $lever ) {
+			if ( isset( $allowed[ sanitize_key( (string) $lever ) ] ) ) {
+				++$valid_levers;
+			}
+		}
+		if ( 0 === $valid_levers ) {
+			return false;
+		}
+
+		if ( empty( $card['evidenceDetails'] ) || ! is_array( $card['evidenceDetails'] ) ) {
+			return false;
+		}
+
+		foreach ( array( 'metricBaseline', 'confidenceReason', 'unknowns' ) as $key ) {
+			if ( empty( $card['evidenceDetails'][ $key ] ) || '' === $this->trim_card_text( $card['evidenceDetails'][ $key ], 220 ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -2619,7 +3442,7 @@ class IdeaBoardRestController {
 			: $this->default_body_for_kind( $kind );
 		$card['colour']    = isset( $card['colour'] ) ? $card['colour'] : $this->default_colour_for_kind( $kind );
 		$card['order']     = isset( $card['order'] ) ? $card['order'] : $index;
-		$card['source']    = isset( $card['source'] ) ? $card['source'] : __( 'Board re-analysis', 'woocommerce-claude' );
+		$card['source']    = isset( $card['source'] ) ? $card['source'] : __( 'Board re-analysis', 'hey-woo' );
 		$card['status']    = isset( $card['status'] ) ? $card['status'] : $this->default_status_for_kind( $kind );
 		$card['createdBy'] = 'ai';
 
@@ -2644,12 +3467,12 @@ class IdeaBoardRestController {
 	 */
 	private function normalise_idea_board_card( $card, $index, $is_initial, $error_code ) {
 		if ( ! is_array( $card ) || ! isset( $card['id'], $card['kind'], $card['stage'], $card['title'], $card['body'] ) ) {
-			return new \WP_Error( $error_code, __( 'The idea-board card omitted a required field.', 'woocommerce-claude' ) );
+			return new \WP_Error( $error_code, __( 'The idea-board card omitted a required field.', 'hey-woo' ) );
 		}
 
 		$id = sanitize_key( (string) $card['id'] );
 		if ( '' === $id ) {
-			return new \WP_Error( $error_code, __( 'The idea-board card omitted a card ID.', 'woocommerce-claude' ) );
+			return new \WP_Error( $error_code, __( 'The idea-board card omitted a card ID.', 'hey-woo' ) );
 		}
 
 		$kind                    = sanitize_key( (string) $card['kind'] );
@@ -2665,21 +3488,20 @@ class IdeaBoardRestController {
 		$expected_revenue_impact = $this->normalise_level( isset( $card['expectedRevenueImpact'] ) ? $card['expectedRevenueImpact'] : '', 'medium' );
 		$effort                  = $this->normalise_level( isset( $card['effort'] ) ? $card['effort'] : '', 'medium' );
 
-		if (
-			! isset( $this->allowed_kinds()[ $kind ] )
+		if ( ! isset( $this->allowed_kinds()[ $kind ] )
 			|| ! isset( $this->allowed_stages()[ $stage ] )
 			|| ! isset( $this->allowed_colours()[ $colour ] )
 			|| ! in_array( $confidence, array( 'low', 'medium', 'high' ), true )
 			|| ! isset( $this->allowed_statuses()[ $status ] )
 			|| ! in_array( $created_by, array( 'ai', 'merchant' ), true )
 		) {
-			return new \WP_Error( $error_code, __( 'The idea-board card included an unsupported value.', 'woocommerce-claude' ) );
+			return new \WP_Error( $error_code, __( 'The idea-board card included an unsupported value.', 'hey-woo' ) );
 		}
 
 		$title = $this->trim_card_text( $card['title'], 80 );
 		$body  = $this->trim_card_text( $card['body'], 240 );
 		if ( '' === $title || '' === $body ) {
-			return new \WP_Error( $error_code, __( 'The idea-board card included an empty title or body.', 'woocommerce-claude' ) );
+			return new \WP_Error( $error_code, __( 'The idea-board card included an empty title or body.', 'hey-woo' ) );
 		}
 
 		$approval_required = isset( $card['approvalRequired'] ) ? wc_string_to_bool( $card['approvalRequired'] ) : 'approval_required' === $status || 'action' === $kind;
@@ -2730,7 +3552,7 @@ class IdeaBoardRestController {
 			'expectedRevenueImpact' => $expected_revenue_impact,
 			'effort'                => $effort,
 			'timeToImpact'          => isset( $card['timeToImpact'] ) ? $this->trim_card_text( $card['timeToImpact'], 80 ) : '',
-			'riskApprovalNeeded'    => isset( $card['riskApprovalNeeded'] ) ? $this->trim_card_text( $card['riskApprovalNeeded'], 160 ) : ( 'action' === $kind ? __( 'Merchant approval needed before changing spend, stock, prices, customer contact, or publishing.', 'woocommerce-claude' ) : '' ),
+			'riskApprovalNeeded'    => isset( $card['riskApprovalNeeded'] ) ? $this->trim_card_text( $card['riskApprovalNeeded'], 160 ) : ( 'action' === $kind ? __( 'Merchant approval needed before changing spend, stock, prices, customer contact, or publishing.', 'hey-woo' ) : '' ),
 			'primaryMetric'         => isset( $card['primaryMetric'] ) ? $this->trim_card_text( $card['primaryMetric'], 120 ) : '',
 			'owner'                 => isset( $card['owner'] ) ? $this->trim_card_text( $card['owner'], 80 ) : '',
 			'reviewDate'            => $review_date,
@@ -2878,7 +3700,7 @@ class IdeaBoardRestController {
 				$links[] = array(
 					'from'  => $root_id,
 					'to'    => $card['id'],
-					'label' => __( 'Linked insight', 'woocommerce-claude' ),
+					'label' => __( 'Linked insight', 'hey-woo' ),
 				);
 			}
 		}
@@ -2895,23 +3717,23 @@ class IdeaBoardRestController {
 		return array(
 			array(
 				'id'          => 'insights',
-				'title'       => __( 'Insights', 'woocommerce-claude' ),
-				'description' => __( 'Signals from store data that may matter.', 'woocommerce-claude' ),
+				'title'       => __( 'Insights', 'hey-woo' ),
+				'description' => __( 'Signals from store data that may matter.', 'hey-woo' ),
 			),
 			array(
 				'id'          => 'investigate',
-				'title'       => __( 'Investigate', 'woocommerce-claude' ),
-				'description' => __( 'Questions and checks before deciding.', 'woocommerce-claude' ),
+				'title'       => __( 'Investigate', 'hey-woo' ),
+				'description' => __( 'Questions and checks before deciding.', 'hey-woo' ),
 			),
 			array(
 				'id'          => 'context',
-				'title'       => __( 'Human context', 'woocommerce-claude' ),
-				'description' => __( 'Supplier, campaign, support, and brand judgement.', 'woocommerce-claude' ),
+				'title'       => __( 'Human context', 'hey-woo' ),
+				'description' => __( 'Supplier, campaign, support, and brand judgement.', 'hey-woo' ),
 			),
 			array(
 				'id'          => 'proposed_actions',
-				'title'       => __( 'Proposed actions', 'woocommerce-claude' ),
-				'description' => __( 'Draft recommendations that still need approval.', 'woocommerce-claude' ),
+				'title'       => __( 'Proposed actions', 'hey-woo' ),
+				'description' => __( 'Draft recommendations that still need approval.', 'hey-woo' ),
 			),
 		);
 	}
@@ -3276,16 +4098,16 @@ class IdeaBoardRestController {
 	 */
 	private function default_body_for_kind( $kind ) {
 		if ( 'question' === $kind ) {
-			return __( 'Answer this before turning the signal into an action. Mark any unknown supplier, campaign, or customer-contact detail as merchant input needed.', 'woocommerce-claude' );
+			return __( 'Answer this before turning the signal into an action. Mark any unknown supplier, campaign, or customer-contact detail as merchant input needed.', 'hey-woo' );
 		}
 		if ( 'context' === $kind ) {
-			return __( 'Capture the human context the store data cannot know before recommendations become actions.', 'woocommerce-claude' );
+			return __( 'Capture the human context the store data cannot know before recommendations become actions.', 'hey-woo' );
 		}
 		if ( 'action' === $kind ) {
-			return __( 'Review and approve this draft before changing spend, customer contact, prices, refunds, coupons, publishing, or stock commitments.', 'woocommerce-claude' );
+			return __( 'Review and approve this draft before changing spend, customer contact, prices, refunds, coupons, publishing, or stock commitments.', 'hey-woo' );
 		}
 
-		return __( 'Review this signal before deciding whether it matters.', 'woocommerce-claude' );
+		return __( 'Review this signal before deciding whether it matters.', 'hey-woo' );
 	}
 
 	/**
@@ -3426,6 +4248,29 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Check whether a sparse-worded question came from the AI brainstorm and is linked to store signals.
+	 *
+	 * @param  array $question Question card.
+	 * @return bool
+	 */
+	private function is_idea_board_ai_linked_question( array $question ) {
+		if ( empty( $question['createdBy'] ) || 'ai' !== sanitize_key( (string) $question['createdBy'] ) ) {
+			return false;
+		}
+		if ( empty( $question['sessionId'] ) ) {
+			return false;
+		}
+		if ( ! empty( $question['rootInsightIds'] ) && is_array( $question['rootInsightIds'] ) ) {
+			return true;
+		}
+		if ( ! empty( $question['rootInsightId'] ) || ! empty( $question['parentCardId'] ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Find a board card by ID.
 	 *
 	 * @param array  $cards   Board cards.
@@ -3513,12 +4358,12 @@ class IdeaBoardRestController {
 	 */
 	private function normalise_brainstorm_root_insight_ids( $raw_ids, array $cards ) {
 		if ( ! is_array( $raw_ids ) ) {
-			return new \WP_Error( 'invalid_board_brainstorm', __( 'Select at least one insight before starting a brainstorm session.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_brainstorm', __( 'Select at least one insight before starting a brainstorm session.', 'hey-woo' ) );
 		}
 
 		$ids = $this->normalise_root_insight_ids_list( $raw_ids, $this->insight_card_ids( $cards ) );
 		if ( empty( $ids ) ) {
-			return new \WP_Error( 'invalid_board_brainstorm', __( 'Select at least one valid insight before starting a brainstorm session.', 'woocommerce-claude' ) );
+			return new \WP_Error( 'invalid_board_brainstorm', __( 'Select at least one valid insight before starting a brainstorm session.', 'hey-woo' ) );
 		}
 
 		return $ids;
@@ -3544,7 +4389,7 @@ class IdeaBoardRestController {
 			return $this->trim_card_text( implode( ' + ', array_slice( $titles, 0, 2 ) ), 100 );
 		}
 
-		return ! empty( $titles ) ? $this->trim_card_text( $titles[0], 100 ) : __( 'Brainstorm session', 'woocommerce-claude' );
+		return ! empty( $titles ) ? $this->trim_card_text( $titles[0], 100 ) : __( 'Brainstorm session', 'hey-woo' );
 	}
 
 	/**
@@ -3581,8 +4426,19 @@ class IdeaBoardRestController {
 	 * @return bool
 	 */
 	private function session_has_unanswered_required_merchant_gate( array $board, $session_id ) {
+		return ! empty( $this->unanswered_required_merchant_gate_cards( $board, $session_id ) );
+	}
+
+	/**
+	 * Return unanswered required gates that need merchant or mixed merchant input.
+	 *
+	 * @param  array  $board      Board.
+	 * @param  string $session_id Session ID.
+	 * @return array
+	 */
+	private function unanswered_required_merchant_gate_cards( array $board, $session_id ) {
 		if ( '' === $session_id ) {
-			return false;
+			return array();
 		}
 
 		$answered = array();
@@ -3595,9 +4451,9 @@ class IdeaBoardRestController {
 			}
 		}
 
+		$blockers = array();
 		foreach ( $board['cards'] as $card ) {
-			if (
-				! is_array( $card )
+			if ( ! is_array( $card )
 				|| 'question' !== $card['kind']
 				|| $card['sessionId'] !== $session_id
 				|| 'required' !== $card['gatePriority']
@@ -3607,10 +4463,10 @@ class IdeaBoardRestController {
 				continue;
 			}
 
-			return true;
+			$blockers[] = $card;
 		}
 
-		return false;
+		return $blockers;
 	}
 
 	/**
@@ -3680,9 +4536,9 @@ class IdeaBoardRestController {
 			if ( '"' === $char ) {
 				$in_str = true;
 			} elseif ( '{' === $char ) {
-				$depth++;
+				++$depth;
 			} elseif ( '}' === $char ) {
-				$depth--;
+				--$depth;
 				if ( 0 === $depth ) {
 					return substr( $text, $start, ( $i - $start ) + 1 );
 				}
@@ -3693,18 +4549,23 @@ class IdeaBoardRestController {
 	}
 
 	/**
-	 * Extract the first text block from an Anthropic response.
+	 * Extract all text blocks from an Anthropic response.
 	 *
 	 * @param array $content Response content blocks.
 	 * @return string
 	 */
 	private function extract_text_reply( array $content ) {
+		$text = array();
 		foreach ( $content as $block ) {
-			if ( isset( $block['type'] ) && 'text' === $block['type'] ) {
-				return isset( $block['text'] ) ? (string) $block['text'] : '';
+			if ( is_string( $block ) ) {
+				$text[] = $block;
+				continue;
+			}
+			if ( is_array( $block ) && ( ! isset( $block['type'] ) || 'text' === $block['type'] ) && isset( $block['text'] ) ) {
+				$text[] = (string) $block['text'];
 			}
 		}
 
-		return '';
+		return trim( implode( "\n", $text ) );
 	}
 }

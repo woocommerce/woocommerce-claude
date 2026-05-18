@@ -26,6 +26,7 @@ WP_TESTS_DIR=${WP_TESTS_DIR:-/tmp/wordpress/tests/phpunit}
 PLUGIN_DIR="$WP_CORE_DIR/wp-content/plugins"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_SOURCE_DIR="$REPO_DIR/plugins/woocommerce-for-claude"
+HEY_WOO_SOURCE_DIR="$REPO_DIR/plugins/hey-woo"
 
 # Resolve "latest" to a concrete semver string (needed for the SVN tag path).
 if [ "$WP_VERSION" = "latest" ]; then
@@ -94,3 +95,4 @@ fi
 
 # ── Plugin under test ──────────────────────────────────────────────────────────
 ln -sfn "$PLUGIN_SOURCE_DIR" "$PLUGIN_DIR/woocommerce-claude"
+ln -sfn "$HEY_WOO_SOURCE_DIR" "$PLUGIN_DIR/hey-woo"
