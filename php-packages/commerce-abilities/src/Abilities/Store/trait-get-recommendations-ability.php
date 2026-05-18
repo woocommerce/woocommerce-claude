@@ -35,6 +35,6 @@ trait GetRecommendationsAbilityTrait {
 	 */
 	public static function execute( $input = null ) {
 		unset( $input );
-		return StoreKnowledge::get_recommendations();
+		return StoreKnowledge::get_recommendations( StoreKnowledge::consumer_from_ability( static::ABILITY_NAME ) );
 	}
 }

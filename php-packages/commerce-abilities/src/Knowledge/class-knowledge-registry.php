@@ -15,11 +15,18 @@ defined( 'ABSPATH' ) || exit;
 class KnowledgeRegistry {
 
 	/**
-	 * Singleton instance.
+	 * Singleton instances keyed by consumer ID.
 	 *
-	 * @var KnowledgeRegistry|null
+	 * @var array<string, KnowledgeRegistry>
 	 */
-	private static $instance = null;
+	private static $instances = array();
+
+	/**
+	 * Consumer ID for this registry instance.
+	 *
+	 * @var string
+	 */
+	private $consumer;
 
 	/**
 	 * Registered knowledge providers, keyed by provider ID.
@@ -31,19 +38,36 @@ class KnowledgeRegistry {
 	/**
 	 * Return the singleton instance, constructing it on first access.
 	 *
+	 * @param string $consumer Consumer ID.
 	 * @return KnowledgeRegistry
 	 */
-	public static function instance() {
-		if ( null === self::$instance ) {
-			self::$instance = new self();
+	public static function instance( $consumer = 'woocommerce-claude' ) {
+		$consumer = self::normalise_consumer( $consumer );
+
+		if ( ! isset( self::$instances[ $consumer ] ) ) {
+			self::$instances[ $consumer ] = new self( $consumer );
 		}
-		return self::$instance;
+
+		return self::$instances[ $consumer ];
 	}
 
 	/**
 	 * Private constructor — use instance().
+	 *
+	 * @param string $consumer Consumer ID.
 	 */
-	private function __construct() {}
+	private function __construct( $consumer ) {
+		$this->consumer = $consumer;
+	}
+
+	/**
+	 * Return this registry's consumer ID.
+	 *
+	 * @return string
+	 */
+	public function get_consumer() {
+		return $this->consumer;
+	}
 
 	/**
 	 * Register a knowledge provider.
@@ -108,5 +132,19 @@ class KnowledgeRegistry {
 			}
 		}
 		return $data;
+	}
+
+	/**
+	 * Normalise a consumer ID for registry lookup.
+	 *
+	 * @param string $consumer Consumer ID.
+	 * @return string
+	 */
+	private static function normalise_consumer( $consumer ) {
+		$consumer = is_string( $consumer ) ? strtolower( trim( $consumer ) ) : '';
+		$consumer = preg_replace( '/[^a-z0-9_-]+/', '-', $consumer );
+		$consumer = trim( (string) $consumer, '-' );
+
+		return '' === $consumer ? 'woocommerce-claude' : $consumer;
 	}
 }

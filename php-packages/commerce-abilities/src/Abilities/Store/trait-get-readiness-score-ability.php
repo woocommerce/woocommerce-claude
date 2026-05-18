@@ -35,6 +35,6 @@ trait GetReadinessScoreAbilityTrait {
 	 */
 	public static function execute( $input = null ) {
 		unset( $input );
-		return StoreKnowledge::get_readiness_score();
+		return StoreKnowledge::get_readiness_score( StoreKnowledge::consumer_from_ability( static::ABILITY_NAME ) );
 	}
 }

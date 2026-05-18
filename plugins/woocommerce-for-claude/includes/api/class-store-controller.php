@@ -15,4 +15,5 @@ defined( 'ABSPATH' ) || exit;
 class StoreController extends \WooCommerce\CommerceAbilities\API\AbstractStoreController {
 	const NAMESPACE = 'woocommerce-claude/v1';
 	const VERSION   = WOOCOMMERCE_CLAUDE_VERSION;
+	const CONSUMER  = 'woocommerce-claude';
 }

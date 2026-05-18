@@ -14,4 +14,5 @@ defined( 'ABSPATH' ) || exit;
  */
 class ProductsController extends \WooCommerce\CommerceAbilities\API\AbstractProductsController {
 	const NAMESPACE = 'woocommerce-claude/v1';
+	const CONSUMER  = 'woocommerce-claude';
 }

@@ -63,6 +63,9 @@ trait GetProductDetailsAbilityTrait {
 	 */
 	public static function execute( $input ) {
 		$input = is_array( $input ) ? $input : array();
-		return StoreKnowledge::get_product( absint( $input['product_id'] ?? 0 ) );
+		return StoreKnowledge::get_product(
+			absint( $input['product_id'] ?? 0 ),
+			StoreKnowledge::consumer_from_ability( static::ABILITY_NAME )
+		);
 	}
 }

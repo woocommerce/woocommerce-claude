@@ -22,6 +22,11 @@ abstract class AbstractCatalogController {
 	const NAMESPACE = '';
 
 	/**
+	 * Consumer ID. Override in the consuming plugin.
+	 */
+	const CONSUMER = 'woocommerce-claude';
+
+	/**
 	 * Register the catalogue REST routes.
 	 */
 	public static function register_routes() {
@@ -51,6 +56,6 @@ abstract class AbstractCatalogController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_schema() {
-		return rest_ensure_response( StoreKnowledge::get_catalog_schema() );
+		return rest_ensure_response( StoreKnowledge::get_catalog_schema( static::CONSUMER ) );
 	}
 }

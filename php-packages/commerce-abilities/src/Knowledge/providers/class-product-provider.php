@@ -20,6 +20,22 @@ defined( 'ABSPATH' ) || exit;
 class ProductProvider implements KnowledgeProvider {
 
 	/**
+	 * Consumer ID for compatibility hooks.
+	 *
+	 * @var string
+	 */
+	private $consumer;
+
+	/**
+	 * Build the provider for a specific consumer.
+	 *
+	 * @param string $consumer Consumer ID.
+	 */
+	public function __construct( $consumer = 'woocommerce-claude' ) {
+		$this->consumer = is_string( $consumer ) ? $consumer : 'woocommerce-claude';
+	}
+
+	/**
 	 * Unique provider ID.
 	 *
 	 * @return string
@@ -107,28 +123,10 @@ class ProductProvider implements KnowledgeProvider {
 		 *
 		 * @param array $query_args WC product query arguments.
 		 * @param array $args       Original request arguments.
+		 * @param string $consumer  Consumer ID.
 		 */
-		$query_args = apply_filters( 'woocommerce_commerce_abilities_product_query_args', $query_args, $args );
-
-		/**
-		 * Filter the product query args for WooCommerce for Claude consumers.
-		 *
-		 * @since 0.1.0
-		 *
-		 * @param array $query_args WC product query arguments.
-		 * @param array $args       Original request arguments.
-		 */
-		$query_args = apply_filters( 'woocommerce_claude_product_query_args', $query_args, $args );
-
-		/**
-		 * Filter the product query args for Hey Woo consumers.
-		 *
-		 * @since 0.4.2
-		 *
-		 * @param array $query_args WC product query arguments.
-		 * @param array $args       Original request arguments.
-		 */
-		$query_args = apply_filters( 'hey_woo_product_query_args', $query_args, $args );
+		$query_args = apply_filters( 'woocommerce_commerce_abilities_product_query_args', $query_args, $args, $this->consumer );
+		$query_args = $this->apply_consumer_product_query_filter( $query_args, $args );
 
 		$products = wc_get_products( $query_args );
 		$enriched = array();
@@ -224,8 +222,62 @@ class ProductProvider implements KnowledgeProvider {
 		 *
 		 * @param array       $data    Enriched product data.
 		 * @param \WC_Product $product WooCommerce product object.
+		 * @param string      $consumer Consumer ID.
 		 */
-		$data = apply_filters( 'woocommerce_commerce_abilities_enriched_product', $data, $product );
+		$data = apply_filters( 'woocommerce_commerce_abilities_enriched_product', $data, $product, $this->consumer );
+		return $this->apply_consumer_enriched_product_filter( $data, $product );
+	}
+
+	/**
+	 * Apply the consumer-specific query compatibility hook.
+	 *
+	 * @param array $query_args WC product query arguments.
+	 * @param array $args       Original request arguments.
+	 * @return array
+	 */
+	private function apply_consumer_product_query_filter( $query_args, $args ) {
+		if ( 'hey-woo' === $this->consumer ) {
+			/**
+			 * Filter the product query args for Hey Woo consumers.
+			 *
+			 * @since 0.4.2
+			 *
+			 * @param array $query_args WC product query arguments.
+			 * @param array $args       Original request arguments.
+			 */
+			return apply_filters( 'hey_woo_product_query_args', $query_args, $args );
+		}
+
+		/**
+		 * Filter the product query args for WooCommerce for Claude consumers.
+		 *
+		 * @since 0.1.0
+		 *
+		 * @param array $query_args WC product query arguments.
+		 * @param array $args       Original request arguments.
+		 */
+		return apply_filters( 'woocommerce_claude_product_query_args', $query_args, $args );
+	}
+
+	/**
+	 * Apply the consumer-specific enriched product compatibility hook.
+	 *
+	 * @param array       $data    Enriched product data.
+	 * @param \WC_Product $product WooCommerce product object.
+	 * @return array
+	 */
+	private function apply_consumer_enriched_product_filter( $data, $product ) {
+		if ( 'hey-woo' === $this->consumer ) {
+			/**
+			 * Filter the enriched product data for Hey Woo consumers.
+			 *
+			 * @since 0.4.2
+			 *
+			 * @param array       $data    Enriched product data.
+			 * @param \WC_Product $product WooCommerce product object.
+			 */
+			return apply_filters( 'hey_woo_enriched_product', $data, $product );
+		}
 
 		/**
 		 * Filter the enriched product data for WooCommerce for Claude consumers.
@@ -235,17 +287,7 @@ class ProductProvider implements KnowledgeProvider {
 		 * @param array       $data    Enriched product data.
 		 * @param \WC_Product $product WooCommerce product object.
 		 */
-		$data = apply_filters( 'woocommerce_claude_enriched_product', $data, $product );
-
-		/**
-		 * Filter the enriched product data for Hey Woo consumers.
-		 *
-		 * @since 0.4.2
-		 *
-		 * @param array       $data    Enriched product data.
-		 * @param \WC_Product $product WooCommerce product object.
-		 */
-		return apply_filters( 'hey_woo_enriched_product', $data, $product );
+		return apply_filters( 'woocommerce_claude_enriched_product', $data, $product );
 	}
 
 	/**

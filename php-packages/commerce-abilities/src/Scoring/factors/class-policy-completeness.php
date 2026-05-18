@@ -20,6 +20,22 @@ defined( 'ABSPATH' ) || exit;
 class PolicyCompleteness {
 
 	/**
+	 * Consumer ID for knowledge registry lookup.
+	 *
+	 * @var string
+	 */
+	private $consumer;
+
+	/**
+	 * Build the factor for a specific consumer.
+	 *
+	 * @param string $consumer Consumer ID.
+	 */
+	public function __construct( $consumer = 'woocommerce-claude' ) {
+		$this->consumer = is_string( $consumer ) ? $consumer : 'woocommerce-claude';
+	}
+
+	/**
 	 * Get the factor identifier.
 	 *
 	 * @return string
@@ -52,7 +68,7 @@ class PolicyCompleteness {
 	 * @return array
 	 */
 	public function score_store() {
-		$registry = KnowledgeRegistry::instance();
+		$registry = KnowledgeRegistry::instance( $this->consumer );
 		$policies = $registry->get_knowledge( 'policies' );
 
 		if ( ! $policies ) {

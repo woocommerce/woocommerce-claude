@@ -22,6 +22,11 @@ abstract class AbstractProductsController {
 	const NAMESPACE = '';
 
 	/**
+	 * Consumer ID. Override in the consuming plugin.
+	 */
+	const CONSUMER = 'woocommerce-claude';
+
+	/**
 	 * Register the product REST routes.
 	 */
 	public static function register_routes() {
@@ -115,7 +120,8 @@ abstract class AbstractProductsController {
 					'per_page' => $request->get_param( 'per_page' ),
 					'category' => $request->get_param( 'category' ),
 					'search'   => $request->get_param( 'search' ),
-				)
+				),
+				static::CONSUMER
 			)
 		);
 	}
@@ -127,7 +133,7 @@ abstract class AbstractProductsController {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public static function get_product( $request ) {
-		$data = StoreKnowledge::get_product( absint( $request->get_param( 'product_id' ) ) );
+		$data = StoreKnowledge::get_product( absint( $request->get_param( 'product_id' ) ), static::CONSUMER );
 		return is_wp_error( $data ) ? $data : rest_ensure_response( $data );
 	}
 
@@ -138,7 +144,7 @@ abstract class AbstractProductsController {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public static function get_product_score( $request ) {
-		$score = StoreKnowledge::get_product_score( absint( $request->get_param( 'product_id' ) ) );
+		$score = StoreKnowledge::get_product_score( absint( $request->get_param( 'product_id' ) ), static::CONSUMER );
 		return is_wp_error( $score ) ? $score : rest_ensure_response( $score );
 	}
 }

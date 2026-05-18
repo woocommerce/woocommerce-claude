@@ -35,6 +35,9 @@ trait GetStoreProfileAbilityTrait {
 	 */
 	public static function execute( $input = null ) {
 		unset( $input );
-		return StoreKnowledge::get_profile( static::profile_version() );
+		return StoreKnowledge::get_profile(
+			static::profile_version(),
+			StoreKnowledge::consumer_from_ability( static::ABILITY_NAME )
+		);
 	}
 }

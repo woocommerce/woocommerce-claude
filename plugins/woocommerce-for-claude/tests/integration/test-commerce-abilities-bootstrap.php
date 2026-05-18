@@ -38,7 +38,7 @@ class Test_Commerce_Abilities_Bootstrap extends WP_UnitTestCase {
 	 * populated plugins/hey-woo/vendor.
 	 */
 	public function test_hey_woo_loads_shared_package_from_monorepo_source_without_vendor() {
-		$repo_root          = dirname( __DIR__, 4 );
+		$repo_root          = $this->get_monorepo_root();
 		$plugin_file        = $repo_root . '/plugins/hey-woo/hey-woo.php';
 		$package_source_dir = $repo_root . '/php-packages/commerce-abilities/src';
 		$temp_root          = trailingslashit( sys_get_temp_dir() ) . 'hey-woo-commerce-abilities-' . uniqid();
@@ -77,7 +77,7 @@ class Test_Commerce_Abilities_Bootstrap extends WP_UnitTestCase {
 	 * abilities so the admin chat does not depend on WooCommerce for Claude.
 	 */
 	public function test_hey_woo_registers_own_store_and_readiness_abilities() {
-		$repo_root   = dirname( __DIR__, 4 );
+		$repo_root   = $this->get_monorepo_root();
 		$plugin_file = $repo_root . '/plugins/hey-woo/hey-woo.php';
 		$script      = $this->build_hey_woo_ability_registration_probe( $plugin_file );
 		$probe_file  = tempnam( sys_get_temp_dir(), 'hey-woo-ability-registration-' );
@@ -121,6 +121,193 @@ class Test_Commerce_Abilities_Bootstrap extends WP_UnitTestCase {
 			is_subclass_of( \WooCommerce\Claude\Scoring\ScoringEngine::class, \WooCommerce\CommerceAbilities\Scoring\ScoringEngine::class ),
 			'WooCommerce for Claude scoring engine should wrap the shared scoring engine.'
 		);
+	}
+
+	/**
+	 * Product-provider compatibility hooks should only run for their matching
+	 * consumer so Hey Woo and WooCommerce for Claude extensions do not bleed into
+	 * each other.
+	 */
+	public function test_product_provider_compatibility_filters_are_consumer_scoped() {
+		add_filter(
+			'woocommerce_claude_product_query_args',
+			function ( $query_args ) {
+				$query_args['consumers'][] = 'woocommerce-claude';
+				return $query_args;
+			}
+		);
+		add_filter(
+			'hey_woo_product_query_args',
+			function ( $query_args ) {
+				$query_args['consumers'][] = 'hey-woo';
+				return $query_args;
+			}
+		);
+		add_filter(
+			'woocommerce_claude_enriched_product',
+			function ( $data ) {
+				$data['consumers'][] = 'woocommerce-claude';
+				return $data;
+			}
+		);
+		add_filter(
+			'hey_woo_enriched_product',
+			function ( $data ) {
+				$data['consumers'][] = 'hey-woo';
+				return $data;
+			}
+		);
+
+		$claude_provider  = new \WooCommerce\CommerceAbilities\Knowledge\Providers\ProductProvider( 'woocommerce-claude' );
+		$hey_woo_provider = new \WooCommerce\CommerceAbilities\Knowledge\Providers\ProductProvider( 'hey-woo' );
+		$query_method     = $this->get_accessible_method( $claude_provider, 'apply_consumer_product_query_filter' );
+		$enriched_method  = $this->get_accessible_method( $claude_provider, 'apply_consumer_enriched_product_filter' );
+
+		$claude_query_args  = $query_method->invoke( $claude_provider, array( 'consumers' => array() ), array() );
+		$hey_woo_query_args = $query_method->invoke( $hey_woo_provider, array( 'consumers' => array() ), array() );
+		$claude_product     = $enriched_method->invoke( $claude_provider, array( 'consumers' => array() ), null );
+		$hey_woo_product    = $enriched_method->invoke( $hey_woo_provider, array( 'consumers' => array() ), null );
+
+		remove_all_filters( 'woocommerce_claude_product_query_args' );
+		remove_all_filters( 'hey_woo_product_query_args' );
+		remove_all_filters( 'woocommerce_claude_enriched_product' );
+		remove_all_filters( 'hey_woo_enriched_product' );
+
+		$this->assertSame( array( 'woocommerce-claude' ), $claude_query_args['consumers'] );
+		$this->assertSame( array( 'hey-woo' ), $hey_woo_query_args['consumers'] );
+		$this->assertSame( array( 'woocommerce-claude' ), $claude_product['consumers'] );
+		$this->assertSame( array( 'hey-woo' ), $hey_woo_product['consumers'] );
+	}
+
+	/**
+	 * Scoring-factor compatibility hooks should only run for their matching
+	 * consumer.
+	 */
+	public function test_scoring_factor_filters_are_consumer_scoped() {
+		add_filter(
+			'woocommerce_claude_scoring_factors',
+			function ( $factors ) {
+				$factors[] = 'woocommerce-claude-marker';
+				return $factors;
+			}
+		);
+		add_filter(
+			'hey_woo_scoring_factors',
+			function ( $factors ) {
+				$factors[] = 'hey-woo-marker';
+				return $factors;
+			}
+		);
+
+		$claude_engine    = new \WooCommerce\CommerceAbilities\Scoring\ScoringEngine( 'woocommerce-claude' );
+		$hey_woo_engine   = new \WooCommerce\CommerceAbilities\Scoring\ScoringEngine( 'hey-woo' );
+		$factors_property = new ReflectionProperty( \WooCommerce\CommerceAbilities\Scoring\ScoringEngine::class, 'factors' );
+		$factors_property->setAccessible( true );
+		$claude_factor_names  = $factors_property->getValue( $claude_engine );
+		$hey_woo_factor_names = $factors_property->getValue( $hey_woo_engine );
+
+		remove_all_filters( 'woocommerce_claude_scoring_factors' );
+		remove_all_filters( 'hey_woo_scoring_factors' );
+
+		$this->assertContains( 'woocommerce-claude-marker', $claude_factor_names );
+		$this->assertNotContains( 'hey-woo-marker', $claude_factor_names );
+		$this->assertContains( 'hey-woo-marker', $hey_woo_factor_names );
+		$this->assertNotContains( 'woocommerce-claude-marker', $hey_woo_factor_names );
+	}
+
+	/**
+	 * Default provider registration should be consumer-scoped and should not
+	 * overwrite providers that a plugin has already registered.
+	 */
+	public function test_default_provider_registration_is_consumer_scoped_and_non_overwriting() {
+		$claude_consumer  = 'woocommerce-claude-test-' . uniqid();
+		$hey_woo_consumer = 'hey-woo-test-' . uniqid();
+		$claude_registry  = \WooCommerce\CommerceAbilities\Knowledge\KnowledgeRegistry::instance( $claude_consumer );
+		$custom_provider  = new class() implements \WooCommerce\CommerceAbilities\Knowledge\KnowledgeProvider {
+			/**
+			 * Return the provider ID.
+			 *
+			 * @return string
+			 */
+			public function get_id() {
+				return 'products';
+			}
+
+			/**
+			 * Return the provider label.
+			 *
+			 * @return string
+			 */
+			public function get_label() {
+				return 'Custom test products';
+			}
+
+			/**
+			 * Report whether the provider is available.
+			 *
+			 * @return bool
+			 */
+			public function is_available() {
+				return true;
+			}
+
+			/**
+			 * Return provider data.
+			 *
+			 * @param array $args Request arguments.
+			 * @return array
+			 */
+			public function get_data( $args = array() ) {
+				unset( $args );
+				return array();
+			}
+		};
+
+		$claude_registry->register( $custom_provider );
+
+		\WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( $claude_consumer );
+		$hey_woo_registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( $hey_woo_consumer );
+
+		$this->assertNotSame( $claude_registry, $hey_woo_registry );
+		$this->assertSame( $custom_provider, $claude_registry->get_provider( 'products' ) );
+		$this->assertInstanceOf(
+			\WooCommerce\CommerceAbilities\Knowledge\Providers\ProductProvider::class,
+			$hey_woo_registry->get_provider( 'products' )
+		);
+		$this->assertNotSame( $custom_provider, $hey_woo_registry->get_provider( 'products' ) );
+	}
+
+	/**
+	 * Return a private/protected method with reflection access enabled.
+	 *
+	 * @param object $target      Object under test.
+	 * @param string $method_name Method name.
+	 * @return ReflectionMethod
+	 */
+	private function get_accessible_method( $target, $method_name ) {
+		$method = new ReflectionMethod( $target, $method_name );
+		$method->setAccessible( true );
+
+		return $method;
+	}
+
+	/**
+	 * Return the monorepo root across host and wp-env test mounts.
+	 *
+	 * @return string
+	 */
+	private function get_monorepo_root() {
+		$repo_root = dirname( __DIR__, 4 );
+		if ( is_dir( $repo_root . '/php-packages/commerce-abilities/src' ) ) {
+			return $repo_root;
+		}
+
+		$wp_env_monorepo = $repo_root . '/plugins/hey-woo-monorepo';
+		if ( is_dir( $wp_env_monorepo . '/php-packages/commerce-abilities/src' ) ) {
+			return $wp_env_monorepo;
+		}
+
+		return $repo_root;
 	}
 
 	/**

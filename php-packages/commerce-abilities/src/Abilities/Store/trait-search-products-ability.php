@@ -85,7 +85,8 @@ trait SearchProductsAbilityTrait {
 				'category' => $input['category'] ?? null,
 				'page'     => $input['page'] ?? 1,
 				'per_page' => $input['per_page'] ?? 20,
-			)
+			),
+			StoreKnowledge::consumer_from_ability( static::ABILITY_NAME )
 		);
 	}
 }

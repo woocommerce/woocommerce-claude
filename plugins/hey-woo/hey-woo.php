@@ -244,7 +244,7 @@ function hey_woo_init_runtime() {
  * Register Hey Woo knowledge providers.
  */
 function hey_woo_register_providers() {
-	$registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers();
+	$registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( 'hey-woo' );
 
 	/**
 	 * Allow other plugins to register their own Hey Woo knowledge providers.

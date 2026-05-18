@@ -14,4 +14,5 @@ defined( 'ABSPATH' ) || exit;
  */
 class ReadinessController extends \WooCommerce\CommerceAbilities\API\AbstractReadinessController {
 	const NAMESPACE = 'hey-woo/v1';
+	const CONSUMER  = 'hey-woo';
 }

@@ -58,6 +58,6 @@ trait SuggestImprovementsAbilityTrait {
 	 * @return array|\WP_Error
 	 */
 	public static function execute( $input ) {
-		return StoreKnowledge::suggest_improvements( $input );
+		return StoreKnowledge::suggest_improvements( $input, StoreKnowledge::consumer_from_ability( static::ABILITY_NAME ) );
 	}
 }

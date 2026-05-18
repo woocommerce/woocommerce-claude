@@ -23,13 +23,23 @@ class ScoringEngine {
 	private $factors = array();
 
 	/**
-	 * Build the engine and register the default scoring factors.
+	 * Consumer ID for compatibility hooks.
+	 *
+	 * @var string
 	 */
-	public function __construct() {
-		$this->factors = array(
+	private $consumer;
+
+	/**
+	 * Build the engine and register the default scoring factors.
+	 *
+	 * @param string $consumer Consumer ID.
+	 */
+	public function __construct( $consumer = 'woocommerce-claude' ) {
+		$this->consumer = is_string( $consumer ) ? $consumer : 'woocommerce-claude';
+		$this->factors  = array(
 			new Factors\ProductCompleteness(),
 			new Factors\SchemaCoverage(),
-			new Factors\PolicyCompleteness(),
+			new Factors\PolicyCompleteness( $this->consumer ),
 			new Factors\ContentQuality(),
 		);
 
@@ -38,9 +48,30 @@ class ScoringEngine {
 		 *
 		 * @since 0.2.0
 		 *
-		 * @param array $factors Array of scoring factor instances.
+		 * @param array  $factors  Array of scoring factor instances.
+		 * @param string $consumer Consumer ID.
 		 */
-		$this->factors = apply_filters( 'woocommerce_commerce_abilities_scoring_factors', $this->factors );
+		$this->factors = apply_filters( 'woocommerce_commerce_abilities_scoring_factors', $this->factors, $this->consumer );
+		$this->factors = $this->apply_consumer_scoring_factors_filter( $this->factors );
+	}
+
+	/**
+	 * Apply the consumer-specific scoring-factor compatibility hook.
+	 *
+	 * @param array $factors Array of scoring factor instances.
+	 * @return array
+	 */
+	private function apply_consumer_scoring_factors_filter( $factors ) {
+		if ( 'hey-woo' === $this->consumer ) {
+			/**
+			 * Filter scoring factors for Hey Woo consumers.
+			 *
+			 * @since 0.4.2
+			 *
+			 * @param array $factors Array of scoring factor instances.
+			 */
+			return apply_filters( 'hey_woo_scoring_factors', $factors );
+		}
 
 		/**
 		 * Filter scoring factors for WooCommerce for Claude consumers.
@@ -49,16 +80,7 @@ class ScoringEngine {
 		 *
 		 * @param array $factors Array of scoring factor instances.
 		 */
-		$this->factors = apply_filters( 'woocommerce_claude_scoring_factors', $this->factors );
-
-		/**
-		 * Filter scoring factors for Hey Woo consumers.
-		 *
-		 * @since 0.4.2
-		 *
-		 * @param array $factors Array of scoring factor instances.
-		 */
-		$this->factors = apply_filters( 'hey_woo_scoring_factors', $this->factors );
+		return apply_filters( 'woocommerce_claude_scoring_factors', $factors );
 	}
 
 	/**

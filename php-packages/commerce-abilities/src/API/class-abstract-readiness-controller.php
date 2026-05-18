@@ -22,6 +22,11 @@ abstract class AbstractReadinessController {
 	const NAMESPACE = '';
 
 	/**
+	 * Consumer ID. Override in the consuming plugin.
+	 */
+	const CONSUMER = 'woocommerce-claude';
+
+	/**
 	 * Register the readiness REST routes.
 	 */
 	public static function register_routes() {
@@ -61,7 +66,7 @@ abstract class AbstractReadinessController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_score() {
-		return rest_ensure_response( StoreKnowledge::get_readiness_score() );
+		return rest_ensure_response( StoreKnowledge::get_readiness_score( static::CONSUMER ) );
 	}
 
 	/**
@@ -70,6 +75,6 @@ abstract class AbstractReadinessController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_recommendations() {
-		return rest_ensure_response( StoreKnowledge::get_recommendations() );
+		return rest_ensure_response( StoreKnowledge::get_recommendations( static::CONSUMER ) );
 	}
 }

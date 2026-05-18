@@ -27,6 +27,11 @@ abstract class AbstractStoreController {
 	const VERSION = '';
 
 	/**
+	 * Consumer ID. Override in the consuming plugin.
+	 */
+	const CONSUMER = 'woocommerce-claude';
+
+	/**
 	 * Register the store REST routes.
 	 */
 	public static function register_routes() {
@@ -76,7 +81,7 @@ abstract class AbstractStoreController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_profile() {
-		return rest_ensure_response( StoreKnowledge::get_profile( static::VERSION ) );
+		return rest_ensure_response( StoreKnowledge::get_profile( static::VERSION, static::CONSUMER ) );
 	}
 
 	/**
@@ -85,7 +90,7 @@ abstract class AbstractStoreController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_policies() {
-		return rest_ensure_response( StoreKnowledge::get_policies() );
+		return rest_ensure_response( StoreKnowledge::get_policies( static::CONSUMER ) );
 	}
 
 	/**
@@ -94,6 +99,6 @@ abstract class AbstractStoreController {
 	 * @return \WP_REST_Response
 	 */
 	public static function get_providers() {
-		return rest_ensure_response( StoreKnowledge::get_providers_status() );
+		return rest_ensure_response( StoreKnowledge::get_providers_status( static::CONSUMER ) );
 	}
 }
