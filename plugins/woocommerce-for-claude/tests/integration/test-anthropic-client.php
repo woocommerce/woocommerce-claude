@@ -273,9 +273,8 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		remove_all_filters( 'pre_http_request' );
 
 		$this->assertGreaterThanOrEqual( 2, count( $handler->events ) );
-		$this->assertSame( 'difm_ai_request', $handler->events[0]['skill'] );
-		$this->assertSame( 'difm_ai_request', $handler->events[0]['data']['event'] );
-		$this->assertSame( 'anthropic', $handler->events[0]['data']['provider'] );
+		$this->assertSame( 'anthropic_request', $handler->events[0]['skill'] );
+		$this->assertSame( 'anthropic_request', $handler->events[0]['data']['event'] );
 		$this->assertSame( 'test', $handler->events[0]['data']['surface'] );
 		$this->assertSame( 2, $handler->events[0]['data']['iteration'] );
 		$this->assertSame( 'analytics_totals', $handler->events[0]['data']['tool_names'] );
@@ -285,9 +284,8 @@ class Test_Anthropic_Client extends WP_UnitTestCase {
 		$this->assertArrayNotHasKey( 'estimated_total_tokens_if_full_out', $handler->events[0]['data'] );
 		$this->assertArrayNotHasKey( 'max_output_tokens', $handler->events[0]['data'] );
 
-		$this->assertSame( 'difm_ai_response', $handler->events[1]['skill'] );
-		$this->assertSame( 'difm_ai_response', $handler->events[1]['data']['event'] );
-		$this->assertSame( 'anthropic', $handler->events[1]['data']['provider'] );
+		$this->assertSame( 'anthropic_response', $handler->events[1]['skill'] );
+		$this->assertSame( 'anthropic_response', $handler->events[1]['data']['event'] );
 		$this->assertSame( $handler->events[0]['data']['request_id'], $handler->events[1]['data']['request_id'] );
 		$this->assertSame( 200, $handler->events[1]['data']['status_code'] );
 		$this->assertSame( 42, $handler->events[1]['data']['usage_input_tokens'] );

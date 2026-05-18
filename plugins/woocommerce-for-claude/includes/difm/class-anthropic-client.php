@@ -1,17 +1,18 @@
 <?php
 /**
- * Thin Anthropic Messages API client for WooCommerce for Claude AI Insights.
+ * Thin Anthropic API client for WooCommerce for Claude AI Insights.
  *
- * Uses `wp_remote_post()` directly - no SDK dependency. WordPress AI/Core AI
- * Client support lives behind the provider resolver so existing Anthropic BYOK
- * installs keep working.
+ * Uses `wp_remote_post()` directly — no SDK dependency. The abstraction
+ * boundary is intentionally here: if WordPress ships a first-party AI client
+ * (`wp_ai_client_prompt`) in a future release, swapping to it is a
+ * one-file change.
  *
  * @package WooCommerce\Claude\Difm
  */
 
 namespace WooCommerce\Claude\Difm;
 
-use WooCommerce\Claude\Telemetry\DifmAiTelemetry;
+use WooCommerce\Claude\Telemetry\AnthropicTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -20,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * PHP 7.4 compatible — no union types, no match, no enums.
  */
-class AnthropicClient implements DifmAiClientInterface {
+class AnthropicClient {
 
 	/**
 	 * Anthropic API base URL.
@@ -74,22 +75,6 @@ class AnthropicClient implements DifmAiClientInterface {
 	}
 
 	/**
-	 * Return the configured Anthropic model.
-	 *
-	 * @return string
-	 */
-	public function get_model() {
-		/**
-		 * Filter the model used for WooCommerce for Claude AI Insights calls.
-		 *
-		 * @since 0.2.0
-		 *
-		 * @param string $model Anthropic model identifier.
-		 */
-		return (string) apply_filters( 'woocommerce_claude_difm_model', self::MODEL );
-	}
-
-	/**
 	 * Call the Anthropic Messages API.
 	 *
 	 * @param array  $messages   Conversation messages, each a `['role' => 'user'|'assistant', 'content' => string]` pair.
@@ -105,7 +90,14 @@ class AnthropicClient implements DifmAiClientInterface {
 			return new \WP_Error( 'no_api_key', __( 'No Anthropic API key is configured.', 'woocommerce-claude' ) );
 		}
 
-		$model = $this->get_model();
+		/**
+		 * Filter the model used for WooCommerce for Claude AI Insights calls.
+		 *
+		 * @since 0.2.0
+		 *
+		 * @param string $model Anthropic model identifier.
+		 */
+		$model = (string) apply_filters( 'woocommerce_claude_difm_model', self::MODEL );
 
 		$body = array(
 			'model'      => $model,
@@ -126,7 +118,7 @@ class AnthropicClient implements DifmAiClientInterface {
 		$body_json  = is_string( $body_json ) ? $body_json : '';
 		$start_ms   = microtime( true );
 
-		DifmAiTelemetry::record_request( 'anthropic', $model, $body, $body_json, $request_id, $context );
+		AnthropicTelemetry::record_request( $body, $body_json, $request_id, $context );
 
 		$response = wp_remote_post(
 			self::API_BASE . '/messages',
@@ -142,13 +134,10 @@ class AnthropicClient implements DifmAiClientInterface {
 		);
 
 		if ( is_wp_error( $response ) ) {
-			DifmAiTelemetry::record_transport_error(
-				'anthropic',
-				$model,
+			AnthropicTelemetry::record_transport_error(
 				$request_id,
 				(int) round( ( microtime( true ) - $start_ms ) * 1000 ),
-				$response->get_error_code(),
-				$context
+				$response->get_error_code()
 			);
 			return $response;
 		}
@@ -158,7 +147,7 @@ class AnthropicClient implements DifmAiClientInterface {
 		$decoded_body = json_decode( $raw_body, true );
 		$duration_ms  = (int) round( ( microtime( true ) - $start_ms ) * 1000 );
 
-		DifmAiTelemetry::record_response( 'anthropic', $model, $request_id, $status_code, $duration_ms, $decoded_body, $raw_body );
+		AnthropicTelemetry::record_response( $request_id, $status_code, $duration_ms, $decoded_body );
 
 		if ( ! is_array( $decoded_body ) ) {
 			return new \WP_Error(
@@ -192,9 +181,6 @@ class AnthropicClient implements DifmAiClientInterface {
 				array( 'status' => $status_code )
 			);
 		}
-
-		$decoded_body['provider'] = 'anthropic';
-		$decoded_body['model']    = $model;
 
 		return $decoded_body;
 	}

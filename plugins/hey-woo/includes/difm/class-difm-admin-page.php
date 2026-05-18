@@ -4,7 +4,7 @@
  *
  * Loads the wp-build generated build/build.php (which registers all script
  * modules, routes, and the full-page boot interceptor) and wires up the
- * WooCommerce submenu entry when an Anthropic API key is configured. The boot
+ * WooCommerce submenu entry when an AI provider is configured. The boot
  * interceptor handles actual page rendering on admin_init, so the submenu
  * callback is never invoked.
  *
@@ -20,7 +20,7 @@ namespace WooCommerce\HeyWoo\Difm;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers the Hey Woo WP Admin page and integrates with @wordpress/boot.
+ * Registers the AI Insights WP Admin page and integrates with @wordpress/boot.
  *
  * PHP 7.4 compatible — no union types, no match, no enums.
  */
@@ -53,9 +53,9 @@ class DifmAdminPage {
 	}
 
 	/**
-	 * Add the Hey Woo submenu under WooCommerce.
+	 * Add the AI Insights submenu under WooCommerce.
 	 *
-	 * Hey Woo needs a merchant-provided Anthropic API key before it can be
+	 * AI Insights needs a configured AI provider before it can be
 	 * used, so keep the navigation out of the way until one is configured.
 	 *
 	 * The callback is __return_null because the boot interceptor in build/build.php
@@ -65,14 +65,14 @@ class DifmAdminPage {
 	 * @return void
 	 */
 	public function add_menu_page() {
-		if ( ! $this->has_anthropic_api_key() || ! $this->has_required_runtime() ) {
+		if ( ! $this->has_ai_provider() || ! $this->has_required_runtime() ) {
 			return;
 		}
 
 		add_submenu_page(
 			'woocommerce',
-			__( 'Ask Claude', 'hey-woo' ),
-			__( 'Ask Claude', 'hey-woo' ),
+			__( 'Ask AI', 'hey-woo' ),
+			__( 'Ask AI', 'hey-woo' ),
 			'manage_woocommerce',
 			self::MENU_SLUG,
 			'__return_null'
@@ -94,19 +94,19 @@ class DifmAdminPage {
 		}
 
 		// Register the sidebar menu item for the boot navigation shell.
-		if ( $this->has_anthropic_api_key() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
+		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			heywoo_register_hey_woo_insights_menu_item(
 				'ai-insights',
-				__( 'Ask Claude', 'hey-woo' ),
+				__( 'Ask AI', 'hey-woo' ),
 				'/'
 			);
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 
-		$user_id = get_current_user_id();
+		$user_id  = get_current_user_id();
+		$resolver = new DifmProviderResolver();
 
 		$data = array(
 			'nonce'         => wp_create_nonce( 'wp_rest' ),
@@ -114,7 +114,9 @@ class DifmAdminPage {
 			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
 			'userName'      => wp_get_current_user()->display_name,
 			'currency'      => get_woocommerce_currency_symbol(),
-			'hasKey'        => AnthropicClient::has_api_key(),
+			'hasKey'        => $resolver->has_configured_provider(),
+			'providerMode'  => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
+			'provider'      => DifmProviderResolver::get_selected_provider(),
 			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
 		);
 
@@ -133,21 +135,21 @@ class DifmAdminPage {
 	 * @return void
 	 */
 	public function render_missing_runtime_notice() {
-		if ( $this->has_required_runtime() || ! $this->has_anthropic_api_key() || ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( $this->has_required_runtime() || ! $this->has_ai_provider() || ! current_user_can( 'manage_woocommerce' ) ) {
 			return;
 		}
 		?>
 		<div class="notice notice-warning">
 			<p>
-				<strong><?php esc_html_e( 'Ask Claude requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
-				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Ask Claude with your Anthropic API key.', 'hey-woo' ); ?>
+				<strong><?php esc_html_e( 'Ask AI requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
+				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Ask AI with your configured provider.', 'hey-woo' ); ?>
 			</p>
 		</div>
 		<?php
 	}
 
 	/**
-	 * Whether the boot-based Hey Woo runtime is available.
+	 * Whether the boot-based AI Insights runtime is available.
 	 *
 	 * @return bool
 	 */
@@ -155,7 +157,7 @@ class DifmAdminPage {
 		$has_required_runtime = defined( 'GUTENBERG_VERSION' ) || version_compare( get_bloginfo( 'version' ), '7.0-alpha', '>=' );
 
 		/**
-		 * Filter whether Hey Woo can load the required boot runtime.
+		 * Filter whether AI Insights can load the required boot runtime.
 		 *
 		 * @since 0.2.0
 		 *
@@ -165,13 +167,11 @@ class DifmAdminPage {
 	}
 
 	/**
-	 * Whether an Anthropic API key is configured for Hey Woo.
+	 * Whether an AI provider is configured for AI Insights.
 	 *
 	 * @return bool
 	 */
-	private function has_anthropic_api_key() {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
-
-		return AnthropicClient::has_api_key();
+	private function has_ai_provider() {
+		return ( new DifmProviderResolver() )->has_configured_provider();
 	}
 }

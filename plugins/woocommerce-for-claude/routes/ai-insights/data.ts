@@ -21,8 +21,6 @@ const DEFAULTS: ModuleData = {
 	userName: '',
 	currency: '',
 	hasKey: false,
-	providerMode: 'legacy',
-	provider: 'auto',
 	conversations: [],
 };
 

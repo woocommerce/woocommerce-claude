@@ -31,8 +31,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		wp_set_current_user( $user_id );
 
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::DIFM_PROVIDER_OPTION );
+		delete_option( 'hey_woo_anthropic_api_key' );
 		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		add_filter( self::RUNTIME_FILTER, '__return_true' );
@@ -43,14 +42,10 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	 */
 	public function tear_down() {
 		delete_option( SettingsPage::DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::LEGACY_DIFM_API_KEY_OPTION );
-		delete_option( SettingsPage::DIFM_PROVIDER_OPTION );
+		delete_option( 'hey_woo_anthropic_api_key' );
 		( new RestApiKey() )->revoke();
 		$this->remove_ai_insights_submenu();
 		remove_all_filters( self::RUNTIME_FILTER );
-		remove_all_filters( 'woocommerce_claude_difm_connector_mode' );
-		remove_all_filters( 'woocommerce_claude_difm_wordpress_ai_supported' );
-		remove_all_filters( 'woocommerce_claude_difm_wordpress_ai_configured_provider_ids' );
 
 		parent::tear_down();
 	}
@@ -78,7 +73,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The WooCommerce submenu is registered once an AI provider is configured.
+	 * The WooCommerce submenu is registered once a key is configured.
 	 */
 	public function test_ai_insights_submenu_is_registered_with_api_key() {
 		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-test', 'no' );
@@ -86,26 +81,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		( new DifmAdminPage() )->add_menu_page();
 
 		$this->assertTrue( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
-		$this->assertSame( 'Ask AI', $this->submenu_label_for_slug( DifmAdminPage::MENU_SLUG ) );
-	}
-
-	/**
-	 * WP 7 connector mode does not treat legacy direct Anthropic keys as usable.
-	 */
-	public function test_connector_mode_does_not_register_submenu_with_only_direct_key() {
-		add_filter( 'woocommerce_claude_difm_connector_mode', '__return_true' );
-		add_filter( 'woocommerce_claude_difm_wordpress_ai_supported', '__return_true' );
-		add_filter(
-			'woocommerce_claude_difm_wordpress_ai_configured_provider_ids',
-			static function () {
-				return array();
-			}
-		);
-		update_option( SettingsPage::DIFM_API_KEY_OPTION, 'sk-ant-test', 'no' );
-
-		( new DifmAdminPage() )->add_menu_page();
-
-		$this->assertFalse( $this->submenu_contains_slug( DifmAdminPage::MENU_SLUG ) );
+		$this->assertSame( 'Ask Claude', $this->submenu_label_for_slug( DifmAdminPage::MENU_SLUG ) );
 	}
 
 	/**
@@ -133,7 +109,7 @@ class Test_Difm_Admin_Page extends WP_UnitTestCase {
 		( new DifmAdminPage() )->render_missing_runtime_notice();
 		$notice = ob_get_clean();
 
-		$this->assertStringContainsString( 'Ask AI requires Gutenberg or WordPress 7.0', $notice );
+		$this->assertStringContainsString( 'Ask Claude requires Gutenberg or WordPress 7.0', $notice );
 	}
 
 	/**

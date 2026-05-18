@@ -2,10 +2,10 @@
 /**
  * Anthropic request telemetry helpers.
  *
- * @package WooCommerce\HeyWoo
+ * @package WooCommerce\Claude
  */
 
-namespace WooCommerce\HeyWoo\Telemetry;
+namespace WooCommerce\Claude\Telemetry;
 
 defined( 'ABSPATH' ) || exit;
 

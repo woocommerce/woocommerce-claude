@@ -2,10 +2,10 @@
 /**
  * AI provider resolution for AI Insights.
  *
- * @package WooCommerce\Claude\Difm
+ * @package WooCommerce\HeyWoo\Difm
  */
 
-namespace WooCommerce\Claude\Difm;
+namespace WooCommerce\HeyWoo\Difm;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -17,7 +17,7 @@ class DifmProviderResolver {
 	/**
 	 * Provider selection option.
 	 */
-	const PROVIDER_OPTION = 'woocommerce_claude_difm_provider';
+	const PROVIDER_OPTION = 'hey_woo_difm_provider';
 
 	/**
 	 * Provider selection values.
@@ -95,7 +95,7 @@ class DifmProviderResolver {
 		 * @param DifmAiClientInterface|null $client            Client override.
 		 * @param string                     $selected_provider Saved provider setting.
 		 */
-		$filtered_client = apply_filters( 'woocommerce_claude_difm_ai_client', null, $selected_provider );
+		$filtered_client = apply_filters( 'hey_woo_difm_ai_client', null, $selected_provider );
 		if ( $filtered_client instanceof DifmAiClientInterface ) {
 			return $filtered_client;
 		}
@@ -123,7 +123,7 @@ class DifmProviderResolver {
 		 * @param DifmAiClientInterface|null $client            Client override.
 		 * @param string                     $selected_provider Saved provider setting.
 		 */
-		$filtered_client = apply_filters( 'woocommerce_claude_difm_ai_client', null, $selected_provider );
+		$filtered_client = apply_filters( 'hey_woo_difm_ai_client', null, $selected_provider );
 		if ( $filtered_client instanceof DifmAiClientInterface ) {
 			return true;
 		}
@@ -178,12 +178,12 @@ class DifmProviderResolver {
 
 		switch ( $provider ) {
 			case self::PROVIDER_WORDPRESS_AI:
-				return __( 'WordPress AI connectors', 'woocommerce-claude' );
+				return __( 'WordPress AI connectors', 'hey-woo' );
 			case self::PROVIDER_ANTHROPIC:
-				return __( 'Anthropic', 'woocommerce-claude' );
+				return __( 'Anthropic', 'hey-woo' );
 			case self::PROVIDER_AUTO:
 			default:
-				return __( 'Auto', 'woocommerce-claude' );
+				return __( 'Auto', 'hey-woo' );
 		}
 	}
 
@@ -199,7 +199,7 @@ class DifmProviderResolver {
 
 		return new \WP_Error(
 			'no_ai_provider',
-			__( 'No AI provider is configured.', 'woocommerce-claude' ),
+			__( 'No AI provider is configured.', 'hey-woo' ),
 			array( 'status' => 400 )
 		);
 	}
@@ -214,7 +214,7 @@ class DifmProviderResolver {
 		if ( ! WordPressAiClientAdapter::is_supported() ) {
 			return new \WP_Error(
 				'wordpress_ai_unavailable',
-				__( 'WordPress AI connectors are not available on this site.', 'woocommerce-claude' ),
+				__( 'WordPress AI connectors are not available on this site.', 'hey-woo' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -223,7 +223,7 @@ class DifmProviderResolver {
 		if ( empty( $configured_provider_ids ) ) {
 			return new \WP_Error(
 				'no_ai_provider',
-				__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' ),
+				__( 'No WordPress AI provider connector is configured.', 'hey-woo' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -235,7 +235,7 @@ class DifmProviderResolver {
 		if ( '' === $provider_id ) {
 			return new \WP_Error(
 				'no_ai_provider',
-				__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' ),
+				__( 'No WordPress AI provider connector is configured.', 'hey-woo' ),
 				array( 'status' => 400 )
 			);
 		}

@@ -2,10 +2,10 @@
 /**
  * Provider-agnostic AI client contract for AI Insights.
  *
- * @package WooCommerce\Claude\Difm
+ * @package WooCommerce\HeyWoo\Difm
  */
 
-namespace WooCommerce\Claude\Difm;
+namespace WooCommerce\HeyWoo\Difm;
 
 defined( 'ABSPATH' ) || exit;
 

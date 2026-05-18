@@ -2,10 +2,10 @@
 /**
  * Runtime environment helpers for AI Insights providers.
  *
- * @package WooCommerce\Claude\Difm
+ * @package WooCommerce\HeyWoo\Difm
  */
 
-namespace WooCommerce\Claude\Difm;
+namespace WooCommerce\HeyWoo\Difm;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -37,7 +37,7 @@ class DifmProviderEnvironment {
 		 *
 		 * @param bool $is_connector_mode Whether WP 7.0 connector mode is active.
 		 */
-		return (bool) apply_filters( 'woocommerce_claude_difm_connector_mode', $is_connector_mode );
+		return (bool) apply_filters( 'hey_woo_difm_connector_mode', $is_connector_mode );
 	}
 
 	/**
@@ -85,7 +85,7 @@ class DifmProviderEnvironment {
 		 * @param string $setting_name Connector setting option name.
 		 * @param string $provider_id  Native AI provider ID.
 		 */
-		return (string) apply_filters( 'woocommerce_claude_difm_connector_setting_name', $setting_name, $provider_id );
+		return (string) apply_filters( 'hey_woo_difm_connector_setting_name', $setting_name, $provider_id );
 	}
 
 	/**
@@ -145,9 +145,9 @@ class DifmProviderEnvironment {
 
 		if ( '' === $label ) {
 			$known_labels = array(
-				'anthropic' => __( 'Anthropic', 'woocommerce-claude' ),
-				'openai'    => __( 'OpenAI', 'woocommerce-claude' ),
-				'google'    => __( 'Google', 'woocommerce-claude' ),
+				'anthropic' => __( 'Anthropic', 'hey-woo' ),
+				'openai'    => __( 'OpenAI', 'hey-woo' ),
+				'google'    => __( 'Google', 'hey-woo' ),
 			);
 
 			$label = isset( $known_labels[ $provider_id ] )
@@ -163,7 +163,7 @@ class DifmProviderEnvironment {
 		 * @param string $label       Connector label.
 		 * @param string $provider_id Native AI provider ID.
 		 */
-		return (string) apply_filters( 'woocommerce_claude_difm_connector_label', $label, $provider_id );
+		return (string) apply_filters( 'hey_woo_difm_connector_label', $label, $provider_id );
 	}
 
 	/**
@@ -245,11 +245,11 @@ class DifmProviderEnvironment {
 				wc_get_logger()->warning(
 					sprintf(
 						/* translators: 1: AI provider ID, 2: exception message. */
-						__( 'WooCommerce for Claude could not refresh the %1$s AI connector registry credentials after settings save: %2$s', 'woocommerce-claude' ),
+						__( 'Hey Woo could not refresh the %1$s AI connector registry credentials after settings save: %2$s', 'hey-woo' ),
 						$provider_id,
 						$e->getMessage()
 					),
-					array( 'source' => 'woocommerce-claude' )
+					array( 'source' => 'hey-woo' )
 				);
 			}
 			return;

@@ -1,13 +1,13 @@
 <?php
 /**
- * WordPress AI Client adapter for WooCommerce for Claude AI Insights.
+ * WordPress AI Client adapter for Hey Woo.
  *
- * @package WooCommerce\Claude\Difm
+ * @package WooCommerce\HeyWoo\Difm
  */
 
-namespace WooCommerce\Claude\Difm;
+namespace WooCommerce\HeyWoo\Difm;
 
-use WooCommerce\Claude\Telemetry\DifmAiTelemetry;
+use WooCommerce\HeyWoo\Telemetry\DifmAiTelemetry;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -68,7 +68,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		 *
 		 * @param bool $is_supported Whether required WordPress AI Client primitives exist.
 		 */
-		return (bool) apply_filters( 'woocommerce_claude_difm_wordpress_ai_supported', $is_supported );
+		return (bool) apply_filters( 'hey_woo_difm_wordpress_ai_supported', $is_supported );
 	}
 
 	/**
@@ -90,7 +90,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		 *
 		 * @param bool|null $has_credentials Test/integration override.
 		 */
-		$filtered_credentials = apply_filters( 'woocommerce_claude_difm_wordpress_ai_has_credentials', null );
+		$filtered_credentials = apply_filters( 'hey_woo_difm_wordpress_ai_has_credentials', null );
 		if ( null !== $filtered_credentials ) {
 			return (bool) $filtered_credentials;
 		}
@@ -162,7 +162,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		 *
 		 * @param array<int,string> $provider_ids Configured provider IDs.
 		 */
-		$provider_ids = apply_filters( 'woocommerce_claude_difm_wordpress_ai_configured_provider_ids', $provider_ids );
+		$provider_ids = apply_filters( 'hey_woo_difm_wordpress_ai_configured_provider_ids', $provider_ids );
 
 		return self::normalise_provider_ids( $provider_ids );
 	}
@@ -213,14 +213,14 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		if ( ! self::is_supported() ) {
 			return new \WP_Error(
 				'wordpress_ai_unavailable',
-				__( 'WordPress AI is not available on this site.', 'woocommerce-claude' )
+				__( 'WordPress AI is not available on this site.', 'hey-woo' )
 			);
 		}
 
 		if ( ! self::has_api_key() ) {
 			return new \WP_Error(
 				'no_api_key',
-				__( 'No WordPress AI provider connector is configured.', 'woocommerce-claude' )
+				__( 'No WordPress AI provider connector is configured.', 'hey-woo' )
 			);
 		}
 
@@ -362,7 +362,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		 * @param array<int,string> $preference     Provider IDs in priority order.
 		 * @param array<int,string> $configured_ids Configured provider IDs.
 		 */
-		$preference = apply_filters( 'woocommerce_claude_difm_wordpress_ai_provider_preference', $preference, $configured_ids );
+		$preference = apply_filters( 'hey_woo_difm_wordpress_ai_provider_preference', $preference, $configured_ids );
 		$preference = self::normalise_provider_ids( $preference );
 
 		foreach ( $preference as $provider_id ) {
@@ -434,7 +434,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 		 *
 		 * @param float $timeout Timeout in seconds.
 		 */
-		$timeout = apply_filters( 'woocommerce_claude_difm_wordpress_ai_request_timeout', self::REQUEST_TIMEOUT );
+		$timeout = apply_filters( 'hey_woo_difm_wordpress_ai_request_timeout', self::REQUEST_TIMEOUT );
 		if ( ! is_numeric( $timeout ) || (float) $timeout < 0 ) {
 			$timeout = self::REQUEST_TIMEOUT;
 		}
@@ -477,7 +477,7 @@ class WordPressAiClientAdapter implements DifmAiClientInterface {
 
 			if ( $this->content_contains_tool_result( $content ) ) {
 				// Mid-loop continuation: the real user prompt is already in history.
-				return __( 'Continue using the tool results.', 'woocommerce-claude' );
+				return __( 'Continue using the tool results.', 'hey-woo' );
 			}
 		}
 

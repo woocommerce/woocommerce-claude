@@ -37,7 +37,6 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		global $wp_rest_server;
 		$wp_rest_server = new \WP_REST_Server();
 		$this->server   = $wp_rest_server;
-		update_option( 'woocommerce_claude_difm_provider', 'anthropic' );
 		// phpcs:ignore WooCommerce.Commenting.CommentHooks.MissingHookComment -- This action is documented in wp-includes/rest-api.php.
 		do_action( 'rest_api_init' );
 	}
@@ -48,7 +47,6 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 	public function tear_down() {
 		remove_all_filters( 'pre_http_request' );
 		delete_option( 'woocommerce_claude_anthropic_api_key' );
-		delete_option( 'woocommerce_claude_difm_provider' );
 		if ( $this->admin_user_id ) {
 			delete_transient( DifmRestController::PENDING_LARGE_RANGE_PREFIX . $this->admin_user_id );
 		}
@@ -315,12 +313,8 @@ class Test_Difm_Rest_Controller extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'input_schema', $rows_tool );
 		$this->assertArrayHasKey( 'filters', $rows_tool['input_schema']['properties'] );
 		$this->assertArrayNotHasKey( 'description', $rows_tool['input_schema']['properties']['filters'] );
-		$this->assertArrayHasKey( 'items', $rows_tool['input_schema']['properties']['filters'] );
-		$this->assertSame( 'object', $rows_tool['input_schema']['properties']['filters']['items']['type'] );
-		$this->assertSame( array(), $rows_tool['input_schema']['properties']['filters']['items']['properties'] );
 		$this->assertStringContainsString( '"name":"get_store_profile"', $captured_raw_body );
 		$this->assertStringContainsString( '"input_schema":{"type":"object","properties":{}}', $captured_raw_body );
-		$this->assertStringContainsString( '"filters":{"type":"array","default":[],"items":{"type":"object","properties":{}}}', $captured_raw_body );
 		$this->assertStringContainsString( 'analytics_series', $captured_body['system'] );
 		$this->assertStringContainsString( 'last two weeks', $captured_body['system'] );
 		$this->assertStringContainsString( 'not period=last_7_days', $captured_body['system'] );

@@ -2,10 +2,10 @@
 /**
  * Generic AI provider telemetry helpers for AI Insights.
  *
- * @package WooCommerce\Claude
+ * @package WooCommerce\HeyWoo
  */
 
-namespace WooCommerce\Claude\Telemetry;
+namespace WooCommerce\HeyWoo\Telemetry;
 
 defined( 'ABSPATH' ) || exit;
 
