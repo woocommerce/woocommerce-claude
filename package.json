@@ -19,5 +19,14 @@
   },
   "devDependencies": {
     "@wordpress/env": "11.5.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/node": "25.6.2",
+      "@playwright/test": "1.59.1",
+      "@typescript-eslint/eslint-plugin": "8.59.2",
+      "@typescript-eslint/parser": "8.59.2",
+      "typescript-eslint": "8.59.2"
+    }
   }
 }
