@@ -4,6 +4,6 @@
 	"version": "1.0.0",
 	"route": {
 		"path": "/idea-board",
-		"page": "woocommerce-claude-insights"
+		"page": "hey-woo-insights"
 	}
 }

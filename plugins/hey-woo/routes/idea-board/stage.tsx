@@ -11,9 +11,9 @@ export function stage() {
 			<div className="hey-woo-idea-page">
 				<header className="hey-woo-idea-header">
 					<div className="hey-woo-idea-header__summary">
-						<h1>{ __( 'Idea board', 'woocommerce-claude' ) }</h1>
+						<h1>{ __( 'Idea board', 'hey-woo' ) }</h1>
 						<p className="hey-woo-idea-header__date-range">
-							{ __( 'The idea board is not enabled for this store.', 'woocommerce-claude' ) }
+							{ __( 'The idea board is not enabled for this store.', 'hey-woo' ) }
 						</p>
 					</div>
 				</header>
