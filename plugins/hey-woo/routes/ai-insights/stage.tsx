@@ -1,8 +1,8 @@
 /**
- * Hey Woo stage — root component for the Hey Woo chat interface.
+ * AI Insights stage — root component for the Hey Woo chat interface.
  *
  * Exported as `stage` following the @wordpress/boot route convention.
- * Rendered by the boot router when the user visits the Hey Woo page.
+ * Rendered by the boot router when the user visits the AI Insights page.
  *
  * The outer `stage` reads the URL search params reactively via `useSearch` so
  * that clicking a nav item (new chat or a recent conversation) causes the inner
@@ -113,7 +113,7 @@ function ChatView( { urlConversationId, conversations, onSaveConversation }: Cha
 		<div className="hey-woo-page hey-woo-page--chat">
 			<header className="hey-woo-chat-header">
 				<h1 className="hey-woo-chat-header__title">
-					{ __( 'Ask Claude', 'hey-woo' ) }
+					{ __( 'Ask AI', 'hey-woo' ) }
 				</h1>
 				<p className="hey-woo-chat-header__subtitle">
 					{ __( 'Ask anything about your store', 'hey-woo' ) }
