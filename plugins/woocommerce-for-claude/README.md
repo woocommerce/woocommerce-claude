@@ -262,7 +262,7 @@ add_filter( 'woocommerce_claude_enriched_product', function( $data, $product ) {
 ## Local development
 
 ```bash
-# Install Node dependencies:
+# Install Node and Composer dependencies:
 pnpm install
 
 # Start the WordPress + WooCommerce environment:
