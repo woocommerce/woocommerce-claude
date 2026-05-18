@@ -18,7 +18,8 @@
   "env": {
     "tests": {
       "mappings": {
-        "wp-content/plugins/woocommerce-claude-tests": "./plugins/woocommerce-for-claude"
+        "wp-content/plugins/woocommerce-claude-tests": "./plugins/woocommerce-for-claude",
+        "wp-content/plugins/hey-woo": "./plugins/hey-woo"
       }
     }
   }
