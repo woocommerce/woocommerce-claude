@@ -571,11 +571,6 @@ namespace {
 		exit( 1 );
 	}
 
-	if ( ! is_subclass_of( "WooCommerce\\\\HeyWoo\\\\API\\\\ReadinessController", "WooCommerce\\\\CommerceAbilities\\\\API\\\\AbstractReadinessController" ) ) {
-		fwrite( STDERR, "Hey Woo readiness controller is not wrapping the shared controller base\n" );
-		exit( 1 );
-	}
-
 	if ( ! isset( $GLOBALS["wc_probe_categories"]["hey-woo"] ) ) {
 		fwrite( STDERR, "Hey Woo did not register its ability category\n" );
 		exit( 1 );

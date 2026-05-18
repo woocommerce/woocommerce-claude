@@ -61,9 +61,6 @@ function hey_woo_load_commerce_abilities() {
 		\WooCommerce\CommerceAbilities\Scoring\Factors\ContentQuality::class => 'Scoring/factors/class-content-quality.php',
 		\WooCommerce\CommerceAbilities\Scoring\ScoringEngine::class => 'Scoring/class-scoring-engine.php',
 		\WooCommerce\CommerceAbilities\Store\StoreKnowledge::class => 'Store/class-store-knowledge.php',
-		\WooCommerce\CommerceAbilities\API\AbstractStoreController::class => 'API/class-abstract-store-controller.php',
-		\WooCommerce\CommerceAbilities\API\AbstractProductsController::class => 'API/class-abstract-products-controller.php',
-		\WooCommerce\CommerceAbilities\API\AbstractReadinessController::class => 'API/class-abstract-readiness-controller.php',
 		\WooCommerce\CommerceAbilities\Abilities\Store\GetStoreProfileAbilityTrait::class => 'Abilities/Store/trait-get-store-profile-ability.php',
 		\WooCommerce\CommerceAbilities\Abilities\Store\SearchProductsAbilityTrait::class => 'Abilities/Store/trait-search-products-ability.php',
 		\WooCommerce\CommerceAbilities\Abilities\Store\GetProductDetailsAbilityTrait::class => 'Abilities/Store/trait-get-product-details-ability.php',
@@ -177,10 +174,6 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-policy-completeness.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-content-quality.php';
 
-	require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-store-controller.php';
-	require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-products-controller.php';
-	require_once HEY_WOO_PLUGIN_DIR . 'includes/api/class-readiness-controller.php';
-
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-store-profile-ability.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-search-products-ability.php';
@@ -259,10 +252,6 @@ function hey_woo_init_runtime() {
 	);
 
 	add_filter( 'woocommerce_get_settings_pages', 'hey_woo_register_settings_page' );
-
-	add_action( 'rest_api_init', array( \WooCommerce\HeyWoo\API\StoreController::class, 'register_routes' ) );
-	add_action( 'rest_api_init', array( \WooCommerce\HeyWoo\API\ProductsController::class, 'register_routes' ) );
-	add_action( 'rest_api_init', array( \WooCommerce\HeyWoo\API\ReadinessController::class, 'register_routes' ) );
 
 	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
