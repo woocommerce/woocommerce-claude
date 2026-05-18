@@ -1,25 +1,22 @@
-name: Release WooCommerce for Claude
+name: Release Hey Woo
 
-# Produce distributable WooCommerce for Claude zips and publish them as a
-# GitHub Release.
+# Produce the distributable Hey Woo plugin zip from plugins/hey-woo and publish
+# it as a GitHub Release.
 #
-# Trigger: manual workflow_dispatch only — tag pushes do NOT trigger this
-# workflow; the tag + Release are CREATED by the workflow, not consumed by it.
-# This makes the release a deliberate UI action that goes through the full
-# build + validation path.
+# Trigger: manual workflow_dispatch only. Hey Woo has its own version and tag
+# namespace so it can release independently from WooCommerce for Claude while
+# staying in this monorepo.
 #
-# Prerequisites (enforced at runtime, workflow fails fast if not met):
-#   - The `version` input must match the `Version:` header in the WooCommerce
-#     for Claude WordPress plugin package. Bump the header on a PR and merge it
-#     first, then dispatch this workflow with the matching version.
-#   - The tag `v<version>` must not already exist on the remote.
-# Hey Woo has its own workflow in this repo: release-hey-woo.yml.
+# Prerequisites:
+#   - The `version` input must match the `Version:` header in
+#     plugins/hey-woo/hey-woo.php.
+#   - The tag `hey-woo-v<version>` must not already exist on the remote.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, e.g. 0.1.0 (must match WordPress plugin headers)'
+        description: 'Release version, e.g. 0.4.2 (must match plugins/hey-woo/hey-woo.php)'
         required: true
         type: string
       draft:
@@ -43,13 +40,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Validate version input matches plugin headers
+      - name: Validate version input matches Hey Woo plugin header
         run: |
-          # Strip an optional leading 'v' so both "0.1.0" and "v0.1.0" are accepted.
           INPUT_VERSION="${{ inputs.version }}"
           INPUT_VERSION="${INPUT_VERSION#v}"
 
-          PLUGIN_FILE="plugins/woocommerce-for-claude/woocommerce-claude.php"
+          PLUGIN_FILE="plugins/hey-woo/hey-woo.php"
           HEADER_VERSION="$(awk '/^ \* Version:/ { print $3; exit }' "${PLUGIN_FILE}")"
           if [[ -z "${HEADER_VERSION}" ]]; then
             echo "ERROR: could not read Version header from ${PLUGIN_FILE}" >&2
@@ -58,12 +54,12 @@ jobs:
 
           if [[ "${INPUT_VERSION}" != "${HEADER_VERSION}" ]]; then
             echo "ERROR: input version '${INPUT_VERSION}' does not match ${PLUGIN_FILE}'s Version header ('${HEADER_VERSION}')." >&2
-            echo "       Bump the plugin header on a PR first, merge it, then re-run this workflow." >&2
+            echo "       Bump the Hey Woo plugin header on a PR first, merge it, then re-run this workflow." >&2
             exit 1
           fi
 
           echo "VERSION=${INPUT_VERSION}" >> "$GITHUB_ENV"
-          echo "TAG_NAME=v${INPUT_VERSION}" >> "$GITHUB_ENV"
+          echo "TAG_NAME=hey-woo-v${INPUT_VERSION}" >> "$GITHUB_ENV"
 
       - name: Verify tag does not already exist
         run: |
@@ -99,43 +95,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build WordPress plugin zip
-        run: pnpm run plugin-zip
+      - name: Build Hey Woo plugin zip
+        run: pnpm run hey-woo-plugin-zip
 
-      - name: Build Claude agent plugin zip
-        run: pnpm run agent-plugin-zip
-
-      - name: Verify zips were produced
+      - name: Verify zip was produced
         run: |
-          if [ ! -f woocommerce-for-claude.zip ]; then
-            echo "ERROR: woocommerce-for-claude.zip not found" >&2
+          if [ ! -f hey-woo.zip ]; then
+            echo "ERROR: hey-woo.zip not found" >&2
             exit 1
           fi
-          if [ ! -f woocommerce-claude-agent-plugin.zip ]; then
-            echo "ERROR: woocommerce-claude-agent-plugin.zip not found" >&2
-            exit 1
-          fi
-          unzip -t woocommerce-for-claude.zip
-          unzip -t woocommerce-claude-agent-plugin.zip
+          unzip -t hey-woo.zip
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6
         with:
-          name: woocommerce-claude-${{ env.VERSION }}
-          path: |
-            woocommerce-for-claude.zip
-            woocommerce-claude-agent-plugin.zip
+          name: hey-woo-${{ env.VERSION }}
+          path: hey-woo.zip
           retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: ${{ env.TAG_NAME }}
+          name: Hey Woo v${{ env.VERSION }}
           target_commitish: ${{ github.sha }}
-          files: |
-            woocommerce-for-claude.zip
-            woocommerce-claude-agent-plugin.zip
+          files: hey-woo.zip
           generate_release_notes: true
           draft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}

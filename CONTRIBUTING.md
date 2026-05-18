@@ -39,7 +39,7 @@ There is **no separate MCP server process** — WooCommerce for Claude registers
 | Path | What |
 |---|---|
 | `plugins/woocommerce-for-claude/` | Product plugin package. Owns the WordPress plugin bootstrap, MCP endpoint, Claude setup, admin UI, tests, and release zip build. |
-| `plugins/hey-woo/` | Hey Woo BYOK plugin package scaffold. Proves the second WordPress plugin package, shared `commerce-abilities` consumption, and `hey-woo.zip` release build before product logic moves. |
+| `plugins/hey-woo/` | Canonical Hey Woo BYOK admin chat plugin package. Owns the WordPress-admin chat experience, settings, conversation history, workflow skills, and `hey-woo.zip` release build. |
 | `php-packages/commerce-abilities/src/Abilities/` | Shared `wc-analytics/*` ability classes plus `LargeRangeGate` and the analytics bootstrap. |
 | `php-packages/commerce-abilities/src/Analytics/class-analytics-service.php` | Shared analytics data-access service. Holds the SQL + response assembly for every analytics subject; no REST routes of its own. |
 | `plugins/woocommerce-for-claude/includes/abilities/` | WooCommerce for Claude product abilities — `woocommerce-claude/*` tools, `wc-knowledge/*` resources, `wc-prompts/*` prompts, dev-only integration scaffolds, and backwards-compatible aliases for the shared analytics classes. Bootstrap in `class-abilities-bootstrap.php`. |
@@ -99,7 +99,7 @@ if ( false !== $cached ) {
 
 ## Pre-push checks: `./bin/check`
 
-Runs the full lint/test suite locally — PHPCS (WordPress + Docs), Hey Woo scaffold lint/Composer checks, composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
+Runs the full lint/test suite locally — PHPCS (WordPress + Docs), Hey Woo lint/Composer checks, composer audit, and PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
 
 ```bash
 pnpm install              # first run only

@@ -864,8 +864,8 @@ class DifmRestController {
 	 * Whether an ability belongs to another plugin and should be omitted when absent.
 	 *
 	 * Hey Woo can use WooCommerce for Claude's product/readiness abilities when
-	 * both plugins are active, but the standalone BYOK plugin must still work
-	 * with the shared analytics abilities only.
+	 * both plugins are active, but it must still work with the shared analytics
+	 * abilities only when WooCommerce for Claude is not installed.
 	 *
 	 * @param string $ability_id Ability ID.
 	 * @return bool

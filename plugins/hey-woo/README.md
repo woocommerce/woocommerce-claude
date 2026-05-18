@@ -11,3 +11,10 @@ plugin.
 WooCommerce for Claude still owns the external MCP product. When that plugin is
 also active, Hey Woo can use its product and readiness abilities in the chat
 tool bridge; otherwise the admin chat runs with the shared analytics tools.
+
+## Releases
+
+Hey Woo is released from this monorepo. Source changes live under
+`plugins/hey-woo/`; the root `pnpm run hey-woo-plugin-zip` command builds
+`hey-woo.zip`, and the **Release Hey Woo** workflow publishes it with a
+`hey-woo-v<version>` tag.
