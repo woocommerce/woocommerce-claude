@@ -2,15 +2,12 @@
 /**
  * `woocommerce-claude/get-readiness-score` ability — AI readiness score.
  *
- * Thin wrapper over ReadinessController::get_score() (which uses
- * ScoringEngine::get_store_score()).
- *
  * @package WooCommerce\Claude
  */
 
 namespace WooCommerce\Claude\Abilities;
 
-use WooCommerce\Claude\API\ReadinessController;
+use WooCommerce\CommerceAbilities\Abilities\Store\GetReadinessScoreAbilityTrait;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -18,6 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * Registers the get-readiness-score tool ability.
  */
 class GetReadinessScoreAbility {
+	use GetReadinessScoreAbilityTrait;
 
 	const ABILITY_NAME = 'woocommerce-claude/get-readiness-score';
 
@@ -29,7 +27,7 @@ class GetReadinessScoreAbility {
 			self::ABILITY_NAME,
 			array(
 				'label'               => __( 'Get readiness score', 'woocommerce-claude' ),
-				'description'         => __( "Get the store's AI readiness score (0-100) with breakdown by factor: product completeness, schema coverage, policy completeness, and content quality. Requires the WooCommerce for Claude plugin.", 'woocommerce-claude' ),
+				'description'         => __( "Get the store's AI readiness score (0-100) with breakdown by factor: product completeness, schema coverage, policy completeness, and content quality.", 'woocommerce-claude' ),
 				'category'            => AbilitiesBootstrap::CATEGORY,
 				'input_schema'        => AbilitiesBootstrap::empty_input_schema(),
 				'execute_callback'    => array( __CLASS__, 'execute' ),
@@ -43,29 +41,5 @@ class GetReadinessScoreAbility {
 				),
 			)
 		);
-	}
-
-	/**
-	 * Permission gate — same capability as WC Admin.
-	 *
-	 * @param array $input Ability input (unused).
-	 * @return bool
-	 */
-	public static function permission_check( $input = null ) {
-		unset( $input );
-		return current_user_can( 'manage_woocommerce' );
-	}
-
-	/**
-	 * Run the ability — delegates to ReadinessController::get_score().
-	 *
-	 * @param array $input Validated ability input (unused — takes no args).
-	 * @return array
-	 */
-	public static function execute( $input = null ) {
-		unset( $input );
-
-		$response = ReadinessController::get_score();
-		return $response instanceof \WP_REST_Response ? $response->get_data() : $response;
 	}
 }

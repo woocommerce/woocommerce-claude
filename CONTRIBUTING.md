@@ -32,20 +32,26 @@ Scoring engine
 
 There is **no separate MCP server process** — WooCommerce for Claude registers its own MCP server via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`) and owns the single endpoint at `/wp-json/woocommerce-claude/mcp`. The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('woocommerce-claude', 'woocommerce-claude', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts.
 
-**Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). The shared `woocommerce/commerce-abilities` Composer package owns the `wc-analytics/*` ability classes, the large-range gate, and the SQL-backed analytics service; WooCommerce for Claude owns MCP curation, auth, setup, and product-specific abilities.
+**Analytics Skills** all use the WordPress Abilities API (`wp_register_ability()`, auto-exposed under `wp-abilities/v1/abilities/wc-analytics/{skill}/run`). The shared `woocommerce/commerce-abilities` Composer package owns the `wc-analytics/*` ability classes, the large-range gate, the SQL-backed analytics service, and the shared store knowledge/readiness implementation used by both product plugins. WooCommerce for Claude owns MCP curation, auth, setup, and its `woocommerce-claude/*` wrappers.
+
+Hey Woo is independent of WooCommerce for Claude. It registers its own `hey-woo/*`
+store, product, catalogue, and readiness abilities for the admin chat, while
+consuming the same shared implementation from `woocommerce/commerce-abilities`.
+Do not wire Hey Woo's DIFM tool bridge to `woocommerce-claude/*` ability IDs.
 
 ### Key directories
 
 | Path | What |
 |---|---|
 | `plugins/woocommerce-for-claude/` | Product plugin package. Owns the WordPress plugin bootstrap, MCP endpoint, Claude setup, admin UI, tests, and release zip build. |
-| `plugins/hey-woo/` | Canonical Hey Woo BYOK admin chat plugin package. Owns the WordPress-admin chat experience, settings, conversation history, workflow skills, and `hey-woo.zip` release build. |
-| `php-packages/commerce-abilities/src/Abilities/` | Shared `wc-analytics/*` ability classes plus `LargeRangeGate` and the analytics bootstrap. |
+| `plugins/hey-woo/` | Canonical Hey Woo BYOK admin chat plugin package. Owns the WordPress-admin chat experience, settings, conversation history, workflow skills, local `hey-woo/*` wrappers, and `hey-woo.zip` release build. |
+| `php-packages/commerce-abilities/src/Abilities/` | Shared `wc-analytics/*` ability classes plus `LargeRangeGate`, the analytics bootstrap, and reusable store/readiness ability traits. |
 | `php-packages/commerce-abilities/src/Analytics/class-analytics-service.php` | Shared analytics data-access service. Holds the SQL + response assembly for every analytics subject; no REST routes of its own. |
+| `php-packages/commerce-abilities/src/Knowledge/`, `src/Scoring/`, `src/API/`, `src/Store/` | Shared store knowledge providers, readiness scoring engine, REST controller bases, and service layer consumed by both WooCommerce for Claude and Hey Woo. |
 | `plugins/woocommerce-for-claude/includes/abilities/` | WooCommerce for Claude product abilities — `woocommerce-claude/*` tools, `wc-knowledge/*` resources, `wc-prompts/*` prompts, dev-only integration scaffolds, and backwards-compatible aliases for the shared analytics classes. Bootstrap in `class-abilities-bootstrap.php`. |
 | `plugins/woocommerce-for-claude/includes/api/class-analytics-controller.php` | Backwards-compatible alias to `AnalyticsService` for existing tests and extension code. New shared analytics code should call `AnalyticsService` directly. |
-| `plugins/woocommerce-for-claude/includes/api/` | REST controllers for store, catalog, products, readiness. The non-analytics tool abilities delegate into these. |
-| `plugins/woocommerce-for-claude/includes/knowledge/providers/` | Knowledge providers (store profile, catalog, products, policies) |
+| `plugins/woocommerce-for-claude/includes/api/` | REST controllers for store, catalogue, products, readiness. The non-analytics tool abilities delegate into these. |
+| `plugins/woocommerce-for-claude/includes/knowledge/providers/` | Knowledge providers (store profile, catalogue, products, policies) |
 | `plugins/woocommerce-for-claude/includes/scoring/` | Scoring engine + 4 factors (product completeness, schema coverage, content quality, policy completeness) |
 | `plugins/woocommerce-for-claude/includes/class-plugin.php` | Singleton. Boots the WP MCP adapter on `plugins_loaded` and registers the WooCommerce for Claude MCP server (with its tools, resources, prompts, and a Basic-auth callback that authenticates `ck_xxx:cs_xxx` against `wp_woocommerce_api_keys`) on `mcp_adapter_init`. |
 | `plugins/woocommerce-for-claude/skills/` | Reference Claude Code / Codex skills (catalog-audit, product-content-generator, store-health-monitor) |

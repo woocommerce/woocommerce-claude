@@ -775,12 +775,7 @@ INSTRUCTIONS;
 	 * Register all knowledge providers.
 	 */
 	private function register_providers() {
-		$registry = Knowledge\KnowledgeRegistry::instance();
-
-		$registry->register( new Knowledge\Providers\StoreProfileProvider() );
-		$registry->register( new Knowledge\Providers\CatalogProvider() );
-		$registry->register( new Knowledge\Providers\ProductProvider() );
-		$registry->register( new Knowledge\Providers\PolicyProvider() );
+		$registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( 'woocommerce-claude' );
 
 		/**
 		 * Allow other plugins to register their own knowledge providers.

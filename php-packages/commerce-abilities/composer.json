@@ -1,6 +1,6 @@
 {
     "name": "woocommerce/commerce-abilities",
-    "description": "Shared commerce analytics abilities for WooCommerce AI products.",
+    "description": "Shared commerce abilities, analytics, store knowledge, and readiness scoring for WooCommerce AI products.",
     "type": "library",
     "license": "GPL-3.0-or-later",
     "autoload": {
