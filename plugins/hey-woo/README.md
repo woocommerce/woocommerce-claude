@@ -13,6 +13,8 @@ the admin chat works without WooCommerce for Claude.
 WooCommerce for Claude still owns the external MCP product. When that plugin is
 also active, the two plugins run side by side but Hey Woo does not depend on its
 ability namespace.
+Hey Woo does not render or provision WooCommerce for Claude's external MCP
+setup; merchants configure that in WooCommerce for Claude when they need it.
 
 ## Releases
 

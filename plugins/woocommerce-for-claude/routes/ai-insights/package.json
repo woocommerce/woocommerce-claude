@@ -1,9 +1,0 @@
-{
-	"private": true,
-	"name": "_@woocommerce-claude/ai-insights-route",
-	"version": "1.0.0",
-	"route": {
-		"path": "/",
-		"page": "woocommerce-claude-insights"
-	}
-}
