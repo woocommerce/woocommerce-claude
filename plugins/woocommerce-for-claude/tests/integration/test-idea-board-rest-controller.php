@@ -659,10 +659,15 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'ai', $data['board']['content']['source'] );
 		$this->assertSame( 'sessions', $data['board']['layout']['source'] );
 		$this->assertStringContainsString( 'initial_generation_rule', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( 'signal_quality_rules', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( 'refinement_rule', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( 'revenue_lever_aliases', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'readiness_recommendations', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'allowed_revenue_levers', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'decision_brief_shape', $captured_bodies[0]['messages'][0]['content'] );
 		$this->assertStringContainsString( 'evidence_details_shape', $captured_bodies[0]['messages'][0]['content'] );
+		$this->assertStringContainsString( 'world-class brainstorming signals', $captured_bodies[0]['system'] );
+		$this->assertStringContainsString( 'Work in two passes internally', $captured_bodies[0]['system'] );
 		$this->assertStringNotContainsString( 'positions', strtolower( $captured_bodies[0]['system'] ) );
 		$this->assertStringContainsString( 'Canvas Tote', wp_json_encode( $data['board']['cards'] ) );
 		$this->assertSame( 'Two store signals are ready for merchant review.', $data['board']['summary'] );
@@ -703,14 +708,16 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 							'decisionBrief' => $decision_brief,
 							'insights'      => array(
 								array(
-									'title'           => 'Stock signal needs attention',
-									'body'            => 'A product availability signal should be investigated before campaign work starts.',
-									'confidence'      => 'high',
-									'evidence'        => '4 products unavailable',
-									'revenueLevers'   => array( 'inventory', 'revenue_protection' ),
-									'severity'        => 'critical',
-									'estimatedImpact' => 'High revenue protection opportunity',
-									'whyItMatters'    => 'Unavailable products can waste demand.',
+									'title'             => 'Stock signal needs attention',
+									'commercialMeaning' => 'A product availability signal should be investigated before campaign work starts.',
+									'confidence'        => 'high',
+									'specificEvidence'  => '4 products unavailable',
+									'revenueLever'      => 'campaign_efficiency',
+									'severity'          => 'critical',
+									'estimatedImpact'   => 'High revenue protection opportunity',
+									'brainstormReason'  => 'Unavailable products can waste demand.',
+									'missingContext'    => 'merchant_input_needed: supplier timing and campaign intent',
+									'investigationQuestions' => array( 'Are campaigns still sending visitors to unavailable products?' ),
 								),
 							),
 						),
@@ -749,8 +756,13 @@ class Test_Idea_Board_Rest_Controller extends WP_UnitTestCase {
 		$this->assertSame( 'insights', $card['stage'] );
 		$this->assertSame( 'new', $card['status'] );
 		$this->assertSame( 'ai', $card['createdBy'] );
-		$this->assertSame( array( 'inventory', 'revenue_protection' ), $card['revenueLevers'] );
+		$this->assertSame( array( 'campaign_efficiency' ), $card['revenueLevers'] );
 		$this->assertSame( 'critical', $card['severity'] );
+		$this->assertSame( 'A product availability signal should be investigated before campaign work starts.', $card['body'] );
+		$this->assertSame( '4 products unavailable', $card['evidence'] );
+		$this->assertSame( 'Unavailable products can waste demand.', $card['whyItMatters'] );
+		$this->assertSame( 'Are campaigns still sending visitors to unavailable products?', $card['prompt'] );
+		$this->assertSame( 'merchant_input_needed: supplier timing and campaign intent', $card['evidenceDetails']['unknowns'] );
 		$this->assertSame( 'Top products are unavailable while campaign context is active.', $data['board']['decisionBrief']['whatChanged'] );
 	}
 

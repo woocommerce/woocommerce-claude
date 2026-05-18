@@ -2331,8 +2331,12 @@ function leverLabel( lever: IdeaBoardRevenueLever ) {
 		margin: __( 'Margin', 'woocommerce-claude' ),
 		inventory: __( 'Inventory', 'woocommerce-claude' ),
 		pricing: __( 'Pricing', 'woocommerce-claude' ),
+		promotions: __( 'Promotions', 'woocommerce-claude' ),
 		campaign_spend: __( 'Campaign spend', 'woocommerce-claude' ),
+		campaign_efficiency: __( 'Campaign efficiency', 'woocommerce-claude' ),
 		catalogue_quality: __( 'Catalogue quality', 'woocommerce-claude' ),
+		checkout: __( 'Checkout', 'woocommerce-claude' ),
+		customer_mix: __( 'Customer mix', 'woocommerce-claude' ),
 		revenue_protection: __( 'Revenue protection', 'woocommerce-claude' ),
 	};
 	return labels[ lever ];

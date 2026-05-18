@@ -2698,20 +2698,26 @@ class IdeaBoardRestController {
 	 * @return string
 	 */
 	private function build_idea_board_content_system_prompt() {
-		return 'You create the first set of idea-board insight cards for a WooCommerce merchant. '
+		return 'You are an expert ecommerce operator, WooCommerce analyst, and revenue-growth strategist. '
+			. 'Create world-class brainstorming signals from the supplied WooCommerce store data. '
 			. 'Use only the supplied aggregated analytics, store profile, country/location context, and readiness recommendations. '
-			. 'Do not invent customer-level details or include names, emails, addresses, order IDs, or other PII. '
+			. 'Do not invent supplier timelines, campaign intent, customer identities, private order details, or facts not present in the data. Do not include names, emails, addresses, order IDs, or other PII. '
 			. 'The initial board is only the signal stage: create insight cards in stage insights. Do not create questions, human context cards, actions, tasks, or execution workflow cards yet. '
-		. 'Prioritise problematic commercial signals before neutral baselines: revenue or order drops, top revenue products out of stock, ageing on-hold payment pipeline, catalogue/readiness gaps such as missing descriptions, attributes, images, or structured content, and material customer-mix signals. '
-		. 'Each insight card must reference at least one concrete metric, product, readiness recommendation, or trend from the analytics. '
+			. 'Work in two passes internally: first identify decision-grade store signal candidates, then refine them into the strongest 3 to 6 brainstorm-ready anchor cards. Return only the refined cards, not the candidate list. '
+			. 'A good signal is not a generic insight. It must be grounded in concrete store evidence, commercially meaningful, surprising or decision-worthy, connected to a revenue lever, and useful as the starting point for a merchant brainstorming session. '
+			. 'Prefer signals that connect multiple pieces of evidence, point to a real decision the merchant can make, expose a bottleneck in the store revenue equation, and can lead to practical actions inside WooCommerce, marketing, merchandising, operations, or customer retention. '
+			. 'Prioritise problematic commercial signals before neutral baselines: revenue or order drops, top revenue products out of stock, ageing on-hold payment pipeline, catalogue/readiness gaps such as missing descriptions, attributes, images, or structured content, and material customer-mix signals. '
+			. 'Avoid weak observations like "sales changed" unless you can explain why the change matters and what decision it creates. '
+			. 'Each insight card must reference at least one concrete metric, product, readiness recommendation, or trend from the analytics. '
 			. 'Every insight card must include revenueLevers, severity, estimatedImpact, whyItMatters, relatedSignalIds, and evidenceDetails. '
-		. 'Use accurate levers: inventory for stock-outs, catalogue_quality for product-content gaps, revenue_protection for drops or pipeline, retention for customer mix, and avoid pricing, margin, or campaign_spend unless the supplied data or merchant context supports it. '
-		. 'Also return a decisionBrief that feels like decision support: what changed, why it matters commercially, the biggest unknowns, the best next move, and upside/risk. '
-			. 'The prompt field must be a specific suggested next question a merchant could ask to investigate the signal. '
+			. 'Use accurate levers: inventory for stock-outs, catalogue_quality for product-content gaps, revenue_protection for drops or pipeline, customer_mix or retention for customer mix, checkout for payment-flow bottlenecks, campaign_efficiency or campaign_spend only when campaign evidence exists, and avoid pricing or margin unless the supplied data supports it. '
+			. 'For each card, make body explain what happened and why it matters commercially, evidence cite specific data points, whyItMatters explain why the signal deserves brainstorming, evidenceDetails.unknowns name the missing merchant or connected-tool context, and prompt provide the single sharp next investigation question. '
+			. 'Possible action directions may appear only as draft hypotheses in the explanation; do not frame them as final recommendations or create action cards. '
+			. 'Also return a decisionBrief that feels like decision support: what changed, why it matters commercially, the biggest unknowns, the best next move, and upside/risk. '
 			. 'Confidence rubric: high = directly evidenced by the analytics data; medium = inferred from a pattern; low = speculative or context-only. '
 			. 'Do not suggest building plugins, custom endpoints, REST routes, MCP tools, or developer-only work. '
 			. 'Return only valid JSON in this exact shape: {"summary":"...","decisionBrief":{"whatChanged":"...","commercialWhy":"...","biggestUnknowns":"...","bestNextMove":"...","upsideRisk":"..."},"cards":[{"id":"short-slug","kind":"insight","stage":"insights","title":"...","body":"...","colour":"yellow|pink|green|blue|orange|lime|white","order":0,"prompt":"...","confidence":"low|medium|high","evidence":"...","evidenceDetails":{"metricBaseline":"...","comparisonPeriod":"...","involvedProducts":"...","involvedOrders":"...","involvedCustomers":"...","confidenceReason":"...","dataFreshness":"...","unknowns":"...","wooLinks":[]},"timeframe":"...","source":"...","status":"new","approvalRequired":false,"revenueLevers":["inventory"],"severity":"low|medium|high|critical","estimatedImpact":"...","whyItMatters":"...","relatedSignalIds":[],"rootInsightId":"","createdBy":"ai"}]}. '
-			. 'Return 2 to 4 insight cards. Titles must be under 70 characters and bodies under 220 characters.';
+			. 'Return 3 to 6 insight cards. Titles must be under 70 characters and bodies under 220 characters.';
 	}
 
 	/**
@@ -2750,9 +2756,26 @@ class IdeaBoardRestController {
 					'customers' => $this->limit_nested_payload( $customers, 1800 ),
 				),
 				'readiness_recommendations' => $this->limit_nested_payload( $recs, 2800 ),
+				'signal_quality_rules'      => array(
+					'Only choose decision-worthy signals grounded in supplied evidence.',
+					'Prefer concrete commercial problems over neutral baselines.',
+					'Connect each signal to one or more allowed revenue levers.',
+					'Make missing merchant context explicit in evidenceDetails.unknowns.',
+					'Use prompt for the best first investigation question.',
+				),
+				'refinement_rule'           => 'First consider raw signal candidates, then return only the strongest 3 to 6 brainstorm-ready signal cards.',
 				'allowed_stages'            => array_keys( $this->allowed_stages() ),
 				'allowed_kinds'             => array_keys( $this->allowed_kinds() ),
 				'allowed_revenue_levers'    => array_keys( $this->allowed_revenue_levers() ),
+				'revenue_lever_aliases'     => array(
+					'gross_margin'        => 'margin',
+					'campaign_efficiency' => 'campaign_efficiency',
+					'campaign_spend'      => 'campaign_spend',
+					'checkout_flow'       => 'checkout',
+					'payment_flow'        => 'checkout',
+					'customer_mix'        => 'customer_mix',
+					'promotions'          => 'promotions',
+				),
 				'allowed_severities'        => array_keys( $this->allowed_severities() ),
 				'decision_brief_shape'      => array_keys( $this->normalise_idea_board_decision_brief( array() ) ),
 				'evidence_details_shape'    => array_keys( $this->normalise_idea_board_evidence_details( array() ) ),
@@ -3466,7 +3489,12 @@ class IdeaBoardRestController {
 	 * @return array|\WP_Error
 	 */
 	private function normalise_idea_board_card( $card, $index, $is_initial, $error_code ) {
-		if ( ! is_array( $card ) || ! isset( $card['id'], $card['kind'], $card['stage'], $card['title'], $card['body'] ) ) {
+		if ( ! is_array( $card ) ) {
+			return new \WP_Error( $error_code, __( 'The idea-board card omitted a required field.', 'hey-woo' ) );
+		}
+
+		$card = $this->normalise_idea_board_card_alias_fields( $card );
+		if ( ! isset( $card['id'], $card['kind'], $card['stage'], $card['title'], $card['body'] ) ) {
 			return new \WP_Error( $error_code, __( 'The idea-board card omitted a required field.', 'hey-woo' ) );
 		}
 
@@ -3541,7 +3569,7 @@ class IdeaBoardRestController {
 			'source'                => isset( $card['source'] ) ? $this->trim_card_text( $card['source'], 120 ) : '',
 			'status'                => $status,
 			'approvalRequired'      => $approval_required,
-			'revenueLevers'         => $this->normalise_revenue_levers( isset( $card['revenueLevers'] ) && is_array( $card['revenueLevers'] ) ? $card['revenueLevers'] : array(), $kind ),
+			'revenueLevers'         => $this->normalise_revenue_levers( $this->extract_idea_board_revenue_levers( $card ), $kind ),
 			'severity'              => $severity,
 			'estimatedImpact'       => isset( $card['estimatedImpact'] ) ? $this->trim_card_text( $card['estimatedImpact'], 120 ) : '',
 			'whyItMatters'          => isset( $card['whyItMatters'] ) ? $this->trim_card_text( $card['whyItMatters'], 220 ) : '',
@@ -3570,6 +3598,136 @@ class IdeaBoardRestController {
 	}
 
 	/**
+	 * Accept common signal-generation aliases without changing the saved card shape.
+	 *
+	 * @param array $card Raw card.
+	 * @return array
+	 */
+	private function normalise_idea_board_card_alias_fields( array $card ) {
+		if ( empty( $card['body'] ) ) {
+			$body = $this->first_non_empty_card_alias(
+				$card,
+				array( 'commercialMeaning', 'commercial_meaning', 'meaning', 'commercialWhy', 'commercial_why', 'explanation' )
+			);
+			if ( '' !== $body ) {
+				$card['body'] = $body;
+			}
+		}
+
+		if ( empty( $card['evidence'] ) ) {
+			$evidence = $this->first_non_empty_card_alias(
+				$card,
+				array( 'specificEvidence', 'specific_evidence', 'keyEvidence', 'key_evidence', 'dataEvidence', 'data_evidence' )
+			);
+			if ( '' !== $evidence ) {
+				$card['evidence'] = $evidence;
+			}
+		}
+
+		if ( empty( $card['whyItMatters'] ) ) {
+			$why_it_matters = $this->first_non_empty_card_alias(
+				$card,
+				array( 'brainstormReason', 'brainstorm_reason', 'decisionCreated', 'decision_created', 'whyBrainstorm', 'why_brainstorm' )
+			);
+			if ( '' !== $why_it_matters ) {
+				$card['whyItMatters'] = $why_it_matters;
+			}
+		}
+
+		if ( empty( $card['prompt'] ) ) {
+			$prompt = $this->first_non_empty_card_alias( $card, array( 'nextQuestion', 'next_question', 'investigationQuestion', 'investigation_question' ) );
+			if ( '' === $prompt && ! empty( $card['investigationQuestions'] ) && is_array( $card['investigationQuestions'] ) ) {
+				$prompt = $this->first_non_empty_scalar( $card['investigationQuestions'] );
+			}
+			if ( '' !== $prompt ) {
+				$card['prompt'] = $prompt;
+			}
+		}
+
+		if ( empty( $card['evidenceDetails'] ) || ! is_array( $card['evidenceDetails'] ) ) {
+			$card['evidenceDetails'] = array();
+		}
+
+		if ( empty( $card['evidenceDetails']['unknowns'] ) ) {
+			$missing_context = $this->first_non_empty_card_alias( $card, array( 'missingContext', 'missing_context', 'merchantContextNeeded', 'merchant_context_needed' ) );
+			if ( '' !== $missing_context ) {
+				$card['evidenceDetails']['unknowns'] = $missing_context;
+			}
+		}
+
+		return $card;
+	}
+
+	/**
+	 * Return the first non-empty scalar value from named card keys.
+	 *
+	 * @param array $card Raw card.
+	 * @param array $keys Candidate keys.
+	 * @return string
+	 */
+	private function first_non_empty_card_alias( array $card, array $keys ) {
+		foreach ( $keys as $key ) {
+			if ( isset( $card[ $key ] ) && is_scalar( $card[ $key ] ) ) {
+				$value = $this->trim_card_text( (string) $card[ $key ], 240 );
+				if ( '' !== $value ) {
+					return $value;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Return the first non-empty scalar from a list.
+	 *
+	 * @param array $values Candidate values.
+	 * @return string
+	 */
+	private function first_non_empty_scalar( array $values ) {
+		foreach ( $values as $value ) {
+			if ( is_scalar( $value ) ) {
+				$value = $this->trim_card_text( (string) $value, 240 );
+				if ( '' !== $value ) {
+					return $value;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Extract revenue levers from canonical and common alias fields.
+	 *
+	 * @param array $card Raw card.
+	 * @return array
+	 */
+	private function extract_idea_board_revenue_levers( array $card ) {
+		$raw_levers = array();
+		foreach ( array( 'revenueLevers', 'revenue_levers', 'levers', 'revenueLever', 'revenue_lever', 'lever' ) as $key ) {
+			if ( ! isset( $card[ $key ] ) ) {
+				continue;
+			}
+
+			if ( is_array( $card[ $key ] ) ) {
+				foreach ( $card[ $key ] as $raw_lever ) {
+					$raw_levers[] = $raw_lever;
+				}
+				continue;
+			}
+
+			if ( is_scalar( $card[ $key ] ) ) {
+				foreach ( preg_split( '/[,|]+/', (string) $card[ $key ] ) as $raw_lever ) {
+					$raw_levers[] = trim( $raw_lever );
+				}
+			}
+		}
+
+		return $raw_levers;
+	}
+
+	/**
 	 * Backfill decision-layer fields on saved cards created by earlier board versions.
 	 *
 	 * @param array $card Card.
@@ -3582,7 +3740,7 @@ class IdeaBoardRestController {
 		$effort     = isset( $card['effort'] ) ? $this->normalise_level( $card['effort'], 'medium' ) : 'medium';
 
 		$card['evidenceDetails']       = $this->normalise_idea_board_evidence_details( isset( $card['evidenceDetails'] ) && is_array( $card['evidenceDetails'] ) ? $card['evidenceDetails'] : array() );
-		$card['revenueLevers']         = $this->normalise_revenue_levers( isset( $card['revenueLevers'] ) && is_array( $card['revenueLevers'] ) ? $card['revenueLevers'] : array(), $kind );
+		$card['revenueLevers']         = $this->normalise_revenue_levers( $this->extract_idea_board_revenue_levers( $card ), $kind );
 		$card['severity']              = $this->normalise_allowed_key( isset( $card['severity'] ) ? $card['severity'] : '', $this->allowed_severities(), $this->default_severity_for_kind( $kind ) );
 		$card['estimatedImpact']       = isset( $card['estimatedImpact'] ) ? $this->trim_card_text( $card['estimatedImpact'], 120 ) : '';
 		$card['whyItMatters']          = isset( $card['whyItMatters'] ) ? $this->trim_card_text( $card['whyItMatters'], 220 ) : '';
@@ -3819,16 +3977,20 @@ class IdeaBoardRestController {
 	 */
 	private function allowed_revenue_levers() {
 		return array(
-			'traffic'            => true,
-			'conversion'         => true,
-			'aov'                => true,
-			'retention'          => true,
-			'margin'             => true,
-			'inventory'          => true,
-			'pricing'            => true,
-			'campaign_spend'     => true,
-			'catalogue_quality'  => true,
-			'revenue_protection' => true,
+			'traffic'             => true,
+			'conversion'          => true,
+			'aov'                 => true,
+			'retention'           => true,
+			'margin'              => true,
+			'inventory'           => true,
+			'pricing'             => true,
+			'promotions'          => true,
+			'campaign_spend'      => true,
+			'campaign_efficiency' => true,
+			'catalogue_quality'   => true,
+			'checkout'            => true,
+			'customer_mix'        => true,
+			'revenue_protection'  => true,
 		);
 	}
 
@@ -3999,7 +4161,7 @@ class IdeaBoardRestController {
 		$seen    = array();
 
 		foreach ( $raw_levers as $raw_lever ) {
-			$lever = sanitize_key( (string) $raw_lever );
+			$lever = $this->normalise_revenue_lever_alias( $raw_lever );
 			if ( '' === $lever || ! isset( $allowed[ $lever ] ) || isset( $seen[ $lever ] ) ) {
 				continue;
 			}
@@ -4013,6 +4175,35 @@ class IdeaBoardRestController {
 		}
 
 		return $levers;
+	}
+
+	/**
+	 * Normalise common model-facing revenue lever aliases.
+	 *
+	 * @param mixed $raw_lever Raw lever value.
+	 * @return string
+	 */
+	private function normalise_revenue_lever_alias( $raw_lever ) {
+		$lever   = sanitize_key( (string) $raw_lever );
+		$aliases = array(
+			'average_order_value'   => 'aov',
+			'gross_margin'          => 'margin',
+			'catalog_quality'       => 'catalogue_quality',
+			'catalogue'             => 'catalogue_quality',
+			'catalog'               => 'catalogue_quality',
+			'campaign'              => 'campaign_efficiency',
+			'campaigns'             => 'campaign_efficiency',
+			'campaign_performance'  => 'campaign_efficiency',
+			'marketing_efficiency'  => 'campaign_efficiency',
+			'checkout_flow'         => 'checkout',
+			'checkout_payment_flow' => 'checkout',
+			'payment_flow'          => 'checkout',
+			'payment'               => 'checkout',
+			'customer_mix_signal'   => 'customer_mix',
+			'repeat_purchase'       => 'retention',
+		);
+
+		return isset( $aliases[ $lever ] ) ? $aliases[ $lever ] : $lever;
 	}
 
 	/**

@@ -14,8 +14,12 @@ export type IdeaBoardRevenueLever =
 	| 'margin'
 	| 'inventory'
 	| 'pricing'
+	| 'promotions'
 	| 'campaign_spend'
+	| 'campaign_efficiency'
 	| 'catalogue_quality'
+	| 'checkout'
+	| 'customer_mix'
 	| 'revenue_protection';
 
 export type IdeaBoardSeverity = 'low' | 'medium' | 'high' | 'critical';
