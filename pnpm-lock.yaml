@@ -12,6 +12,8 @@ importers:
         specifier: 11.5.0
         version: 11.5.0(@types/node@25.7.0)
 
+  php-packages/commerce-abilities: {}
+
   plugins/hey-woo:
     dependencies:
       '@automattic/charts':

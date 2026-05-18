@@ -161,7 +161,7 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-telemetry-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
-	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
 
 	// Store knowledge and readiness scoring.
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
@@ -189,11 +189,40 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
 
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-environment.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+}
+
+/**
+ * Pin existing Anthropic installs to Anthropic before auto mode is introduced.
+ *
+ * New installs keep the implicit `auto` default by leaving the provider option
+ * absent. Existing installs with an Anthropic key are pinned so an update cannot
+ * silently move them to a different provider.
+ */
+function hey_woo_migrate_difm_provider_option() {
+	if ( get_option( 'hey_woo_difm_provider_migrated' ) ) {
+		return;
+	}
+
+	$provider_is_absent = false === get_option( 'hey_woo_difm_provider', false );
+	$has_anthropic_key  = '' !== (string) get_option( 'hey_woo_anthropic_api_key', '' )
+		|| '' !== (string) get_option( 'woocommerce_claude_anthropic_api_key', '' )
+		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY )
+		|| ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) && '' !== (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY );
+
+	if ( $provider_is_absent && $has_anthropic_key ) {
+		update_option( 'hey_woo_difm_provider', 'anthropic' );
+	}
+
+	update_option( 'hey_woo_difm_provider_migrated', '1' );
 }
 
 /**
@@ -304,6 +333,7 @@ add_action(
 	function () {
 		if ( hey_woo_check_requirements() ) {
 			hey_woo_init_commerce_abilities();
+			hey_woo_migrate_difm_provider_option();
 			hey_woo_init_runtime();
 		}
 	}

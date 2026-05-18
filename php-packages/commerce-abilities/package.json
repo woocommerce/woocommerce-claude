@@ -1,0 +1,7 @@
+{
+  "name": "@woocommerce/commerce-abilities",
+  "private": true,
+  "scripts": {
+    "postinstall": "XDEBUG_MODE=off composer install --quiet"
+  }
+}
