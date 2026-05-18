@@ -79,12 +79,12 @@ class DifmRestController {
 		'analytics_breakdown'  => 'wc-analytics/breakdown',
 		'analytics_series'     => 'wc-analytics/series',
 		'analytics_rows'       => 'wc-analytics/rows',
-		'get_product_details'  => 'woocommerce-claude/get-product-details',
-		'search_products'      => 'woocommerce-claude/search-products',
-		'get_store_profile'    => 'woocommerce-claude/get-store-profile',
-		'get_readiness_score'  => 'woocommerce-claude/get-readiness-score',
-		'get_recommendations'  => 'woocommerce-claude/get-recommendations',
-		'suggest_improvements' => 'woocommerce-claude/suggest-improvements',
+		'get_product_details'  => 'hey-woo/get-product-details',
+		'search_products'      => 'hey-woo/search-products',
+		'get_store_profile'    => 'hey-woo/get-store-profile',
+		'get_readiness_score'  => 'hey-woo/get-readiness-score',
+		'get_recommendations'  => 'hey-woo/get-recommendations',
+		'suggest_improvements' => 'hey-woo/suggest-improvements',
 	);
 
 	/**
@@ -811,10 +811,6 @@ class DifmRestController {
 			$ability = $this->get_ability( $ability_id );
 
 			if ( ! $ability ) {
-				if ( $this->is_optional_external_ability( $ability_id ) ) {
-					continue;
-				}
-
 				return new \WP_Error(
 					'missing_ability',
 					sprintf(
@@ -858,20 +854,6 @@ class DifmRestController {
 		$tools[] = $this->build_render_chart_tool_definition();
 
 		return $tools;
-	}
-
-	/**
-	 * Whether an ability belongs to another plugin and should be omitted when absent.
-	 *
-	 * Hey Woo can use WooCommerce for Claude's product/readiness abilities when
-	 * both plugins are active, but it must still work with the shared analytics
-	 * abilities only when WooCommerce for Claude is not installed.
-	 *
-	 * @param string $ability_id Ability ID.
-	 * @return bool
-	 */
-	private function is_optional_external_ability( $ability_id ) {
-		return 0 === strpos( (string) $ability_id, 'woocommerce-claude/' );
 	}
 
 	/**

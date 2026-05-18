@@ -28,7 +28,7 @@ define( 'WOOCOMMERCE_CLAUDE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 woocommerce_claude_load_commerce_abilities();
 
 /**
- * Load the vendored commerce-abilities package classes.
+ * Load the shared commerce-abilities package classes.
  *
  * Composer's generated autoloader class name is stable for the same lock file,
  * so wp-env's PHPUnit bootstrap and production/test double mount can fatal if
@@ -37,8 +37,11 @@ woocommerce_claude_load_commerce_abilities();
  * files directly and skip classes an earlier package copy already provided.
  */
 function woocommerce_claude_load_commerce_abilities() {
-	$woocommerce_claude_package_dir = WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/';
-	$woocommerce_claude_classes     = array(
+	$woocommerce_claude_package_dirs = array(
+		dirname( dirname( WOOCOMMERCE_CLAUDE_PLUGIN_DIR ) ) . '/php-packages/commerce-abilities/src/',
+		WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/',
+	);
+	$woocommerce_claude_classes      = array(
 		\WooCommerce\CommerceAbilities\Loader::class => 'loader.php',
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class => 'Abilities/class-analytics-bootstrap.php',
 		\WooCommerce\CommerceAbilities\Abilities\LargeRangeGate::class => 'Abilities/class-large-range-gate.php',
@@ -48,14 +51,69 @@ function woocommerce_claude_load_commerce_abilities() {
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsSeriesAbility::class => 'Abilities/class-analytics-series-ability.php',
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsRowsAbility::class => 'Abilities/class-analytics-rows-ability.php',
 		\WooCommerce\CommerceAbilities\Analytics\AnalyticsService::class => 'Analytics/class-analytics-service.php',
+		\WooCommerce\CommerceAbilities\Knowledge\KnowledgeProvider::class => 'Knowledge/interface-knowledge-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\KnowledgeRegistry::class => 'Knowledge/class-knowledge-registry.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\StoreProfileProvider::class => 'Knowledge/providers/class-store-profile-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\CatalogProvider::class => 'Knowledge/providers/class-catalog-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\ProductProvider::class => 'Knowledge/providers/class-product-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\PolicyProvider::class => 'Knowledge/providers/class-policy-provider.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\ProductCompleteness::class => 'Scoring/factors/class-product-completeness.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\SchemaCoverage::class => 'Scoring/factors/class-schema-coverage.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\PolicyCompleteness::class => 'Scoring/factors/class-policy-completeness.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\ContentQuality::class => 'Scoring/factors/class-content-quality.php',
+		\WooCommerce\CommerceAbilities\Scoring\ScoringEngine::class => 'Scoring/class-scoring-engine.php',
+		\WooCommerce\CommerceAbilities\Store\StoreKnowledge::class => 'Store/class-store-knowledge.php',
+		\WooCommerce\CommerceAbilities\API\AbstractStoreController::class => 'API/class-abstract-store-controller.php',
+		\WooCommerce\CommerceAbilities\API\AbstractProductsController::class => 'API/class-abstract-products-controller.php',
+		\WooCommerce\CommerceAbilities\API\AbstractReadinessController::class => 'API/class-abstract-readiness-controller.php',
+		\WooCommerce\CommerceAbilities\API\AbstractCatalogController::class => 'API/class-abstract-catalog-controller.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetStoreProfileAbilityTrait::class => 'Abilities/Store/trait-get-store-profile-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\SearchProductsAbilityTrait::class => 'Abilities/Store/trait-search-products-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetProductDetailsAbilityTrait::class => 'Abilities/Store/trait-get-product-details-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetReadinessScoreAbilityTrait::class => 'Abilities/Store/trait-get-readiness-score-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetRecommendationsAbilityTrait::class => 'Abilities/Store/trait-get-recommendations-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\SuggestImprovementsAbilityTrait::class => 'Abilities/Store/trait-suggest-improvements-ability.php',
 	);
 
 	foreach ( $woocommerce_claude_classes as $class_name => $relative_path ) {
-		$file = $woocommerce_claude_package_dir . $relative_path;
-		if ( ! class_exists( $class_name, false ) && file_exists( $file ) ) {
+		$file = woocommerce_claude_find_commerce_abilities_file( $woocommerce_claude_package_dirs, $relative_path );
+		if ( ! woocommerce_claude_commerce_abilities_symbol_exists( $class_name ) && file_exists( $file ) ) {
 			require_once $file;
 		}
 	}
+}
+
+/**
+ * Return the first available commerce-abilities package file.
+ *
+ * Local monorepo checkouts can load the shared package source directly; release
+ * zips fall back to the Composer-vendored path package copy.
+ *
+ * @param array  $package_dirs Package source directories to search.
+ * @param string $relative_path Relative file path within the package source.
+ * @return string Absolute path, or the release-vendor path when none exists.
+ */
+function woocommerce_claude_find_commerce_abilities_file( $package_dirs, $relative_path ) {
+	foreach ( $package_dirs as $package_dir ) {
+		$file = $package_dir . $relative_path;
+		if ( file_exists( $file ) ) {
+			return $file;
+		}
+	}
+
+	return WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/' . $relative_path;
+}
+
+/**
+ * Whether a shared commerce-abilities symbol is already loaded.
+ *
+ * @param string $symbol_name Fully-qualified class, interface, or trait name.
+ * @return bool
+ */
+function woocommerce_claude_commerce_abilities_symbol_exists( $symbol_name ) {
+	return class_exists( $symbol_name, false )
+		|| interface_exists( $symbol_name, false )
+		|| trait_exists( $symbol_name, false );
 }
 
 /**

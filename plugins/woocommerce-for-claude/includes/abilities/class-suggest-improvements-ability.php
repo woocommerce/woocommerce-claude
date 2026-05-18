@@ -2,18 +2,12 @@
 /**
  * `woocommerce-claude/suggest-improvements` ability — per-product or store-wide hints.
  *
- * Branches: if product_id is provided, returns that product's full details
- * plus a focus-aware instruction string for the model. If not, falls through
- * to store-wide recommendations. Shape preserved byte-for-byte from the TS
- * server's `suggest_improvements` tool.
- *
  * @package WooCommerce\Claude
  */
 
 namespace WooCommerce\Claude\Abilities;
 
-use WooCommerce\Claude\API\ProductsController;
-use WooCommerce\Claude\API\ReadinessController;
+use WooCommerce\CommerceAbilities\Abilities\Store\SuggestImprovementsAbilityTrait;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -21,6 +15,7 @@ defined( 'ABSPATH' ) || exit;
  * Registers the suggest-improvements tool ability.
  */
 class SuggestImprovementsAbility {
+	use SuggestImprovementsAbilityTrait;
 
 	const ABILITY_NAME = 'woocommerce-claude/suggest-improvements';
 
@@ -46,73 +41,5 @@ class SuggestImprovementsAbility {
 				),
 			)
 		);
-	}
-
-	/**
-	 * Permission gate — same capability as WC Admin.
-	 *
-	 * @param array $input Ability input (unused).
-	 * @return bool
-	 */
-	public static function permission_check( $input ) {
-		unset( $input );
-		return current_user_can( 'manage_woocommerce' );
-	}
-
-	/**
-	 * JSON Schema for the ability input.
-	 *
-	 * @return array
-	 */
-	private static function input_schema() {
-		return array(
-			'type'       => 'object',
-			'properties' => array(
-				'product_id' => array(
-					'type'        => 'integer',
-					'minimum'     => 1,
-					'description' => 'Optional: specific product ID to get improvements for.',
-				),
-				'focus'      => array(
-					'type'        => 'string',
-					'enum'        => array( 'description', 'images', 'seo', 'attributes', 'all' ),
-					'default'     => 'all',
-					'description' => 'Area to focus improvements on.',
-				),
-			),
-		);
-	}
-
-	/**
-	 * Run the ability — mirrors the TS `suggest_improvements` branching.
-	 *
-	 * @param array $input Validated ability input.
-	 * @return array|\WP_Error
-	 */
-	public static function execute( $input ) {
-		$input      = is_array( $input ) ? $input : array();
-		$product_id = isset( $input['product_id'] ) ? absint( $input['product_id'] ) : 0;
-		$focus      = isset( $input['focus'] ) && is_string( $input['focus'] ) ? $input['focus'] : 'all';
-
-		if ( $product_id > 0 ) {
-			$request = new \WP_REST_Request( 'GET' );
-			$request->set_param( 'product_id', $product_id );
-			$response = ProductsController::get_product( $request );
-			if ( ! ( $response instanceof \WP_REST_Response ) ) {
-				return $response;
-			}
-
-			$instruction = 'Analyse this product data and suggest specific improvements'
-				. ( 'all' !== $focus ? ' focusing on ' . $focus : '' )
-				. '. Look at completeness scores, missing fields, and content quality.';
-
-			return array(
-				'product'     => $response->get_data(),
-				'instruction' => $instruction,
-			);
-		}
-
-		$response = ReadinessController::get_recommendations();
-		return $response instanceof \WP_REST_Response ? $response->get_data() : $response;
 	}
 }
