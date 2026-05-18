@@ -9,7 +9,7 @@ WooCommerce for Claude adds the **intelligence layer** on top: structured store 
 Core MCP: "Claude can talk to your store."
 WooCommerce for Claude: "Claude can understand your store and help you run it better."
 
-This monorepo also contains the [`plugins/hey-woo/`](./plugins/hey-woo/) development copy of the Hey Woo bring-your-own-key admin chat plugin. Hey Woo is tested here against the shared `woocommerce/commerce-abilities` package, but its public issue tracking and plugin releases live in the dedicated [`woocommerce/hey-woo`](https://github.com/woocommerce/hey-woo) repository.
+This monorepo also contains [`plugins/hey-woo/`](./plugins/hey-woo/), the canonical Hey Woo bring-your-own-key admin chat plugin package. Hey Woo shares `woocommerce/commerce-abilities` with WooCommerce for Claude, but has its own plugin version and release workflow from this repo.
 
 ---
 
@@ -280,12 +280,9 @@ curl -X POST -u ck_xxx:cs_xxx http://localhost:8888/wp-json/woocommerce-claude/m
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 
-# Build WooCommerce for Claude release zips:
+# Build release zips from this monorepo:
 pnpm run plugin-zip
 pnpm run agent-plugin-zip
-
-# Build Hey Woo locally as an integration/package smoke test.
-# The public Hey Woo release is produced from https://github.com/woocommerce/hey-woo.
 pnpm run hey-woo-plugin-zip
 ```
 
@@ -297,7 +294,7 @@ Run the full lint/test suite locally before pushing:
 ./bin/check
 ```
 
-Runs PHPCS (WordPress + Docs), the Hey Woo scaffold lint/Composer checks, composer audit, and a PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
+Runs PHPCS (WordPress + Docs), the Hey Woo lint/Composer checks, composer audit, and a PHPUnit smoke test inside the wp-env tests-cli container. First run installs composer and pnpm deps; subsequent runs skip that.
 
 `./bin/check` mirrors `.github/workflows/ci.yml` line-for-line, so the same checks run in CI on every push.
 

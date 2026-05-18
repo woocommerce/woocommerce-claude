@@ -39,7 +39,7 @@ hey-woo/
 │   │   │   └── telemetry/                # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
 │   │   ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
 │   │   └── skills/                       # Reference Claude Code / Codex workflow skills
-│   └── hey-woo/                          # BYOK plugin package scaffold; consumes commerce-abilities
+│   └── hey-woo/                          # Canonical Hey Woo BYOK admin chat plugin package
 ├── php-packages/
 │   └── commerce-abilities/               # Composer path package; owns shared wc-analytics abilities,
 │                                         # AnalyticsService, and LargeRangeGate
@@ -47,11 +47,11 @@ hey-woo/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
 ├── bin/
-│   ├── check                 # Local CI mirror — PHPCS + Hey Woo scaffold checks + audit + PHPUnit + DCC
+│   ├── check                 # Local CI mirror — PHPCS + Hey Woo checks + audit + PHPUnit + DCC
 │   └── check-dcc             # Data Consistency Checker (gated; auto-skips if not installed)
 ├── docs/performance-and-hosting.md
 ├── .wp-env.json              # wp-env (port 8888, mounts plugins + tools/mu-plugins)
-└── .github/workflows/        # ci.yml (PHPCS + PHPUnit) · release.yml (tag → plugin zips)
+└── .github/workflows/        # ci.yml · release.yml · release-hey-woo.yml
 ```
 
 ## Local dev
@@ -142,7 +142,8 @@ The plugin is published as a UK-Automattic-shaped product (default seed store is
 ## Workflow
 
 - **Branch per change.** One feature / fix per branch. PR back to `trunk`.
-- **Conventional commits.** `feat:`, `fix:`, `chore:`, `docs:`. The release workflow expects this for auto-generated release notes (`generate_release_notes: true`).
+- **Conventional commits.** `feat:`, `fix:`, `chore:`, `docs:`. The release workflows expect this for auto-generated release notes (`generate_release_notes: true`).
+- **One canonical repo.** WooCommerce for Claude and Hey Woo both live in this monorepo. Hey Woo source changes belong under `plugins/hey-woo/`; the Hey Woo release workflow builds `hey-woo.zip` from that directory with its own version/tag.
 - **Definition of done for a PR:**
   1. `./bin/check` exits green locally (PHPCS + composer audit + PHPUnit + DCC).
   2. New analytics skill = code + PHPUnit test + the two static-sweep constants in the same PR.
