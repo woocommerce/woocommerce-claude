@@ -1,6 +1,6 @@
 {
   "name": "hey-woo-monorepo",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Monorepo for WooCommerce for Claude, Hey Woo, and shared commerce abilities.",
   "private": true,
   "packageManager": "pnpm@10.33.0",

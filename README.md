@@ -26,7 +26,6 @@ For a typical WooCommerce store, the plugin's load is lighter than loading the W
 - A self-hosted WooCommerce store (version 8.0+)
 - Node.js 18+ on the machine running your MCP client
 - An MCP-capable client (Claude Desktop, Claude Code, or any other MCP client)
-- AI Insights in WP admin with your own Anthropic API key requires WordPress 7.0+; on WordPress 6.9, install and activate the Gutenberg plugin.
 
 ### Claude Desktop — one click
 
