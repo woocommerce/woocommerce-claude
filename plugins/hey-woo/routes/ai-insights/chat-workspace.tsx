@@ -31,7 +31,7 @@ interface ChatHeaderProps {
 }
 
 function routePathForConversation( conversationId: string ): string {
-	return `/?conversationId=${ encodeURIComponent( conversationId ) }`;
+	return `/chat?conversationId=${ encodeURIComponent( conversationId ) }`;
 }
 
 function replaceCurrentRouteWithConversation( conversationId: string ): void {

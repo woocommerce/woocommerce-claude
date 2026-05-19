@@ -1,5 +1,5 @@
 /**
- * Shared helpers for the History DataViews route.
+ * Shared helpers for the Library DataViews route.
  */
 import { __ } from '@wordpress/i18n';
 import type { ChatMessage, StoredConversation } from '../ai-insights/types';

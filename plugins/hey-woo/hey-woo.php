@@ -189,9 +189,18 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-briefings-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+}
+
+/**
+ * Mark first-run briefing content as needed on a fresh activation.
+ */
+function hey_woo_activate() {
+	add_option( 'hey_woo_first_installed_at', time(), '', false );
+	add_option( 'hey_woo_first_run_briefing_status', 'pending', '', false );
 }
 
 /**
@@ -255,6 +264,7 @@ function hey_woo_init_runtime() {
 	add_filter( 'woocommerce_get_settings_pages', 'hey_woo_register_settings_page' );
 
 	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
+	( new \WooCommerce\HeyWoo\Difm\DifmBriefingsController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
 }
@@ -328,3 +338,7 @@ add_action(
 		}
 	}
 );
+
+if ( function_exists( 'register_activation_hook' ) ) {
+	register_activation_hook( __FILE__, 'hey_woo_activate' );
+}

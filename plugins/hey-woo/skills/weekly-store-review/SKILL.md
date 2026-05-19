@@ -49,6 +49,16 @@ If the user does not specify a date range, use `period: last_7_days` and `compar
 
 Produce a review with this shape:
 
+If the latest merchant message asks for a `hey-woo-report` fenced block, that structured block is the output contract. Put the review below into the JSON fields instead of relying on markdown headings. In that mode:
+
+- Do not call `render_chart`; put any useful visual as a chart spec inside the `charts` array.
+- Do not make the report a top-products ranking. Products are supporting evidence, not the headline.
+- Use metric tiles for revenue, orders, AOV, customers, and refunds.
+- Use key findings for the overall movement, the main driver, product mix, channel mix, and refund/watch-list signal.
+- Prefer a compact table for product/channel evidence when long labels would make a chart hard to read.
+- Only include a chart when it explains a movement or mix shift better than the table. A simple "top 5 products by revenue" chart is not enough on its own.
+- Put three concrete merchant actions in the `actions` array when requested. Each action must have evidence and a next step; do not add a vague "review the report" action.
+
 ### Weekly Store Review
 
 **Store:** [store name]

@@ -40,6 +40,38 @@ export interface StoredConversation {
 	updatedAt: number;
 }
 
+export interface BriefingMetric {
+	label: string;
+	value: string;
+	trend: string;
+	tone: 'positive' | 'warning' | 'negative' | 'neutral';
+}
+
+export interface BriefingItem {
+	category: string;
+	status: string;
+	title: string;
+	summary: string;
+	workflowSlug: string;
+}
+
+export interface BriefingMonitor {
+	title: string;
+	metric: string;
+	cadence: string;
+	workflowSlug: string;
+}
+
+export interface FirstRunBriefing {
+	source: 'ai' | 'fallback';
+	generatedAt: number;
+	headline: string;
+	summary: string;
+	metrics: BriefingMetric[];
+	items: BriefingItem[];
+	monitors: BriefingMonitor[];
+}
+
 /**
  * Top-level response shape from POST /hey-woo/v1/difm/chat.
  */
@@ -56,10 +88,12 @@ export interface ModuleData {
 	nonce: string;
 	restBase: string;
 	settingsUrl: string;
+	storeName: string;
 	userName: string;
 	currency: string;
 	hasKey: boolean;
 	providerMode: 'connector' | 'legacy';
 	provider: string;
 	conversations: StoredConversation[];
+	firstRunBriefing?: FirstRunBriefing;
 }

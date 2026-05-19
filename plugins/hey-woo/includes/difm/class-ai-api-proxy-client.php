@@ -180,9 +180,9 @@ class AiApiProxyClient implements DifmAiClientInterface {
 			array(
 				'timeout' => self::REQUEST_TIMEOUT,
 				'headers' => array(
-					'Authorization'        => 'Bearer ' . $api_key,
-					'Content-Type'         => 'application/json',
-					'X-WPCOM-AI-Feature'   => $this->get_feature(),
+					'Authorization'      => 'Bearer ' . $api_key,
+					'Content-Type'       => 'application/json',
+					'X-WPCOM-AI-Feature' => $this->get_feature(),
 				),
 				'body'    => $body_json,
 			)
@@ -275,7 +275,7 @@ class AiApiProxyClient implements DifmAiClientInterface {
 			}
 
 			if ( in_array( $role, array( 'user', 'assistant' ), true ) ) {
-				$encoded_content = is_string( $content ) ? $content : wp_json_encode( $content );
+				$encoded_content  = is_string( $content ) ? $content : wp_json_encode( $content );
 				$proxy_messages[] = array(
 					'role'    => $role,
 					'content' => is_string( $encoded_content ) ? $encoded_content : '',

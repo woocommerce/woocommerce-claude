@@ -4,7 +4,7 @@
 import type { ActionPriority } from '../actions/action-store';
 import type { RecommendedReportAction } from './components/ReportActionCards';
 
-interface RawReportAction {
+export interface RawReportAction {
 	title?: unknown;
 	priority?: unknown;
 	summary?: unknown;
@@ -54,7 +54,11 @@ function normaliseText( value: unknown ): string | undefined {
 	return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function normaliseAction( rawAction: RawReportAction ): RecommendedReportAction | null {
+export function normaliseReportAction( rawAction: RawReportAction ): RecommendedReportAction | null {
+	if ( ! rawAction || typeof rawAction !== 'object' ) {
+		return null;
+	}
+
 	const title = typeof rawAction.title === 'string' ? rawAction.title.trim() : '';
 
 	if ( ! title ) {
@@ -73,7 +77,7 @@ function normaliseAction( rawAction: RawReportAction ): RecommendedReportAction 
 	};
 }
 
-function parseActionsJson( value: string ): RecommendedReportAction[] {
+export function parseActionsJson( value: string ): RecommendedReportAction[] {
 	try {
 		const parsed = JSON.parse( value );
 
@@ -82,7 +86,7 @@ function parseActionsJson( value: string ): RecommendedReportAction[] {
 		}
 
 		return parsed
-			.map( normaliseAction )
+			.map( normaliseReportAction )
 			.filter( ( action ): action is RecommendedReportAction => action !== null )
 			.slice( 0, 6 );
 	} catch {

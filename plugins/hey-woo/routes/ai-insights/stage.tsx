@@ -1,6 +1,6 @@
 import './style.scss';
-import { ChatWorkspace } from './chat-workspace';
+import { TodayBriefing } from './today-briefing';
 
 export function stage() {
-	return <ChatWorkspace />;
+	return <TodayBriefing />;
 }

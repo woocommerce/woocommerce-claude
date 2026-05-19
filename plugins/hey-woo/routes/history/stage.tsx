@@ -1,5 +1,5 @@
 /**
- * Hey Woo History - conversation management route.
+ * Hey Woo Library - conversation management route.
  */
 import '../ai-insights/style.scss';
 import './style.scss';
@@ -96,8 +96,8 @@ function DeleteConversationsModal( {
 				{ sprintf(
 					/* translators: %d: number of conversations */
 					_n(
-						'Delete %d conversation from history?',
-						'Delete %d conversations from history?',
+						'Delete %d conversation from the library?',
+						'Delete %d conversations from the library?',
 						deleteCount,
 						'hey-woo'
 					),
@@ -311,7 +311,7 @@ export function stage() {
 		<div className="hey-woo-page hey-woo-page--history">
 			<header className="hey-woo-history-header">
 				<div>
-					<h1 className="hey-woo-history-header__title">{ __( 'History', 'hey-woo' ) }</h1>
+					<h1 className="hey-woo-history-header__title">{ __( 'Library', 'hey-woo' ) }</h1>
 					<p className="hey-woo-history-header__count">
 						{ sprintf(
 							/* translators: %d: number of visible conversations */
@@ -325,7 +325,7 @@ export function stage() {
 					variant="primary"
 					onClick={ () => {
 						void navigate( {
-							to: '/',
+							to: '/chat',
 							search: {},
 						} );
 					} }
@@ -345,15 +345,15 @@ export function stage() {
 					<div className="hey-woo-history-empty" role="status">
 						<p>
 							{ hasConversationHistory
-								? __( 'No conversations match those filters.', 'hey-woo' )
-								: __( 'No conversations yet.', 'hey-woo' ) }
+								? __( 'No library items match those filters.', 'hey-woo' )
+								: __( 'No library items yet.', 'hey-woo' ) }
 						</p>
 						<Button
 							type="button"
 							variant="secondary"
 							onClick={ hasConversationHistory ? resetView : () => {
 								void navigate( {
-									to: '/',
+									to: '/chat',
 									search: {},
 								} );
 							} }
@@ -372,7 +372,7 @@ export function stage() {
 				onClickItem={ ( item ) => selectConversation( item.id ) }
 				onReset={ resetView }
 				paginationInfo={ paginationInfo }
-				searchLabel={ __( 'Search history', 'hey-woo' ) }
+				searchLabel={ __( 'Search library', 'hey-woo' ) }
 				selection={ selection }
 				view={ view }
 			/>

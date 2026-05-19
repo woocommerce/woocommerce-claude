@@ -1,5 +1,5 @@
 /**
- * Hey Woo History - right-hand conversation preview panel.
+ * Hey Woo Library - right-hand conversation preview panel.
  */
 import '../ai-insights/style.scss';
 import './style.scss';
@@ -60,7 +60,7 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 
 	const continueChat = () => {
 		void navigate( {
-			to: '/',
+			to: '/chat',
 			search: {
 				conversationId: conversation.id,
 			},
@@ -152,7 +152,7 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 					onRequestClose={ () => setIsDeleteModalOpen( false ) }
 				>
 					<div className="hey-woo-history-delete-modal">
-						<p>{ __( 'Delete this conversation from history?', 'hey-woo' ) }</p>
+						<p>{ __( 'Delete this conversation from the library?', 'hey-woo' ) }</p>
 						<ul>
 							<li>{ conversation.title }</li>
 						</ul>

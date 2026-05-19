@@ -162,8 +162,39 @@ export function launchChatWorkflow( prompt: string, displayText = __( 'Run repor
 	routeSearch.set( 'workflowPrompt', prompt );
 	routeSearch.set( 'workflowDisplay', displayText );
 
-	url.searchParams.set( 'p', `/?${ routeSearch.toString() }` );
+	url.searchParams.set( 'p', `/chat?${ routeSearch.toString() }` );
 	window.location.assign( url.toString() );
+}
+
+const STRUCTURED_REPORT_SCHEMA_WITH_ACTIONS = '{"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]}';
+
+const STRUCTURED_REPORT_SCHEMA_WITHOUT_ACTIONS = '{"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":[]}';
+
+function buildStructuredReportInstruction( workflow: WorkflowAction, actionCards: boolean ): string {
+	const schema = actionCards
+		? STRUCTURED_REPORT_SCHEMA_WITH_ACTIONS
+		: STRUCTURED_REPORT_SCHEMA_WITHOUT_ACTIONS;
+	const limits = actionCards
+		? __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5, actions <= 3.', 'hey-woo' )
+		: __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5.', 'hey-woo' );
+	const weeklyGuidance = workflow.slug === 'weekly-store-review'
+		? __( 'For the weekly store review, do not return a top-products-only answer. Use metric_tiles for revenue, orders, AOV, customers, and refunds. Use insights for what changed, the main driver, product mix, channel mix, and the watch-list/refund signal. Prefer a compact evidence table when long product or channel names would make a chart hard to read. Only include a chart when it explains a movement or mix shift better than the table.', 'hey-woo' )
+		: '';
+
+	return [
+		sprintf(
+			/* translators: %s: JSON schema example for a structured report block */
+			__( 'Return a concise merchant report followed by one fenced code block whose language is exactly hey-woo-report. The block must contain one compact JSON object, no markdown, with this schema: %s.', 'hey-woo' ),
+			schema
+		),
+		limits,
+		__( 'Only include values returned by tools or already present in the conversation; do not invent metrics. If the data does not support a chart or table, leave that array empty and explain why in caveats.', 'hey-woo' ),
+		weeklyGuidance,
+		actionCards
+			? __( 'Put recommended action cards in actions inside hey-woo-report; do not output a separate hey-woo-actions block. Each action must be specific, evidence-backed, and doable by a merchant. Do not add vague actions like "review the report".', 'hey-woo' )
+			: __( 'Keep actions empty in the JSON and keep any next steps inside the report summary.', 'hey-woo' ),
+		__( 'Do not call the separate chart renderer for this report; any useful visual belongs in the hey-woo-report charts array.', 'hey-woo' ),
+	].filter( Boolean ).join( ' ' );
 }
 
 export function buildWorkflowPrompt(
@@ -199,8 +230,9 @@ export function buildWorkflowPrompt(
 					time
 			  )
 			: __( 'Run mode: one-off report.', 'hey-woo' ),
+		buildStructuredReportInstruction( workflow, actionCards ),
 		actionCards
-			? __( 'After the report, include recommended actions in a fenced code block whose language is exactly hey-woo-actions. The block must contain only a JSON array of objects with title, priority, summary, key_metric, impact, evidence, next_steps, and expected_outcome fields. priority must be high, medium, or low. Keep title short and action-oriented, make key_metric the one scannable number or fact for the board card, make impact the business consequence, put detailed proof in evidence, and put merchant-doable steps in next_steps. Keep the same recommendations visible in the report prose too, but do not say the actions have been created automatically.', 'hey-woo' )
+			? __( 'Keep recommended actions short, merchant-doable, and present in the hey-woo-report actions array only. Do not say the actions have been created automatically.', 'hey-woo' )
 			: __( 'Keep the output to the report summary and next actions; do not suggest separate action cards.', 'hey-woo' ),
 		adminNotification
 			? __( 'Notification preference: show the result in WooCommerce admin.', 'hey-woo' )

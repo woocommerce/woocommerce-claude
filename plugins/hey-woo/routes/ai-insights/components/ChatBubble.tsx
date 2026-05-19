@@ -7,6 +7,8 @@ import { MarkdownContent } from './MarkdownContent';
 import { ChatChart } from './ChatChart';
 import { ReportActionCards } from './ReportActionCards';
 import { parseReportActions } from '../report-actions';
+import { parseStructuredReports } from '../report-structure';
+import { StructuredReportView } from './StructuredReportView';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
@@ -17,6 +19,13 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 	const reportActions = isUser
 		? { content: message.content, actions: [] }
 		: parseReportActions( message.content );
+	const structuredReports = isUser
+		? { content: reportActions.content, reports: [], actions: [] }
+		: parseStructuredReports( reportActions.content );
+	const recommendedActions = [
+		...structuredReports.actions,
+		...reportActions.actions,
+	];
 
 	return (
 		<div
@@ -35,8 +44,16 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 				</p>
 			) : (
 				<>
-					<MarkdownContent content={ reportActions.content } />
-					<ReportActionCards actions={ reportActions.actions } />
+					{ structuredReports.content && (
+						<MarkdownContent content={ structuredReports.content } />
+					) }
+					{ structuredReports.reports.map( ( report, index ) => (
+						<StructuredReportView
+							key={ `${ report.title }-${ index }` }
+							report={ report }
+						/>
+					) ) }
+					<ReportActionCards actions={ recommendedActions } />
 					{ message.charts && message.charts.length > 0 && (
 						<div className="hey-woo-charts">
 							{ message.charts.map( ( spec, i ) => (

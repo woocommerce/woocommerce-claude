@@ -97,13 +97,19 @@ class DifmAdminPage {
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			heywoo_register_hey_woo_insights_menu_item(
 				'ai-insights',
-				__( 'New chat', 'hey-woo' ),
+				__( 'Today', 'hey-woo' ),
 				'/'
 			);
 
 			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-chat',
+				__( 'New chat', 'hey-woo' ),
+				'/chat'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-history',
-				__( 'History', 'hey-woo' ),
+				__( 'Library', 'hey-woo' ),
 				'/history'
 			);
 
@@ -111,6 +117,12 @@ class DifmAdminPage {
 				'hey-woo-reports',
 				__( 'Reports', 'hey-woo' ),
 				'/reports'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-monitors',
+				__( 'Monitors', 'hey-woo' ),
+				'/monitors'
 			);
 
 			heywoo_register_hey_woo_insights_menu_item(
@@ -131,15 +143,17 @@ class DifmAdminPage {
 		$resolver = new DifmProviderResolver();
 
 		$data = array(
-			'nonce'         => wp_create_nonce( 'wp_rest' ),
-			'restBase'      => rest_url( 'hey-woo/v1/difm' ),
-			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
-			'userName'      => wp_get_current_user()->display_name,
-			'currency'      => get_woocommerce_currency_symbol(),
-			'hasKey'        => $resolver->has_configured_provider(),
-			'providerMode'  => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
-			'provider'      => DifmProviderResolver::get_selected_provider(),
-			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
+			'nonce'            => wp_create_nonce( 'wp_rest' ),
+			'restBase'         => rest_url( 'hey-woo/v1/difm' ),
+			'settingsUrl'      => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
+			'storeName'        => get_bloginfo( 'name' ),
+			'userName'         => wp_get_current_user()->display_name,
+			'currency'         => get_woocommerce_currency_symbol(),
+			'hasKey'           => $resolver->has_configured_provider(),
+			'providerMode'     => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
+			'provider'         => DifmProviderResolver::get_selected_provider(),
+			'conversations'    => DifmConversationsController::get_recent_conversations( $user_id ),
+			'firstRunBriefing' => DifmBriefingsController::get_bootstrap_briefing(),
 		);
 
 		// Register an inline-only script handle so print_footer_scripts() outputs the data.

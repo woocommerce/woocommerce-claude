@@ -6,8 +6,8 @@ import { __ } from '@wordpress/i18n';
 import moduleData from '../data';
 import type { ChatMessage, ChatResponse, StoredConversation } from '../types';
 
-/** Timeout for each chat request in milliseconds — slightly above the PHP server-side limit. */
-const REQUEST_TIMEOUT_MS = 95_000;
+/** Timeout for multi-tool report workflows in milliseconds. */
+const REQUEST_TIMEOUT_MS = 180_000;
 
 export type ChatStatus = 'idle' | 'no_key' | 'sending' | 'error';
 

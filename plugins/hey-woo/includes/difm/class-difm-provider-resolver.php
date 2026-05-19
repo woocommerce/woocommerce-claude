@@ -171,7 +171,7 @@ class DifmProviderResolver {
 					'configured' => AiApiProxyClient::has_api_key(),
 					'status'     => AiApiProxyClient::has_api_key() ? 'configured' : 'unconfigured',
 				),
-				self::PROVIDER_ANTHROPIC => array(
+				self::PROVIDER_ANTHROPIC    => array(
 					'label'      => self::provider_label( self::PROVIDER_ANTHROPIC ),
 					'available'  => true,
 					'configured' => AnthropicClient::has_api_key(),

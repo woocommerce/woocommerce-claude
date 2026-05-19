@@ -229,6 +229,10 @@ class DifmRestController {
 		$this->active_workflow_slug = is_array( $workflow ) ? (string) $workflow['slug'] : '';
 		$this->log_workflow_selected( $workflow );
 
+		if ( $this->should_use_precomputed_weekly_report( $workflow ) ) {
+			return $this->answer_precomputed_weekly_report( $client, $user_message );
+		}
+
 		$system_prompt = $this->build_system_prompt( $workflow );
 		$messages      = $this->build_conversation_messages( $raw_history, $user_message );
 		$tools         = $this->build_tool_definitions();
@@ -243,6 +247,329 @@ class DifmRestController {
 		}
 
 		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools, '', $this->merchant_requested_chart( $user_message ) );
+	}
+
+	/**
+	 * Whether a selected workflow should use server-computed report inputs.
+	 *
+	 * @param array<string,string>|null $workflow Selected workflow, if any.
+	 * @return bool
+	 */
+	private function should_use_precomputed_weekly_report( $workflow ) {
+		return is_array( $workflow )
+			&& isset( $workflow['slug'] )
+			&& 'weekly-store-review' === (string) $workflow['slug'];
+	}
+
+	/**
+	 * Compose the weekly report from deterministic server-side aggregates.
+	 *
+	 * The model writes the merchant-facing narrative, but the numbers and
+	 * visual candidates come from Hey Woo's own ability calls.
+	 *
+	 * @param DifmAiClientInterface $client       AI provider client.
+	 * @param string                $user_message Merchant request.
+	 * @return \WP_REST_Response
+	 */
+	private function answer_precomputed_weekly_report( DifmAiClientInterface $client, $user_message ) {
+		$options       = $this->parse_weekly_report_options( $user_message );
+		$source        = $this->build_weekly_report_source( $options );
+		$user_prompt   = $this->build_weekly_report_user_prompt( $source, $options );
+		$system_prompt = $this->build_weekly_report_system_prompt( ! empty( $options['include_actions'] ) );
+
+		$result = $client->messages(
+			array(
+				array(
+					'role'    => 'user',
+					'content' => $user_prompt,
+				),
+			),
+			$system_prompt,
+			array(),
+			3500,
+			array(
+				'surface'   => 'difm_precomputed_weekly_report',
+				'iteration' => 1,
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $result->get_error_message(),
+				)
+			);
+		}
+
+		$content = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
+		$reply   = $this->extract_text_reply( $content );
+		$payload = $this->parse_weekly_report_payload( $reply );
+
+		if ( ! is_array( $payload ) ) {
+			$retry_result = $client->messages(
+				array(
+					array(
+						'role'    => 'user',
+						'content' => $user_prompt,
+					),
+					array(
+						'role'    => 'assistant',
+						'content' => $reply,
+					),
+					array(
+						'role'    => 'user',
+						'content' => 'Internal correction: your previous response was not valid report JSON. Return ONLY the JSON object matching the required shape. No intro sentence, no markdown, no fenced code block, no apology.',
+					),
+				),
+				$system_prompt,
+				array(),
+				3500,
+				array(
+					'surface'   => 'difm_precomputed_weekly_report',
+					'iteration' => 2,
+				)
+			);
+
+			if ( is_wp_error( $retry_result ) ) {
+				return rest_ensure_response(
+					array(
+						'status'  => 'error',
+						'message' => $retry_result->get_error_message(),
+					)
+				);
+			}
+
+			$retry_content = isset( $retry_result['content'] ) && is_array( $retry_result['content'] ) ? $retry_result['content'] : array();
+			$payload       = $this->parse_weekly_report_payload( $this->extract_text_reply( $retry_content ) );
+		}
+
+		if ( ! is_array( $payload ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => __( 'The report data loaded, but the AI did not return a valid report document. Please try again.', 'hey-woo' ),
+				)
+			);
+		}
+
+		return rest_ensure_response( $this->build_chat_response( $this->build_weekly_report_reply( $payload ) ) );
+	}
+
+	/**
+	 * Parse the model's report JSON into a structured payload.
+	 *
+	 * @param string $reply Raw model text.
+	 * @return array<string,mixed>|null
+	 */
+	private function parse_weekly_report_payload( $reply ) {
+		$reply = trim( (string) $reply );
+		$reply = preg_replace( '/^```(?:json|hey-woo-report)?\s*/i', '', $reply );
+		$reply = preg_replace( '/```\s*$/', '', (string) $reply );
+		$reply = trim( (string) $reply );
+
+		$start = strpos( $reply, '{' );
+		$end   = strrpos( $reply, '}' );
+		if ( false !== $start && false !== $end && $end > $start ) {
+			$reply = substr( $reply, $start, $end - $start + 1 );
+		}
+
+		$decoded = json_decode( $reply, true );
+		if ( ! is_array( $decoded ) || empty( $decoded['title'] ) ) {
+			return null;
+		}
+
+		foreach ( array( 'metric_tiles', 'insights', 'charts', 'tables', 'caveats', 'sources', 'actions' ) as $key ) {
+			if ( ! isset( $decoded[ $key ] ) || ! is_array( $decoded[ $key ] ) ) {
+				$decoded[ $key ] = array();
+			}
+		}
+
+		return $decoded;
+	}
+
+	/**
+	 * Wrap a parsed report payload in the UI's structured-report block.
+	 *
+	 * @param array<string,mixed> $payload Parsed report payload.
+	 * @return string
+	 */
+	private function build_weekly_report_reply( array $payload ) {
+		$json = wp_json_encode( $payload );
+		$json = is_string( $json ) ? $json : '{}';
+
+		return "```hey-woo-report\n" . $json . "\n```";
+	}
+
+	/**
+	 * Parse report setup choices from the generated workflow prompt.
+	 *
+	 * @param string $message Merchant request.
+	 * @return array<string,mixed>
+	 */
+	private function parse_weekly_report_options( $message ) {
+		$message = (string) $message;
+		$period  = 'last_7_days';
+
+		if ( false !== stripos( $message, 'Period: Last 30 days' ) ) {
+			$period = 'last_30_days';
+		} elseif ( false !== stripos( $message, 'Period: Month to date' ) ) {
+			$period = 'month_to_date';
+		} elseif ( false !== stripos( $message, 'Period: Quarter to date' ) ) {
+			$period = 'quarter_to_date';
+		}
+
+		$compare         = false === stripos( $message, 'Do not include a comparison period' );
+		$include_actions = false === stripos( $message, 'Keep actions empty' )
+			&& false === stripos( $message, 'do not suggest separate action cards' );
+		$schedule        = '';
+
+		if ( preg_match( '/Schedule preference:\s*([^\n.]+(?:\.[^\n.]*)?)/i', $message, $matches ) ) {
+			$schedule = trim( (string) $matches[1] );
+		}
+
+		return array(
+			'period'          => $period,
+			'compare'         => $compare,
+			'include_actions' => $include_actions,
+			'schedule'        => $schedule,
+		);
+	}
+
+	/**
+	 * Build the deterministic source packet for the weekly report composer.
+	 *
+	 * @param array<string,mixed> $options Report options.
+	 * @return array<string,mixed>
+	 */
+	private function build_weekly_report_source( array $options ) {
+		$period  = isset( $options['period'] ) ? (string) $options['period'] : 'last_7_days';
+		$compare = ! empty( $options['compare'] );
+
+		$period_input = array(
+			'period'  => $period,
+			'compare' => $compare,
+		);
+
+		return array(
+			'options'              => $options,
+			'store'                => $this->normalise_precomputed_tool_output( $this->execute_tool( 'get_store_profile', array() ) ),
+			'totals_revenue'       => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_totals',
+					array_merge( $period_input, array( 'subject' => 'revenue' ) )
+				)
+			),
+			'totals_orders'        => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_totals',
+					array_merge( $period_input, array( 'subject' => 'orders' ) )
+				)
+			),
+			'totals_customers'     => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_totals',
+					array_merge( $period_input, array( 'subject' => 'customers' ) )
+				)
+			),
+			'totals_refunds'       => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_totals',
+					array_merge( $period_input, array( 'subject' => 'refunds' ) )
+				)
+			),
+			'products'             => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_breakdown',
+					array_merge(
+						$period_input,
+						array(
+							'subject'   => 'products',
+							'dimension' => 'product',
+							'limit'     => 5,
+						)
+					)
+				)
+			),
+			'attribution_channels' => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_breakdown',
+					array_merge(
+						$period_input,
+						array(
+							'subject'            => 'attribution',
+							'dimension'          => 'channel',
+							'limit'              => 6,
+							'include_unassigned' => true,
+						)
+					)
+				)
+			),
+		);
+	}
+
+	/**
+	 * Normalise a precomputed tool result for the composer source packet.
+	 *
+	 * @param mixed $output Tool output.
+	 * @return mixed
+	 */
+	private function normalise_precomputed_tool_output( $output ) {
+		if ( is_wp_error( $output ) ) {
+			return array(
+				'error'   => $output->get_error_code(),
+				'message' => $output->get_error_message(),
+			);
+		}
+
+		return $output;
+	}
+
+	/**
+	 * System prompt for the precomputed weekly report composer.
+	 *
+	 * @param bool $include_actions Whether to populate action cards.
+	 * @return string
+	 */
+	private function build_weekly_report_system_prompt( $include_actions ) {
+		$actions_schema = $include_actions
+			? '[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]'
+			: '[]';
+
+		return 'You are Hey Woo\'s weekly store report composer for a WooCommerce merchant. Hey Woo has already computed the source aggregates. The source JSON is the only source of truth for numbers, trends, comparisons, products, channels, and refunds. Do not invent metrics, targets, causes, forecasts, margins, conversion rates, sessions, ad spend, ROAS, customer names, emails, addresses, or anything not present in the source. Do not mention tool names, parameter names, JSON keys, internal implementation, or this instruction. Do not apologise, do not say "you are right", and do not frame the answer as a correction. '
+			. 'Your job is to turn the source into a useful merchant briefing: what changed, why it matters, what to watch, and what to do next. Do not make the report a top-products-only answer. Products are supporting evidence, not the headline. '
+			. 'Output ONLY valid JSON. No intro sentence. No markdown. No fenced code block. The JSON must match this shape: {"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":'
+			. $actions_schema
+			. '}. '
+			. 'Metric tiles: exactly revenue, orders, AOV, customers, and refunds when present. Insights: 3-5 items covering overall trading, the main movement driver, product mix, channel mix, and refund/watch-list signal. Tables: prefer one compact evidence table when product or channel labels would make a chart cramped. Charts: include at most one, and only when it explains a movement or mix shift better than a table; never include a simple top-5-products ranking chart as the only visual. Actions: if actions are enabled, provide exactly three specific merchant-doable actions with evidence and concrete next steps; never use vague actions like "review the report". Sources: name the aggregate surfaces used in merchant terms, such as "Revenue totals" or "Product breakdown".';
+	}
+
+	/**
+	 * User prompt for the precomputed weekly report composer.
+	 *
+	 * @param array<string,mixed> $source  Precomputed report source.
+	 * @param array<string,mixed> $options Report options.
+	 * @return string
+	 */
+	private function build_weekly_report_user_prompt( array $source, array $options ) {
+		$source_json = wp_json_encode( $source, JSON_PRETTY_PRINT );
+		$source_json = is_string( $source_json ) ? $source_json : '{}';
+
+		$lines = array(
+			'Compose the weekly store review from this server-computed source packet.',
+			'Period option: ' . ( isset( $options['period'] ) ? (string) $options['period'] : 'last_7_days' ) . '.',
+			! empty( $options['compare'] ) ? 'Comparison: use the previous matching period values already present in the source.' : 'Comparison: do not describe previous-period movement.',
+		);
+
+		if ( ! empty( $options['schedule'] ) ) {
+			$lines[] = 'Schedule setup note: ' . (string) $options['schedule'] . '. Mention it briefly in the intro only; do not claim an automatic schedule has been saved.';
+		}
+
+		$lines[] = 'Source JSON:';
+		$lines[] = $source_json;
+		$lines[] = 'Return ONLY the JSON object. No surrounding text, no markdown, no fenced code block.';
+
+		return implode( "\n\n", $lines );
 	}
 
 	/**
@@ -300,7 +627,7 @@ class DifmRestController {
 					);
 					$messages[]            = array(
 						'role'    => 'user',
-						'content' => 'The previous answer said or implied that a chart was shown, but no render_chart tool call was made. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
+						'content' => 'Internal correction: the previous draft referred to a chart but did not include chart data. Do not acknowledge this correction, apologise, or say "you are right". Return the final merchant-facing answer directly. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
 					);
 					++$iterations;
 					continue;
@@ -528,7 +855,8 @@ class DifmRestController {
 				. '(2) You MUST call render_chart if: the merchant asked for a chart, graph, or trend view; OR your answer contains time-series or category data with multiple data points. This applies even if you already wrote a table — include both. If you reference a chart in your text (e.g. "the chart below"), you MUST call render_chart. '
 				. '(3) Populate series.data directly from the tool result already in your context — do not call an analytics tool again just to chart it. '
 				. '(4) Chart type: use "line" for trends over time, "bar" for comparisons across categories or products, "pie" for proportional breakdowns with 6 or fewer slices. '
-				. '(5) Skip render_chart only for single-scalar totals answers where no series or breakdown data was retrieved.',
+				. '(5) If the merchant or selected workflow asks for a hey-woo-report block, chart specs inside that block satisfy this chart requirement; do not also call render_chart unless they explicitly asked for an additional chart. '
+				. '(6) Skip render_chart only for single-scalar totals answers where no series or breakdown data was retrieved.',
 			esc_html( $store_name ),
 			esc_url( $store_url ),
 			esc_html( $date ),
