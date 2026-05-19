@@ -184,6 +184,7 @@ function hey_woo_load_runtime_files() {
 
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-environment.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-ai-api-proxy-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';

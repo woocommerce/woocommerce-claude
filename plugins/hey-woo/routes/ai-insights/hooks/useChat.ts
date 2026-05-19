@@ -31,6 +31,10 @@ export interface UseChatOptions {
 	) => void | Promise< void >;
 }
 
+export interface SendMessageOptions {
+	displayText?: string;
+}
+
 function generateTitle( text: string ): string {
 	const trimmed = text.trim().replace( /\s+/g, ' ' );
 	if ( trimmed.length <= 50 ) {
@@ -73,8 +77,9 @@ export function useChat( options: UseChatOptions = {} ) {
 	const messagesRef = useRef< ChatMessage[] >( initialMessages );
 	messagesRef.current = state.messages;
 
-	const sendMessage = useCallback( async ( text: string ) => {
+	const sendMessage = useCallback( async ( text: string, sendOptions: SendMessageOptions = {} ) => {
 		const history = messagesRef.current;
+		const displayText = sendOptions.displayText?.trim() || text;
 
 		// Assign conversation ID and title on first send.
 		if ( ! conversationIdRef.current ) {
@@ -83,13 +88,13 @@ export function useChat( options: UseChatOptions = {} ) {
 			setConversationId( newId );
 		}
 		if ( ! titleRef.current ) {
-			titleRef.current = generateTitle( text );
+			titleRef.current = generateTitle( displayText );
 		}
 
 		const userMessage: ChatMessage = {
 			id: nextId.current++,
 			role: 'user',
-			content: text,
+			content: displayText,
 		};
 		const submittedMessages = [ ...history, userMessage ];
 

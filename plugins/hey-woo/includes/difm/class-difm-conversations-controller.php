@@ -5,6 +5,7 @@
  * Routes:
  *   GET  /hey-woo/v1/difm/conversations — Return stored conversations for the current user.
  *   POST /hey-woo/v1/difm/conversations — Create or update a conversation (upsert by ID).
+ *   DELETE /hey-woo/v1/difm/conversations — Delete one or more stored conversations.
  *
  * Conversations are stored as a JSON-encoded array in user meta under the key
  * `hey_woo_conversations`, capped at MAX_CONVERSATIONS entries
@@ -96,6 +97,11 @@ class DifmConversationsController {
 						),
 					),
 				),
+				array(
+					'methods'             => \WP_REST_Server::DELETABLE,
+					'callback'            => array( $this, 'delete_conversations' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
 			)
 		);
 	}
@@ -166,6 +172,79 @@ class DifmConversationsController {
 		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
 
 		return rest_ensure_response( array( 'status' => 'ok' ) );
+	}
+
+	/**
+	 * DELETE handler — remove one or more conversations by ID.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function delete_conversations( $request ) {
+		$user_id = get_current_user_id();
+		$ids     = $request->get_param( 'ids' );
+
+		if ( ! is_array( $ids ) ) {
+			$raw_body = $request->get_body();
+			if ( is_string( $raw_body ) && '' !== $raw_body ) {
+				$decoded_body = json_decode( $raw_body, true );
+				if ( is_array( $decoded_body ) && isset( $decoded_body['ids'] ) ) {
+					$ids = $decoded_body['ids'];
+				}
+			}
+		}
+
+		if ( is_string( $ids ) ) {
+			$ids = array( $ids );
+		}
+
+		if ( ! is_array( $ids ) ) {
+			return new \WP_Error(
+				'hey_woo_missing_conversation_ids',
+				__( 'Select at least one conversation to delete.', 'hey-woo' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$ids = array_values(
+			array_filter(
+				array_unique(
+					array_map(
+						function ( $id ) {
+							return sanitize_text_field( (string) $id );
+						},
+						$ids
+					)
+				)
+			)
+		);
+
+		if ( empty( $ids ) ) {
+			return new \WP_Error(
+				'hey_woo_missing_conversation_ids',
+				__( 'Select at least one conversation to delete.', 'hey-woo' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$conversations = self::get_recent_conversations( $user_id );
+		$conversations = array_values(
+			array_filter(
+				$conversations,
+				function ( $conversation ) use ( $ids ) {
+					return ! isset( $conversation['id'] ) || ! in_array( $conversation['id'], $ids, true );
+				}
+			)
+		);
+
+		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
+
+		return rest_ensure_response(
+			array(
+				'status'        => 'ok',
+				'conversations' => $conversations,
+			)
+		);
 	}
 
 	/**

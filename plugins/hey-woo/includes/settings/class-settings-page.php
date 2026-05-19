@@ -174,12 +174,12 @@ class SettingsPage extends \WC_Settings_Page {
 			if ( '' !== $anthropic_constant ) {
 				return sprintf(
 					/* translators: %s: PHP constant name. */
-					__( 'A direct Anthropic key is configured via the <code>%s</code> server constant. WordPress 7.0 uses native AI connectors for Ask AI, so server-managed keys should be configured through the native <code>ANTHROPIC_API_KEY</code> connector constant or in Settings > Connectors.', 'hey-woo' ),
+					__( 'A direct Anthropic key is configured via the <code>%s</code> server constant. WordPress 7.0 uses native AI connectors for New chat, so server-managed keys should be configured through the native <code>ANTHROPIC_API_KEY</code> connector constant or in Settings > Connectors.', 'hey-woo' ),
 					esc_html( $anthropic_constant )
 				);
 			}
 
-			return __( 'Ask AI uses native WordPress AI providers configured in Settings > Connectors. Connect Anthropic, OpenAI, Google, or another provider there, then choose from the connected providers here.', 'hey-woo' );
+			return __( 'New chat uses native WordPress AI providers configured in Settings > Connectors. Connect Anthropic, OpenAI, Google, or another provider there, then choose from the connected providers here.', 'hey-woo' );
 		}
 
 		if ( '' !== $anthropic_constant ) {
@@ -190,7 +190,7 @@ class SettingsPage extends \WC_Settings_Page {
 			);
 		}
 
-		return __( 'On this WordPress version, Ask AI uses the direct Anthropic client. Enter an Anthropic API key below, or define <code>HEY_WOO_ANTHROPIC_KEY</code> in <code>wp-config.php</code> for a server-managed key. WordPress 7.0 or later uses native WordPress AI connectors instead.', 'hey-woo' );
+		return __( 'On this WordPress version, New chat uses the direct Anthropic client. Enter an Anthropic API key below, or define <code>HEY_WOO_ANTHROPIC_KEY</code> in <code>wp-config.php</code> for a server-managed key. WordPress 7.0 or later uses native WordPress AI connectors instead.', 'hey-woo' );
 	}
 
 	/**
@@ -246,7 +246,7 @@ class SettingsPage extends \WC_Settings_Page {
 				<?php if ( ( new DifmProviderResolver() )->has_configured_provider() ) : ?>
 					<p>
 						<a class="button" href="<?php echo esc_url( $this->get_ask_ai_url() ); ?>">
-							<?php esc_html_e( 'Open Ask AI', 'hey-woo' ); ?>
+							<?php esc_html_e( 'Open New chat', 'hey-woo' ); ?>
 						</a>
 					</p>
 				<?php endif; ?>
@@ -272,7 +272,7 @@ class SettingsPage extends \WC_Settings_Page {
 			<div class="hey-woo-connector-migration">
 				<?php if ( 'none' === $connector_source ) : ?>
 					<p><strong><?php esc_html_e( 'Move saved Anthropic key to WordPress connectors', 'hey-woo' ); ?></strong></p>
-					<p><?php esc_html_e( 'A legacy Anthropic key is still saved locally. Move it to the native Anthropic connector so Ask AI can use the WordPress 7.0 provider flow, then remove the local copy.', 'hey-woo' ); ?></p>
+					<p><?php esc_html_e( 'A legacy Anthropic key is still saved locally. Move it to the native Anthropic connector so New chat can use the WordPress 7.0 provider flow, then remove the local copy.', 'hey-woo' ); ?></p>
 					<p>
 						<button
 							type="submit"
@@ -285,7 +285,7 @@ class SettingsPage extends \WC_Settings_Page {
 					</p>
 				<?php else : ?>
 					<p><strong><?php esc_html_e( 'Remove legacy local Anthropic key', 'hey-woo' ); ?></strong></p>
-					<p><?php esc_html_e( 'The native Anthropic connector is already configured. Remove the old database copy so the connector is the only stored key used by Ask AI.', 'hey-woo' ); ?></p>
+					<p><?php esc_html_e( 'The native Anthropic connector is already configured. Remove the old database copy so the connector is the only stored key used by New chat.', 'hey-woo' ); ?></p>
 					<p>
 						<button
 							type="submit"
@@ -387,7 +387,7 @@ class SettingsPage extends \WC_Settings_Page {
 					<?php if ( '' !== $this->get_ask_ai_url() ) : ?>
 						<p>
 							<a class="button" href="<?php echo esc_url( $this->get_ask_ai_url() ); ?>">
-								<?php esc_html_e( 'Open Ask AI', 'hey-woo' ); ?>
+								<?php esc_html_e( 'Open New chat', 'hey-woo' ); ?>
 							</a>
 						</p>
 					<?php endif; ?>
@@ -568,7 +568,7 @@ class SettingsPage extends \WC_Settings_Page {
 
 		$this->delete_api_key_option( DifmProviderResolver::PROVIDER_ANTHROPIC );
 		update_option( self::DIFM_PROVIDER_OPTION, DifmProviderResolver::PROVIDER_ANTHROPIC, 'no' );
-		\WC_Admin_Settings::add_message( __( 'Hey Woo: legacy local Anthropic key removed. Ask AI will use the native Anthropic connector.', 'hey-woo' ) );
+		\WC_Admin_Settings::add_message( __( 'Hey Woo: legacy local Anthropic key removed. New chat will use the native Anthropic connector.', 'hey-woo' ) );
 	}
 
 	/**

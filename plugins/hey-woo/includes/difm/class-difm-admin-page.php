@@ -71,8 +71,8 @@ class DifmAdminPage {
 
 		add_submenu_page(
 			'woocommerce',
-			__( 'Ask AI', 'hey-woo' ),
-			__( 'Ask AI', 'hey-woo' ),
+			__( 'New chat', 'hey-woo' ),
+			__( 'New chat', 'hey-woo' ),
 			'manage_woocommerce',
 			self::MENU_SLUG,
 			'__return_null'
@@ -97,9 +97,31 @@ class DifmAdminPage {
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			heywoo_register_hey_woo_insights_menu_item(
 				'ai-insights',
-				__( 'Ask AI', 'hey-woo' ),
+				__( 'New chat', 'hey-woo' ),
 				'/'
 			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-history',
+				__( 'History', 'hey-woo' ),
+				'/history'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-reports',
+				__( 'Reports', 'hey-woo' ),
+				'/reports'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-actions',
+				__( 'Actions', 'hey-woo' ),
+				'/actions'
+			);
+		}
+
+		if ( wp_style_is( 'wp-dataviews', 'registered' ) ) {
+			wp_enqueue_style( 'wp-dataviews' );
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
@@ -141,8 +163,8 @@ class DifmAdminPage {
 		?>
 		<div class="notice notice-warning">
 			<p>
-				<strong><?php esc_html_e( 'Ask AI requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
-				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Ask AI with your configured provider.', 'hey-woo' ); ?>
+				<strong><?php esc_html_e( 'New chat requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
+				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use New chat with your configured provider.', 'hey-woo' ); ?>
 			</p>
 		</div>
 		<?php
