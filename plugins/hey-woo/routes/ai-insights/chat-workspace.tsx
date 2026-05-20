@@ -131,7 +131,7 @@ function ChatView( {
 
 		didAutoRunWorkflowRef.current = true;
 		void sendMessage( initialWorkflowPrompt, {
-			displayText: initialWorkflowDisplay || __( 'Run report', 'hey-woo' ),
+			displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
 		} );
 	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, state.status, urlConversationId ] );
 

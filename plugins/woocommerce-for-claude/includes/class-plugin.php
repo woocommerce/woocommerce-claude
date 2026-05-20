@@ -684,7 +684,7 @@ INSTRUCTIONS;
 			return false;
 		}
 
-		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth( $request );
+		list( $consumer_key, $consumer_secret ) = self::extract_mcp_credential( $request );
 		if ( '' === $consumer_key || '' === $consumer_secret ) {
 			return false;
 		}
@@ -726,7 +726,7 @@ INSTRUCTIONS;
 	}
 
 	/**
-	 * Pull a Basic Auth credential pair off the current request.
+	 * Pull a WooCommerce REST API credential pair off the current request.
 	 *
 	 * Tries `PHP_AUTH_USER`/`PHP_AUTH_PW` first (what mod_php and
 	 * php-fpm normally populate from `Authorization: Basic …`). Then
@@ -739,12 +739,15 @@ INSTRUCTIONS;
 	 * supports.
 	 *
 	 * Returns `['', '']` if no credential is present or the header is
-	 * malformed — caller treats that as auth failure.
+	 * malformed. As a compatibility fallback for short-lived generated
+	 * configs from the 0.4.3 pre-release window, it also accepts an
+	 * `X-MCP-API-Key: ck_xxx:cs_xxx` header. New setup bundles use
+	 * Basic auth.
 	 *
 	 * @param \WP_REST_Request $request The current REST request.
 	 * @return array{0:string,1:string} `[username, password]`.
 	 */
-	private static function extract_basic_auth( $request ) {
+	private static function extract_mcp_credential( $request ) {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
 		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
@@ -758,17 +761,33 @@ INSTRUCTIONS;
 
 		$header = $request->get_header( 'authorization' );
 		if ( ! is_string( $header ) || 0 !== stripos( $header, 'Basic ' ) ) {
-			return array( '', '' );
+			return self::extract_mcp_api_key_header( $request );
 		}
 
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
 		$decoded = base64_decode( substr( $header, 6 ), true );
 		if ( false === $decoded || false === strpos( $decoded, ':' ) ) {
-			return array( '', '' );
+			return self::extract_mcp_api_key_header( $request );
 		}
 
 		list( $username, $password ) = explode( ':', $decoded, 2 );
 		return array( trim( $username ), trim( $password ) );
+	}
+
+	/**
+	 * Pull the short-lived pre-release custom-header credential, when present.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
+	 * @return array{0:string,1:string} `[username, password]`, or empty strings.
+	 */
+	private static function extract_mcp_api_key_header( $request ) {
+		$api_key = $request->get_header( 'x-mcp-api-key' );
+		if ( is_string( $api_key ) && false !== strpos( $api_key, ':' ) ) {
+			list( $username, $password ) = explode( ':', $api_key, 2 );
+			return array( trim( $username ), trim( $password ) );
+		}
+
+		return array( '', '' );
 	}
 
 	/**

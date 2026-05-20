@@ -1,9 +1,10 @@
 // Actions route.
 
 .hey-woo-page--actions {
-	height: auto;
-	min-height: calc(100vh - 16px);
-	max-width: 1280px;
+	width: 100%;
+	height: calc(100vh - 16px);
+	min-height: 0;
+	max-width: none;
 	padding-bottom: 32px;
 	--hey-woo-actions-border: var(--wpds-color-stroke-subtle, #e0e0e0);
 	--hey-woo-actions-surface: var(--wpds-color-bg-surface, #fff);
@@ -172,16 +173,18 @@
 
 .hey-woo-dashboard-lanes {
 	display: grid;
+	flex: 1;
 	grid-template-columns: repeat(3, minmax(260px, 1fr));
 	gap: var(--hey-woo-actions-gap);
+	min-height: 0;
 	padding-top: 16px;
-	align-items: start;
+	align-items: stretch;
 }
 
 .hey-woo-action-lane {
 	display: flex;
 	flex-direction: column;
-	min-height: 360px;
+	min-height: 0;
 	border: 1px solid var(--hey-woo-actions-border);
 	border-radius: 6px;
 	background: var(--hey-woo-actions-surface-weak);

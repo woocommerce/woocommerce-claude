@@ -45,7 +45,7 @@ If you'd rather configure everything yourself — for example to drop the admin 
 
 #### 1. Create an API key
 
-In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates with the standard WooCommerce REST API key flow — `ck_...` as the username and `cs_...` as the password over HTTP Basic auth. HTTPS is required for production; HTTP works for local dev.
+In **WooCommerce > Settings > Advanced > REST API**, create a new key with Read or Read/Write permissions. Save the consumer key (`ck_...`) and consumer secret (`cs_...`). The MCP endpoint authenticates with HTTP Basic auth: the consumer key is the username and the consumer secret is the password. HTTPS is required for production; HTTP works for local dev.
 
 #### 2. Point your MCP client at the endpoint
 
@@ -81,7 +81,7 @@ claude mcp add woocommerce-claude \
 
 Having trouble? See the [mcp-wordpress-remote troubleshooting guide](https://github.com/Automattic/mcp-wordpress-remote/blob/trunk/Docs/troubleshooting.md).
 
-If your MCP client supports HTTP transport natively (some do, many don't), you can point it straight at the endpoint without the proxy. Use HTTP Basic auth with the consumer key as the username and consumer secret as the password.
+If your MCP client supports HTTP transport natively (some do, many don't), you can point it straight at the endpoint without the proxy. Send the consumer key and secret as HTTP Basic auth credentials.
 
 ### Restart your client and talk to your store
 
@@ -112,7 +112,7 @@ This is separate from installing the WordPress plugin on the store. The WordPres
 
 In Claude Code, add the repository as a marketplace with `/plugin marketplace add woocommerce/woocommerce-claude`, then install it with `/plugin install woocommerce-claude@woocommerce-claude-ai-toolkit`. After `/reload-plugins`, try `/woocommerce-claude:weekly-store-review`, `/woocommerce-claude:product-performance-review`, or any of the other workflow commands listed in [docs/agent-plugin.md](../../docs/agent-plugin.md).
 
-Claude clients that support plugin upload can use a packaged copy of the companion agent plugin instead of marketplace commands. Upload the agent plugin package, not the WordPress `woocommerce-for-claude.zip` plugin or the store `.mcpb` connection file. Tagged releases include a version-matched `woocommerce-claude-agent-plugin.zip`, and the WordPress setup screen links to the package that matches the installed plugin version. The package contains the contents of [`agent-plugin/`](../../agent-plugin/) with `.claude-plugin/plugin.json` at the package root and the `skills/` folder alongside it. The uploaded agent plugin still needs the store MCP connection from the setup screen before the workflows can read live data.
+Claude clients that support plugin upload can use a packaged copy of the companion agent plugin instead of marketplace commands. Upload the agent plugin package, not the WordPress `woocommerce-claude.zip` plugin or the store `.mcpb` connection file. Tagged releases include a version-matched `woocommerce-claude-agent-plugin.zip`, and the WordPress setup screen links to the package that matches the installed plugin version. The package contains the contents of [`agent-plugin/`](../../agent-plugin/) with `.claude-plugin/plugin.json` at the package root and the `skills/` folder alongside it. The uploaded agent plugin still needs the store MCP connection from the setup screen before the workflows can read live data.
 
 ### What can you ask?
 
@@ -214,7 +214,7 @@ WooCommerce core already exposes basic product and order CRUD via MCP. This proj
 | **WooCommerce core MCP** | HTTP transport, auth, product/order CRUD tools                    | WooCommerce core team |
 | **WooCommerce for Claude plugin**       | Analytics skills, knowledge resources, prompts, readiness scoring | This project          |
 
-Everything ships through the single endpoint at `/wp-json/woocommerce-claude/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via standard HTTP Basic auth — `ck_xxx` as the username, `cs_xxx` as the password, sourced from a WooCommerce REST API key with `read` or `read_write` scope.
+Everything ships through the single endpoint at `/wp-json/woocommerce-claude/mcp`. There is no separate MCP server process to run — the plugin registers its abilities and stands up its own MCP server on `mcp_adapter_init` using the WordPress MCP adapter (vendored inside WooCommerce). The server bundles tools, resources, and prompts directly, and authenticates via HTTP Basic auth sourced from a WooCommerce REST API key with `read` or `read_write` scope. The short-lived pre-release `X-MCP-API-Key` header is still accepted as a compatibility fallback.
 
 ---
 

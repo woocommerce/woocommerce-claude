@@ -136,10 +136,20 @@ export function useChat( options: UseChatOptions = {} ) {
 			clearTimeout( timeoutId );
 
 			if ( ! response.ok ) {
+				let errorMessage = __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' );
+				try {
+					const errorJson = ( await response.json() ) as { message?: unknown };
+					if ( typeof errorJson.message === 'string' && errorJson.message.trim() ) {
+						errorMessage = errorJson.message;
+					}
+				} catch {
+					// Keep the generic connection message when the server does not return JSON.
+				}
+
 				setState( ( prev ) => ( {
 					...prev,
 					status: 'error',
-					errorMessage: __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' ),
+					errorMessage,
 				} ) );
 				return;
 			}

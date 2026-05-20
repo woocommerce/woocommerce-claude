@@ -1,5 +1,5 @@
 /**
- * Hey Woo Reports - right-hand setup panel.
+ * Hey Woo Workflows - right-hand setup panel.
  */
 import '../ai-insights/style.scss';
 import './style.scss';
@@ -66,8 +66,8 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 		launchChatWorkflow(
 			prompt,
 			sprintf(
-				/* translators: 1: report name, 2: period label */
-				__( 'Run %1$s report for %2$s', 'hey-woo' ),
+				/* translators: 1: workflow name, 2: period label */
+				__( 'Run %1$s workflow for %2$s', 'hey-woo' ),
 				workflow.label,
 				PERIOD_LABELS[ period ]
 			)
@@ -75,7 +75,7 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 	};
 
 	return (
-		<aside className="hey-woo-report-preview" aria-label={ __( 'Report setup', 'hey-woo' ) }>
+		<aside className="hey-woo-report-preview" aria-label={ __( 'Workflow setup', 'hey-woo' ) }>
 			<header className="hey-woo-report-preview__header">
 				<div className="hey-woo-report-preview__heading">
 					<span className="hey-woo-report-preview__eyebrow">{ metadata.priority }</span>
@@ -184,7 +184,7 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 
 			<div className="hey-woo-report-preview__actions">
 				<Button type="button" variant="primary" onClick={ handleStart }>
-					{ __( 'Start report', 'hey-woo' ) }
+					{ __( 'Start workflow', 'hey-woo' ) }
 				</Button>
 			</div>
 		</aside>

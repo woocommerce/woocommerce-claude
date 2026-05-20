@@ -1,9 +1,0 @@
-{
-	"private": true,
-	"name": "_@hey-woo/monitors-route",
-	"version": "1.0.0",
-	"route": {
-		"path": "/monitors",
-		"page": "hey-woo-insights"
-	}
-}

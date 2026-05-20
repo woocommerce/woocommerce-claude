@@ -71,8 +71,8 @@ class DifmAdminPage {
 
 		add_submenu_page(
 			'woocommerce',
-			__( 'New chat', 'hey-woo' ),
-			__( 'New chat', 'hey-woo' ),
+			__( 'Hey Woo', 'hey-woo' ),
+			__( 'Hey Woo', 'hey-woo' ),
 			'manage_woocommerce',
 			self::MENU_SLUG,
 			'__return_null'
@@ -96,15 +96,9 @@ class DifmAdminPage {
 		// Register the sidebar menu item for the boot navigation shell.
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			heywoo_register_hey_woo_insights_menu_item(
-				'ai-insights',
-				__( 'Today', 'hey-woo' ),
-				'/'
-			);
-
-			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-chat',
 				__( 'New chat', 'hey-woo' ),
-				'/chat'
+				'/'
 			);
 
 			heywoo_register_hey_woo_insights_menu_item(
@@ -115,14 +109,8 @@ class DifmAdminPage {
 
 			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-reports',
-				__( 'Reports', 'hey-woo' ),
+				__( 'Workflows', 'hey-woo' ),
 				'/reports'
-			);
-
-			heywoo_register_hey_woo_insights_menu_item(
-				'hey-woo-monitors',
-				__( 'Monitors', 'hey-woo' ),
-				'/monitors'
 			);
 
 			heywoo_register_hey_woo_insights_menu_item(
@@ -143,17 +131,16 @@ class DifmAdminPage {
 		$resolver = new DifmProviderResolver();
 
 		$data = array(
-			'nonce'            => wp_create_nonce( 'wp_rest' ),
-			'restBase'         => rest_url( 'hey-woo/v1/difm' ),
-			'settingsUrl'      => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
-			'storeName'        => get_bloginfo( 'name' ),
-			'userName'         => wp_get_current_user()->display_name,
-			'currency'         => get_woocommerce_currency_symbol(),
-			'hasKey'           => $resolver->has_configured_provider(),
-			'providerMode'     => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
-			'provider'         => DifmProviderResolver::get_selected_provider(),
-			'conversations'    => DifmConversationsController::get_recent_conversations( $user_id ),
-			'firstRunBriefing' => DifmBriefingsController::get_bootstrap_briefing(),
+			'nonce'         => wp_create_nonce( 'wp_rest' ),
+			'restBase'      => rest_url( 'hey-woo/v1/difm' ),
+			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
+			'storeName'     => get_bloginfo( 'name' ),
+			'userName'      => wp_get_current_user()->display_name,
+			'currency'      => get_woocommerce_currency_symbol(),
+			'hasKey'        => $resolver->has_configured_provider(),
+			'providerMode'  => DifmProviderEnvironment::is_connector_mode() ? 'connector' : 'legacy',
+			'provider'      => DifmProviderResolver::get_selected_provider(),
+			'conversations' => DifmConversationsController::get_recent_conversations( $user_id ),
 		);
 
 		// Register an inline-only script handle so print_footer_scripts() outputs the data.
@@ -177,8 +164,8 @@ class DifmAdminPage {
 		?>
 		<div class="notice notice-warning">
 			<p>
-				<strong><?php esc_html_e( 'New chat requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
-				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use New chat with your configured provider.', 'hey-woo' ); ?>
+				<strong><?php esc_html_e( 'Hey Woo requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
+				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Hey Woo with your configured provider.', 'hey-woo' ); ?>
 			</p>
 		</div>
 		<?php

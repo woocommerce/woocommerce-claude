@@ -7,9 +7,10 @@
 	--hey-woo-history-surface: var(--wpds-color-bg-surface, #fff);
 	--hey-woo-history-surface-weak: var(--wpds-color-bg-surface-neutral-weak, #f6f7f7);
 
-	height: auto;
-	min-height: calc(100vh - 16px);
-	max-width: 1180px;
+	width: 100%;
+	height: calc(100vh - 16px);
+	min-height: 0;
+	max-width: none;
 	padding-bottom: 32px;
 }
 
@@ -38,7 +39,24 @@
 }
 
 .hey-woo-page--history .dataviews-wrapper {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
 	padding-top: 16px;
+}
+
+.hey-woo-page--history .dataviews-view-grid,
+.hey-woo-page--history .dataviews-view-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.hey-woo-page--history .dataviews-view-table {
+	display: block;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
 }
 
 .hey-woo-history-media {

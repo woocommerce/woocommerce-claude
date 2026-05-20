@@ -30,6 +30,7 @@ If the user does not specify a date range, use `period: last_7_days` and `compar
 
 - Do not tell the merchant you are loading schemas, selecting tools, making parallel calls, or pulling data through a named connector. Use the tools quietly.
 - If you need a progress sentence before the final answer, say only a plain merchant-facing line such as "I'll check the last week and compare it with the previous week."
+- If the required WooCommerce for Claude store tools or `store://profile` resource are unavailable, stop before attempting the review. Say the store connection is not active in this Claude app, and tell the merchant to enable the store MCPB in Claude Desktop or run the Step 2 terminal command for Claude Code from WooCommerce -> Settings -> WooCommerce for Claude. Do not search MCP registries or suggest a generic WooCommerce connector.
 - In the final answer, use the section headings below. Do not replace `Next Actions` with an open-ended "want me to dig into..." question.
 
 ## Interpretation rules

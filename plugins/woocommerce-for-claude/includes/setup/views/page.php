@@ -40,9 +40,7 @@ $server_slug      = SetupPage::server_slug();
 $remote_pkg       = SetupPage::REMOTE_PACKAGE;
 $default_key_desc = RestApiKey::KEY_DESCRIPTION;
 
-list( $api_username, $api_password ) = '' === $credential
-	? array( 'ck_xxx', 'cs_xxx' )
-	: RestApiKey::split_credential( $credential );
+list( $api_username, $api_password ) = RestApiKey::split_credential( '' === $credential ? 'ck_xxx:cs_xxx' : $credential );
 
 $json_snippet = wp_json_encode(
 	array(
@@ -64,9 +62,9 @@ $json_snippet = wp_json_encode(
 $claude_code_command = sprintf(
 	"claude mcp add %s \\\n  --env WP_API_URL=%s \\\n  --env WP_API_USERNAME=%s \\\n  --env WP_API_PASSWORD=%s \\\n  -- npx -y %s",
 	$server_slug,
-	$endpoint_url,
-	$api_username,
-	$api_password,
+	escapeshellarg( $endpoint_url ),
+	escapeshellarg( $api_username ),
+	escapeshellarg( $api_password ),
 	$remote_pkg
 );
 
@@ -319,6 +317,10 @@ $is_embedded           = isset( $is_embedded ) ? (bool) $is_embedded : false;
 					<li><?php esc_html_e( 'Restart Claude Desktop for the changes to take effect.', 'woocommerce-claude' ); ?></li>
 				</ol>
 
+				<p class="woocommerce-claude-setup__warn-block">
+					<?php esc_html_e( 'MCPB install is for Claude Desktop only. Claude Code and other terminal clients do not read Claude Desktop extensions; use Terminal setup in this step for those clients.', 'woocommerce-claude' ); ?>
+				</p>
+
 				<p class="woocommerce-claude-setup__prereq">
 					<strong><?php esc_html_e( 'Prerequisite:', 'woocommerce-claude' ); ?></strong>
 					<?php
@@ -453,6 +455,10 @@ $is_embedded           = isset( $is_embedded ) ? (bool) $is_embedded : false;
 					<li><?php esc_html_e( 'Upload the zip file and enable the plugin.', 'woocommerce-claude' ); ?></li>
 				</ol>
 
+				<p class="woocommerce-claude-setup__warn-block">
+					<?php esc_html_e( 'Use these workflow commands in the same Claude app where this store connection is active. Claude Code users should run the Step 2 terminal command before running the Step 3 terminal commands.', 'woocommerce-claude' ); ?>
+				</p>
+
 				<?php if ( ! $can_use_step2_actions ) : ?>
 					<p class="woocommerce-claude-setup__blocked">
 						<?php esc_html_e( 'Create a store connection key in Step 1 before downloading workflow skills, so Claude has a store connection for the reviews.', 'woocommerce-claude' ); ?>
@@ -523,7 +529,7 @@ $is_embedded           = isset( $is_embedded ) ? (bool) $is_embedded : false;
 			</div>
 
 			<p class="woocommerce-claude-setup__prompt-footer woocommerce-claude-setup__prompt-footer--workflow">
-				<?php esc_html_e( 'After plugins load, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review.', 'woocommerce-claude' ); ?>
+				<?php esc_html_e( 'After the store connection and workflow plugin are active in the same Claude app, try /woocommerce-claude:weekly-store-review or /woocommerce-claude:product-performance-review.', 'woocommerce-claude' ); ?>
 			</p>
 		</section>
 

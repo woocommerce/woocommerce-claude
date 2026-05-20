@@ -1,11 +1,12 @@
 /**
- * Rich structured report renderer for workflow outputs.
+ * Editorial briefing renderer for workflow outputs.
  */
 import { __, sprintf } from '@wordpress/i18n';
 import type {
 	ReportCaveat,
 	ReportInsight,
 	ReportMetricTile,
+	ReportTone,
 	ReportSource,
 	ReportTable,
 	StructuredReport,
@@ -17,19 +18,33 @@ interface StructuredReportViewProps {
 }
 
 const TONE_LABELS = {
-	positive: __( 'Positive', 'hey-woo' ),
-	warning: __( 'Watch', 'hey-woo' ),
+	positive: __( 'Looking good', 'hey-woo' ),
+	warning: __( 'Heads-up', 'hey-woo' ),
 	negative: __( 'Concern', 'hey-woo' ),
-	neutral: __( 'Signal', 'hey-woo' ),
+	neutral: __( 'Worth knowing', 'hey-woo' ),
 };
+
+function toneLabel( tone: ReportTone, status?: string ): string {
+	return status || TONE_LABELS[ tone ];
+}
 
 function MetricTile( { tile }: { tile: ReportMetricTile } ) {
 	return (
-		<div className={ `hey-woo-structured-report-metric hey-woo-structured-report-metric--${ tile.tone }` }>
-			<span>{ tile.label }</span>
-			<strong>{ tile.value }</strong>
-			{ tile.trend && <small>{ tile.trend }</small> }
-			{ tile.caption && <em>{ tile.caption }</em> }
+		<div
+			className={ `hey-woo-structured-report-metric hey-woo-structured-report-metric--${ tile.tone }` }
+		>
+			<span className="hey-woo-structured-report-metric__label">{ tile.label }</span>
+			<strong className="hey-woo-structured-report-metric__value">{ tile.value }</strong>
+			{ tile.trend && (
+				<small className="hey-woo-structured-report-metric__trend">
+					{ tile.trend }
+				</small>
+			) }
+			{ tile.caption && (
+				<em className="hey-woo-structured-report-metric__caption">
+					{ tile.caption }
+				</em>
+			) }
 		</div>
 	);
 }
@@ -42,8 +57,12 @@ function InsightRow( { insight, index }: { insight: ReportInsight; index: number
 			</div>
 			<div className="hey-woo-structured-report-insight__body">
 				<div className="hey-woo-structured-report-insight__meta">
+					<span
+						className={ `hey-woo-structured-report-insight__dot hey-woo-structured-report-insight__dot--${ insight.tone }` }
+						aria-hidden="true"
+					/>
 					{ insight.category && <span>{ insight.category }</span> }
-					<span>{ insight.status || TONE_LABELS[ insight.tone ] }</span>
+					<span>{ toneLabel( insight.tone, insight.status ) }</span>
 				</div>
 				<h4>{ insight.title }</h4>
 				<p>{ insight.summary }</p>
@@ -59,7 +78,7 @@ function InsightRow( { insight, index }: { insight: ReportInsight; index: number
 
 function ReportTableView( { table }: { table: ReportTable } ) {
 	return (
-		<section className="hey-woo-structured-report-section">
+		<section className="hey-woo-structured-report-section hey-woo-structured-report-section--evidence">
 			<h3>{ table.title }</h3>
 			<div className="hey-woo-structured-report-table-wrap">
 				<table className="hey-woo-structured-report-table">
@@ -127,24 +146,33 @@ export function StructuredReportView( { report }: StructuredReportViewProps ) {
 	return (
 		<article className="hey-woo-structured-report">
 			<header className="hey-woo-structured-report__header">
-				{ report.subtitle && (
-					<p className="hey-woo-structured-report__eyebrow">{ report.subtitle }</p>
-				) }
+				<div className="hey-woo-structured-report__kicker">
+					<span>{ __( 'Hey Woo briefing', 'hey-woo' ) }</span>
+					{ report.subtitle && <span>{ report.subtitle }</span> }
+				</div>
 				<h2>{ report.title }</h2>
-				{ report.summary && <p>{ report.summary }</p> }
+				{ report.summary && (
+					<p className="hey-woo-structured-report__editor">{ report.summary }</p>
+				) }
 			</header>
 
 			{ report.metricTiles.length > 0 && (
-				<section className="hey-woo-structured-report-metrics" aria-label={ __( 'Report metrics', 'hey-woo' ) }>
-					{ report.metricTiles.map( ( tile ) => (
-						<MetricTile key={ `${ tile.label }-${ tile.value }` } tile={ tile } />
-					) ) }
+				<section
+					className="hey-woo-structured-report-section hey-woo-structured-report-section--metrics"
+					aria-label={ __( 'Briefing metrics', 'hey-woo' ) }
+				>
+					<h3>{ __( 'The tape', 'hey-woo' ) }</h3>
+					<div className="hey-woo-structured-report-metrics">
+						{ report.metricTiles.map( ( tile ) => (
+							<MetricTile key={ `${ tile.label }-${ tile.value }` } tile={ tile } />
+						) ) }
+					</div>
 				</section>
 			) }
 
 			{ report.insights.length > 0 && (
 				<section className="hey-woo-structured-report-section">
-					<h3>{ __( 'Key findings', 'hey-woo' ) }</h3>
+					<h3>{ __( 'What to look at', 'hey-woo' ) }</h3>
 					<div className="hey-woo-structured-report-insights">
 						{ report.insights.map( ( insight, index ) => (
 							<InsightRow
@@ -158,8 +186,8 @@ export function StructuredReportView( { report }: StructuredReportViewProps ) {
 			) }
 
 			{ report.charts.length > 0 && (
-				<section className="hey-woo-structured-report-section">
-					<h3>{ __( 'Visuals', 'hey-woo' ) }</h3>
+				<section className="hey-woo-structured-report-section hey-woo-structured-report-section--evidence">
+					<h3>{ __( 'Evidence', 'hey-woo' ) }</h3>
 					<div className="hey-woo-structured-report-charts">
 						{ report.charts.map( ( chart, index ) => (
 							<ChatChart key={ `${ chart.title }-${ index }` } spec={ chart } />
@@ -174,7 +202,7 @@ export function StructuredReportView( { report }: StructuredReportViewProps ) {
 
 			{ report.caveats.length > 0 && (
 				<section className="hey-woo-structured-report-section">
-					<h3>{ __( 'Caveats', 'hey-woo' ) }</h3>
+					<h3>{ __( 'Notes', 'hey-woo' ) }</h3>
 					<div className="hey-woo-structured-report-caveats">
 						{ report.caveats.map( ( caveat ) => (
 							<Caveat key={ caveat.title } caveat={ caveat } />

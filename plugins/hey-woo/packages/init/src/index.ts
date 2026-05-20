@@ -1,10 +1,10 @@
 import { store as bootStore } from '@wordpress/boot';
 import { dispatch } from '@wordpress/data';
-import { archive, chartBar, check, commentAuthorAvatar } from '@wordpress/icons';
+import { archive, chartBar, check, commentContent } from '@wordpress/icons';
 
 export async function init(): Promise< void > {
-	dispatch( bootStore ).updateMenuItem( 'ai-insights', {
-		icon: commentAuthorAvatar,
+	dispatch( bootStore ).updateMenuItem( 'hey-woo-chat', {
+		icon: commentContent,
 	} );
 	dispatch( bootStore ).updateMenuItem( 'hey-woo-history', {
 		icon: archive,

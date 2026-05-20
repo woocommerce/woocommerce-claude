@@ -18,9 +18,9 @@
  *     bypassing the scope they explicitly chose.
  *
  * The auth callback only requires `$request` to be a WP_REST_Request
- * instance; the credential comes from $_SERVER (PHP_AUTH_USER/PW or
- * HTTP_AUTHORIZATION). Tests inject the credential via $_SERVER and
- * assert the return shape.
+ * instance; generated setup uses Basic auth, with X-MCP-API-Key accepted
+ * only as a short-lived pre-release compatibility fallback. Tests inject
+ * both forms and assert the return shape.
  *
  * @package WooCommerce\Claude\Tests
  */
@@ -49,7 +49,8 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		unset(
 			$_SERVER['PHP_AUTH_USER'],
 			$_SERVER['PHP_AUTH_PW'],
-			$_SERVER['HTTP_AUTHORIZATION']
+			$_SERVER['HTTP_AUTHORIZATION'],
+			$_SERVER['HTTP_X_MCP_API_KEY']
 		);
 		$this->wipe_test_rows();
 		delete_option( RestApiKey::OPTION_KEY_ID );
@@ -203,6 +204,26 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Custom-header auth remains as a compatibility fallback for
+	 * short-lived pre-release generated configs. The setup flow itself
+	 * uses Basic auth.
+	 */
+	public function test_authenticates_via_x_mcp_api_key_header() {
+		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$cred    = $this->insert_api_key( $user_id, 'read' );
+
+		unset( $_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW'], $_SERVER['HTTP_AUTHORIZATION'], $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] );
+
+		$request = new \WP_REST_Request();
+		$request->set_header( 'x-mcp-api-key', $cred );
+
+		$result = \WooCommerce\Claude\Plugin::instance()->authenticate_mcp_request( $request );
+
+		$this->assertTrue( $result, 'A credential on X-MCP-API-Key authenticates.' );
+		$this->assertSame( $user_id, get_current_user_id() );
+	}
+
+	/**
 	 * Setup-managed keys record a last-seen timestamp after a real MCP auth hit.
 	 */
 	public function test_setup_key_authentication_marks_external_connection_seen() {
@@ -296,7 +317,7 @@ class Test_MCP_Authentication extends WP_UnitTestCase {
 		list( $username, $password ) = explode( ':', $credential, 2 );
 		$_SERVER['PHP_AUTH_USER']    = $username;
 		$_SERVER['PHP_AUTH_PW']      = $password;
-		unset( $_SERVER['HTTP_AUTHORIZATION'] );
+		unset( $_SERVER['HTTP_AUTHORIZATION'], $_SERVER['HTTP_X_MCP_API_KEY'] );
 	}
 
 	/**

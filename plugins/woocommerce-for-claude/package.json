@@ -1,6 +1,6 @@
 {
-  "name": "woocommerce-for-claude",
-  "version": "0.4.2",
+  "name": "woocommerce-claude",
+  "version": "0.4.3",
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
   "packageManager": "pnpm@10.33.0",

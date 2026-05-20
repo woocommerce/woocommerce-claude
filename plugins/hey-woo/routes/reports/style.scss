@@ -1,9 +1,10 @@
-// Reports route.
+// Workflows route.
 
 .hey-woo-page--reports {
-	height: auto;
-	min-height: calc(100vh - 16px);
-	max-width: 1180px;
+	width: 100%;
+	height: calc(100vh - 16px);
+	min-height: 0;
+	max-width: none;
 	padding-bottom: 32px;
 }
 
@@ -28,7 +29,24 @@
 }
 
 .hey-woo-page--reports .dataviews-wrapper {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
 	padding-top: 16px;
+}
+
+.hey-woo-page--reports .dataviews-view-grid,
+.hey-woo-page--reports .dataviews-view-list {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.hey-woo-page--reports .dataviews-view-table {
+	display: block;
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
 }
 
 .hey-woo-report-media {

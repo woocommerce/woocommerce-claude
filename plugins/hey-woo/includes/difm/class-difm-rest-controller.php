@@ -233,6 +233,10 @@ class DifmRestController {
 			return $this->answer_precomputed_weekly_report( $client, $user_message );
 		}
 
+		if ( $this->should_use_precomputed_acquisition_report( $workflow ) ) {
+			return $this->answer_precomputed_acquisition_report( $client, $user_message );
+		}
+
 		$system_prompt = $this->build_system_prompt( $workflow );
 		$messages      = $this->build_conversation_messages( $raw_history, $user_message );
 		$tools         = $this->build_tool_definitions();
@@ -259,6 +263,18 @@ class DifmRestController {
 		return is_array( $workflow )
 			&& isset( $workflow['slug'] )
 			&& 'weekly-store-review' === (string) $workflow['slug'];
+	}
+
+	/**
+	 * Whether a selected workflow should use server-computed acquisition inputs.
+	 *
+	 * @param array<string,string>|null $workflow Selected workflow, if any.
+	 * @return bool
+	 */
+	private function should_use_precomputed_acquisition_report( $workflow ) {
+		return is_array( $workflow )
+			&& isset( $workflow['slug'] )
+			&& 'customer-acquisition-review' === (string) $workflow['slug'];
 	}
 
 	/**
@@ -345,11 +361,97 @@ class DifmRestController {
 		}
 
 		if ( ! is_array( $payload ) ) {
-			return rest_ensure_response(
+			$payload = $this->build_weekly_report_fallback_payload(
+				$source,
+				$options,
+				! empty( $options['include_actions'] )
+			);
+		}
+
+		return rest_ensure_response( $this->build_chat_response( $this->build_weekly_report_reply( $payload ) ) );
+	}
+
+	/**
+	 * Compose the acquisition report from deterministic server-side aggregates.
+	 *
+	 * @param DifmAiClientInterface $client       AI provider client.
+	 * @param string                $user_message Merchant request.
+	 * @return \WP_REST_Response
+	 */
+	private function answer_precomputed_acquisition_report( DifmAiClientInterface $client, $user_message ) {
+		$options       = $this->parse_acquisition_report_options( $user_message );
+		$source        = $this->build_acquisition_report_source( $options );
+		$user_prompt   = $this->build_acquisition_report_user_prompt( $source, $options );
+		$system_prompt = $this->build_acquisition_report_system_prompt( ! empty( $options['include_actions'] ) );
+
+		$result = $client->messages(
+			array(
 				array(
-					'status'  => 'error',
-					'message' => __( 'The report data loaded, but the AI did not return a valid report document. Please try again.', 'hey-woo' ),
+					'role'    => 'user',
+					'content' => $user_prompt,
+				),
+			),
+			$system_prompt,
+			array(),
+			3400,
+			array(
+				'surface'   => 'difm_precomputed_acquisition_report',
+				'iteration' => 1,
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$payload = $this->build_acquisition_report_fallback_payload(
+				$source,
+				$options,
+				! empty( $options['include_actions'] )
+			);
+
+			return rest_ensure_response( $this->build_chat_response( $this->build_weekly_report_reply( $payload ) ) );
+		}
+
+		$content = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
+		$reply   = $this->extract_text_reply( $content );
+		$payload = $this->parse_weekly_report_payload( $reply );
+
+		if ( ! is_array( $payload ) ) {
+			$retry_result = $client->messages(
+				array(
+					array(
+						'role'    => 'user',
+						'content' => $user_prompt,
+					),
+					array(
+						'role'    => 'assistant',
+						'content' => $reply,
+					),
+					array(
+						'role'    => 'user',
+						'content' => 'Internal correction: your previous response was not valid report JSON. Return ONLY the JSON object matching the required shape. No intro sentence, no markdown, no fenced code block, no apology.',
+					),
+				),
+				$system_prompt,
+				array(),
+				3400,
+				array(
+					'surface'   => 'difm_precomputed_acquisition_report',
+					'iteration' => 2,
 				)
+			);
+
+			if ( is_wp_error( $retry_result ) ) {
+				$payload = null;
+			} else {
+				$retry_content = isset( $retry_result['content'] ) && is_array( $retry_result['content'] ) ? $retry_result['content'] : array();
+				$payload       = $this->parse_weekly_report_payload( $this->extract_text_reply( $retry_content ) );
+			}
+		}
+
+		if ( ! is_array( $payload ) ) {
+			$payload = $this->build_acquisition_report_fallback_payload(
+				$source,
+				$options,
+				! empty( $options['include_actions'] )
 			);
 		}
 
@@ -399,6 +501,443 @@ class DifmRestController {
 		$json = is_string( $json ) ? $json : '{}';
 
 		return "```hey-woo-report\n" . $json . "\n```";
+	}
+
+	/**
+	 * Build a deterministic briefing when the model fails the JSON contract.
+	 *
+	 * @param array<string,mixed> $source          Precomputed source packet.
+	 * @param array<string,mixed> $options         Report options.
+	 * @param bool                $include_actions Whether to include action cards.
+	 * @return array<string,mixed>
+	 */
+	private function build_weekly_report_fallback_payload( array $source, array $options, $include_actions ) {
+		$currency = $this->weekly_report_value( $source, array( 'totals_revenue', 'currency' ), get_woocommerce_currency() );
+		$period   = $this->weekly_report_value( $source, array( 'totals_revenue', 'period', 'label' ), 'Selected period' );
+
+		$net_sales        = (float) $this->weekly_report_value( $source, array( 'totals_revenue', 'metrics', 'net_sales' ), 0 );
+		$orders_count     = (int) $this->weekly_report_value( $source, array( 'totals_orders', 'metrics', 'orders_count' ), 0 );
+		$aov              = (float) $this->weekly_report_value( $source, array( 'totals_orders', 'metrics', 'avg_order_value' ), 0 );
+		$total_customers  = (int) $this->weekly_report_value( $source, array( 'totals_customers', 'metrics', 'total_customers' ), 0 );
+		$refund_count     = (int) $this->weekly_report_value( $source, array( 'totals_refunds', 'metrics', 'refunds_count' ), 0 );
+		$refund_rate      = (float) $this->weekly_report_value( $source, array( 'totals_refunds', 'metrics', 'refund_rate_percent' ), 0 );
+		$revenue_change   = $this->weekly_report_value( $source, array( 'totals_revenue', 'comparison', 'changes', 'net_sales' ), null );
+		$orders_change    = $this->weekly_report_value( $source, array( 'totals_orders', 'comparison', 'changes', 'orders_count' ), null );
+		$aov_change       = $this->weekly_report_value( $source, array( 'totals_orders', 'comparison', 'changes', 'avg_order_value' ), null );
+		$customers_change = $this->weekly_report_value( $source, array( 'totals_customers', 'comparison', 'changes', 'total_customers' ), null );
+		$refunds_change   = $this->weekly_report_value( $source, array( 'totals_refunds', 'comparison', 'changes', 'refund_rate_percent' ), null );
+		$product_rows     = $this->weekly_report_product_rows( $source, $currency );
+		$channel_rows     = $this->weekly_report_channel_rows( $source, $currency );
+		$top_product      = $this->weekly_report_value( $source, array( 'products', 'top_products', 0 ), array() );
+		$top_channel      = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups', 0 ), array() );
+
+		$insights = array(
+			array(
+				'title'    => $this->weekly_report_trading_headline( $revenue_change ),
+				'summary'  => sprintf(
+					'Net sales were %1$s across %2$s paid orders. AOV was %3$s, with %4$s customers active in the period.',
+					$this->format_weekly_report_currency( $net_sales, $currency ),
+					number_format_i18n( $orders_count ),
+					$this->format_weekly_report_currency( $aov, $currency ),
+					number_format_i18n( $total_customers )
+				),
+				'category' => 'Trading',
+				'status'   => $this->weekly_report_status_label( $this->weekly_report_change_tone( $revenue_change ) ),
+				'metric'   => $this->weekly_report_change_text( $revenue_change ),
+				'tone'     => $this->weekly_report_change_tone( $revenue_change ),
+			),
+		);
+
+		if ( is_array( $top_product ) && ! empty( $top_product['product_name'] ) ) {
+			$product_change = isset( $top_product['change'] ) && is_array( $top_product['change'] ) ? $top_product['change'] : null;
+			$insights[]     = array(
+				'title'    => sprintf( '%s is the product to understand first', (string) $top_product['product_name'] ),
+				'summary'  => sprintf(
+					'It contributed %1$s from %2$s units. Treat that as evidence for the week, then check whether the movement is broad demand or one product carrying the read.',
+					$this->format_weekly_report_currency( $this->weekly_report_numeric( $top_product, 'net_revenue' ), $currency ),
+					number_format_i18n( (int) $this->weekly_report_numeric( $top_product, 'quantity' ) )
+				),
+				'category' => 'Products',
+				'status'   => $this->weekly_report_status_label( $this->weekly_report_change_tone( $product_change ) ),
+				'metric'   => $this->weekly_report_change_text( $product_change ),
+				'tone'     => $this->weekly_report_change_tone( $product_change ),
+			);
+		}
+
+		if ( is_array( $top_channel ) && ! empty( $top_channel['label'] ) ) {
+			$share      = $this->weekly_report_numeric( $top_channel, 'share_of_revenue_percent' );
+			$share_text = $share > 0 ? ' at ' . $this->format_weekly_report_percent( $share ) . ' of paid revenue' : '';
+			$insights[] = array(
+				'title'    => sprintf( '%s is the channel mix anchor', (string) $top_channel['label'] ),
+				'summary'  => sprintf(
+					'The channel accounted for %1$s%2$s across %3$s orders. If that share is unusually high, the next useful step is channel-specific evidence rather than another store-wide summary.',
+					$this->format_weekly_report_currency( $this->weekly_report_numeric( $top_channel, 'net_revenue' ), $currency ),
+					$share_text,
+					number_format_i18n( (int) $this->weekly_report_numeric( $top_channel, 'orders_count' ) )
+				),
+				'category' => 'Channels',
+				'status'   => $share >= 50 ? 'Heads-up' : 'Worth knowing',
+				'metric'   => $share > 0 ? $this->format_weekly_report_percent( $share ) : '',
+				'tone'     => $share >= 50 ? 'warning' : 'neutral',
+			);
+		}
+
+		$insights[] = array(
+			'title'    => $refund_count > 0 ? 'Refunds need a quick quality read' : 'Refunds were quiet',
+			'summary'  => $refund_count > 0
+				? sprintf( '%1$s refunds put refund rate at %2$s. Check whether those refunds cluster around the same product, promise, or fulfilment step before acting.', number_format_i18n( $refund_count ), $this->format_weekly_report_percent( $refund_rate ) )
+				: 'No refund volume stood out in the precomputed totals for this period.',
+			'category' => 'Refunds',
+			'status'   => $refund_count > 0 ? 'Heads-up' : 'Looking good',
+			'metric'   => $refund_count > 0 ? $this->format_weekly_report_percent( $refund_rate ) : '',
+			'tone'     => $refund_count > 0 ? 'warning' : 'positive',
+		);
+
+		$actions = $include_actions ? $this->build_weekly_report_fallback_actions( $insights ) : array();
+
+		return array(
+			'title'        => 'Weekly store review',
+			'subtitle'     => (string) $period,
+			'summary'      => 'Here is the aggregate read for the selected period. This version stays conservative and only uses verified store totals, product movement, channel mix, and refunds.',
+			'metric_tiles' => array(
+				$this->weekly_report_metric_tile( 'Revenue', $this->format_weekly_report_currency( $net_sales, $currency ), $revenue_change, 'Paid net sales', false ),
+				$this->weekly_report_metric_tile( 'Orders', number_format_i18n( $orders_count ), $orders_change, 'Paid orders', false ),
+				$this->weekly_report_metric_tile( 'AOV', $this->format_weekly_report_currency( $aov, $currency ), $aov_change, 'Average order value', false ),
+				$this->weekly_report_metric_tile( 'Customers', number_format_i18n( $total_customers ), $customers_change, 'Active buyers', false ),
+				$this->weekly_report_metric_tile( 'Refunds', $refund_count > 0 ? $this->format_weekly_report_percent( $refund_rate ) : '0', $refunds_change, number_format_i18n( $refund_count ) . ' refunds', true ),
+			),
+			'insights'     => array_slice( $insights, 0, 5 ),
+			'charts'       => $this->weekly_report_channel_chart( $source ),
+			'tables'       => array_values(
+				array_filter(
+					array(
+						! empty( $product_rows ) ? array(
+							'title'   => 'Product evidence',
+							'columns' => array( 'Product', 'Revenue', 'Units', 'Movement' ),
+							'rows'    => $product_rows,
+							'note'    => 'Top products are supporting evidence, not the whole report.',
+						) : null,
+						! empty( $channel_rows ) ? array(
+							'title'   => 'Channel evidence',
+							'columns' => array( 'Channel', 'Revenue', 'Orders', 'Share' ),
+							'rows'    => $channel_rows,
+							'note'    => 'Channel labels come from available order attribution.',
+						) : null,
+					)
+				)
+			),
+			'caveats'      => array(
+				array(
+					'title'  => 'Conservative read',
+					'detail' => 'This briefing sticks to verified aggregate surfaces and avoids unsupported causes when the generated document needs rebuilding.',
+					'tone'   => 'warning',
+				),
+			),
+			'sources'      => array(
+				array(
+					'label'  => 'Revenue totals',
+					'detail' => 'Paid net sales, orders, AOV, customers, and comparison deltas.',
+				),
+				array(
+					'label'  => 'Product breakdown',
+					'detail' => 'Top product revenue and units.',
+				),
+				array(
+					'label'  => 'Channel breakdown',
+					'detail' => 'Order attribution grouped by channel where available.',
+				),
+			),
+			'actions'      => $actions,
+		);
+	}
+
+	/**
+	 * Read a nested value from an array.
+	 *
+	 * @param array<string,mixed> $data    Source array.
+	 * @param array<int,mixed>    $path    Path parts.
+	 * @param mixed               $fallback Fallback value.
+	 * @return mixed
+	 */
+	private function weekly_report_value( array $data, array $path, $fallback = null ) {
+		$current = $data;
+		foreach ( $path as $part ) {
+			if ( is_array( $current ) && array_key_exists( $part, $current ) ) {
+				$current = $current[ $part ];
+				continue;
+			}
+
+			return $fallback;
+		}
+
+		return $current;
+	}
+
+	/**
+	 * Numeric array field helper.
+	 *
+	 * @param array<string,mixed> $data Source data.
+	 * @param string              $key  Field key.
+	 * @return float
+	 */
+	private function weekly_report_numeric( array $data, $key ) {
+		return isset( $data[ $key ] ) && is_numeric( $data[ $key ] ) ? (float) $data[ $key ] : 0.0;
+	}
+
+	/**
+	 * Build one metrics-tape tile.
+	 *
+	 * @param string            $label   Tile label.
+	 * @param string            $value   Display value.
+	 * @param array<mixed>|null $change  Comparison change.
+	 * @param string            $caption Tile caption.
+	 * @param bool              $invert  Whether lower is better.
+	 * @return array<string,string>
+	 */
+	private function weekly_report_metric_tile( $label, $value, $change, $caption, $invert ) {
+		return array(
+			'label'   => $label,
+			'value'   => $value,
+			'trend'   => $this->weekly_report_change_text( $change ),
+			'caption' => $caption,
+			'tone'    => $this->weekly_report_change_tone( $change, $invert ),
+		);
+	}
+
+	/**
+	 * Format a currency value for the briefing.
+	 *
+	 * @param float|int $amount   Amount.
+	 * @param string    $currency Currency code.
+	 * @return string
+	 */
+	private function format_weekly_report_currency( $amount, $currency ) {
+		$symbol   = function_exists( 'get_woocommerce_currency_symbol' ) ? html_entity_decode( get_woocommerce_currency_symbol( $currency ), ENT_QUOTES, 'UTF-8' ) : '';
+		$symbol   = '' !== $symbol ? $symbol : ( $currency ? $currency . ' ' : '' );
+		$decimals = abs( (float) $amount ) < 100 ? 2 : 0;
+
+		return $symbol . number_format_i18n( (float) $amount, $decimals );
+	}
+
+	/**
+	 * Format a percent value.
+	 *
+	 * @param float|int $value Value.
+	 * @return string
+	 */
+	private function format_weekly_report_percent( $value ) {
+		return number_format_i18n( (float) $value, 1 ) . '%';
+	}
+
+	/**
+	 * Format a comparison change.
+	 *
+	 * @param array<mixed>|null $change Change payload.
+	 * @return string
+	 */
+	private function weekly_report_change_text( $change ) {
+		if ( ! is_array( $change ) || ! isset( $change['percent'] ) || ! is_numeric( $change['percent'] ) ) {
+			return '';
+		}
+
+		$percent = (float) $change['percent'];
+		if ( abs( $percent ) < 0.05 ) {
+			return 'flat';
+		}
+
+		return ( $percent > 0 ? '+' : '' ) . number_format_i18n( $percent, 1 ) . '%';
+	}
+
+	/**
+	 * Infer report tone from a comparison change.
+	 *
+	 * @param array<mixed>|null $change Change payload.
+	 * @param bool              $invert Whether lower is better.
+	 * @return string
+	 */
+	private function weekly_report_change_tone( $change, $invert = false ) {
+		if ( ! is_array( $change ) || empty( $change['direction'] ) || 'flat' === $change['direction'] ) {
+			return 'neutral';
+		}
+
+		$is_good = $invert ? 'down' === $change['direction'] : 'up' === $change['direction'];
+
+		return $is_good ? 'positive' : 'negative';
+	}
+
+	/**
+	 * Convert a tone to the report status label.
+	 *
+	 * @param string $tone Tone.
+	 * @return string
+	 */
+	private function weekly_report_status_label( $tone ) {
+		if ( 'positive' === $tone ) {
+			return 'Looking good';
+		}
+
+		if ( 'negative' === $tone ) {
+			return 'Concern';
+		}
+
+		return 'Worth knowing';
+	}
+
+	/**
+	 * Trading headline from revenue movement.
+	 *
+	 * @param array<mixed>|null $change Revenue comparison.
+	 * @return string
+	 */
+	private function weekly_report_trading_headline( $change ) {
+		$tone = $this->weekly_report_change_tone( $change );
+		if ( 'positive' === $tone ) {
+			return 'Trading improved versus the comparison period';
+		}
+
+		if ( 'negative' === $tone ) {
+			return 'Trading softened versus the comparison period';
+		}
+
+		return 'Trading was broadly steady';
+	}
+
+	/**
+	 * Build compact product evidence rows.
+	 *
+	 * @param array<string,mixed> $source   Source packet.
+	 * @param string              $currency Currency code.
+	 * @return array<int,array<int,string>>
+	 */
+	private function weekly_report_product_rows( array $source, $currency ) {
+		$products = $this->weekly_report_value( $source, array( 'products', 'top_products' ), array() );
+		if ( ! is_array( $products ) ) {
+			return array();
+		}
+
+		$rows = array();
+		foreach ( array_slice( $products, 0, 5 ) as $product ) {
+			if ( ! is_array( $product ) || empty( $product['product_name'] ) ) {
+				continue;
+			}
+
+			$change = isset( $product['change'] ) && is_array( $product['change'] ) ? $product['change'] : null;
+			$rows[] = array(
+				(string) $product['product_name'],
+				$this->format_weekly_report_currency( $this->weekly_report_numeric( $product, 'net_revenue' ), $currency ),
+				number_format_i18n( (int) $this->weekly_report_numeric( $product, 'quantity' ) ),
+				$this->weekly_report_change_text( $change ),
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Build compact channel evidence rows.
+	 *
+	 * @param array<string,mixed> $source   Source packet.
+	 * @param string              $currency Currency code.
+	 * @return array<int,array<int,string>>
+	 */
+	private function weekly_report_channel_rows( array $source, $currency ) {
+		$channels = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups' ), array() );
+		if ( ! is_array( $channels ) ) {
+			return array();
+		}
+
+		$rows = array();
+		foreach ( array_slice( $channels, 0, 5 ) as $channel ) {
+			if ( ! is_array( $channel ) || empty( $channel['label'] ) ) {
+				continue;
+			}
+
+			$rows[] = array(
+				(string) $channel['label'],
+				$this->format_weekly_report_currency( $this->weekly_report_numeric( $channel, 'net_revenue' ), $currency ),
+				number_format_i18n( (int) $this->weekly_report_numeric( $channel, 'orders_count' ) ),
+				$this->format_weekly_report_percent( $this->weekly_report_numeric( $channel, 'share_of_revenue_percent' ) ),
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Build an optional channel mix chart.
+	 *
+	 * @param array<string,mixed> $source Source packet.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function weekly_report_channel_chart( array $source ) {
+		$channels = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups' ), array() );
+		if ( ! is_array( $channels ) || count( $channels ) < 2 ) {
+			return array();
+		}
+
+		$points = array();
+		foreach ( array_slice( $channels, 0, 5 ) as $channel ) {
+			if ( ! is_array( $channel ) || empty( $channel['label'] ) ) {
+				continue;
+			}
+
+			$points[] = array(
+				'x' => (string) $channel['label'],
+				'y' => $this->weekly_report_numeric( $channel, 'net_revenue' ),
+			);
+		}
+
+		if ( count( $points ) < 2 ) {
+			return array();
+		}
+
+		return array(
+			array(
+				'type'    => 'bar',
+				'title'   => 'Channel mix',
+				'x_label' => 'Channel',
+				'y_label' => 'Revenue',
+				'series'  => array(
+					array(
+						'name' => 'Revenue',
+						'data' => $points,
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Build deterministic action cards from fallback insights.
+	 *
+	 * @param array<int,array<string,mixed>> $insights Report insights.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function build_weekly_report_fallback_actions( array $insights ) {
+		$actions = array();
+		foreach ( array_slice( $insights, 0, 3 ) as $insight ) {
+			$title    = isset( $insight['title'] ) ? (string) $insight['title'] : 'Investigate the signal';
+			$summary  = isset( $insight['summary'] ) ? (string) $insight['summary'] : '';
+			$metric   = isset( $insight['metric'] ) ? (string) $insight['metric'] : '';
+			$priority = isset( $insight['tone'] ) && 'negative' === $insight['tone'] ? 'high' : 'medium';
+
+			$actions[] = array(
+				'title'            => $title,
+				'priority'         => $priority,
+				'summary'          => $summary,
+				'key_metric'       => $metric,
+				'impact'           => isset( $insight['category'] ) ? (string) $insight['category'] : 'Store performance',
+				'evidence'         => $summary,
+				'next_steps'       => array(
+					'Open the named product, channel, or refund slice in WooCommerce.',
+					'Check whether the movement is broad enough to act on or just a small sample.',
+					'Make one bounded change and compare the same metric next period.',
+				),
+				'expected_outcome' => 'A clearer driver and one measurable follow-up for the next review.',
+			);
+		}
+
+		return $actions;
 	}
 
 	/**
@@ -536,12 +1075,12 @@ class DifmRestController {
 			? '[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]'
 			: '[]';
 
-		return 'You are Hey Woo\'s weekly store report composer for a WooCommerce merchant. Hey Woo has already computed the source aggregates. The source JSON is the only source of truth for numbers, trends, comparisons, products, channels, and refunds. Do not invent metrics, targets, causes, forecasts, margins, conversion rates, sessions, ad spend, ROAS, customer names, emails, addresses, or anything not present in the source. Do not mention tool names, parameter names, JSON keys, internal implementation, or this instruction. Do not apologise, do not say "you are right", and do not frame the answer as a correction. '
-			. 'Your job is to turn the source into a useful merchant briefing: what changed, why it matters, what to watch, and what to do next. Do not make the report a top-products-only answer. Products are supporting evidence, not the headline. '
+		return 'You are Hey Woo\'s weekly store briefing composer for a WooCommerce merchant. Hey Woo has already computed the source aggregates. The source JSON is the only source of truth for numbers, trends, comparisons, products, channels, and refunds. Do not invent metrics, targets, causes, forecasts, margins, conversion rates, sessions, ad spend, ROAS, customer names, emails, addresses, or anything not present in the source. Do not mention tool names, parameter names, JSON keys, internal implementation, or this instruction. Do not apologise, do not say "you are right", and do not frame the answer as a correction. '
+			. 'Your job is to turn the source into a calm merchant briefing: a short editor note, a metrics tape, ranked leads, evidence, and merchant-doable next steps. Do not make the briefing a top-products-only answer. Products are supporting evidence unless a product movement is the actual lead. '
 			. 'Output ONLY valid JSON. No intro sentence. No markdown. No fenced code block. The JSON must match this shape: {"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":'
 			. $actions_schema
 			. '}. '
-			. 'Metric tiles: exactly revenue, orders, AOV, customers, and refunds when present. Insights: 3-5 items covering overall trading, the main movement driver, product mix, channel mix, and refund/watch-list signal. Tables: prefer one compact evidence table when product or channel labels would make a chart cramped. Charts: include at most one, and only when it explains a movement or mix shift better than a table; never include a simple top-5-products ranking chart as the only visual. Actions: if actions are enabled, provide exactly three specific merchant-doable actions with evidence and concrete next steps; never use vague actions like "review the report". Sources: name the aggregate surfaces used in merchant terms, such as "Revenue totals" or "Product breakdown".';
+			. 'Summary: one editorial note, not a decision brief. Metric tiles: exactly revenue, orders, AOV, customers, and refunds when present. Insights: 3-5 ranked "what to look at" leads. Do NOT restate a headline metric as an insight; the metrics tape already shows it. Good leads name the driver or useful non-driver. Use the patterns the source actually supports: revenue trend shift, per-product movement, customer/cohort movement, checkout pipeline, refund pattern, channel concentration, tracking coverage, or a positive thing worth scaling. Small samples must be caveated in the insight body, not overstated in the headline. Tables: prefer one compact evidence table when product or channel labels would make a chart cramped. Charts: include at most one, and only when it explains a movement or mix shift better than a table; never include a simple top-5-products ranking chart as the only visual. Actions: if actions are enabled, provide exactly three specific merchant-doable actions tied to specific insights with evidence and concrete next steps; never use vague actions like "review the report". Sources: name the aggregate surfaces used in merchant terms, such as "Revenue totals" or "Product breakdown".';
 	}
 
 	/**
@@ -570,6 +1109,509 @@ class DifmRestController {
 		$lines[] = 'Return ONLY the JSON object. No surrounding text, no markdown, no fenced code block.';
 
 		return implode( "\n\n", $lines );
+	}
+
+	/**
+	 * Parse customer-acquisition report setup choices.
+	 *
+	 * @param string $message Merchant request.
+	 * @return array<string,mixed>
+	 */
+	private function parse_acquisition_report_options( $message ) {
+		$message = (string) $message;
+		$period  = 'last_30_days';
+
+		if ( false !== stripos( $message, 'Period: Last 7 days' ) ) {
+			$period = 'last_7_days';
+		} elseif ( false !== stripos( $message, 'Period: Month to date' ) ) {
+			$period = 'month_to_date';
+		} elseif ( false !== stripos( $message, 'Period: Quarter to date' ) ) {
+			$period = 'quarter_to_date';
+		}
+
+		$compare         = false === stripos( $message, 'Do not include a comparison period' );
+		$include_actions = false === stripos( $message, 'Keep actions empty' )
+			&& false === stripos( $message, 'do not suggest separate action cards' );
+		$schedule        = '';
+
+		if ( preg_match( '/Schedule preference:\s*([^\n.]+(?:\.[^\n.]*)?)/i', $message, $matches ) ) {
+			$schedule = trim( (string) $matches[1] );
+		}
+
+		return array(
+			'period'          => $period,
+			'compare'         => $compare,
+			'include_actions' => $include_actions,
+			'schedule'        => $schedule,
+		);
+	}
+
+	/**
+	 * Build the deterministic source packet for the acquisition report composer.
+	 *
+	 * @param array<string,mixed> $options Report options.
+	 * @return array<string,mixed>
+	 */
+	private function build_acquisition_report_source( array $options ) {
+		$period  = isset( $options['period'] ) ? (string) $options['period'] : 'last_30_days';
+		$compare = ! empty( $options['compare'] );
+
+		$period_input = array(
+			'period'  => $period,
+			'compare' => $compare,
+		);
+
+		$customer_value = $this->normalise_precomputed_tool_output(
+			$this->execute_tool(
+				'analytics_totals',
+				array_merge( $period_input, array( 'subject' => 'customer_value' ) )
+			)
+		);
+
+		if ( is_array( $customer_value ) ) {
+			unset( $customer_value['top_customers'] );
+		}
+
+		return array(
+			'options'              => $options,
+			'store'                => $this->normalise_precomputed_tool_output( $this->execute_tool( 'get_store_profile', array() ) ),
+			'customer_mix'         => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_totals',
+					array_merge( $period_input, array( 'subject' => 'customers' ) )
+				)
+			),
+			'attribution_channels' => $this->normalise_precomputed_tool_output(
+				$this->execute_tool(
+					'analytics_breakdown',
+					array_merge(
+						$period_input,
+						array(
+							'subject'            => 'attribution',
+							'dimension'          => 'channel',
+							'limit'              => 10,
+							'orderby'            => 'net_revenue',
+							'include_unassigned' => true,
+						)
+					)
+				)
+			),
+			'customer_value'       => $customer_value,
+		);
+	}
+
+	/**
+	 * System prompt for the precomputed acquisition report composer.
+	 *
+	 * @param bool $include_actions Whether to populate action cards.
+	 * @return string
+	 */
+	private function build_acquisition_report_system_prompt( $include_actions ) {
+		$actions_schema = $include_actions
+			? '[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]'
+			: '[]';
+
+		return 'You are Hey Woo\'s customer acquisition briefing composer for a WooCommerce merchant. Hey Woo has already computed the source aggregates. The source JSON is the only source of truth for customer counts, customer mix, first-time-customer spend, attribution channels, tracking coverage, and historic customer-value context. Do not invent metrics, targets, causes, forecasts, sessions, visitors, conversion rate, ad spend, ROAS, churn risk, customer motivations, customer names, emails, addresses, or anything not present in the source. Do not mention tool names, parameter names, JSON keys, internal implementation, or this instruction. '
+			. 'Your job is to turn the source into a calm merchant briefing: a short editor note, a metrics tape, ranked acquisition leads, evidence, caveats, and merchant-doable next steps. Keep period acquisition, attribution visibility, and historic customer-value context separate. '
+			. 'Output ONLY valid JSON. No intro sentence. No markdown. No fenced code block. The JSON must match this shape: {"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":'
+			. $actions_schema
+			. '}. '
+			. 'Metric tiles: use up to five tiles from new customers, new-customer revenue, new-customer AOV, new-customer spend per customer, repeat rate, returning customers, and tracking coverage. Insights: 3-5 ranked "what to look at" leads covering acquisition movement, customer mix, useful acquisition channels, first-time customer spend signal, historic repeat/value context, and tracking/data quality where supported. Do NOT restate the metric tiles as insights. Small samples must be caveated in the insight body before interpreting a percentage. Attribution is order-source context, not marketing ROI. Actions: if actions are enabled, provide exactly three specific merchant-doable actions tied to specific insights; never use vague actions like "review the report". Sources: name the aggregate surfaces used in merchant terms, such as "Customer mix", "Attribution channels", and "Customer value context".';
+	}
+
+	/**
+	 * User prompt for the precomputed acquisition report composer.
+	 *
+	 * @param array<string,mixed> $source  Precomputed report source.
+	 * @param array<string,mixed> $options Report options.
+	 * @return string
+	 */
+	private function build_acquisition_report_user_prompt( array $source, array $options ) {
+		$source_json = wp_json_encode( $source, JSON_PRETTY_PRINT );
+		$source_json = is_string( $source_json ) ? $source_json : '{}';
+
+		$lines = array(
+			'Compose the customer acquisition review from this server-computed source packet.',
+			'Period option: ' . ( isset( $options['period'] ) ? (string) $options['period'] : 'last_30_days' ) . '.',
+			! empty( $options['compare'] ) ? 'Comparison: use the previous matching period values already present in the source.' : 'Comparison: do not describe previous-period movement.',
+		);
+
+		if ( ! empty( $options['schedule'] ) ) {
+			$lines[] = 'Schedule setup note: ' . (string) $options['schedule'] . '. Mention it briefly in the intro only; do not claim an automatic schedule has been saved.';
+		}
+
+		$lines[] = 'Source JSON:';
+		$lines[] = $source_json;
+		$lines[] = 'Return ONLY the JSON object. No surrounding text, no markdown, no fenced code block.';
+
+		return implode( "\n\n", $lines );
+	}
+
+	/**
+	 * Build a deterministic acquisition briefing when the model cannot.
+	 *
+	 * @param array<string,mixed> $source          Precomputed source packet.
+	 * @param array<string,mixed> $options         Report options.
+	 * @param bool                $include_actions Whether to include action cards.
+	 * @return array<string,mixed>
+	 */
+	private function build_acquisition_report_fallback_payload( array $source, array $options, $include_actions ) {
+		$currency = $this->weekly_report_value( $source, array( 'customer_mix', 'currency' ), get_woocommerce_currency() );
+		$period   = $this->weekly_report_value( $source, array( 'customer_mix', 'period', 'label' ), 'Selected period' );
+
+		$total_customers     = (int) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'total_customers' ), 0 );
+		$new_customers       = (int) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'new_customers' ), 0 );
+		$returning_customers = (int) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'returning_customers' ), 0 );
+		$overlap_customers   = (int) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'overlap_customers' ), 0 );
+		$new_percent         = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'new_customer_percent' ), 0 );
+		$repeat_rate         = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'repeat_rate_percent' ), 0 );
+		$new_revenue         = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'new_customer_net_sales' ), 0 );
+		$returning_revenue   = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'returning_customer_net_sales' ), 0 );
+		$new_aov             = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'new_customer_avg_order_value' ), 0 );
+		$returning_aov       = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'returning_customer_avg_order_value' ), 0 );
+		$new_spend           = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'new_customer_spend_per_customer' ), 0 );
+		$returning_spend     = (float) $this->weekly_report_value( $source, array( 'customer_mix', 'metrics', 'returning_customer_spend_per_customer' ), 0 );
+		$coverage            = (float) $this->weekly_report_value( $source, array( 'attribution_channels', 'totals', 'attribution_coverage_percent' ), 0 );
+		$active_customers    = (int) $this->weekly_report_value( $source, array( 'customer_value', 'metrics', 'active_customers' ), 0 );
+		$avg_lifetime_spend  = (float) $this->weekly_report_value( $source, array( 'customer_value', 'metrics', 'avg_lifetime_spend' ), 0 );
+		$median_lifetime     = (float) $this->weekly_report_value( $source, array( 'customer_value', 'metrics', 'median_lifetime_spend' ), 0 );
+		$repeat_share        = (float) $this->weekly_report_value( $source, array( 'customer_value', 'segments', 'repeat', 'share_percent' ), 0 );
+		$top_channel         = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups', 0 ), array() );
+		$new_change          = $this->weekly_report_value( $source, array( 'customer_mix', 'comparison', 'changes', 'new_customers' ), null );
+		$new_revenue_change  = $this->weekly_report_value( $source, array( 'customer_mix', 'comparison', 'changes', 'new_customer_net_sales' ), null );
+		$new_aov_change      = $this->weekly_report_value( $source, array( 'customer_mix', 'comparison', 'changes', 'new_customer_avg_order_value' ), null );
+		$repeat_change       = $this->weekly_report_value( $source, array( 'customer_mix', 'comparison', 'changes', 'repeat_rate_percent' ), null );
+
+		$insights = array(
+			array(
+				'title'    => $this->acquisition_report_trend_headline( $new_change ),
+				'summary'  => sprintf(
+					'%1$s new customers generated %2$s in paid revenue. New-customer AOV was %3$s, and spend per new customer was %4$s.',
+					number_format_i18n( $new_customers ),
+					$this->format_weekly_report_currency( $new_revenue, $currency ),
+					$this->format_weekly_report_currency( $new_aov, $currency ),
+					$this->format_weekly_report_currency( $new_spend, $currency )
+				),
+				'category' => 'Acquisition',
+				'status'   => $this->weekly_report_status_label( $this->weekly_report_change_tone( $new_change ) ),
+				'metric'   => $this->weekly_report_change_text( $new_change ),
+				'tone'     => $this->weekly_report_change_tone( $new_change ),
+			),
+			array(
+				'title'    => 'Customer mix is the frame for the read',
+				'summary'  => sprintf(
+					'The period had %1$s total customers: %2$s new and %3$s returning. New customers were %4$s of the customer base, and repeat rate was %5$s.%6$s',
+					number_format_i18n( $total_customers ),
+					number_format_i18n( $new_customers ),
+					number_format_i18n( $returning_customers ),
+					$this->format_weekly_report_percent( $new_percent ),
+					$this->format_weekly_report_percent( $repeat_rate ),
+					$overlap_customers > 0 ? ' ' . number_format_i18n( $overlap_customers ) . ' customers appear in both new and returning buckets because WooCommerce flags orders at order creation.' : ''
+				),
+				'category' => 'Customer mix',
+				'status'   => 'Worth knowing',
+				'metric'   => $this->format_weekly_report_percent( $new_percent ),
+				'tone'     => 'neutral',
+			),
+		);
+
+		if ( is_array( $top_channel ) && ! empty( $top_channel['label'] ) ) {
+			$channel_new       = (int) $this->weekly_report_numeric( $top_channel, 'new_customers' );
+			$channel_orders    = (int) $this->weekly_report_numeric( $top_channel, 'orders_count' );
+			$channel_revenue   = $this->weekly_report_numeric( $top_channel, 'net_revenue' );
+			$channel_share     = $this->weekly_report_numeric( $top_channel, 'share_of_revenue_percent' );
+			$channel_change    = isset( $top_channel['change'] ) && is_array( $top_channel['change'] ) ? $top_channel['change'] : null;
+			$small_sample_note = ( $channel_new > 0 && $channel_new <= 5 ) || $channel_orders <= 5
+				? ' The count is small, so treat the percentage as a signal to inspect rather than a conclusion.'
+				: '';
+
+			$insights[] = array(
+				'title'    => sprintf( '%s is the clearest channel signal', (string) $top_channel['label'] ),
+				'summary'  => sprintf(
+					'It brought %1$s new customers, %2$s orders, and %3$s in paid revenue. It represented %4$s of paid revenue in the available attribution view.%5$s',
+					number_format_i18n( $channel_new ),
+					number_format_i18n( $channel_orders ),
+					$this->format_weekly_report_currency( $channel_revenue, $currency ),
+					$this->format_weekly_report_percent( $channel_share ),
+					$small_sample_note
+				),
+				'category' => 'Channels',
+				'status'   => $this->weekly_report_status_label( $this->weekly_report_change_tone( $channel_change ) ),
+				'metric'   => $this->weekly_report_change_text( $channel_change ),
+				'tone'     => $this->weekly_report_change_tone( $channel_change ),
+			);
+		}
+
+		$insights[] = array(
+			'title'    => 'First-time customer spend is the quality check',
+			'summary'  => sprintf(
+				'New-customer spend per customer was %1$s versus %2$s for returning customers. New-customer AOV was %3$s versus %4$s for returning customers; keep this as a period signal, not a lifetime forecast.',
+				$this->format_weekly_report_currency( $new_spend, $currency ),
+				$this->format_weekly_report_currency( $returning_spend, $currency ),
+				$this->format_weekly_report_currency( $new_aov, $currency ),
+				$this->format_weekly_report_currency( $returning_aov, $currency )
+			),
+			'category' => 'First-time quality',
+			'status'   => 'Worth knowing',
+			'metric'   => $this->format_weekly_report_currency( $new_spend, $currency ),
+			'tone'     => 'neutral',
+		);
+
+		if ( $active_customers > 0 ) {
+			$insights[] = array(
+				'title'    => 'Historic value context gives the follow-up lens',
+				'summary'  => sprintf(
+					'Customers active in this period averaged %1$s lifetime spend, with a median of %2$s. The repeat lifetime segment represented %3$s of active customers.',
+					$this->format_weekly_report_currency( $avg_lifetime_spend, $currency ),
+					$this->format_weekly_report_currency( $median_lifetime, $currency ),
+					$this->format_weekly_report_percent( $repeat_share )
+				),
+				'category' => 'Customer value',
+				'status'   => 'Context',
+				'metric'   => $this->format_weekly_report_currency( $median_lifetime, $currency ),
+				'tone'     => 'neutral',
+			);
+		}
+
+		$caveats = array();
+		if ( $coverage > 0 && $coverage < 80 ) {
+			$caveats[] = array(
+				'title'  => 'Partial channel coverage',
+				'detail' => sprintf( 'Attribution coverage was %s, so channel conclusions are useful but partial. Tracking hygiene should be one of the follow-ups.', $this->format_weekly_report_percent( $coverage ) ),
+				'tone'   => 'warning',
+			);
+		}
+		if ( $overlap_customers > 0 ) {
+			$caveats[] = array(
+				'title'  => 'WooCommerce customer flag edge case',
+				'detail' => 'A customer can place their first and second paid orders in the same period, so new and returning buckets can overlap. Use the returned total customer count as the headline.',
+				'tone'   => 'warning',
+			);
+		}
+
+		$actions = $include_actions ? $this->build_acquisition_report_fallback_actions( $insights, $top_channel, $coverage, $currency ) : array();
+
+		return array(
+			'title'        => 'Customer acquisition review',
+			'subtitle'     => (string) $period,
+			'summary'      => 'Here is the aggregate acquisition read for the selected period. It separates new-customer movement, channel visibility, first-time spend quality, and historic repeat context.',
+			'metric_tiles' => array(
+				$this->weekly_report_metric_tile( 'New customers', number_format_i18n( $new_customers ), $new_change, 'First-time buyers', false ),
+				$this->weekly_report_metric_tile( 'New revenue', $this->format_weekly_report_currency( $new_revenue, $currency ), $new_revenue_change, 'Paid revenue from new customers', false ),
+				$this->weekly_report_metric_tile( 'New AOV', $this->format_weekly_report_currency( $new_aov, $currency ), $new_aov_change, 'First-time average order', false ),
+				$this->weekly_report_metric_tile( 'Repeat rate', $this->format_weekly_report_percent( $repeat_rate ), $repeat_change, 'Returning-customer share', false ),
+				$this->weekly_report_metric_tile( 'Tracking', $coverage > 0 ? $this->format_weekly_report_percent( $coverage ) : 'n/a', null, 'Attribution coverage', false ),
+			),
+			'insights'     => array_slice( $insights, 0, 5 ),
+			'charts'       => $this->acquisition_report_channel_chart( $source ),
+			'tables'       => array_values(
+				array_filter(
+					array(
+						array(
+							'title'   => 'Customer mix evidence',
+							'columns' => array( 'Segment', 'Customers', 'Revenue', 'AOV', 'Spend/customer' ),
+							'rows'    => array(
+								array( 'New', number_format_i18n( $new_customers ), $this->format_weekly_report_currency( $new_revenue, $currency ), $this->format_weekly_report_currency( $new_aov, $currency ), $this->format_weekly_report_currency( $new_spend, $currency ) ),
+								array( 'Returning', number_format_i18n( $returning_customers ), $this->format_weekly_report_currency( $returning_revenue, $currency ), $this->format_weekly_report_currency( $returning_aov, $currency ), $this->format_weekly_report_currency( $returning_spend, $currency ) ),
+							),
+							'note'    => 'Spend per customer is a period signal; it is not a lifetime prediction.',
+						),
+						! empty( $this->acquisition_report_channel_rows( $source, $currency ) ) ? array(
+							'title'   => 'Channel evidence',
+							'columns' => array( 'Channel', 'New customers', 'Revenue', 'Orders', 'Share' ),
+							'rows'    => $this->acquisition_report_channel_rows( $source, $currency ),
+							'note'    => 'Channel labels come from available order attribution.',
+						) : null,
+					)
+				)
+			),
+			'caveats'      => $caveats,
+			'sources'      => array(
+				array(
+					'label'  => 'Customer mix',
+					'detail' => 'New versus returning customers, period revenue, AOV, spend per customer, and comparison deltas.',
+				),
+				array(
+					'label'  => 'Attribution channels',
+					'detail' => 'Channel revenue, orders, new customers, share, movement, and tracking coverage.',
+				),
+				array(
+					'label'  => 'Customer value context',
+					'detail' => 'Historic lifetime spend and repeat-segment context for customers active in the period.',
+				),
+			),
+			'actions'      => $actions,
+		);
+	}
+
+	/**
+	 * Acquisition trend headline from new-customer movement.
+	 *
+	 * @param array<mixed>|null $change New customer comparison.
+	 * @return string
+	 */
+	private function acquisition_report_trend_headline( $change ) {
+		$tone = $this->weekly_report_change_tone( $change );
+		if ( 'positive' === $tone ) {
+			return 'New-customer acquisition improved versus the comparison period';
+		}
+
+		if ( 'negative' === $tone ) {
+			return 'New-customer acquisition softened versus the comparison period';
+		}
+
+		return 'New-customer acquisition was broadly steady';
+	}
+
+	/**
+	 * Build compact acquisition-channel rows.
+	 *
+	 * @param array<string,mixed> $source   Source packet.
+	 * @param string              $currency Currency code.
+	 * @return array<int,array<int,string>>
+	 */
+	private function acquisition_report_channel_rows( array $source, $currency ) {
+		$channels = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups' ), array() );
+		if ( ! is_array( $channels ) ) {
+			return array();
+		}
+
+		$rows = array();
+		foreach ( array_slice( $channels, 0, 6 ) as $channel ) {
+			if ( ! is_array( $channel ) || empty( $channel['label'] ) ) {
+				continue;
+			}
+
+			$rows[] = array(
+				(string) $channel['label'],
+				number_format_i18n( (int) $this->weekly_report_numeric( $channel, 'new_customers' ) ),
+				$this->format_weekly_report_currency( $this->weekly_report_numeric( $channel, 'net_revenue' ), $currency ),
+				number_format_i18n( (int) $this->weekly_report_numeric( $channel, 'orders_count' ) ),
+				$this->format_weekly_report_percent( $this->weekly_report_numeric( $channel, 'share_of_revenue_percent' ) ),
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Build an optional new-customer channel chart.
+	 *
+	 * @param array<string,mixed> $source Source packet.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function acquisition_report_channel_chart( array $source ) {
+		$channels = $this->weekly_report_value( $source, array( 'attribution_channels', 'top_groups' ), array() );
+		if ( ! is_array( $channels ) || count( $channels ) < 2 ) {
+			return array();
+		}
+
+		$points = array();
+		foreach ( array_slice( $channels, 0, 6 ) as $channel ) {
+			if ( ! is_array( $channel ) || empty( $channel['label'] ) ) {
+				continue;
+			}
+
+			$new_customers = (int) $this->weekly_report_numeric( $channel, 'new_customers' );
+			if ( $new_customers <= 0 ) {
+				continue;
+			}
+
+			$points[] = array(
+				'x' => (string) $channel['label'],
+				'y' => $new_customers,
+			);
+		}
+
+		if ( count( $points ) < 2 ) {
+			return array();
+		}
+
+		return array(
+			array(
+				'type'    => 'bar',
+				'title'   => 'New customers by channel',
+				'x_label' => 'Channel',
+				'y_label' => 'New customers',
+				'series'  => array(
+					array(
+						'name' => 'New customers',
+						'data' => $points,
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Build deterministic acquisition action cards.
+	 *
+	 * @param array<int,array<string,mixed>> $insights    Report insights.
+	 * @param mixed                          $top_channel Top channel row.
+	 * @param float                          $coverage    Attribution coverage percent.
+	 * @param string                         $currency    Currency code.
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function build_acquisition_report_fallback_actions( array $insights, $top_channel, $coverage, $currency ) {
+		$actions       = array();
+		$channel_label = is_array( $top_channel ) && ! empty( $top_channel['label'] ) ? (string) $top_channel['label'] : 'the leading channel';
+		$channel_new   = is_array( $top_channel ) ? (int) $this->weekly_report_numeric( $top_channel, 'new_customers' ) : 0;
+		$channel_rev   = is_array( $top_channel ) ? $this->weekly_report_numeric( $top_channel, 'net_revenue' ) : 0;
+
+		$actions[] = array(
+			'title'            => sprintf( 'Inspect %s acquisition orders', $channel_label ),
+			'priority'         => $channel_new > 5 ? 'medium' : 'low',
+			'summary'          => sprintf( '%1$s brought %2$s new customers and %3$s in paid revenue in the selected period.', $channel_label, number_format_i18n( $channel_new ), $this->format_weekly_report_currency( $channel_rev, $currency ) ),
+			'key_metric'       => number_format_i18n( $channel_new ) . ' new customers',
+			'impact'           => 'Acquisition channel focus',
+			'evidence'         => sprintf( 'Top channel in the available attribution breakdown: %s.', $channel_label ),
+			'next_steps'       => array(
+				'Open recent orders attributed to the channel and check the products first-time buyers chose.',
+				'Compare the channel landing offer or campaign message with those products.',
+				'Make one merchandising or campaign-tagging change and compare new customers next period.',
+			),
+			'expected_outcome' => 'A clearer read on whether the channel is bringing useful first-time buyers.',
+		);
+
+		$actions[] = array(
+			'title'            => 'Check the first-time customer offer',
+			'priority'         => 'medium',
+			'summary'          => isset( $insights[3]['summary'] ) ? (string) $insights[3]['summary'] : 'First-time customer spend is the quality signal to inspect before scaling acquisition.',
+			'key_metric'       => isset( $insights[3]['metric'] ) ? (string) $insights[3]['metric'] : '',
+			'impact'           => 'First purchase quality',
+			'evidence'         => 'New-customer AOV and spend per customer are returned directly in the acquisition summary.',
+			'next_steps'       => array(
+				'Review the products most often bought by new customers.',
+				'Check whether the entry offer encourages a useful basket, not only a low-value first order.',
+				'Adjust the first-time offer or merchandising and compare new-customer AOV next period.',
+			),
+			'expected_outcome' => 'A first-purchase path that attracts customers worth following up.',
+		);
+
+		$actions[] = array(
+			'title'            => $coverage > 0 && $coverage < 80 ? 'Tighten acquisition tracking' : 'Set up the repeat-purchase follow-up',
+			'priority'         => $coverage > 0 && $coverage < 80 ? 'high' : 'medium',
+			'summary'          => $coverage > 0 && $coverage < 80
+				? sprintf( 'Attribution coverage was %s, so channel reads are partial.', $this->format_weekly_report_percent( $coverage ) )
+				: 'Use the acquisition read to decide which first-time customers should receive a follow-up offer or education sequence.',
+			'key_metric'       => $coverage > 0 ? $this->format_weekly_report_percent( $coverage ) : '',
+			'impact'           => $coverage > 0 && $coverage < 80 ? 'Tracking confidence' : 'Repeat purchase',
+			'evidence'         => $coverage > 0 && $coverage < 80 ? 'The attribution breakdown returned partial channel coverage.' : 'Repeat rate and historic customer-value context are available in the report.',
+			'next_steps'       => $coverage > 0 && $coverage < 80
+				? array(
+					'Check source and campaign tags on live campaign links.',
+					'Place one test order from a tagged link and confirm the source is recorded.',
+					'Compare tracking coverage in the next acquisition review.',
+				)
+				: array(
+					'Pick one new-customer segment from the leading channel.',
+					'Create a follow-up email, coupon, or product recommendation for that segment.',
+					'Compare repeat rate and returning-customer revenue in the next review.',
+				),
+			'expected_outcome' => $coverage > 0 && $coverage < 80 ? 'A less partial channel read next period.' : 'More first-time buyers returning for a second order.',
+		);
+
+		return array_slice( $actions, 0, 3 );
 	}
 
 	/**

@@ -6,9 +6,10 @@ import './style.scss';
 import { DataViews, filterSortAndPaginate } from '@wordpress/dataviews/wp';
 import { Button } from '@wordpress/components';
 import { useCallback, useMemo, useState } from '@wordpress/element';
-import { Icon, commentAuthorAvatar, trash } from '@wordpress/icons';
+import { Icon, commentContent, trash } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
+import { useAdaptiveDataViewsPageSize } from '../ai-insights/hooks/useAdaptiveDataViewsPageSize';
 import { useConversations } from '../ai-insights/hooks/useConversations';
 import {
 	conversationSourceLabel,
@@ -18,6 +19,7 @@ import type { HistoryConversation } from './history-data';
 import type { Action, Field, View } from '@wordpress/dataviews/wp';
 
 const HISTORY_VISIBLE_FIELDS = [ 'source', 'messageCount', 'lastSpeaker', 'updatedAt' ];
+const HISTORY_PAGE_SIZE_OPTIONS = [ 10, 20, 50 ];
 const HISTORY_LAYOUTS = {
 	table: {
 		fields: HISTORY_VISIBLE_FIELDS,
@@ -153,6 +155,12 @@ export function stage() {
 		() => conversations.map( toHistoryConversation ),
 		[ conversations ]
 	);
+	const { perPageSizes, rootRef } = useAdaptiveDataViewsPageSize( {
+		itemCount: historyItems.length,
+		pageSizeOptions: HISTORY_PAGE_SIZE_OPTIONS,
+		setView,
+		view,
+	} );
 	const sourceOptions = useMemo(
 		() => [
 			{ value: 'chat', label: conversationSourceLabel( 'chat' ) },
@@ -195,7 +203,7 @@ export function stage() {
 				enableSorting: false,
 				render: () => (
 					<div className="hey-woo-history-media">
-						<Icon icon={ commentAuthorAvatar } size={ 32 } />
+						<Icon icon={ commentContent } size={ 32 } />
 					</div>
 				),
 			},
@@ -308,7 +316,7 @@ export function stage() {
 	const hasConversationHistory = historyItems.length > 0;
 
 	return (
-		<div className="hey-woo-page hey-woo-page--history">
+		<div ref={ rootRef } className="hey-woo-page hey-woo-page--history">
 			<header className="hey-woo-history-header">
 				<div>
 					<h1 className="hey-woo-history-header__title">{ __( 'Library', 'hey-woo' ) }</h1>
@@ -337,7 +345,7 @@ export function stage() {
 			<DataViews
 				actions={ actions }
 				config={ {
-					perPageSizes: [ 10, 20, 50 ],
+					perPageSizes,
 				} }
 				data={ shownConversations }
 				defaultLayouts={ HISTORY_LAYOUTS }

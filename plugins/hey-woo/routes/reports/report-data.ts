@@ -145,7 +145,7 @@ const REPORT_METADATA: Record< string, ReportMetadata > = {
 
 export function getReportMetadata( workflow: WorkflowAction ): ReportMetadata {
 	return REPORT_METADATA[ workflow.slug ] ?? {
-		category: __( 'Report', 'hey-woo' ),
+		category: __( 'Workflow', 'hey-woo' ),
 		defaultPeriod: 'last_30_days',
 		defaultDay: __( 'Monday', 'hey-woo' ),
 		priority: __( 'On demand', 'hey-woo' ),
@@ -156,7 +156,7 @@ export function getWorkflowBySlug( workflowSlug: string ): WorkflowAction | unde
 	return WORKFLOWS.find( ( workflow ) => workflow.slug === workflowSlug );
 }
 
-export function launchChatWorkflow( prompt: string, displayText = __( 'Run report', 'hey-woo' ) ): void {
+export function launchChatWorkflow( prompt: string, displayText = __( 'Run workflow', 'hey-woo' ) ): void {
 	const url = new URL( window.location.href );
 	const routeSearch = new URLSearchParams();
 	routeSearch.set( 'workflowPrompt', prompt );
@@ -178,20 +178,22 @@ function buildStructuredReportInstruction( workflow: WorkflowAction, actionCards
 		? __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5, actions <= 3.', 'hey-woo' )
 		: __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5.', 'hey-woo' );
 	const weeklyGuidance = workflow.slug === 'weekly-store-review'
-		? __( 'For the weekly store review, do not return a top-products-only answer. Use metric_tiles for revenue, orders, AOV, customers, and refunds. Use insights for what changed, the main driver, product mix, channel mix, and the watch-list/refund signal. Prefer a compact evidence table when long product or channel names would make a chart hard to read. Only include a chart when it explains a movement or mix shift better than the table.', 'hey-woo' )
+		? __( 'For the weekly store review, compose a briefing: metric_tiles are the tape, summary is the editor note, and insights are the ranked "what to look at" leads. Do not return a top-products-only answer. Do not restate a headline metric as an insight. Use insights for patterns the data actually supports: trend shift, product movement, customer/cohort movement, checkout pipeline, refund pattern, channel concentration, or tracking coverage. Prefer a compact evidence table when long product or channel names would make a chart hard to read. Only include a chart when it explains a movement or mix shift better than the table.', 'hey-woo' )
 		: '';
 
 	return [
 		sprintf(
 			/* translators: %s: JSON schema example for a structured report block */
-			__( 'Return a concise merchant report followed by one fenced code block whose language is exactly hey-woo-report. The block must contain one compact JSON object, no markdown, with this schema: %s.', 'hey-woo' ),
+			__( 'Return a concise merchant briefing followed by one fenced code block whose language is exactly hey-woo-report. The block must contain one compact JSON object, no markdown, with this schema: %s.', 'hey-woo' ),
 			schema
 		),
 		limits,
-		__( 'Only include values returned by tools or already present in the conversation; do not invent metrics. If the data does not support a chart or table, leave that array empty and explain why in caveats.', 'hey-woo' ),
+		__( 'Shape the JSON like Hey Woo: summary is a short editorial note, metric_tiles are the metrics tape, insights are the ranked leads, charts and tables are supporting evidence, caveats are small notes, and sources name the aggregate surfaces used.', 'hey-woo' ),
+		__( 'Only include values returned by tools or already present in the conversation; do not invent metrics. Read precomputed deltas, percentages, coverage, rates, and comparisons directly instead of recalculating them. If the data does not support a chart or table, leave that array empty and explain why in caveats.', 'hey-woo' ),
+		__( 'Lead discipline: pick 3-5 observations that earn attention. Good leads name the driver or useful non-driver; weak leads merely say revenue/orders/AOV changed. Small samples must be caveated in the insight body, not overstated in the headline.', 'hey-woo' ),
 		weeklyGuidance,
 		actionCards
-			? __( 'Put recommended action cards in actions inside hey-woo-report; do not output a separate hey-woo-actions block. Each action must be specific, evidence-backed, and doable by a merchant. Do not add vague actions like "review the report".', 'hey-woo' )
+			? __( 'Put recommended action cards in actions inside hey-woo-report; do not output a separate hey-woo-actions block. Each action must come from a specific insight, be evidence-backed, and be doable by a merchant. Do not add vague actions like "review the report".', 'hey-woo' )
 			: __( 'Keep actions empty in the JSON and keep any next steps inside the report summary.', 'hey-woo' ),
 		__( 'Do not call the separate chart renderer for this report; any useful visual belongs in the hey-woo-report charts array.', 'hey-woo' ),
 	].filter( Boolean ).join( ' ' );
