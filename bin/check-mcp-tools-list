@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+#
+# Local MCP protocol smoke test for WooCommerce for Claude.
+#
+# This does not call a model. It creates/reuses the local setup key, performs
+# a real MCP initialize request against wp-env's WordPress container, then
+# calls tools/list and asserts the tool names the agent workflows depend on.
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+pnpm exec wp-env run cli -- bash -s <<'CONTAINER_SCRIPT'
+set -euo pipefail
+
+MCP_URL="http://wordpress/wp-json/woocommerce-claude/mcp"
+HEADERS_FILE="/tmp/woocommerce-claude-mcp-headers.txt"
+INIT_FILE="/tmp/woocommerce-claude-mcp-init.json"
+TOOLS_FILE="/tmp/woocommerce-claude-mcp-tools.json"
+
+CREDENTIAL="$(
+	wp eval '
+		$user = get_user_by( "login", "admin" );
+		if ( ! $user ) {
+			fwrite( STDERR, "Admin user not found.\n" );
+			exit( 1 );
+		}
+
+		wp_set_current_user( $user->ID );
+		$helper = new WooCommerce\Claude\Setup\RestApiKey();
+		$state  = $helper->get_or_create();
+
+		if ( is_wp_error( $state ) ) {
+			fwrite( STDERR, $state->get_error_message() . "\n" );
+			exit( 1 );
+		}
+
+		echo $state["credential"];
+	' | tail -n 1
+)"
+
+curl -sS \
+	-D "$HEADERS_FILE" \
+	-o "$INIT_FILE" \
+	-u "$CREDENTIAL" \
+	-H "Content-Type: application/json" \
+	-H "Accept: application/json, text/event-stream" \
+	-d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"woocommerce-claude-smoke","version":"0"}}}' \
+	"$MCP_URL" >/dev/null
+
+SESSION_ID="$(
+	grep -i '^mcp-session-id:' "$HEADERS_FILE" \
+		| tail -n 1 \
+		| cut -d ' ' -f 2- \
+		| tr -d '\r'
+)"
+
+if [ -z "$SESSION_ID" ]; then
+	printf 'MCP initialize did not return an Mcp-Session-Id header.\n' >&2
+	printf 'Initialize response:\n' >&2
+	cat "$INIT_FILE" >&2
+	exit 1
+fi
+
+curl -sS \
+	-u "$CREDENTIAL" \
+	-H "Content-Type: application/json" \
+	-H "Accept: application/json, text/event-stream" \
+	-H "Mcp-Session-Id: $SESSION_ID" \
+	-d '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+	"$MCP_URL" >/dev/null
+
+curl -sS \
+	-o "$TOOLS_FILE" \
+	-u "$CREDENTIAL" \
+	-H "Content-Type: application/json" \
+	-H "Accept: application/json, text/event-stream" \
+	-H "Mcp-Session-Id: $SESSION_ID" \
+	-d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+	"$MCP_URL" >/dev/null
+
+EXPECTED_TOOLS=(
+	woocommerce-claude-get-store-profile
+	woocommerce-claude-get-readiness-score
+	woocommerce-claude-get-recommendations
+	woocommerce-claude-get-product-details
+	woocommerce-claude-search-products
+	woocommerce-claude-suggest-improvements
+	wc-analytics-totals
+	wc-analytics-breakdown
+	wc-analytics-series
+	wc-analytics-rows
+	wc-analytics-confirm-large-range
+)
+
+php -r '
+	$raw = file_get_contents( $argv[1] );
+	$payload = json_decode( $raw, true );
+	if ( ! is_array( $payload ) ) {
+		fwrite( STDERR, "tools/list did not return JSON.\n" );
+		exit( 1 );
+	}
+	if ( isset( $payload["error"] ) ) {
+		fwrite( STDERR, "tools/list returned error: " . json_encode( $payload["error"] ) . "\n" );
+		exit( 1 );
+	}
+
+	$tools = $payload["result"]["tools"] ?? array();
+	$names = array();
+	foreach ( $tools as $tool ) {
+		if ( isset( $tool["name"] ) ) {
+			$names[] = $tool["name"];
+		}
+	}
+
+	$missing = array_values( array_diff( array_slice( $argv, 2 ), $names ) );
+	if ( $missing ) {
+		fwrite( STDERR, "tools/list is missing expected tools: " . implode( ", ", $missing ) . "\n" );
+		exit( 1 );
+	}
+
+	// Wire-level JSON Schema guard.
+	//
+	// PHP `json_encode` serialises an empty PHP `array()` as `[]`, but
+	// JSON Schema requires `properties` to be an object (`{}`). A tool
+	// emitting `"inputSchema":{"type":"object","properties":[]}` is
+	// invalid JSON Schema, and Claude Desktops deferred-tool registrar
+	// silently drops the entire connector when it sees that shape —
+	// which means the tools never surface to Claude Code / Cowork agents
+	// even though tools/list returns 200 OK at the transport layer.
+	// See the PHPUnit guard in test-empty-input-schema.php for the
+	// source-side coverage; this is the wire-level mirror so the contract
+	// is also enforced against the round-tripped JSON the proxy actually
+	// hands to Claude Desktop.
+	//
+	// Re-decode in object mode so empty `{}` (stdClass) is distinguishable
+	// from empty `[]` (array) — assoc mode collapses both into the same
+	// PHP value and would miss the bug entirely.
+	$payload_obj = json_decode( $raw );
+	$invalid     = array();
+	foreach ( $payload_obj->result->tools as $tool ) {
+		$schema = $tool->inputSchema ?? null;
+		if ( ! is_object( $schema ) || ! property_exists( $schema, "properties" ) ) {
+			continue;
+		}
+		if ( is_array( $schema->properties ) ) {
+			$invalid[] = $tool->name;
+		}
+	}
+	if ( $invalid ) {
+		fwrite(
+			STDERR,
+			"Invalid inputSchema for: " . implode( ", ", $invalid ) . "\n"
+			. "  Each tools `inputSchema.properties` must JSON-encode as `{}` (object), not `[]` (array).\n"
+			. "  Fix: AbilitiesBootstrap::empty_input_schema() must return `(object) array()`, not `array()`.\n"
+		);
+		exit( 1 );
+	}
+
+	foreach ( $names as $name ) {
+		echo $name, PHP_EOL;
+	}
+' "$TOOLS_FILE" "${EXPECTED_TOOLS[@]}"
+CONTAINER_SCRIPT
