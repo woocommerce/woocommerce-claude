@@ -288,6 +288,35 @@ function hey_woo_today_enabled() {
 }
 
 /**
+ * Whether the Actions board surface should register itself.
+ *
+ * Actions is the persistent to-do board for recommendations the merchant
+ * can add from generated reports. While we validate whether the chat +
+ * workflow surface itself is useful, the Actions board stays parked
+ * behind a flag (same pattern as Today). Default off.
+ *
+ * Override via the HEY_WOO_ACTIONS_ENABLED constant in wp-config.php:
+ *
+ *   define( 'HEY_WOO_ACTIONS_ENABLED', true );
+ *
+ * or via the hey_woo_actions_enabled filter from a mu-plugin.
+ *
+ * @return bool
+ */
+function hey_woo_actions_enabled() {
+	$enabled = defined( 'HEY_WOO_ACTIONS_ENABLED' ) ? (bool) HEY_WOO_ACTIONS_ENABLED : false;
+
+	/**
+	 * Filter whether the Actions board surface is registered.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param bool $enabled Resolved flag value.
+	 */
+	return (bool) apply_filters( 'hey_woo_actions_enabled', $enabled );
+}
+
+/**
  * Register the Hey Woo WooCommerce settings tab.
  *
  * WC includes WC_Settings_Page before firing this filter, so the settings

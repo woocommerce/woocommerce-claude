@@ -105,7 +105,7 @@ class DifmAdminPage {
 
 			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-chat',
-				__( 'New chat', 'hey-woo' ),
+				__( 'New session', 'hey-woo' ),
 				'/'
 			);
 
@@ -121,11 +121,13 @@ class DifmAdminPage {
 				'/workflows'
 			);
 
-			heywoo_register_hey_woo_insights_menu_item(
-				'hey-woo-actions',
-				__( 'Actions', 'hey-woo' ),
-				'/actions'
-			);
+			if ( function_exists( 'hey_woo_actions_enabled' ) && hey_woo_actions_enabled() ) {
+				heywoo_register_hey_woo_insights_menu_item(
+					'hey-woo-actions',
+					__( 'Actions', 'hey-woo' ),
+					'/actions'
+				);
+			}
 		}
 
 		if ( wp_style_is( 'wp-dataviews', 'registered' ) ) {
