@@ -11,6 +11,7 @@
 namespace WooCommerce\HeyWoo\Difm;
 
 use WooCommerce\CommerceAbilities\Abilities\ConfirmLargeRangeAbility;
+use WooCommerce\HeyWoo\Difm\ChatErrorMapper;
 use WooCommerce\HeyWoo\Telemetry\TelemetryHandler;
 
 defined( 'ABSPATH' ) || exit;
@@ -236,12 +237,7 @@ class DifmRestController {
 				return rest_ensure_response( array( 'status' => 'no_key' ) );
 			}
 
-			return rest_ensure_response(
-				array(
-					'status'  => 'error',
-					'message' => $client->get_error_message(),
-				)
-			);
+			return $this->build_error_response_from_wp_error( $client );
 		}
 
 		if ( ! $client instanceof DifmAiClientInterface ) {
@@ -288,12 +284,7 @@ class DifmRestController {
 		$tools         = $this->build_tool_definitions();
 
 		if ( is_wp_error( $tools ) ) {
-			return rest_ensure_response(
-				array(
-					'status'  => 'error',
-					'message' => $tools->get_error_message(),
-				)
-			);
+			return $this->build_error_response_from_wp_error( $tools );
 		}
 
 		return $this->answer_with_tools( $client, $system_prompt, $messages, $tools, '', $this->merchant_requested_chart( $user_message ) );
@@ -473,12 +464,7 @@ class DifmRestController {
 			);
 
 			if ( is_wp_error( $result ) ) {
-				return rest_ensure_response(
-					array(
-						'status'  => 'error',
-						'message' => $result->get_error_message(),
-					)
-				);
+				return $this->build_error_response_from_wp_error( $result );
 			}
 
 			$stop_reason = isset( $result['stop_reason'] ) ? $result['stop_reason'] : 'end_turn';
@@ -585,11 +571,9 @@ class DifmRestController {
 			++$iterations;
 		}
 
-		return rest_ensure_response(
-			array(
-				'status'  => 'error',
-				'message' => __( 'The assistant took too many steps — please try again.', 'hey-woo' ),
-			)
+		return $this->build_error_response(
+			ChatErrorMapper::KIND_GENERIC,
+			__( 'The assistant took too many steps — please try again.', 'hey-woo' )
 		);
 	}
 
@@ -627,6 +611,49 @@ class DifmRestController {
 		}
 
 		return $response;
+	}
+
+	/**
+	 * Wrap a WP_Error from an AI client as a kind-aware chat error response.
+	 *
+	 * Routes the error through ChatErrorMapper so the merchant sees a stable
+	 * kind ('bad_key', 'rate_limited', 'overloaded', 'timeout', 'network',
+	 * 'generic') and friendly copy instead of the raw provider message. The
+	 * original WP_Error code/message remain in telemetry via DifmAiTelemetry.
+	 *
+	 * @param \WP_Error $error Error from an AI client or tool helper.
+	 * @return \WP_REST_Response
+	 */
+	private function build_error_response_from_wp_error( \WP_Error $error ) {
+		$classified = ChatErrorMapper::classify( $error );
+
+		return rest_ensure_response(
+			array(
+				'status'  => 'error',
+				'kind'    => $classified['kind'],
+				'message' => $classified['message'],
+			)
+		);
+	}
+
+	/**
+	 * Build a kind-aware chat error response from an explicit kind + message.
+	 *
+	 * Used for controller-level failures that are not WP_Errors (e.g. the
+	 * tool-loop iteration cap) so the frontend can still branch on kind.
+	 *
+	 * @param string $kind    Kind constant from ChatErrorMapper.
+	 * @param string $message Merchant-facing message.
+	 * @return \WP_REST_Response
+	 */
+	private function build_error_response( $kind, $message ) {
+		return rest_ensure_response(
+			array(
+				'status'  => 'error',
+				'kind'    => $kind,
+				'message' => $message,
+			)
+		);
 	}
 
 	/**
@@ -1577,12 +1604,7 @@ class DifmRestController {
 				);
 			}
 
-			return rest_ensure_response(
-				array(
-					'status'  => 'error',
-					'message' => $tool_output->get_error_message(),
-				)
-			);
+			return $this->build_error_response_from_wp_error( $tool_output );
 		}
 
 		$messages   = $this->build_conversation_messages( $raw_history, $user_message );
