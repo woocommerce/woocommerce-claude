@@ -17,17 +17,16 @@ import {
 import { useMemo, useState } from '@wordpress/element';
 import { Icon, chartBar } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
+import { useConversations } from '../ai-insights/hooks/useConversations';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
 import {
 	PERIOD_LABELS,
 	WEEKDAYS,
-	buildWorkflowPrompt,
 	getReportMetadata,
-	runWorkflowInBackground,
 } from './workflow-data';
 import type { PeriodOption, ReportMetadata, RunMode } from './workflow-data';
-import { useRunningWorkflows } from './running-store';
+import { startWorkflowRun } from './workflow-runs';
 
 interface WorkflowCardData extends WorkflowAction {
 	id: string;
@@ -42,10 +41,18 @@ export function stage() {
 	const [ cadence, setCadence ] = useState< string >( ALL_FILTER );
 	const [ activeWorkflow, setActiveWorkflow ] = useState< WorkflowCardData | null >( null );
 
-	const running = useRunningWorkflows();
+	const { conversations } = useConversations();
 	const runningSlugs = useMemo(
-		() => new Set( running.map( ( item ) => item.slug ) ),
-		[ running ]
+		() => new Set(
+			conversations
+				.filter( ( conversation ) =>
+					conversation.type === 'workflow' &&
+					conversation.workflowRun?.status === 'running'
+				)
+				.map( ( conversation ) => conversation.workflowRun?.slug )
+				.filter( ( slug ): slug is string => Boolean( slug ) )
+		),
+		[ conversations ]
 	);
 
 	const workflows = useMemo< WorkflowCardData[] >(
@@ -248,7 +255,7 @@ function WorkflowSetupModal( { workflow, onClose }: WorkflowSetupModalProps ) {
 	);
 
 	const handleStart = () => {
-		const prompt = buildWorkflowPrompt(
+		void startWorkflowRun( {
 			workflow,
 			runMode,
 			period,
@@ -256,19 +263,7 @@ function WorkflowSetupModal( { workflow, onClose }: WorkflowSetupModalProps ) {
 			day,
 			time,
 			actionCards,
-			adminNotification
-		);
-		const displayText = sprintf(
-			/* translators: 1: workflow name, 2: period label */
-			__( 'Run %1$s workflow for %2$s', 'hey-woo' ),
-			workflow.label,
-			PERIOD_LABELS[ period ]
-		);
-
-		void runWorkflowInBackground( {
-			workflow,
-			prompt,
-			displayText,
+			adminNotification,
 		} );
 
 		onClose();

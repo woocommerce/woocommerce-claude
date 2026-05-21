@@ -2,16 +2,34 @@
  * Shared chat workspace used by the New chat route.
  */
 import { Button } from '@wordpress/components';
-import { useCallback, useEffect, useRef } from '@wordpress/element';
-import { __, sprintf } from '@wordpress/i18n';
-import { useSearch } from '@wordpress/route';
+import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
+import { Icon, archive, calendar, chartBar, check, page, trendingUp } from '@wordpress/icons';
+import { __, _n, sprintf } from '@wordpress/i18n';
+import { useNavigate, useSearch } from '@wordpress/route';
 import moduleData from './data';
 import { useChat } from './hooks/useChat';
 import { useConversations } from './hooks/useConversations';
 import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
+import { ACTIONS_UPDATED_EVENT, loadActionCards } from '../actions/action-store';
+import {
+	startWorkflowRun,
+	workflowFromSlashCommand,
+	workflowRunOptionsFromMessage,
+} from '../workflows/workflow-runs';
 import type { StoredConversation } from './types';
+
+type ShortcutTone = 'primary' | 'neutral';
+
+interface ChatShortcut {
+	id: string;
+	title: string;
+	description: string;
+	icon: JSX.Element;
+	tone?: ShortcutTone;
+	onClick: () => void;
+}
 
 interface ChatViewProps {
 	conversations: StoredConversation[];
@@ -52,6 +70,153 @@ function ChatHeader( { title, subtitle }: ChatHeaderProps ) {
 				{ subtitle }
 			</p>
 		</header>
+	);
+}
+
+function openActionCount(): number {
+	return loadActionCards().filter( ( card ) => card.status !== 'done' ).length;
+}
+
+function ChatShortcutCard( { shortcut }: { shortcut: ChatShortcut } ) {
+	return (
+		<button
+			type="button"
+			className={ `hey-woo-chat-shortcut hey-woo-chat-shortcut--${ shortcut.tone ?? 'neutral' }` }
+			onClick={ shortcut.onClick }
+		>
+			<span className="hey-woo-chat-shortcut__icon" aria-hidden="true">
+				{ shortcut.icon }
+			</span>
+			<span className="hey-woo-chat-shortcut__body">
+				<span className="hey-woo-chat-shortcut__title">{ shortcut.title }</span>
+				<span className="hey-woo-chat-shortcut__description">{ shortcut.description }</span>
+			</span>
+		</button>
+	);
+}
+
+function ChatShortcuts() {
+	const navigate = useNavigate();
+	const [ actionsCount, setActionsCount ] = useState( () => openActionCount() );
+
+	useEffect( () => {
+		const refreshActionsCount = () => setActionsCount( openActionCount() );
+
+		window.addEventListener( ACTIONS_UPDATED_EVENT, refreshActionsCount );
+		window.addEventListener( 'storage', refreshActionsCount );
+
+		return () => {
+			window.removeEventListener( ACTIONS_UPDATED_EVENT, refreshActionsCount );
+			window.removeEventListener( 'storage', refreshActionsCount );
+		};
+	}, [] );
+
+	const goTo = ( to: string, search: Record< string, string > = {} ) => {
+		void navigate( {
+			to,
+			search,
+		} );
+	};
+	const actionTitle = actionsCount > 0
+		? sprintf(
+				/* translators: %d: number of open action cards */
+				_n( 'Review %d open action', 'Review %d open actions', actionsCount, 'hey-woo' ),
+				actionsCount
+		  )
+		: __( 'Review action board', 'hey-woo' );
+	const shortcuts: ChatShortcut[] = [
+		{
+			id: 'run-workflow',
+			title: __( 'Run a workflow', 'hey-woo' ),
+			description: __( 'Start a store review, acquisition check, refund triage, or catalogue audit.', 'hey-woo' ),
+			icon: <Icon icon={ chartBar } size={ 22 } />,
+			tone: 'primary',
+			onClick: () => goTo( '/reports' ),
+		},
+		{
+			id: 'actions',
+			title: actionTitle,
+			description: __( 'Work through recommended follow-ups from reports and chats.', 'hey-woo' ),
+			icon: <Icon icon={ check } size={ 22 } />,
+			onClick: () => goTo( '/actions' ),
+		},
+		{
+			id: 'library',
+			title: __( 'Open library', 'hey-woo' ),
+			description: __( 'Find previous reports, investigations, and chats.', 'hey-woo' ),
+			icon: <Icon icon={ archive } size={ 22 } />,
+			onClick: () => goTo( '/history' ),
+		},
+		{
+			id: 'schedule-weekly-review',
+			title: __( 'Schedule a weekly review', 'hey-woo' ),
+			description: __( 'Set up a recurring store check for the week ahead.', 'hey-woo' ),
+			icon: <Icon icon={ calendar } size={ 22 } />,
+			onClick: () => goTo( '/reports', {
+				workflow: 'weekly-store-review',
+				run: 'weekly',
+			} ),
+		},
+		{
+			id: 'check-what-changed',
+			title: __( 'Check what changed', 'hey-woo' ),
+			description: __( 'Investigate revenue, orders, refunds, products, or channels.', 'hey-woo' ),
+			icon: <Icon icon={ trendingUp } size={ 22 } />,
+			onClick: () => goTo( '/reports', {
+				workflow: 'revenue-drop-triage',
+			} ),
+		},
+		{
+			id: 'catalogue-content',
+			title: __( 'Improve catalogue content', 'hey-woo' ),
+			description: __( 'Find missing product data, weak descriptions, and content gaps.', 'hey-woo' ),
+			icon: <Icon icon={ page } size={ 22 } />,
+			onClick: () => goTo( '/reports', {
+				workflow: 'catalog-audit',
+			} ),
+		},
+	];
+
+	return (
+		<nav className="hey-woo-chat-shortcuts" aria-label={ __( 'Hey Woo shortcuts', 'hey-woo' ) }>
+			{ shortcuts.map( ( shortcut ) => (
+				<ChatShortcutCard key={ shortcut.id } shortcut={ shortcut } />
+			) ) }
+		</nav>
+	);
+}
+
+function ChatProgress() {
+	const steps = [
+		__( 'Reading store context', 'hey-woo' ),
+		__( 'Checking the relevant signals', 'hey-woo' ),
+		__( 'Drafting the response', 'hey-woo' ),
+	];
+
+	return (
+		<div className="hey-woo-progress" role="status" aria-live="polite">
+			<div className="hey-woo-progress__header">
+				<span className="hey-woo-progress__mark" aria-hidden="true">
+					<span />
+				</span>
+				<div className="hey-woo-progress__copy">
+					<span className="hey-woo-progress__eyebrow">
+						{ __( 'Hey Woo is working', 'hey-woo' ) }
+					</span>
+					<span className="hey-woo-progress__text">
+						{ __( 'Looking across your store data and preparing a useful answer.', 'hey-woo' ) }
+					</span>
+				</div>
+			</div>
+			<div className="hey-woo-progress__bar" aria-hidden="true">
+				<span />
+			</div>
+			<ul className="hey-woo-progress__steps" aria-hidden="true">
+				{ steps.map( ( step ) => (
+					<li key={ step }>{ step }</li>
+				) ) }
+			</ul>
+		</div>
 	);
 }
 
@@ -118,6 +283,39 @@ function ChatView( {
 
 	const bottomRef = useRef< HTMLDivElement >( null );
 	const didAutoRunWorkflowRef = useRef( false );
+	const navigate = useNavigate();
+	const [ isStartingWorkflow, setIsStartingWorkflow ] = useState( false );
+
+	const startWorkflowFromMessage = useCallback( async ( message: string ) => {
+		const workflow = workflowFromSlashCommand( message );
+		if ( ! workflow ) {
+			return false;
+		}
+
+		setIsStartingWorkflow( true );
+		const conversation = await startWorkflowRun(
+			workflowRunOptionsFromMessage( workflow, message )
+		).finally( () => {
+			setIsStartingWorkflow( false );
+		} );
+
+		void navigate( {
+			to: '/history',
+			search: {
+				conversation: conversation.id,
+			},
+		} );
+
+		return true;
+	}, [ navigate ] );
+
+	const handleSendMessage = useCallback( async ( message: string ) => {
+		if ( await startWorkflowFromMessage( message ) ) {
+			return;
+		}
+
+		void sendMessage( message );
+	}, [ sendMessage, startWorkflowFromMessage ] );
 
 	useEffect( () => {
 		if (
@@ -130,10 +328,16 @@ function ChatView( {
 		}
 
 		didAutoRunWorkflowRef.current = true;
-		void sendMessage( initialWorkflowPrompt, {
-			displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
-		} );
-	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, state.status, urlConversationId ] );
+		void ( async () => {
+			if ( await startWorkflowFromMessage( initialWorkflowPrompt ) ) {
+				return;
+			}
+
+			void sendMessage( initialWorkflowPrompt, {
+				displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
+			} );
+		} )();
+	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, startWorkflowFromMessage, state.status, urlConversationId ] );
 
 	// Scroll to the latest message whenever messages change.
 	// Use 'instant' on the first paint (loaded history) to avoid jarring animation.
@@ -152,7 +356,7 @@ function ChatView( {
 		);
 	}
 
-	const isSending = state.status === 'sending';
+	const isSending = state.status === 'sending' || isStartingWorkflow;
 	const chatTitle = initialConversation?.title || __( 'New chat', 'hey-woo' );
 	const chatSubtitle = __( 'Ask anything about your store', 'hey-woo' );
 	const isEmptyNewChat = ! urlConversationId && ! initialWorkflowPrompt && state.messages.length === 0 && ! isSending;
@@ -173,12 +377,13 @@ function ChatView( {
 								) }
 							</h2>
 							<ChatInput
-								onSend={ sendMessage }
+								onSend={ handleSendMessage }
 								disabled={ isSending }
 								placeholder={ __( 'Ask anything', 'hey-woo' ) }
 								rows={ 4 }
 								variant="hero"
 							/>
+							<ChatShortcuts />
 						</section>
 					</div>
 				</div>
@@ -205,16 +410,7 @@ function ChatView( {
 						<ChatBubble key={ msg.id } message={ msg } />
 					) ) }
 
-					{ isSending && (
-						<div className="hey-woo-bubble hey-woo-bubble--assistant hey-woo-bubble--typing" aria-label="Thinking">
-							<span className="hey-woo-bubble__role">Hey Woo</span>
-							<span className="hey-woo-typing-indicator" aria-hidden="true">
-								<span />
-								<span />
-								<span />
-							</span>
-						</div>
-					) }
+					{ isSending && <ChatProgress /> }
 
 					{ state.status === 'error' && (
 						<div className="hey-woo-error-bar" role="alert">
@@ -235,7 +431,13 @@ function ChatView( {
 					<div ref={ bottomRef } aria-hidden="true" />
 				</div>
 
-				<ChatInput onSend={ sendMessage } disabled={ isSending } />
+				<ChatInput
+					onSend={ handleSendMessage }
+					disabled={ isSending }
+					placeholder={ __( 'Ask anything', 'hey-woo' ) }
+					rows={ 4 }
+					variant="hero"
+				/>
 			</div>
 		</div>
 	);

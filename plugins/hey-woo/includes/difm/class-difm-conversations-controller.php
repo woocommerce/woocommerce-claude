@@ -43,7 +43,7 @@ class DifmConversationsController {
 	/**
 	 * Maximum number of conversations kept per user.
 	 */
-	const MAX_CONVERSATIONS = 5;
+	const MAX_CONVERSATIONS = 50;
 
 	/**
 	 * Register REST route hooks.
@@ -145,6 +145,17 @@ class DifmConversationsController {
 			'updatedAt' => (int) $request['updatedAt'],
 		);
 
+		if ( is_array( $raw_body_params ) && isset( $raw_body_params['type'] ) ) {
+			$type = sanitize_key( (string) $raw_body_params['type'] );
+			if ( in_array( $type, array( 'chat', 'workflow' ), true ) ) {
+				$incoming['type'] = $type;
+			}
+		}
+
+		if ( is_array( $raw_body_params ) && isset( $raw_body_params['workflowRun'] ) && is_array( $raw_body_params['workflowRun'] ) ) {
+			$incoming['workflowRun'] = self::sanitize_workflow_run_meta( $raw_body_params['workflowRun'] );
+		}
+
 		$conversations = self::get_recent_conversations( $user_id );
 
 		// Remove existing entry with same ID (upsert).
@@ -172,6 +183,35 @@ class DifmConversationsController {
 		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
 
 		return rest_ensure_response( array( 'status' => 'ok' ) );
+	}
+
+	/**
+	 * Sanitize workflow-run metadata before storing it in user meta.
+	 *
+	 * @param array<string,mixed> $meta Raw workflow metadata.
+	 * @return array<string,mixed>
+	 */
+	private static function sanitize_workflow_run_meta( array $meta ) {
+		$status = isset( $meta['status'] ) ? sanitize_key( (string) $meta['status'] ) : 'running';
+		if ( ! in_array( $status, array( 'running', 'complete', 'error' ), true ) ) {
+			$status = 'running';
+		}
+
+		return array(
+			'slug'              => isset( $meta['slug'] ) ? sanitize_key( (string) $meta['slug'] ) : '',
+			'label'             => isset( $meta['label'] ) ? sanitize_text_field( (string) $meta['label'] ) : '',
+			'status'            => $status,
+			'runMode'           => isset( $meta['runMode'] ) ? sanitize_key( (string) $meta['runMode'] ) : 'now',
+			'period'            => isset( $meta['period'] ) ? sanitize_key( (string) $meta['period'] ) : '',
+			'periodLabel'       => isset( $meta['periodLabel'] ) ? sanitize_text_field( (string) $meta['periodLabel'] ) : '',
+			'compare'           => ! empty( $meta['compare'] ),
+			'actionCards'       => ! empty( $meta['actionCards'] ),
+			'adminNotification' => ! empty( $meta['adminNotification'] ),
+			'startedAt'         => isset( $meta['startedAt'] ) ? (int) $meta['startedAt'] : 0,
+			'scheduleLabel'     => isset( $meta['scheduleLabel'] ) ? sanitize_text_field( (string) $meta['scheduleLabel'] ) : '',
+			'completedAt'       => isset( $meta['completedAt'] ) ? (int) $meta['completedAt'] : 0,
+			'errorMessage'      => isset( $meta['errorMessage'] ) ? sanitize_text_field( (string) $meta['errorMessage'] ) : '',
+		);
 	}
 
 	/**

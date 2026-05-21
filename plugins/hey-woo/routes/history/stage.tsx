@@ -18,7 +18,7 @@ import {
 import type { HistoryConversation } from './history-data';
 import type { Action, Field, View } from '@wordpress/dataviews/wp';
 
-const HISTORY_VISIBLE_FIELDS = [ 'source', 'messageCount', 'lastSpeaker', 'updatedAt' ];
+const HISTORY_VISIBLE_FIELDS = [ 'source', 'status', 'messageCount', 'updatedAt' ];
 const HISTORY_PAGE_SIZE_OPTIONS = [ 10, 20, 50 ];
 const HISTORY_LAYOUTS = {
 	table: {
@@ -30,8 +30,8 @@ const HISTORY_LAYOUTS = {
 			density: 'balanced',
 			styles: {
 				source: { width: '120px' },
+				status: { width: '140px' },
 				messageCount: { width: '120px' },
-				lastSpeaker: { width: '140px' },
 				updatedAt: { width: '180px' },
 			},
 		},
@@ -52,7 +52,7 @@ const HISTORY_LAYOUTS = {
 		descriptionField: 'preview',
 		showMedia: true,
 		layout: {
-			badgeFields: [ 'source', 'messageCount' ],
+			badgeFields: [ 'source', 'status' ],
 			density: 'comfortable',
 		},
 	},
@@ -233,7 +233,23 @@ export function stage() {
 					isPrimary: true,
 				},
 				getValue: ( { item } ) => item.source,
-				render: ( { item } ) => item.sourceLabel,
+				render: ( { item } ) => (
+					<span className={ `hey-woo-history-source hey-woo-history-source--${ item.source }` }>
+						{ item.sourceLabel }
+					</span>
+				),
+			},
+			{
+				id: 'status',
+				label: __( 'Status', 'hey-woo' ),
+				enableGlobalSearch: true,
+				enableSorting: true,
+				getValue: ( { item } ) => item.statusLabel,
+				render: ( { item } ) => (
+					<span className={ `hey-woo-history-status hey-woo-history-status--${ item.status }` }>
+						{ item.statusLabel }
+					</span>
+				),
 			},
 			{
 				id: 'messageCount',
@@ -331,6 +347,7 @@ export function stage() {
 				<Button
 					type="button"
 					variant="primary"
+					__next40pxDefaultSize
 					onClick={ () => {
 						void navigate( {
 							to: '/chat',
@@ -359,6 +376,7 @@ export function stage() {
 						<Button
 							type="button"
 							variant="secondary"
+							__next40pxDefaultSize
 							onClick={ hasConversationHistory ? resetView : () => {
 								void navigate( {
 									to: '/chat',

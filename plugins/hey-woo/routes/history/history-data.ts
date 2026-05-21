@@ -2,7 +2,13 @@
  * Shared helpers for the Library DataViews route.
  */
 import { __ } from '@wordpress/i18n';
-import type { ChatMessage, StoredConversation } from '../ai-insights/types';
+import { parseReportActions } from '../ai-insights/report-actions';
+import { WORKFLOWS } from '../ai-insights/workflows';
+import type {
+	ChatMessage,
+	StoredConversation,
+	WorkflowRunStatus,
+} from '../ai-insights/types';
 
 export type ConversationSource = 'chat' | 'report';
 
@@ -12,6 +18,8 @@ export interface HistoryConversation extends StoredConversation {
 	preview: string;
 	source: ConversationSource;
 	sourceLabel: string;
+	status: string;
+	statusLabel: string;
 	updatedLabel: string;
 }
 
@@ -33,8 +41,10 @@ export function messagePreview( messages: ChatMessage[] ): string {
 		return __( 'No messages yet.', 'hey-woo' );
 	}
 
-	const preview = message.content
-		.replace( /```hey-woo-actions[\s\S]*?```/gi, '' )
+	const { content } = parseReportActions( message.content );
+	const preview = content
+		.replace( /^#{1,6}\s+/gm, '' )
+		.replace( /\*\*(.+?)\*\*/g, '$1' )
 		.replace( /\s+/g, ' ' )
 		.trim();
 
@@ -42,15 +52,37 @@ export function messagePreview( messages: ChatMessage[] ): string {
 }
 
 export function conversationSource( conversation: StoredConversation ): ConversationSource {
-	const firstUserMessage = conversation.messages.find( ( message ) => message.role === 'user' );
+	if ( conversation.type === 'workflow' || conversation.workflowRun ) {
+		return 'report';
+	}
 
-	return firstUserMessage?.content.trim().toLowerCase().startsWith( 'run ' )
+	const firstUserMessage = conversation.messages.find( ( message ) => message.role === 'user' );
+	const firstUserText = firstUserMessage?.content.trim().toLowerCase() || '';
+	const isWorkflowRun = WORKFLOWS.some( ( workflow ) => (
+		firstUserText.startsWith( `/${ workflow.slug }` ) ||
+		firstUserText.includes( workflow.label.toLowerCase() )
+	) );
+
+	return isWorkflowRun || firstUserText.startsWith( 'run ' )
 		? 'report'
 		: 'chat';
 }
 
 export function conversationSourceLabel( source: ConversationSource ): string {
 	return source === 'report' ? __( 'Report', 'hey-woo' ) : __( 'Chat', 'hey-woo' );
+}
+
+export function workflowRunStatusLabel( status: WorkflowRunStatus | undefined ): string {
+	switch ( status ) {
+		case 'running':
+			return __( 'Running', 'hey-woo' );
+		case 'complete':
+			return __( 'Complete', 'hey-woo' );
+		case 'error':
+			return __( 'Needs attention', 'hey-woo' );
+	}
+
+	return __( 'Ready', 'hey-woo' );
 }
 
 export function lastSpeakerLabel( messages: ChatMessage[] ): string {
@@ -65,14 +97,17 @@ export function lastSpeakerLabel( messages: ChatMessage[] ): string {
 
 export function toHistoryConversation( conversation: StoredConversation ): HistoryConversation {
 	const source = conversationSource( conversation );
+	const status = conversation.workflowRun?.status || 'ready';
 
 	return {
 		...conversation,
 		lastSpeaker: lastSpeakerLabel( conversation.messages ),
 		messageCount: conversation.messages.length,
-		preview: messagePreview( conversation.messages ),
+		preview: conversation.workflowRun?.errorMessage || messagePreview( conversation.messages ),
 		source,
 		sourceLabel: conversationSourceLabel( source ),
+		status,
+		statusLabel: workflowRunStatusLabel( conversation.workflowRun?.status ),
 		updatedLabel: formatUpdatedAt( conversation.updatedAt ),
 	};
 }
