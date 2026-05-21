@@ -76,27 +76,27 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering active customers, average and median lifetime spend, repeat versus one-time balance, and whether the current-period customer base grew, shrank, or changed meaningfully. Say plainly if the sample is too small to interpret.
 
-#### 2. Active Customer Value
+#### Active Customer Value
 
 Summarise the active-base lifetime-value picture: average, median, max, one-time/repeat segment split, and any comparison movement. Explain the active-base frame in merchant language if needed.
 
-#### 3. Repeat and Retention
+#### Repeat and Retention
 
 Summarise repeat-customer share, period new versus returning customer mix, cohort retention, time-between-orders, and basket-depth signals. Keep historic retention separate from prediction.
 
-#### 4. Top Customers
+#### Top Customers
 
 List up to five pseudonymised top customers when returned. Include lifetime spend, lifetime order count, first/last order timing if available, and links when available. Do not include names, emails, addresses, or phone numbers.
 
-#### 5. Opportunities
+#### Opportunities
 
 Name the highest-signal opportunities from the returned data: one-time-to-repeat scenarios, replenishment reminders, bundles/cross-sells, loyalty/coupon checks, product education, or channel tracking. Use returned scenario rows exactly and caveat small samples.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, email/CRM or coupon tools, product merchandising, fulfilment/support workflows, or connected analytics/ad platforms.
 

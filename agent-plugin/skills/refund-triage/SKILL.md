@@ -66,27 +66,27 @@ Produce a triage report with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering refund amount, refund count, orders refunded, refund rate, and whether refunds are up, down, or flat versus the comparison. Say plainly if there is no refund issue in the period.
 
-#### 2. Severity
+#### Severity
 
 Call the triage level `Low`, `Medium`, or `High` with one sentence explaining why. Base it on refund rate, refund value, movement, count, timing concentration, and whether a product or country driver is concentrated enough to act on.
 
-#### 3. Refund Timing
+#### Refund Timing
 
 Summarise median days to refund, average days if useful, partial/full split, and the timing buckets. Translate timing into checks, not conclusions.
 
-#### 4. Top Drivers
+#### Top Drivers
 
 List the most important refunded products and countries. For each product or country you call out, include refund count, refund amount, refund rate when defined, and small-sample caveats where needed.
 
-#### 5. Likely Checks
+#### Likely Checks
 
 List two or three checks grounded in the data: product description/imagery accuracy, sizing or compatibility guidance, packaging/damage reports, shipping delays, fulfilment substitutions, support macros, payment processor disputes, or country-specific delivery expectations.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, product content, fulfilment/support workflows, carrier tools, payment processor dashboards, or connected marketing/analytics tools.
 

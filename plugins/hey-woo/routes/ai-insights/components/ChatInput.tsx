@@ -168,6 +168,17 @@ export function ChatInput( {
 					aria-expanded={ isCommandMenuOpen }
 					aria-controls={ isCommandMenuOpen ? 'hey-woo-command-menu' : undefined }
 				/>
+				<Button
+					type="submit"
+					className="hey-woo-input__send"
+					variant="primary"
+					icon={ send }
+					__next40pxDefaultSize
+					disabled={ disabled || ( variant === 'docked' && ! value.trim() ) }
+					isBusy={ disabled }
+					accessibleWhenDisabled
+					aria-label={ __( 'Send message', 'hey-woo' ) }
+				/>
 				{ isCommandMenuOpen && (
 					<div id="hey-woo-command-menu" className="hey-woo-input__commands" role="listbox">
 						{ matchingCommands.length > 0 ? (
@@ -194,17 +205,6 @@ export function ChatInput( {
 					</div>
 				) }
 			</div>
-			<Button
-				type="submit"
-				className="hey-woo-input__send"
-				variant="primary"
-				icon={ send }
-				__next40pxDefaultSize
-				disabled={ disabled || ( variant === 'docked' && ! value.trim() ) }
-				isBusy={ disabled }
-				accessibleWhenDisabled
-				aria-label={ __( 'Send message', 'hey-woo' ) }
-			/>
 		</form>
 	);
 }

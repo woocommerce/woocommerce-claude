@@ -92,35 +92,35 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the leading paid payment methods, how concentrated paid revenue is, whether on-hold pipeline or failed orders need attention, and whether payment-method labelling is complete enough to trust the review. Say plainly if the sample is too small to interpret.
 
-#### 2. Paid Payment Mix
+#### Paid Payment Mix
 
 List the top payment methods by paid revenue. Include paid revenue, paid order count, average order value when returned, share of paid revenue, comparison movement, and refund rate when meaningful. Keep refund interpretation cautious.
 
-#### 3. Concentration and Movement
+#### Concentration and Movement
 
 Name methods that dominate the paid mix, newly entered or dropped out of top results, and notable comparison movement. Use returned fields only. Do not infer payment preference or payment conversion from order mix alone.
 
-#### 4. On-Hold Pipeline
+#### On-Hold Pipeline
 
 Summarise on-hold count/value, oldest age, age buckets, and payment-method pipeline signals. Distinguish expected manual-payment clearing from card-like methods that deserve a settings/log check. Keep pipeline separate from collected revenue and failed orders.
 
-#### 5. Failed Orders
+#### Failed Orders
 
 Summarise failed order count/value and whether it changed from the comparison period when you have comparable aggregates. Do not calculate failed-order rates, compare failed orders with paid-order volume, or add unsupported magnitude labels. Do not assign, negate, or list possible causes; say the data does not include reason-level payment details unless the returned data or merchant context supports more.
 
-#### 6. Payment Label Coverage
+#### Payment Label Coverage
 
 Summarise payment-method coverage, distinct methods, and any blank or unassigned payment rows. Frame this as a visibility/admin check: confirm representative order pages, then check WooCommerce > Settings > Payments and gateway logs if labels are blank there too. Do not mention whether background setup context was empty or complete.
 
-#### 7. Gateway and Admin Checks
+#### Gateway and Admin Checks
 
 List two or three checks grounded in the data: gateway dashboard/logs for card-like methods in on-hold pipeline, bank-transfer or invoice instructions for stale manual-payment pipeline, WooCommerce payment settings for blank labels, webhook health when the merchant has processor evidence, risk-screening settings only if the merchant supplies that context, or channel tracking if pipeline is concentrated by acquisition channel.
 
-#### 8. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, payment settings, payment gateway dashboards/logs, order follow-up workflows, checkout settings, risk-screening settings, or bank-transfer instructions.
 

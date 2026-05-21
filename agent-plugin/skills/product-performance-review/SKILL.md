@@ -95,31 +95,31 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the strongest product trading signal, whether revenue/units/orders are concentrated or broad, the key comparison movement, and whether refund signals deserve attention. Say plainly if the product sample is too small to interpret.
 
-#### 2. Top Products
+#### Top Products
 
 Summarise leaders by revenue, units sold, and order count. Include product links when available, SKU when useful, current stock status only when returned, period revenue, units sold, orders, and comparison movement. Avoid calling profit, demand, or conversion winners.
 
-#### 3. Product Mix Changes
+#### Product Mix Changes
 
 Name products that moved materially, newly entered top results, or dropped out versus the comparison period. Use returned movement fields and dropped-out rows. Include trend-shape notes from the series only when they add signal.
 
-#### 4. Category and SKU Coverage
+#### Category and SKU Coverage
 
 Summarise parent-product coverage, SKU or variation coverage, and top categories. Explain any notable gap as a merchandising review of existing products or variations, not as proof the merchant should add new products. Mention category roll-up caveats only if needed.
 
-#### 5. Refund Signals
+#### Refund Signals
 
 List top refunded products when returned. Include refund amount, refund count, orders refunded, refund rate when defined, average days to refund when useful, and small-sample caveats. Frame actions as product/support checks, not conclusions about why refunds happened.
 
-#### 6. Products to Review
+#### Products to Review
 
 List products with no paid sales in the period when returned, plus any low-signal products that need more data before action. Include current price, SKU, stock status/quantity, sale-price state, product-created date, and links when available.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, product merchandising, sale pricing, product-page content, fulfilment/support workflows, or connected marketing tools.
 
