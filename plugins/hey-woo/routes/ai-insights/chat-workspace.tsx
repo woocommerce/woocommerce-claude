@@ -298,30 +298,52 @@ function ChatView( {
 	conversations,
 	onSaveConversation,
 }: ChatViewProps ) {
+	// Read from moduleData first (synchronous in-memory cache) so the
+	// remount triggered by the URL update below picks up the just-saved
+	// conversation without flashing the empty home. useConversations'
+	// React state can lag a tick behind publishConversationUpdate, which
+	// would otherwise show a blank screen between the save and the state
+	// catching up.
 	const initialConversation = urlConversationId
-		? conversations.find( ( c ) => c.id === urlConversationId )
+		? ( moduleData.conversations.find( ( c ) => c.id === urlConversationId )
+			?? conversations.find( ( c ) => c.id === urlConversationId ) )
 		: undefined;
 
-	// Intentionally no URL update after a save. Updating window.location to
-	// include the new conversationId after the assistant reply lands forces
-	// ChatView to remount (the parent's key depends on urlConversationId),
-	// and the new mount can briefly render the empty home before the
-	// conversations state catches up — the merchant sees the report
-	// disappear and reload to a blank screen. The conversation is already
-	// persisted via useConversations, so it shows up in History and a
-	// refresh from there restores the chat.
 	const handleConversationSaved = useCallback( async (
 		conversation: StoredConversation
 	) => {
 		await onSaveConversation( conversation );
 	}, [ onSaveConversation ] );
 
-	const { state, sendMessage, resendLast, clearError, submitFeedback } = useChat( {
+	const { state, sendMessage, resendLast, clearError, submitFeedback, conversationId } = useChat( {
 		initialMessages: initialConversation?.messages,
 		initialConversationId: urlConversationId,
 		initialTitle: initialConversation?.title,
 		onConversationSaved: handleConversationSaved,
 	} );
+
+	const navigate = useNavigate();
+
+	// Once the first assistant reply lands on a fresh chat, push the
+	// conversationId into the URL so the sidebar "New session" link
+	// (which points at `/`) navigates to a different URL than the active
+	// session. Without this the click would be a same-URL no-op and the
+	// merchant would have no way to start a fresh session. Deferred until
+	// the assistant message is in state so the remount doesn't orphan the
+	// in-flight fetch.
+	useEffect( () => {
+		if ( urlConversationId || ! conversationId ) {
+			return;
+		}
+		if ( ! state.messages.some( ( m ) => m.role === 'assistant' ) ) {
+			return;
+		}
+		void navigate( {
+			to: '/',
+			search: { conversationId },
+			replace: true,
+		} );
+	}, [ urlConversationId, conversationId, state.messages, navigate ] );
 
 	const bottomRef = useRef< HTMLDivElement >( null );
 	const didAutoRunWorkflowRef = useRef( false );
