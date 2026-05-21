@@ -834,6 +834,7 @@ class DifmRestController {
 			. 'Do not suggest building new features, plugins, or API endpoints — the merchant cannot action that. '
 			. 'Never expose internal field names (e.g. metrics.net_sales) in your responses — use plain English only. '
 			. 'If a tool reports that a larger date range needs approval, stop and wait for the server-led merchant confirmation flow. '
+				. 'Follow-up suggestions — append, after your main response, a fenced code block tagged `suggested-followups` containing exactly three short questions the merchant might want to ask next. Format the block as a markdown bullet list (one suggestion per line, starting with `- `). Each suggestion is a complete natural-language question (under 100 characters) grounded in data you actually surfaced in this turn, not a generic prompt. Do not introduce or label the block in your prose; the UI strips it from view and renders the suggestions as clickable chips. Always include the block on any answer that touched store data; for short conversational replies (greetings, clarifications, brief confirmations) you may omit it. '
 				. 'Chart rendering rules — follow these exactly: '
 				. '(1) Write your complete text reply first. Then, if the chart conditions below apply, you MUST call render_chart as your final action. Never call render_chart before finishing your text. '
 				. '(2) You MUST call render_chart if: the merchant asked for a chart, graph, or trend view; OR your answer contains time-series or category data with multiple data points. This applies even if you already wrote a table — include both. If you reference a chart in your text (e.g. "the chart below"), you MUST call render_chart. '
@@ -895,7 +896,9 @@ class DifmRestController {
 			if ( in_array( $role, array( 'user', 'assistant' ), true ) && '' !== $content ) {
 				$messages[] = array(
 					'role'    => $role,
-					'content' => 'user' === $role ? sanitize_text_field( $content ) : $content,
+					'content' => 'user' === $role
+						? sanitize_text_field( $content )
+						: $this->strip_followup_block( $content ),
 				);
 			}
 		}
@@ -906,6 +909,25 @@ class DifmRestController {
 		);
 
 		return $messages;
+	}
+
+	/**
+	 * Strip the trailing ```suggested-followups``` fenced block from assistant
+	 * content before it is replayed to the model as history. The block is
+	 * useful to the UI (chips render from it on the latest turn) but
+	 * confuses the model on subsequent turns — it tends to copy prior
+	 * suggestions instead of generating fresh ones tied to the new context.
+	 *
+	 * The block stays in the stored content so reopened conversations still
+	 * render their chips; only the model-facing history is sanitised.
+	 *
+	 * @param string $content Assistant message content.
+	 * @return string
+	 */
+	private function strip_followup_block( $content ) {
+		$pattern  = '/\n*```suggested-followups\s*\n[\s\S]*?\n```\s*$/i';
+		$stripped = preg_replace( $pattern, '', $content );
+		return null === $stripped ? $content : rtrim( $stripped );
 	}
 
 	/**
