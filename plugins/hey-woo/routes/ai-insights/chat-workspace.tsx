@@ -74,58 +74,60 @@ function ChatShortcutCard( { shortcut }: { shortcut: ChatShortcut } ) {
 function ChatShortcuts() {
 	const navigate = useNavigate();
 
-	const goTo = ( to: string, search: Record< string, string > = {} ) => {
+	const launchWorkflow = ( slug: string, display: string ) => {
 		void navigate( {
-			to,
-			search,
+			to: '/chat',
+			search: {
+				workflowPrompt: `/${ slug }`,
+				workflowDisplay: display,
+			},
 		} );
 	};
 
-	const shortcuts: ChatShortcut[] = [
+	const definitions: Omit< ChatShortcut, 'onClick' >[] = [
 		{
 			id: 'weekly-store-review',
 			title: __( 'How did the store do this week?', 'hey-woo' ),
 			description: __( 'Get a merchant-friendly review of revenue, orders, customers, and what to do next.', 'hey-woo' ),
 			icon: <Icon icon={ chartBar } size={ 22 } />,
 			tone: 'primary',
-			onClick: () => goTo( '/reports', { workflow: 'weekly-store-review' } ),
 		},
 		{
 			id: 'revenue-drop-triage',
 			title: __( 'What’s driving revenue down?', 'hey-woo' ),
 			description: __( 'Diagnose a soft week or month and find the channels, products, or refunds behind it.', 'hey-woo' ),
 			icon: <Icon icon={ trendingDown } size={ 22 } />,
-			onClick: () => goTo( '/reports', { workflow: 'revenue-drop-triage' } ),
 		},
 		{
 			id: 'channel-performance-review',
 			title: __( 'Where are my paying customers coming from?', 'hey-woo' ),
 			description: __( 'See which channels, sources, and campaigns are driving revenue and new customers.', 'hey-woo' ),
 			icon: <Icon icon={ globe } size={ 22 } />,
-			onClick: () => goTo( '/reports', { workflow: 'channel-performance-review' } ),
 		},
 		{
 			id: 'product-performance-review',
 			title: __( 'Which products are pulling their weight?', 'hey-woo' ),
 			description: __( 'Spot top sellers, slow movers, and shifts in product mix worth acting on.', 'hey-woo' ),
 			icon: <Icon icon={ tag } size={ 22 } />,
-			onClick: () => goTo( '/reports', { workflow: 'product-performance-review' } ),
 		},
 		{
 			id: 'failed-order-triage',
 			title: __( 'What’s stuck in checkout?', 'hey-woo' ),
 			description: __( 'Triage failed, on-hold, and unpaid orders so nothing slips through.', 'hey-woo' ),
 			icon: <Icon icon={ payment } size={ 22 } />,
-			onClick: () => goTo( '/reports', { workflow: 'failed-order-triage' } ),
 		},
 		{
 			id: 'customer-value-review',
 			title: __( 'Are my customers coming back?', 'hey-woo' ),
 			description: __( 'Look at lifetime value, repeat rates, and cohorts to find loyalty opportunities.', 'hey-woo' ),
 			icon: <Icon icon={ people } size={ 22 } />,
-			onClick: () => goTo( '/reports', { workflow: 'customer-value-review' } ),
 		},
 	];
+
+	const shortcuts: ChatShortcut[] = definitions.map( ( def ) => ( {
+		...def,
+		onClick: () => launchWorkflow( def.id, def.title ),
+	} ) );
 
 	return (
 		<nav className="hey-woo-chat-shortcuts" aria-label={ __( 'Hey Woo shortcuts', 'hey-woo' ) }>
