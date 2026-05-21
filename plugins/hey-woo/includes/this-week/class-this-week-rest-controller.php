@@ -96,12 +96,12 @@ class ThisWeekRestController {
 				'callback'            => array( $this, 'snooze_signal' ),
 				'permission_callback' => array( $this, 'check_permission' ),
 				'args'                => array(
-					'slug'           => array(
+					'slug'          => array(
 						'type'              => 'string',
 						'required'          => true,
 						'sanitize_callback' => 'sanitize_key',
 					),
-					'snoozed_until'  => array(
+					'snoozed_until' => array(
 						'type'     => 'integer',
 						'required' => false,
 					),

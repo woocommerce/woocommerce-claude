@@ -58,10 +58,10 @@ class InventoryRiskDetector implements SignalDetectorInterface {
 			return null;
 		}
 
-		$has_oos    = ! empty( $out_of_stock );
-		$severity   = $has_oos ? 'high' : 'medium';
-		$oos_count  = count( $out_of_stock );
-		$low_count  = count( $low_stock );
+		$has_oos   = ! empty( $out_of_stock );
+		$severity  = $has_oos ? 'high' : 'medium';
+		$oos_count = count( $out_of_stock );
+		$low_count = count( $low_stock );
 
 		if ( $has_oos ) {
 			$title = sprintf(
@@ -93,11 +93,11 @@ class InventoryRiskDetector implements SignalDetectorInterface {
 			'workflow_slug' => $this->workflow_slug(),
 			'title'         => $title,
 			'raw_evidence'  => array(
-				'currency'             => get_woocommerce_currency(),
-				'out_of_stock_count'   => $oos_count,
-				'low_stock_count'      => $low_count,
-				'out_of_stock'         => $out_of_stock,
-				'low_stock'            => $low_stock,
+				'currency'           => get_woocommerce_currency(),
+				'out_of_stock_count' => $oos_count,
+				'low_stock_count'    => $low_count,
+				'out_of_stock'       => $out_of_stock,
+				'low_stock'          => $low_stock,
 			),
 		);
 	}
@@ -130,13 +130,13 @@ class InventoryRiskDetector implements SignalDetectorInterface {
 	private function find_low_stock_with_sales() {
 		$products = wc_get_products(
 			array(
-				'status'        => 'publish',
-				'stock_status'  => 'instock',
-				'manage_stock'  => true,
-				'limit'         => 50,
-				'orderby'       => 'meta_value_num',
-				'meta_key'      => 'total_sales', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-				'order'         => 'DESC',
+				'status'       => 'publish',
+				'stock_status' => 'instock',
+				'manage_stock' => true,
+				'limit'        => 50,
+				'orderby'      => 'meta_value_num',
+				'meta_key'     => 'total_sales', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+				'order'        => 'DESC',
 			)
 		);
 

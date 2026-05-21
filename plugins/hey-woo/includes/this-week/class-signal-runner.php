@@ -58,7 +58,7 @@ class SignalRunner {
 			try {
 				$detection = $detector->detect();
 			} catch ( \Throwable $e ) {
-				$errors[] = array(
+				$errors[]  = array(
 					'detector' => $slug,
 					'error'    => 'detector_threw',
 					'message'  => $e->getMessage(),
@@ -219,10 +219,10 @@ class SignalRunner {
 	 */
 	private function build_user_prompt( array $detection ) {
 		$payload = array(
-			'detector_slug'           => isset( $detection['slug'] ) ? (string) $detection['slug'] : '',
-			'severity'                => isset( $detection['severity'] ) ? (string) $detection['severity'] : 'medium',
-			'deterministic_title'     => isset( $detection['title'] ) ? (string) $detection['title'] : '',
-			'evidence'                => isset( $detection['raw_evidence'] ) ? $detection['raw_evidence'] : array(),
+			'detector_slug'       => isset( $detection['slug'] ) ? (string) $detection['slug'] : '',
+			'severity'            => isset( $detection['severity'] ) ? (string) $detection['severity'] : 'medium',
+			'deterministic_title' => isset( $detection['title'] ) ? (string) $detection['title'] : '',
+			'evidence'            => isset( $detection['raw_evidence'] ) ? $detection['raw_evidence'] : array(),
 		);
 
 		$payload_json = wp_json_encode( $payload, JSON_PRETTY_PRINT );
@@ -353,12 +353,12 @@ class SignalRunner {
 			}
 
 			if ( '{' === $char ) {
-				$depth++;
+				++$depth;
 				continue;
 			}
 
 			if ( '}' === $char ) {
-				$depth--;
+				--$depth;
 				if ( 0 === $depth ) {
 					$candidate = substr( $text, $start, $i - $start + 1 );
 					$decoded   = json_decode( $candidate, true );
@@ -400,8 +400,8 @@ class SignalRunner {
 	 * @return array<string,mixed>
 	 */
 	private function merge_signal( array $detection, array $payload ) {
-		$action               = isset( $payload['action'] ) && is_array( $payload['action'] ) ? $payload['action'] : array();
-		$workflow_slug        = isset( $detection['workflow_slug'] ) ? (string) $detection['workflow_slug'] : '';
+		$action                  = isset( $payload['action'] ) && is_array( $payload['action'] ) ? $payload['action'] : array();
+		$workflow_slug           = isset( $detection['workflow_slug'] ) ? (string) $detection['workflow_slug'] : '';
 		$action['workflow_slug'] = $workflow_slug;
 
 		return array(
