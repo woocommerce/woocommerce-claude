@@ -66,9 +66,12 @@ class DifmFeedbackController {
 	const FEEDBACK_COOLDOWN_SECONDS = 1;
 
 	/**
-	 * Transient prefix for the per-user feedback throttle.
+	 * Object cache group for the per-user feedback throttle.
+	 *
+	 * Used with wp_cache_add for an atomic check-and-set claim — see
+	 * record_feedback for the BYOK-beta caveats on cross-process behaviour.
 	 */
-	const FEEDBACK_THROTTLE_PREFIX = 'hey_woo_feedback_throttle_';
+	const FEEDBACK_CACHE_GROUP = 'hey_woo_feedback_throttle';
 
 	/**
 	 * Register REST route hooks.
@@ -158,8 +161,19 @@ class DifmFeedbackController {
 		$rating          = (string) $request->get_param( 'rating' );
 		$comment         = (string) $request->get_param( 'comment' );
 
-		$throttle_key = self::FEEDBACK_THROTTLE_PREFIX . $user_id;
-		if ( false !== get_transient( $throttle_key ) ) {
+		// Atomic check-and-set: wp_cache_add returns false if the slot is
+		// already claimed, so two parallel requests can't both pass the gate.
+		// The claim happens before the ownership check on purpose — probes
+		// against unknown conversation IDs consume the slot too, so a spammer
+		// cannot loop on cheap 404s to learn which IDs exist.
+		//
+		// Without a persistent object cache, wp_cache_add only protects within
+		// a single PHP process and the throttle is effectively best-effort.
+		// That's acceptable for the BYOK beta: the endpoint is gated by
+		// manage_woocommerce and the cooldown is a defensive cap on bursts
+		// from a scripted session, not a security boundary.
+		$throttle_key = (string) $user_id;
+		if ( ! wp_cache_add( $throttle_key, 1, self::FEEDBACK_CACHE_GROUP, self::FEEDBACK_COOLDOWN_SECONDS ) ) {
 			return new \WP_Error(
 				'hey_woo_feedback_throttled',
 				__( 'Feedback is rate limited. Try again in a moment.', 'hey-woo' ),
@@ -174,8 +188,6 @@ class DifmFeedbackController {
 				array( 'status' => 404 )
 			);
 		}
-
-		set_transient( $throttle_key, 1, self::FEEDBACK_COOLDOWN_SECONDS );
 
 		$comment = function_exists( 'mb_substr' )
 			? mb_substr( $comment, 0, self::COMMENT_MAX_LENGTH )

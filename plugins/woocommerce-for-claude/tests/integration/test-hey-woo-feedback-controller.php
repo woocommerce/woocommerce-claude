@@ -139,13 +139,16 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Remove the per-user throttle transient so consecutive tests are not throttled.
+	 * Drop the per-user throttle slot so consecutive tests are not throttled.
+	 *
+	 * The controller now claims the slot via wp_cache_add against the
+	 * FEEDBACK_CACHE_GROUP, so clearing means wp_cache_delete on the same key.
 	 *
 	 * @param int $user_id Target user.
 	 * @return void
 	 */
 	private function clear_throttle( $user_id ) {
-		delete_transient( DifmFeedbackController::FEEDBACK_THROTTLE_PREFIX . (int) $user_id );
+		wp_cache_delete( (string) (int) $user_id, DifmFeedbackController::FEEDBACK_CACHE_GROUP );
 	}
 
 	/**
@@ -370,7 +373,37 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The throttle does not fire when no prior submission has set the transient.
+	 * A 404 probe against an unknown conversation consumes the throttle slot.
+	 *
+	 * The atomic claim runs before the ownership check on purpose — otherwise a
+	 * spammer hitting unknown IDs would receive unthrottled 404s. The next
+	 * valid POST from the same user is expected to come back as 429.
+	 */
+	public function test_probe_against_unknown_conversation_consumes_throttle_slot() {
+		$probe = $this->post_feedback(
+			array(
+				'conversation_id' => 'conv-does-not-exist',
+				'message_id'      => 1,
+				'rating'          => 'up',
+			)
+		);
+		$this->assertSame( 404, $probe->get_status() );
+		$this->assertEmpty( $this->capturing_handler->events );
+
+		$followup = $this->post_feedback(
+			array(
+				'conversation_id' => 'conv-123',
+				'message_id'      => 2,
+				'rating'          => 'up',
+			)
+		);
+
+		$this->assertSame( 429, $followup->get_status() );
+		$this->assertEmpty( $this->capturing_handler->events );
+	}
+
+	/**
+	 * The throttle does not fire when no prior submission has claimed the slot.
 	 */
 	public function test_throttle_does_not_fire_on_first_submission() {
 		$this->clear_throttle( $this->admin_user_id );
