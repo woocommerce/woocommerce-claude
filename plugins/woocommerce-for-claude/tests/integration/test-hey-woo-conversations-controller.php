@@ -117,6 +117,9 @@ class Test_Hey_Woo_Conversations_Controller extends WP_UnitTestCase {
 	/**
 	 * Out-of-order saves: the newer state must survive even when the older
 	 * POST arrives second. Regression test for the conversation-save race.
+	 *
+	 * Also asserts the 409 body carries the conflict timestamps so the client
+	 * could reconcile against the rejection without guessing.
 	 */
 	public function test_older_update_does_not_overwrite_newer_stored_entry() {
 		$conv_id = 'conv-race';
@@ -128,6 +131,12 @@ class Test_Hey_Woo_Conversations_Controller extends WP_UnitTestCase {
 
 		$second = $this->post_conversation( $older );
 		$this->assertSame( 409, $second->get_status(), 'Stale write must be rejected.' );
+
+		$error_body = $second->get_data();
+		$this->assertIsArray( $error_body );
+		$this->assertSame( 'hey_woo_stale_conversation_write', $error_body['code'] );
+		$this->assertSame( 2000, $error_body['data']['storedAt'] );
+		$this->assertSame( 1000, $error_body['data']['incomingAt'] );
 
 		$stored = $this->get_stored_conversations();
 		$this->assertCount( 1, $stored );

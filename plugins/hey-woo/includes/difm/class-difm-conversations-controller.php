@@ -160,6 +160,13 @@ class DifmConversationsController {
 
 		// Stale-write guard: if a stored entry already has a newer updatedAt for this
 		// id, reject — otherwise a slow, older POST could overwrite a faster, newer one.
+		//
+		// Best-effort: the SELECT → check → update_user_meta sequence is not atomic,
+		// so two concurrent PHP-FPM workers can both pass the guard inside the
+		// millisecond-scale read-write window and the older write can still land
+		// last. The window is tiny in practice and a full fix needs a per-user
+		// advisory lock (GET_LOCK) or per-conversation rows; both are out of scope
+		// here. Treat this as a sharp narrowing of the previous unbounded race.
 		foreach ( $conversations as $existing ) {
 			if ( ! isset( $existing['id'] ) || $existing['id'] !== $incoming['id'] ) {
 				continue;
