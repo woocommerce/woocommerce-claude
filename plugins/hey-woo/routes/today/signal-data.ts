@@ -1,10 +1,13 @@
 /**
- * Types + REST client for the This Week home surface.
+ * Types + REST client for the Today home surface.
  */
 import { __ } from '@wordpress/i18n';
 import moduleData from '../ai-insights/data';
 
 export type SignalSeverity = 'high' | 'medium' | 'low';
+export type SignalTone = 'positive' | 'negative';
+export type KpiTone = 'positive' | 'negative' | 'neutral';
+export type ChangeDirection = 'up' | 'down' | 'flat';
 
 export interface SignalEvidence {
 	label: string;
@@ -21,6 +24,7 @@ export interface SignalAction {
 export interface Signal {
 	slug: string;
 	severity: SignalSeverity;
+	tone: SignalTone;
 	workflow_slug: string;
 	title: string;
 	summary: string;
@@ -32,6 +36,21 @@ export interface Signal {
 	snoozed_until: number | null;
 }
 
+export interface KpiCell {
+	id: string;
+	label: string;
+	value: string;
+	change_percent: number;
+	change_direction: ChangeDirection;
+	tone: KpiTone;
+}
+
+export interface KpiPeriod {
+	start: string;
+	end: string;
+	label: string;
+}
+
 export interface RunResult {
 	signals: Signal[];
 	detected: string[];
@@ -41,6 +60,8 @@ export interface RunResult {
 
 export interface SignalsResponse {
 	signals: Signal[];
+	kpis: KpiCell[];
+	kpiPeriod: KpiPeriod | null;
 	monitoringEnabled: boolean;
 	nextRefreshAt: number | null;
 }
@@ -99,14 +120,26 @@ async function jsonRequest< T >(
 export async function fetchSignals(): Promise< SignalsResponse > {
 	const result = await jsonRequest< {
 		signals?: unknown;
+		kpis?: unknown;
+		kpi_period?: unknown;
 		monitoring_enabled?: unknown;
 		next_refresh_at?: unknown;
 	} >( buildUrl( SIGNALS_ENDPOINT ), {
 		method: 'GET',
 	} );
 
+	const kpiPeriodRaw = result.kpi_period as Partial< KpiPeriod > | undefined;
+
 	return {
 		signals: Array.isArray( result.signals ) ? ( result.signals as Signal[] ) : [],
+		kpis: Array.isArray( result.kpis ) ? ( result.kpis as KpiCell[] ) : [],
+		kpiPeriod: kpiPeriodRaw && typeof kpiPeriodRaw === 'object'
+			? {
+					start: typeof kpiPeriodRaw.start === 'string' ? kpiPeriodRaw.start : '',
+					end: typeof kpiPeriodRaw.end === 'string' ? kpiPeriodRaw.end : '',
+					label: typeof kpiPeriodRaw.label === 'string' ? kpiPeriodRaw.label : '',
+			  }
+			: null,
 		monitoringEnabled: result.monitoring_enabled !== false,
 		nextRefreshAt: typeof result.next_refresh_at === 'number' && result.next_refresh_at > 0
 			? result.next_refresh_at
@@ -142,17 +175,6 @@ export async function snoozeSignal( slug: string, snoozedUntil?: number ): Promi
 		body: snoozedUntil ? { slug, snoozed_until: snoozedUntil } : { slug },
 	} );
 	return Array.isArray( result.signals ) ? result.signals : [];
-}
-
-export function severityLabel( severity: SignalSeverity ): string {
-	switch ( severity ) {
-		case 'high':
-			return __( 'High', 'hey-woo' );
-		case 'low':
-			return __( 'Low', 'hey-woo' );
-		default:
-			return __( 'Medium', 'hey-woo' );
-	}
 }
 
 export function workflowChatPrompt( signal: Signal ): string {

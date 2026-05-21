@@ -129,6 +129,8 @@ class ThisWeekRestController {
 			array(
 				'status'             => 'ok',
 				'signals'            => SignalStore::unresolved(),
+				'kpis'               => KpiSnapshot::build(),
+				'kpi_period'         => KpiSnapshot::period(),
 				'monitoring_enabled' => ThisWeekSettings::is_enabled(),
 				'next_refresh_at'    => $next_refresh_at ? (int) $next_refresh_at : null,
 			)

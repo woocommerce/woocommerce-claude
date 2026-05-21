@@ -197,14 +197,17 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/interface-signal-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-ability-runner.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-revenue-drop-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-revenue-win-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-refund-spike-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-failed-order-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-inventory-risk-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-new-customer-win-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-this-week-settings.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-signal-lock.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-digest-mailer.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-scheduler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-runner.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-kpi-snapshot.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-this-week-rest-controller.php';
 }
 

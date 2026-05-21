@@ -97,9 +97,9 @@ class DifmAdminPage {
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			if ( function_exists( 'hey_woo_today_enabled' ) && hey_woo_today_enabled() ) {
 				heywoo_register_hey_woo_insights_menu_item(
-					'hey-woo-this-week',
-					__( 'This week', 'hey-woo' ),
-					'/this-week'
+					'hey-woo-today',
+					__( 'Today', 'hey-woo' ),
+					'/today'
 				);
 			}
 
