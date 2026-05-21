@@ -896,7 +896,9 @@ class DifmRestController {
 			if ( in_array( $role, array( 'user', 'assistant' ), true ) && '' !== $content ) {
 				$messages[] = array(
 					'role'    => $role,
-					'content' => 'user' === $role ? sanitize_text_field( $content ) : $content,
+					'content' => 'user' === $role
+						? sanitize_text_field( $content )
+						: $this->strip_followup_block( $content ),
 				);
 			}
 		}
@@ -907,6 +909,25 @@ class DifmRestController {
 		);
 
 		return $messages;
+	}
+
+	/**
+	 * Strip the trailing ```suggested-followups``` fenced block from assistant
+	 * content before it is replayed to the model as history. The block is
+	 * useful to the UI (chips render from it on the latest turn) but
+	 * confuses the model on subsequent turns — it tends to copy prior
+	 * suggestions instead of generating fresh ones tied to the new context.
+	 *
+	 * The block stays in the stored content so reopened conversations still
+	 * render their chips; only the model-facing history is sanitised.
+	 *
+	 * @param string $content Assistant message content.
+	 * @return string
+	 */
+	private function strip_followup_block( $content ) {
+		$pattern = '/\n*```suggested-followups\s*\n[\s\S]*?\n```\s*$/i';
+		$stripped = preg_replace( $pattern, '', $content );
+		return null === $stripped ? $content : rtrim( $stripped );
 	}
 
 	/**

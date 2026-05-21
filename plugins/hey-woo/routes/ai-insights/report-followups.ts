@@ -14,7 +14,7 @@
  * suggestions list — chips simply do not render.
  */
 
-const FOLLOWUP_FENCE_RE = /\n*```suggested-followups[^\n]*\n([\s\S]*?)\n```\s*$/i;
+const FOLLOWUP_FENCE_RE = /\n*```suggested-followups\s*\n([\s\S]*?)\n```\s*$/i;
 const BULLET_PREFIX_RE = /^\s*(?:[-*]|\d+\.)\s+/;
 
 const MAX_SUGGESTIONS = 4;
