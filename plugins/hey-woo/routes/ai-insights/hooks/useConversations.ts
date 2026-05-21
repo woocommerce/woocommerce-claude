@@ -40,12 +40,25 @@ function publishConversationUpdate( conversations: StoredConversation[] ): void 
 	);
 }
 
-export async function saveConversationRecord( conv: StoredConversation ) {
-	const nextConversations = upsertAndTrim( moduleData.conversations, conv );
-	publishConversationUpdate( nextConversations );
+// Per-conversation-id chain so overlapping saves for the same conversation
+// hit the server in updatedAt order. The server has a stale-write guard, but
+// serialising here avoids cheap 409s when, say, the chat-completion save and
+// the auto-title save race against each other on the same conversation.
+const pendingSaves = new Map< string, Promise< void > >();
 
+async function reconcileWithServer(): Promise< void > {
+	const remote = await fetchConversationRecords();
+	if ( ! remote ) {
+		return;
+	}
+	publishConversationUpdate(
+		mergeAndTrim( [ ...moduleData.conversations, ...remote ] )
+	);
+}
+
+async function sendSaveRequest( conv: StoredConversation ): Promise< void > {
 	try {
-		await fetch( moduleData.restBase + '/conversations', {
+		const response = await fetch( moduleData.restBase + '/conversations', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -53,8 +66,42 @@ export async function saveConversationRecord( conv: StoredConversation ) {
 			},
 			body: JSON.stringify( conv ),
 		} );
+
+		// 409 = server's stale-write guard rejected us (another tab / direct API
+		// consumer saved a newer updatedAt first). Pull the authoritative state so
+		// the UI stops showing a write the server explicitly refused. fetch() does
+		// not throw on 4xx, so this needs an explicit status check.
+		if ( 409 === response.status ) {
+			await reconcileWithServer();
+		}
 	} catch ( _err ) {
 		// Silent failure — conversation remains available in local state for this session.
+	}
+}
+
+export async function saveConversationRecord( conv: StoredConversation ) {
+	const nextConversations = upsertAndTrim( moduleData.conversations, conv );
+	publishConversationUpdate( nextConversations );
+
+	const previous = pendingSaves.get( conv.id );
+	const current = ( async () => {
+		if ( previous ) {
+			try {
+				await previous;
+			} catch ( _err ) {
+				// A prior failure must not block subsequent saves.
+			}
+		}
+		await sendSaveRequest( conv );
+	} )();
+
+	pendingSaves.set( conv.id, current );
+	try {
+		await current;
+	} finally {
+		if ( pendingSaves.get( conv.id ) === current ) {
+			pendingSaves.delete( conv.id );
+		}
 	}
 }
 
