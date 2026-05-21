@@ -240,10 +240,12 @@ export function useChat( options: UseChatOptions = {} ) {
 				...( json.charts?.length ? { charts: json.charts } : {} ),
 			};
 
-			// Compute the saved messages before calling setState so we can
-			// pass them to onConversationSaved without side-effects inside the
-			// setState updater (which React may call multiple times).
-			const savedMessages = [ ...submittedMessages, assistantMessage ];
+			// Build the saved-messages snapshot from the always-current
+			// messagesRef so any feedback that submitFeedback persisted while
+			// this request was in flight is carried into the final save. Using
+			// the pre-flight `submittedMessages` snapshot here would silently
+			// overwrite an in-flight feedback update with a newer updatedAt.
+			const savedMessages = [ ...messagesRef.current, assistantMessage ];
 
 			if ( onConversationSaved && conversationIdRef.current && titleRef.current ) {
 				await onConversationSaved( {

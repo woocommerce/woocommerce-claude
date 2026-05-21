@@ -8,9 +8,11 @@
  *   TelemetryHandler so the Tracks handler picks it up when usage tracking
  *   is enabled.
  *
- * The conversation itself is re-saved client-side via the conversations
- * endpoint so the rating renders on reload; this endpoint is the qualitative
- * capture point only.
+ * The endpoint never forwards the raw comment to telemetry — only rating,
+ * IDs, and a has_comment / comment_length summary, matching the rest of the
+ * DIFM telemetry surface. The free text persists on the merchant's own
+ * conversation record via the conversations endpoint so reloads show their
+ * note back to them; nothing leaves the store.
  *
  * @package WooCommerce\HeyWoo\Difm
  */
@@ -40,16 +42,33 @@ class DifmFeedbackController {
 
 	/**
 	 * Telemetry event name passed to TelemetryHandler::record().
+	 *
+	 * Matches the difm_* naming used by tool-call / tool-result / workflow-selected.
 	 */
-	const EVENT_NAME = 'hey_woo_feedback';
+	const EVENT_NAME = 'difm_feedback';
 
 	/**
 	 * Maximum characters retained from a merchant comment.
 	 *
-	 * Hard-caps free-text so a paste-bomb cannot inflate Tracks payloads or
-	 * the stored conversation. UTF-8 aware via mb_substr.
+	 * Enforced both as a REST arg maxLength (so oversize bodies are rejected
+	 * up front) and as a defensive UTF-8 cap inside the handler.
 	 */
 	const COMMENT_MAX_LENGTH = 1000;
+
+	/**
+	 * Per-user cooldown between feedback submissions, in seconds.
+	 *
+	 * Real merchant gestures fire at human cadence — thumb click followed by
+	 * a Send several seconds later. A short cooldown bounds bursts from a
+	 * compromised or scripted session without disrupting normal use; the
+	 * client surfaces 429 responses as a generic retry error.
+	 */
+	const FEEDBACK_COOLDOWN_SECONDS = 1;
+
+	/**
+	 * Transient prefix for the per-user feedback throttle.
+	 */
+	const FEEDBACK_THROTTLE_PREFIX = 'hey_woo_feedback_throttle_';
 
 	/**
 	 * Register REST route hooks.
@@ -79,23 +98,29 @@ class DifmFeedbackController {
 							'type'              => 'string',
 							'required'          => true,
 							'sanitize_callback' => 'sanitize_text_field',
+							'validate_callback' => 'rest_validate_request_arg',
 							'minLength'         => 1,
+							'maxLength'         => 100,
 						),
 						'message_id'      => array(
-							'type'     => 'integer',
-							'required' => true,
-							'minimum'  => 0,
+							'type'              => 'integer',
+							'required'          => true,
+							'validate_callback' => 'rest_validate_request_arg',
+							'minimum'           => 0,
 						),
 						'rating'          => array(
-							'type'     => 'string',
-							'required' => true,
-							'enum'     => array( 'up', 'down' ),
+							'type'              => 'string',
+							'required'          => true,
+							'validate_callback' => 'rest_validate_request_arg',
+							'enum'              => array( 'up', 'down' ),
 						),
 						'comment'         => array(
 							'type'              => 'string',
 							'required'          => false,
 							'default'           => '',
+							'maxLength'         => self::COMMENT_MAX_LENGTH,
 							'sanitize_callback' => 'sanitize_textarea_field',
+							'validate_callback' => 'rest_validate_request_arg',
 						),
 					),
 				),
@@ -124,13 +149,33 @@ class DifmFeedbackController {
 	 * POST /hey-woo/v1/difm/feedback — fan a rating out to registered handlers.
 	 *
 	 * @param \WP_REST_Request $request Incoming request.
-	 * @return \WP_REST_Response
+	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function record_feedback( \WP_REST_Request $request ) {
+		$user_id         = (int) get_current_user_id();
 		$conversation_id = (string) $request->get_param( 'conversation_id' );
 		$message_id      = (int) $request->get_param( 'message_id' );
 		$rating          = (string) $request->get_param( 'rating' );
 		$comment         = (string) $request->get_param( 'comment' );
+
+		$throttle_key = self::FEEDBACK_THROTTLE_PREFIX . $user_id;
+		if ( false !== get_transient( $throttle_key ) ) {
+			return new \WP_Error(
+				'hey_woo_feedback_throttled',
+				__( 'Feedback is rate limited. Try again in a moment.', 'hey-woo' ),
+				array( 'status' => 429 )
+			);
+		}
+
+		if ( ! self::user_owns_conversation( $user_id, $conversation_id ) ) {
+			return new \WP_Error(
+				'hey_woo_feedback_unknown_conversation',
+				__( 'Conversation not found.', 'hey-woo' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		set_transient( $throttle_key, 1, self::FEEDBACK_COOLDOWN_SECONDS );
 
 		$comment = function_exists( 'mb_substr' )
 			? mb_substr( $comment, 0, self::COMMENT_MAX_LENGTH )
@@ -138,6 +183,10 @@ class DifmFeedbackController {
 
 		$has_comment = '' !== trim( $comment );
 
+		// Telemetry deliberately omits the raw comment text — see class-level
+		// docblock and the summarise_tool_input_for_log pattern in
+		// DifmRestController. The comment still persists on the merchant's
+		// own conversation record via the conversations endpoint.
 		TelemetryHandler::record(
 			self::EVENT_NAME,
 			array(
@@ -146,11 +195,38 @@ class DifmFeedbackController {
 				'message_id'      => $message_id,
 				'rating'          => $rating,
 				'has_comment'     => $has_comment ? 'yes' : 'no',
-				'comment_length'  => strlen( $comment ),
-				'comment'         => $comment,
+				'comment_length'  => function_exists( 'mb_strlen' )
+					? mb_strlen( $comment )
+					: strlen( $comment ),
 			)
 		);
 
 		return rest_ensure_response( array( 'status' => 'ok' ) );
+	}
+
+	/**
+	 * Whether the given user has a stored conversation with the given ID.
+	 *
+	 * Conversations live in per-user user_meta — see DifmConversationsController.
+	 * The ownership check prevents one authorised user from forging feedback
+	 * against another user's conversation IDs.
+	 *
+	 * @param int    $user_id         Current user ID.
+	 * @param string $conversation_id Submitted conversation ID.
+	 * @return bool
+	 */
+	private static function user_owns_conversation( $user_id, $conversation_id ) {
+		if ( $user_id <= 0 || '' === $conversation_id ) {
+			return false;
+		}
+
+		$conversations = DifmConversationsController::get_recent_conversations( $user_id );
+		foreach ( $conversations as $conversation ) {
+			if ( isset( $conversation['id'] ) && (string) $conversation['id'] === $conversation_id ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
