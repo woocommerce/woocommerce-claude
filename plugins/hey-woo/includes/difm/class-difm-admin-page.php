@@ -71,8 +71,8 @@ class DifmAdminPage {
 
 		add_submenu_page(
 			'woocommerce',
-			__( 'Ask AI', 'hey-woo' ),
-			__( 'Ask AI', 'hey-woo' ),
+			__( 'Hey Woo', 'hey-woo' ),
+			__( 'Hey Woo', 'hey-woo' ),
 			'manage_woocommerce',
 			self::MENU_SLUG,
 			'__return_null'
@@ -96,10 +96,32 @@ class DifmAdminPage {
 		// Register the sidebar menu item for the boot navigation shell.
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
 			heywoo_register_hey_woo_insights_menu_item(
-				'ai-insights',
-				__( 'Ask AI', 'hey-woo' ),
+				'hey-woo-chat',
+				__( 'New chat', 'hey-woo' ),
 				'/'
 			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-history',
+				__( 'Library', 'hey-woo' ),
+				'/history'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-reports',
+				__( 'Workflows', 'hey-woo' ),
+				'/reports'
+			);
+
+			heywoo_register_hey_woo_insights_menu_item(
+				'hey-woo-actions',
+				__( 'Actions', 'hey-woo' ),
+				'/actions'
+			);
+		}
+
+		if ( wp_style_is( 'wp-dataviews', 'registered' ) ) {
+			wp_enqueue_style( 'wp-dataviews' );
 		}
 
 		// Build page-load data — mirrors the old wp_localize_script() payload.
@@ -112,6 +134,7 @@ class DifmAdminPage {
 			'nonce'         => wp_create_nonce( 'wp_rest' ),
 			'restBase'      => rest_url( 'hey-woo/v1/difm' ),
 			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
+			'storeName'     => get_bloginfo( 'name' ),
 			'userName'      => wp_get_current_user()->display_name,
 			'currency'      => get_woocommerce_currency_symbol(),
 			'hasKey'        => $resolver->has_configured_provider(),
@@ -141,8 +164,8 @@ class DifmAdminPage {
 		?>
 		<div class="notice notice-warning">
 			<p>
-				<strong><?php esc_html_e( 'Ask AI requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
-				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Ask AI with your configured provider.', 'hey-woo' ); ?>
+				<strong><?php esc_html_e( 'Hey Woo requires Gutenberg or WordPress 7.0.', 'hey-woo' ); ?></strong>
+				<?php esc_html_e( 'Install and activate the Gutenberg plugin, or upgrade to WordPress 7.0 or later, to use Hey Woo with your configured provider.', 'hey-woo' ); ?>
 			</p>
 		</div>
 		<?php

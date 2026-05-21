@@ -5,7 +5,7 @@ Bring-your-own-key WooCommerce assistant plugin.
 Hey Woo owns the WordPress-admin chat experience for merchants who provide an
 Anthropic API key. It installs the shared `woocommerce/commerce-abilities`
 package with Composer's path repository, boots the shared analytics abilities,
-and exposes the Ask Claude screen plus its supporting REST endpoints from this
+and exposes the Hey Woo admin screen plus its supporting REST endpoints from this
 plugin. It also registers its own `hey-woo/*` store, product, catalogue, and
 readiness wrappers, backed by the shared commerce-abilities implementation, so
 the admin chat works without WooCommerce for Claude.

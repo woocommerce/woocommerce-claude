@@ -66,19 +66,28 @@ composer --working-dir="$HEY_WOO_PLUGIN_DIR" validate --strict
 step "Composer: dependency audit"
 composer --working-dir="$PLUGIN_DIR" audit || fail "composer audit reported new vulnerabilities — fix or add a justified ignore to plugins/woocommerce-for-claude/composer.json's config.audit.ignore."
 
-# 5. PHPUnit smoke test inside the wp-env tests-cli container.
+# 5. Release/install package contract.
+step "Release package contract"
+"$REPO_ROOT/bin/check-release-contract"
+
+# 6. Local MCP tools/list smoke test and PHPUnit both need wp-env.
 if ! docker ps --format '{{.Names}}' | grep -q 'tests-cli'; then
 	fail "wp-env tests environment is not running.
   Start it with:  pnpm exec wp-env start
   Then re-run:    ./bin/check"
 fi
 
+# 7. MCP tools/list smoke through the local HTTP endpoint.
+step "MCP tools/list smoke"
+"$REPO_ROOT/bin/check-mcp-tools-list"
+
+# 8. PHPUnit smoke test inside the wp-env tests-cli container.
 step "PHPUnit (integration, inside tests-cli container)"
 pnpm exec wp-env run tests-cli \
 	--env-cwd=wp-content/plugins/woocommerce-claude-tests \
 	-- php vendor/bin/phpunit --colors=always
 
-# 6. WCA Data Consistency Checker. Runs against the dev cli container (where
+# 9. WCA Data Consistency Checker. Runs against the dev cli container (where
 #    demo-store data lives) and fails on genuine local-vs-db drift across
 #    orders_count / net_revenue / gross_revenue / refunds. Auto-skips when
 #    the plugin isn't dropped into vendor-plugins/ or the dev store is
@@ -86,7 +95,7 @@ pnpm exec wp-env run tests-cli \
 step "DCC (local-vs-db analytics drift, via wp wca-data-consistency run)"
 "$REPO_ROOT/bin/check-dcc"
 
-# 6. Optional live agent workflow smoke test. This is gated because it calls
+# 10. Optional live agent workflow smoke test. This is gated because it calls
 #    the live Claude model and the configured WooCommerce for Claude MCP
 #    server, so it can spend tokens and depends on local MCP credentials.
 if [ "${RUN_AGENT_WORKFLOW_SMOKE:-0}" = "1" ]; then

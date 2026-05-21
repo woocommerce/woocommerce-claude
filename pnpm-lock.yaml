@@ -28,6 +28,9 @@ importers:
       '@wordpress/data':
         specifier: 10.44.0
         version: 10.44.0(react@18.3.1)
+      '@wordpress/dataviews':
+        specifier: 14.2.0
+        version: 14.2.0(@date-fns/tz@1.4.1)(@emotion/is-prop-valid@1.4.0)(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(stylelint@16.26.1(typescript@6.0.3))
       '@wordpress/element':
         specifier: ^6.35.0
         version: 6.45.0
@@ -78,6 +81,8 @@ importers:
         version: 12.2.0(react@18.3.1)
 
   plugins/hey-woo/routes/ai-insights: {}
+
+  plugins/hey-woo/routes/reports: {}
 
   plugins/woocommerce-for-claude:
     devDependencies:

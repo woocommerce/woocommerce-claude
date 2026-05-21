@@ -1,0 +1,9 @@
+{
+	"private": true,
+	"name": "_@hey-woo/chat-route",
+	"version": "1.0.0",
+	"route": {
+		"path": "/chat",
+		"page": "hey-woo-insights"
+	}
+}

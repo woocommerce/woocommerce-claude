@@ -300,7 +300,7 @@ class DifmRestController {
 					);
 					$messages[]            = array(
 						'role'    => 'user',
-						'content' => 'The previous answer said or implied that a chart was shown, but no render_chart tool call was made. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
+						'content' => 'Internal correction: the previous draft referred to a chart but did not include chart data. Do not acknowledge this correction, apologise, or say "you are right". Return the final merchant-facing answer directly. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
 					);
 					++$iterations;
 					continue;

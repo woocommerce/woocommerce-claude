@@ -30,6 +30,24 @@ export interface ChatMessage {
 	charts?: ChartSpec[];
 }
 
+export type WorkflowRunStatus = 'running' | 'complete' | 'error';
+
+export interface WorkflowRunMeta {
+	slug: string;
+	label: string;
+	status: WorkflowRunStatus;
+	runMode: string;
+	period: string;
+	periodLabel: string;
+	compare: boolean;
+	actionCards: boolean;
+	adminNotification: boolean;
+	startedAt: number;
+	scheduleLabel?: string;
+	completedAt?: number;
+	errorMessage?: string;
+}
+
 /**
  * A persisted conversation stored in WordPress user meta.
  */
@@ -38,6 +56,8 @@ export interface StoredConversation {
 	title: string;
 	messages: ChatMessage[];
 	updatedAt: number;
+	type?: 'chat' | 'workflow';
+	workflowRun?: WorkflowRunMeta;
 }
 
 /**
@@ -56,6 +76,7 @@ export interface ModuleData {
 	nonce: string;
 	restBase: string;
 	settingsUrl: string;
+	storeName: string;
 	userName: string;
 	currency: string;
 	hasKey: boolean;

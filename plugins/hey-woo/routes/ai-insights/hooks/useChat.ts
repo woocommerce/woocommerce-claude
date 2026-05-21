@@ -6,8 +6,8 @@ import { __ } from '@wordpress/i18n';
 import moduleData from '../data';
 import type { ChatMessage, ChatResponse, StoredConversation } from '../types';
 
-/** Timeout for each chat request in milliseconds — slightly above the PHP server-side limit. */
-const REQUEST_TIMEOUT_MS = 95_000;
+/** Timeout for multi-tool report workflows in milliseconds. */
+const REQUEST_TIMEOUT_MS = 180_000;
 
 export type ChatStatus = 'idle' | 'no_key' | 'sending' | 'error';
 
@@ -29,6 +29,10 @@ export interface UseChatOptions {
 		conv: StoredConversation,
 		options?: ConversationSaveOptions
 	) => void | Promise< void >;
+}
+
+export interface SendMessageOptions {
+	displayText?: string;
 }
 
 function generateTitle( text: string ): string {
@@ -73,8 +77,9 @@ export function useChat( options: UseChatOptions = {} ) {
 	const messagesRef = useRef< ChatMessage[] >( initialMessages );
 	messagesRef.current = state.messages;
 
-	const sendMessage = useCallback( async ( text: string ) => {
+	const sendMessage = useCallback( async ( text: string, sendOptions: SendMessageOptions = {} ) => {
 		const history = messagesRef.current;
+		const displayText = sendOptions.displayText?.trim() || text;
 
 		// Assign conversation ID and title on first send.
 		if ( ! conversationIdRef.current ) {
@@ -83,13 +88,13 @@ export function useChat( options: UseChatOptions = {} ) {
 			setConversationId( newId );
 		}
 		if ( ! titleRef.current ) {
-			titleRef.current = generateTitle( text );
+			titleRef.current = generateTitle( displayText );
 		}
 
 		const userMessage: ChatMessage = {
 			id: nextId.current++,
 			role: 'user',
-			content: text,
+			content: displayText,
 		};
 		const submittedMessages = [ ...history, userMessage ];
 
@@ -131,10 +136,20 @@ export function useChat( options: UseChatOptions = {} ) {
 			clearTimeout( timeoutId );
 
 			if ( ! response.ok ) {
+				let errorMessage = __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' );
+				try {
+					const errorJson = ( await response.json() ) as { message?: unknown };
+					if ( typeof errorJson.message === 'string' && errorJson.message.trim() ) {
+						errorMessage = errorJson.message;
+					}
+				} catch {
+					// Keep the generic connection message when the server does not return JSON.
+				}
+
 				setState( ( prev ) => ( {
 					...prev,
 					status: 'error',
-					errorMessage: __( 'Something went wrong. Please check your connection and try again.', 'hey-woo' ),
+					errorMessage,
 				} ) );
 				return;
 			}

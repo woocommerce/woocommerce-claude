@@ -26,6 +26,7 @@ class DifmProviderResolver {
 	 * hybrid provider selector.
 	 */
 	const PROVIDER_AUTO         = 'auto';
+	const PROVIDER_AI_API_PROXY = 'ai_api_proxy';
 	const PROVIDER_WORDPRESS_AI = 'wordpress_ai';
 	const PROVIDER_ANTHROPIC    = 'anthropic';
 
@@ -41,6 +42,7 @@ class DifmProviderResolver {
 
 		return array(
 			self::PROVIDER_AUTO,
+			self::PROVIDER_AI_API_PROXY,
 			self::PROVIDER_ANTHROPIC,
 		);
 	}
@@ -63,6 +65,10 @@ class DifmProviderResolver {
 	public static function normalise_provider( $provider ) {
 		$provider = is_string( $provider ) ? sanitize_key( $provider ) : self::PROVIDER_AUTO;
 
+		if ( self::PROVIDER_AI_API_PROXY === $provider ) {
+			return self::PROVIDER_AI_API_PROXY;
+		}
+
 		if ( DifmProviderEnvironment::is_connector_mode() ) {
 			$configured_provider_ids = WordPressAiClientAdapter::get_configured_provider_ids();
 
@@ -74,7 +80,11 @@ class DifmProviderResolver {
 			return '' !== $default_provider_id ? $default_provider_id : self::PROVIDER_AUTO;
 		}
 
-		return self::PROVIDER_ANTHROPIC === $provider ? self::PROVIDER_ANTHROPIC : self::PROVIDER_AUTO;
+		if ( self::PROVIDER_ANTHROPIC === $provider ) {
+			return $provider;
+		}
+
+		return self::PROVIDER_AUTO;
 	}
 
 	/**
@@ -98,6 +108,10 @@ class DifmProviderResolver {
 		$filtered_client = apply_filters( 'hey_woo_difm_ai_client', null, $selected_provider );
 		if ( $filtered_client instanceof DifmAiClientInterface ) {
 			return $filtered_client;
+		}
+
+		if ( self::PROVIDER_AI_API_PROXY === $selected_provider ) {
+			return $this->resolve_ai_api_proxy_client();
 		}
 
 		if ( DifmProviderEnvironment::is_connector_mode() ) {
@@ -128,8 +142,16 @@ class DifmProviderResolver {
 			return true;
 		}
 
+		if ( self::PROVIDER_AI_API_PROXY === $selected_provider ) {
+			return AiApiProxyClient::has_api_key();
+		}
+
 		if ( DifmProviderEnvironment::is_connector_mode() ) {
 			return WordPressAiClientAdapter::has_api_key();
+		}
+
+		if ( self::PROVIDER_AUTO === $selected_provider && AiApiProxyClient::has_api_key() ) {
+			return true;
 		}
 
 		return AnthropicClient::has_api_key();
@@ -143,7 +165,13 @@ class DifmProviderResolver {
 	public function get_provider_statuses() {
 		if ( ! DifmProviderEnvironment::is_connector_mode() ) {
 			return array(
-				self::PROVIDER_ANTHROPIC => array(
+				self::PROVIDER_AI_API_PROXY => array(
+					'label'      => self::provider_label( self::PROVIDER_AI_API_PROXY ),
+					'available'  => true,
+					'configured' => AiApiProxyClient::has_api_key(),
+					'status'     => AiApiProxyClient::has_api_key() ? 'configured' : 'unconfigured',
+				),
+				self::PROVIDER_ANTHROPIC    => array(
 					'label'      => self::provider_label( self::PROVIDER_ANTHROPIC ),
 					'available'  => true,
 					'configured' => AnthropicClient::has_api_key(),
@@ -172,11 +200,13 @@ class DifmProviderResolver {
 	 * @return string
 	 */
 	public static function provider_label( $provider ) {
-		if ( DifmProviderEnvironment::is_connector_mode() && ! in_array( $provider, array( self::PROVIDER_AUTO, self::PROVIDER_WORDPRESS_AI ), true ) ) {
+		if ( DifmProviderEnvironment::is_connector_mode() && ! in_array( $provider, array( self::PROVIDER_AUTO, self::PROVIDER_AI_API_PROXY, self::PROVIDER_WORDPRESS_AI ), true ) ) {
 			return WordPressAiClientAdapter::get_provider_label( $provider );
 		}
 
 		switch ( $provider ) {
+			case self::PROVIDER_AI_API_PROXY:
+				return __( 'AI API Proxy', 'hey-woo' );
 			case self::PROVIDER_WORDPRESS_AI:
 				return __( 'WordPress AI connectors', 'hey-woo' );
 			case self::PROVIDER_ANTHROPIC:
@@ -193,6 +223,12 @@ class DifmProviderResolver {
 	 * @return DifmAiClientInterface|\WP_Error
 	 */
 	private function resolve_legacy_client() {
+		$selected_provider = self::get_selected_provider();
+
+		if ( self::PROVIDER_AUTO === $selected_provider && AiApiProxyClient::has_api_key() ) {
+			return new AiApiProxyClient();
+		}
+
 		if ( AnthropicClient::has_api_key() ) {
 			return new AnthropicClient();
 		}
@@ -200,6 +236,23 @@ class DifmProviderResolver {
 		return new \WP_Error(
 			'no_ai_provider',
 			__( 'No AI provider is configured.', 'hey-woo' ),
+			array( 'status' => 400 )
+		);
+	}
+
+	/**
+	 * Resolve AI API Proxy test/dev mode.
+	 *
+	 * @return DifmAiClientInterface|\WP_Error
+	 */
+	private function resolve_ai_api_proxy_client() {
+		if ( AiApiProxyClient::has_api_key() ) {
+			return new AiApiProxyClient();
+		}
+
+		return new \WP_Error(
+			'no_api_key',
+			__( 'No AI API Proxy token is configured.', 'hey-woo' ),
 			array( 'status' => 400 )
 		);
 	}

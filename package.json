@@ -12,7 +12,7 @@
     "build:production": "pnpm run build:production:woocommerce-for-claude && pnpm run build:production:hey-woo",
     "build:production:woocommerce-for-claude": "pnpm --dir plugins/woocommerce-for-claude run build:production",
     "build:production:hey-woo": "pnpm --dir plugins/hey-woo run build:production",
-    "plugin-zip": "composer install --working-dir=plugins/woocommerce-for-claude --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader && pnpm --dir plugins/woocommerce-for-claude run plugin-zip && cp plugins/woocommerce-for-claude/woocommerce-for-claude.zip woocommerce-for-claude.zip",
+    "plugin-zip": "composer install --working-dir=plugins/woocommerce-for-claude --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader && pnpm --dir plugins/woocommerce-for-claude run plugin-zip && cp plugins/woocommerce-for-claude/woocommerce-claude.zip woocommerce-claude.zip",
     "hey-woo-plugin-zip": "composer install --working-dir=plugins/hey-woo --no-dev --prefer-dist --no-progress --no-interaction --optimize-autoloader && pnpm --dir plugins/hey-woo run plugin-zip && cp plugins/hey-woo/hey-woo.zip hey-woo.zip",
     "agent-plugin-zip": "cd agent-plugin && zip -r -FS ../woocommerce-claude-agent-plugin.zip .claude-plugin skills",
     "start": "pnpm --dir plugins/woocommerce-for-claude run start"

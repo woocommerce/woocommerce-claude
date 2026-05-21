@@ -538,18 +538,12 @@ class SetupPage {
 	 * Extract the credential from the current REST request, if any.
 	 * Recognises the surfaces WC's REST auth reads (Basic auth split
 	 * form via PHP_AUTH_USER/PW; raw HTTP_AUTHORIZATION; query-string
-	 * `consumer_key` / `consumer_secret`) plus the legacy
-	 * `X-MCP-API-Key` header.
+	 * `consumer_key` / `consumer_secret`) plus the short-lived
+	 * pre-release `X-MCP-API-Key` header.
 	 *
-	 * The legacy header is no longer accepted by our MCP auth callback,
-	 * but pre-migration `.mcpb` bundles distributed against earlier
-	 * plugin versions still send it — typically targeting the
-	 * deprecated WC core MCP endpoint at `/wp-json/woocommerce/mcp`.
-	 * Reading it here means `enforce_setup_key_route_scope()` can
-	 * still recognise our credential on those legacy requests and
-	 * deny them on every route except `/wp-json/woocommerce-claude/mcp`. Drop
-	 * the header here and a leaked legacy bundle silently keeps
-	 * authenticating against the WC core endpoint.
+	 * Generated setup bundles use Basic auth. Reading the pre-release
+	 * header here means `enforce_setup_key_route_scope()` still recognises
+	 * that setup credential on any non-MCP route and denies it there.
 	 *
 	 * Returns '' if no credential is present (the request will be
 	 * unauthenticated or rely on cookies/nonces instead, neither of
@@ -561,11 +555,9 @@ class SetupPage {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
 
-		// 1. Legacy X-MCP-API-Key header — kept for defense-in-depth so
-		// pre-migration bundles still hit the route-scope deny path on
-		// non-allowed routes. Not a supported auth path for the new
-		// /wp-json/woocommerce-claude/mcp endpoint (Plugin::authenticate_mcp_request
-		// only reads Basic auth).
+		// 1. Pre-release X-MCP-API-Key header — kept so the scope guard
+		// still recognises and denies leaked pre-release bundles on
+		// non-MCP routes.
 		if ( ! empty( $_SERVER['HTTP_X_MCP_API_KEY'] ) ) {
 			return wp_unslash( (string) $_SERVER['HTTP_X_MCP_API_KEY'] );
 		}
