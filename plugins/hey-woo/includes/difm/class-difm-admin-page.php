@@ -95,11 +95,13 @@ class DifmAdminPage {
 
 		// Register the sidebar menu item for the boot navigation shell.
 		if ( $this->has_ai_provider() && function_exists( 'heywoo_register_hey_woo_insights_menu_item' ) ) {
-			heywoo_register_hey_woo_insights_menu_item(
-				'hey-woo-this-week',
-				__( 'This week', 'hey-woo' ),
-				'/this-week'
-			);
+			if ( function_exists( 'hey_woo_today_enabled' ) && hey_woo_today_enabled() ) {
+				heywoo_register_hey_woo_insights_menu_item(
+					'hey-woo-this-week',
+					__( 'This week', 'hey-woo' ),
+					'/this-week'
+				);
+			}
 
 			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-chat',
