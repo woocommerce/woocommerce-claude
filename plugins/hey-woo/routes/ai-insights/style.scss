@@ -1048,6 +1048,18 @@
 	font-size: 13px;
 	color: #cc1818;
 
+	&__message {
+		flex: 1;
+		min-width: 0;
+	}
+
+	&__actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+
 	&__dismiss {
 		color: #cc1818;
 		font-size: 12px;

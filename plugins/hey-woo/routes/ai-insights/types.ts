@@ -73,12 +73,47 @@ export interface StoredConversation {
 }
 
 /**
+ * Categorised chat error kinds returned by the backend ChatErrorMapper.
+ *
+ * - bad_key       — the configured AI key was rejected (401/403, missing).
+ * - rate_limited  — the provider returned HTTP 429.
+ * - overloaded    — the provider is overloaded (HTTP 529 / 503).
+ * - timeout       — the request did not complete in time.
+ * - network       — transport-level failure reaching the provider.
+ * - generic       — anything else; fallback used for unknown server errors.
+ *
+ * Server-emitted on `{ status: 'error', kind, message }`. The frontend also
+ * mints these locally for client-side aborts (timeout) and fetch failures
+ * (network) so the chat workspace can render the same UI regardless of where
+ * the error originated.
+ */
+export type ChatErrorKind =
+	| 'bad_key'
+	| 'rate_limited'
+	| 'overloaded'
+	| 'timeout'
+	| 'network'
+	| 'generic';
+
+/**
+ * Kinds that the merchant can resolve by clicking Retry — the request itself
+ * was the problem (transient or recoverable), not their input.
+ */
+export const RETRYABLE_CHAT_ERROR_KINDS: ReadonlyArray< ChatErrorKind > = [
+	'rate_limited',
+	'overloaded',
+	'timeout',
+	'network',
+	'generic',
+];
+
+/**
  * Top-level response shape from POST /hey-woo/v1/difm/chat.
  */
 export type ChatResponse =
 	| { status: 'ok'; reply: string; charts?: ChartSpec[] }
 	| { status: 'no_key' }
-	| { status: 'error'; message: string };
+	| { status: 'error'; kind?: ChatErrorKind; message: string };
 
 /**
  * Page-load data passed from PHP via an inline script

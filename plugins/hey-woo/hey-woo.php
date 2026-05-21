@@ -190,6 +190,7 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-chat-error-mapper.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-feedback-controller.php';

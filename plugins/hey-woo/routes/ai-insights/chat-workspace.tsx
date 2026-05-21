@@ -13,7 +13,8 @@ import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
 import { ACTIONS_UPDATED_EVENT, loadActionCards } from '../actions/action-store';
-import type { StoredConversation } from './types';
+import { RETRYABLE_CHAT_ERROR_KINDS } from './types';
+import type { ChatErrorKind, StoredConversation } from './types';
 
 type ShortcutTone = 'primary' | 'neutral';
 
@@ -165,6 +166,58 @@ function ChatShortcuts() {
 	);
 }
 
+interface ChatErrorBarProps {
+	kind?: ChatErrorKind;
+	message: string;
+	onRetry: () => void;
+	onDismiss: () => void;
+}
+
+/**
+ * Inline error surface for the chat workspace.
+ *
+ * Renders the merchant-friendly message produced by ChatErrorMapper (or by
+ * client-side abort/network detection), plus a kind-specific primary action:
+ *   - bad_key       → "Open settings" link to the Hey Woo settings tab.
+ *   - retryable     → "Retry" button that re-issues the last chat request.
+ *   - everything    → "Dismiss" to hide the bar so the merchant can type again.
+ */
+function ChatErrorBar( { kind, message, onRetry, onDismiss }: ChatErrorBarProps ) {
+	const canRetry = !! kind && ( RETRYABLE_CHAT_ERROR_KINDS as readonly string[] ).includes( kind );
+	const isBadKey = 'bad_key' === kind;
+	const fallback = __( 'Something went wrong.', 'hey-woo' );
+
+	return (
+		<div className="hey-woo-error-bar" role="alert">
+			<span className="hey-woo-error-bar__message">{ message || fallback }</span>
+			<div className="hey-woo-error-bar__actions">
+				{ isBadKey && moduleData.settingsUrl && (
+					<Button
+						variant="primary"
+						size="compact"
+						href={ moduleData.settingsUrl }
+					>
+						{ __( 'Open settings', 'hey-woo' ) }
+					</Button>
+				) }
+				{ canRetry && (
+					<Button variant="primary" size="compact" onClick={ onRetry }>
+						{ __( 'Retry', 'hey-woo' ) }
+					</Button>
+				) }
+				<Button
+					variant="tertiary"
+					size="compact"
+					className="hey-woo-error-bar__dismiss"
+					onClick={ onDismiss }
+				>
+					{ __( 'Dismiss', 'hey-woo' ) }
+				</Button>
+			</div>
+		</div>
+	);
+}
+
 function ChatProgress() {
 	const steps = [
 		__( 'Reading store context', 'hey-woo' ),
@@ -256,7 +309,7 @@ function ChatView( {
 		await onSaveConversation( conversation );
 	}, [ onSaveConversation ] );
 
-	const { state, sendMessage, clearError, submitFeedback } = useChat( {
+	const { state, sendMessage, resendLast, clearError, submitFeedback } = useChat( {
 		initialMessages: initialConversation?.messages,
 		initialConversationId: urlConversationId,
 		initialTitle: initialConversation?.title,
@@ -364,19 +417,12 @@ function ChatView( {
 					{ isSending && <ChatProgress /> }
 
 					{ state.status === 'error' && (
-						<div className="hey-woo-error-bar" role="alert">
-							<span>{ state.errorMessage || __( 'Something went wrong.', 'hey-woo' ) }</span>
-							<Button
-								type="button"
-								variant="tertiary"
-								size="compact"
-								isDestructive
-								className="hey-woo-error-bar__dismiss"
-								onClick={ clearError }
-							>
-								{ __( 'Dismiss', 'hey-woo' ) }
-							</Button>
-						</div>
+						<ChatErrorBar
+							kind={ state.errorKind }
+							message={ state.errorMessage }
+							onRetry={ () => void resendLast() }
+							onDismiss={ clearError }
+						/>
 					) }
 
 					<div ref={ bottomRef } aria-hidden="true" />
