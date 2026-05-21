@@ -18,18 +18,11 @@ export interface ChatState {
 	errorMessage: string;
 }
 
-export interface ConversationSaveOptions {
-	updateRoute?: boolean;
-}
-
 export interface UseChatOptions {
 	initialMessages?: ChatMessage[];
 	initialConversationId?: string;
 	initialTitle?: string;
-	onConversationSaved?: (
-		conv: StoredConversation,
-		options?: ConversationSaveOptions
-	) => void | Promise< void >;
+	onConversationSaved?: ( conv: StoredConversation ) => void | Promise< void >;
 }
 
 export interface SendMessageOptions {
@@ -177,7 +170,7 @@ export function useChat( options: UseChatOptions = {} ) {
 					title: titleRef.current,
 					messages: submittedMessages,
 					updatedAt: Date.now(),
-				}, { updateRoute: false } );
+				} );
 			}
 
 			const controller = new AbortController();
@@ -253,7 +246,7 @@ export function useChat( options: UseChatOptions = {} ) {
 					title: titleRef.current,
 					messages: savedMessages,
 					updatedAt: Date.now(),
-				}, { updateRoute: true } );
+				} );
 			}
 
 			setState( ( prev ) => ( {

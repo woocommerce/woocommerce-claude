@@ -13,11 +13,6 @@ import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
 import { ACTIONS_UPDATED_EVENT, loadActionCards } from '../actions/action-store';
-import {
-	startWorkflowRun,
-	workflowFromSlashCommand,
-	workflowRunOptionsFromMessage,
-} from '../workflows/workflow-runs';
 import type { StoredConversation } from './types';
 
 type ShortcutTone = 'primary' | 'neutral';
@@ -39,25 +34,9 @@ interface ChatViewProps {
 	urlConversationId?: string;
 }
 
-interface SaveConversationOptions {
-	updateRoute?: boolean;
-}
-
 interface ChatHeaderProps {
 	title: string;
 	subtitle: string;
-}
-
-function routePathForConversation( conversationId: string ): string {
-	return `/chat?conversationId=${ encodeURIComponent( conversationId ) }`;
-}
-
-function replaceCurrentRouteWithConversation( conversationId: string ): void {
-	const url = new URL( window.location.href );
-
-	url.searchParams.set( 'p', routePathForConversation( conversationId ) );
-	url.searchParams.delete( 'conversationId' );
-	window.history.replaceState( {}, '', url.toString() );
 }
 
 function ChatHeader( { title, subtitle }: ChatHeaderProps ) {
@@ -263,16 +242,19 @@ function ChatView( {
 		? conversations.find( ( c ) => c.id === urlConversationId )
 		: undefined;
 
+	// Intentionally no URL update after a save. Updating window.location to
+	// include the new conversationId after the assistant reply lands forces
+	// ChatView to remount (the parent's key depends on urlConversationId),
+	// and the new mount can briefly render the empty home before the
+	// conversations state catches up — the merchant sees the report
+	// disappear and reload to a blank screen. The conversation is already
+	// persisted via useConversations, so it shows up in the Library and a
+	// refresh from there restores the chat.
 	const handleConversationSaved = useCallback( async (
-		conversation: StoredConversation,
-		options: SaveConversationOptions = {}
+		conversation: StoredConversation
 	) => {
 		await onSaveConversation( conversation );
-
-		if ( options.updateRoute && ! urlConversationId ) {
-			replaceCurrentRouteWithConversation( conversation.id );
-		}
-	}, [ onSaveConversation, urlConversationId ] );
+	}, [ onSaveConversation ] );
 
 	const { state, sendMessage, clearError, submitFeedback } = useChat( {
 		initialMessages: initialConversation?.messages,
@@ -283,39 +265,10 @@ function ChatView( {
 
 	const bottomRef = useRef< HTMLDivElement >( null );
 	const didAutoRunWorkflowRef = useRef( false );
-	const navigate = useNavigate();
-	const [ isStartingWorkflow, setIsStartingWorkflow ] = useState( false );
 
-	const startWorkflowFromMessage = useCallback( async ( message: string ) => {
-		const workflow = workflowFromSlashCommand( message );
-		if ( ! workflow ) {
-			return false;
-		}
-
-		setIsStartingWorkflow( true );
-		const conversation = await startWorkflowRun(
-			workflowRunOptionsFromMessage( workflow, message )
-		).finally( () => {
-			setIsStartingWorkflow( false );
-		} );
-
-		void navigate( {
-			to: '/history',
-			search: {
-				conversation: conversation.id,
-			},
-		} );
-
-		return true;
-	}, [ navigate ] );
-
-	const handleSendMessage = useCallback( async ( message: string ) => {
-		if ( await startWorkflowFromMessage( message ) ) {
-			return;
-		}
-
+	const handleSendMessage = useCallback( ( message: string ) => {
 		void sendMessage( message );
-	}, [ sendMessage, startWorkflowFromMessage ] );
+	}, [ sendMessage ] );
 
 	useEffect( () => {
 		if (
@@ -328,16 +281,10 @@ function ChatView( {
 		}
 
 		didAutoRunWorkflowRef.current = true;
-		void ( async () => {
-			if ( await startWorkflowFromMessage( initialWorkflowPrompt ) ) {
-				return;
-			}
-
-			void sendMessage( initialWorkflowPrompt, {
-				displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
-			} );
-		} )();
-	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, startWorkflowFromMessage, state.status, urlConversationId ] );
+		void sendMessage( initialWorkflowPrompt, {
+			displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
+		} );
+	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, state.status, urlConversationId ] );
 
 	// Scroll to the latest message whenever messages change.
 	// Use 'instant' on the first paint (loaded history) to avoid jarring animation.
@@ -356,7 +303,7 @@ function ChatView( {
 		);
 	}
 
-	const isSending = state.status === 'sending' || isStartingWorkflow;
+	const isSending = state.status === 'sending';
 	const chatTitle = initialConversation?.title || __( 'New chat', 'hey-woo' );
 	const chatSubtitle = __( 'Ask anything about your store', 'hey-woo' );
 	const isEmptyNewChat = ! urlConversationId && ! initialWorkflowPrompt && state.messages.length === 0 && ! isSending;
