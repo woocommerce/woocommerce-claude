@@ -274,7 +274,7 @@ function ChatView( {
 		}
 	}, [ onSaveConversation, urlConversationId ] );
 
-	const { state, sendMessage, clearError } = useChat( {
+	const { state, sendMessage, clearError, submitFeedback } = useChat( {
 		initialMessages: initialConversation?.messages,
 		initialConversationId: urlConversationId,
 		initialTitle: initialConversation?.title,
@@ -407,7 +407,11 @@ function ChatView( {
 					) }
 
 					{ state.messages.map( ( msg ) => (
-						<ChatBubble key={ msg.id } message={ msg } />
+						<ChatBubble
+							key={ msg.id }
+							message={ msg }
+							onSubmitFeedback={ submitFeedback }
+						/>
 					) ) }
 
 					{ isSending && <ChatProgress /> }

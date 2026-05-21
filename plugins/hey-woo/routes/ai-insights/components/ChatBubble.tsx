@@ -2,17 +2,23 @@
  * ChatBubble — a single message bubble in the conversation.
  */
 import { __ } from '@wordpress/i18n';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, FeedbackRating } from '../types';
 import { MarkdownContent } from './MarkdownContent';
 import { ChatChart } from './ChatChart';
 import { ReportActionCards } from './ReportActionCards';
+import { MessageFeedback } from './MessageFeedback';
 import { parseReportActions } from '../report-actions';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
+	onSubmitFeedback?: (
+		messageId: number,
+		rating: FeedbackRating,
+		comment?: string
+	) => Promise< void >;
 }
 
-export function ChatBubble( { message }: ChatBubbleProps ) {
+export function ChatBubble( { message, onSubmitFeedback }: ChatBubbleProps ) {
 	const isUser = message.role === 'user';
 	const { content, actions } = isUser
 		? { content: message.content, actions: [] }
@@ -43,6 +49,13 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 								<ChatChart key={ i } spec={ spec } />
 							) ) }
 						</div>
+					) }
+					{ onSubmitFeedback && (
+						<MessageFeedback
+							messageId={ message.id }
+							feedback={ message.feedback }
+							onSubmit={ onSubmitFeedback }
+						/>
 					) }
 				</>
 			) }

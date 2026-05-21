@@ -20,6 +20,17 @@ export interface ChartSpec {
 	series: ChartSeries[];
 }
 
+export type FeedbackRating = 'up' | 'down';
+
+/**
+ * Persisted merchant feedback on a single assistant message.
+ */
+export interface MessageFeedback {
+	rating: FeedbackRating;
+	comment?: string;
+	submittedAt: number;
+}
+
 /**
  * A single chat message - either from the merchant or from the assistant.
  */
@@ -28,6 +39,7 @@ export interface ChatMessage {
 	role: 'user' | 'assistant';
 	content: string;
 	charts?: ChartSpec[];
+	feedback?: MessageFeedback;
 }
 
 export type WorkflowRunStatus = 'running' | 'complete' | 'error';
