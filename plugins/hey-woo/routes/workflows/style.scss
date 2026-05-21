@@ -193,90 +193,6 @@
 	}
 }
 
-// Setup modal — uses wpds tokens for spacing/typography.
-.hey-woo-workflow-modal {
-	--hey-woo-modal-stroke: var(--wpds-color-stroke-subtle, #e0e0e0);
-	--hey-woo-modal-muted: var(--wpds-color-fg-content-subtle, #757575);
-	--hey-woo-modal-content: var(--wpds-color-fg-content-neutral, #1e1e1e);
-	--hey-woo-modal-surface-weak: var(--wpds-color-bg-surface-neutral-weak, #f6f7f7);
-
-	.components-modal__content {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	&__description {
-		margin: 0;
-		color: var(--hey-woo-modal-muted);
-		font-size: 13px;
-		line-height: 1.55;
-	}
-
-	&__field {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	&__label {
-		color: var(--hey-woo-modal-content);
-		font-size: 13px;
-		font-weight: 600;
-		line-height: 1.4;
-	}
-
-	&__segmented {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 8px;
-		padding: 4px;
-		border-radius: 8px;
-		background: var(--hey-woo-modal-surface-weak);
-
-		.components-button {
-			justify-content: center;
-		}
-	}
-
-	&__row {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 12px;
-	}
-
-	&__time-field {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-
-		input[type="time"] {
-			min-height: 40px;
-			padding: 0 12px;
-			border: 1px solid var(--hey-woo-modal-stroke);
-			border-radius: 4px;
-			font-size: 13px;
-			line-height: 1.4;
-		}
-	}
-
-	&__checks {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding-top: 4px;
-	}
-
-	&__actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		padding-top: 8px;
-		border-top: 1px solid var(--hey-woo-modal-stroke);
-		margin-top: 4px;
-	}
-}
-
 @media (max-width: 720px) {
 	.hey-woo-workflows-toolbar {
 		grid-template-columns: minmax(0, 1fr);
@@ -284,20 +200,5 @@
 
 	.hey-woo-workflows-grid {
 		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.hey-woo-workflow-modal {
-		&__row {
-			grid-template-columns: minmax(0, 1fr);
-		}
-
-		&__actions {
-			flex-direction: column-reverse;
-
-			.components-button {
-				justify-content: center;
-				width: 100%;
-			}
-		}
 	}
 }
