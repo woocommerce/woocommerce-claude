@@ -58,6 +58,16 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 				'empty_key',
 				array(),
 			),
+			'no_model code → bad_key'                     => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'no_model',
+				array(),
+			),
+			'no_ai_provider code → bad_key'               => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'no_ai_provider',
+				array(),
+			),
 
 			// HTTP status-driven classification.
 			'anthropic 401 → bad_key'                     => array(
@@ -74,6 +84,16 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 				ChatErrorMapper::KIND_RATE_LIMITED,
 				'anthropic_error',
 				array( 'status' => 429 ),
+			),
+			'anthropic 408 → timeout'                     => array(
+				ChatErrorMapper::KIND_TIMEOUT,
+				'anthropic_error',
+				array( 'status' => 408 ),
+			),
+			'anthropic 504 → timeout'                     => array(
+				ChatErrorMapper::KIND_TIMEOUT,
+				'anthropic_error',
+				array( 'status' => 504 ),
 			),
 			'anthropic 503 → overloaded'                  => array(
 				ChatErrorMapper::KIND_OVERLOADED,

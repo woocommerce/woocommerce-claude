@@ -98,14 +98,17 @@ export type ChatErrorKind =
 /**
  * Kinds that the merchant can resolve by clicking Retry — the request itself
  * was the problem (transient or recoverable), not their input.
+ *
+ * Exposed as a `ReadonlySet` so callers can `.has( kind )` without widening
+ * the `ChatErrorKind` union through an `as readonly string[]` cast.
  */
-export const RETRYABLE_CHAT_ERROR_KINDS: ReadonlyArray< ChatErrorKind > = [
+export const RETRYABLE_CHAT_ERROR_KINDS: ReadonlySet< ChatErrorKind > = new Set< ChatErrorKind >( [
 	'rate_limited',
 	'overloaded',
 	'timeout',
 	'network',
 	'generic',
-];
+] );
 
 /**
  * Top-level response shape from POST /hey-woo/v1/difm/chat.

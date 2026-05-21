@@ -67,8 +67,12 @@ class ChatErrorMapper {
 		$data   = $error->get_error_data();
 		$status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
 
-		// Explicit provider key codes — these can fire before any HTTP request.
-		if ( in_array( $code, array( 'no_api_key', 'invalid_key', 'empty_key' ), true ) ) {
+		// Explicit provider configuration codes — these can fire before any
+		// HTTP request. `no_model` and `no_ai_provider` come from
+		// AiApiProxyClient and DifmProviderResolver respectively; they share
+		// the bad_key remediation (open the Hey Woo settings tab) so the UI
+		// can offer one consistent action.
+		if ( in_array( $code, array( 'no_api_key', 'invalid_key', 'empty_key', 'no_model', 'no_ai_provider' ), true ) ) {
 			return array(
 				'kind'    => self::KIND_BAD_KEY,
 				'message' => self::message_for( self::KIND_BAD_KEY ),
@@ -100,6 +104,13 @@ class ChatErrorMapper {
 			return array(
 				'kind'    => self::KIND_RATE_LIMITED,
 				'message' => self::message_for( self::KIND_RATE_LIMITED ),
+			);
+		}
+
+		if ( 408 === $status || 504 === $status ) {
+			return array(
+				'kind'    => self::KIND_TIMEOUT,
+				'message' => self::message_for( self::KIND_TIMEOUT ),
 			);
 		}
 
@@ -157,7 +168,7 @@ class ChatErrorMapper {
 	private static function message_for( $kind ) {
 		switch ( $kind ) {
 			case self::KIND_BAD_KEY:
-				return __( 'Your AI provider key was rejected. Update it in WooCommerce > Settings > Hey Woo and try again.', 'hey-woo' );
+				return __( 'Hey Woo could not reach the AI provider with the current settings. Update them in WooCommerce > Settings > Hey Woo and try again.', 'hey-woo' );
 
 			case self::KIND_RATE_LIMITED:
 				return __( 'The AI service is rate-limiting requests from this store. Wait a few seconds and try again.', 'hey-woo' );

@@ -168,6 +168,13 @@ export function useChat( options: UseChatOptions = {} ) {
 	// request without re-appending the user message or rebuilding state.
 	const lastSendRef = useRef< LastSend | undefined >( undefined );
 
+	// Synchronous guard against parallel provider requests. React's setState
+	// is async, so a fast Retry double-click (or a Retry-then-Send race) can
+	// fire two runChatRequest calls before status flips to 'sending' and the
+	// Retry button stops rendering. A ref flipped synchronously here drops
+	// the duplicate before any work runs.
+	const inFlightRef = useRef( false );
+
 	/**
 	 * Fire the chat REST call and apply the response to state. Shared by
 	 * sendMessage (initial submission) and resendLast (Retry button).
@@ -178,6 +185,11 @@ export function useChat( options: UseChatOptions = {} ) {
 	 */
 	const runChatRequest = useCallback(
 		async ( text: string, history: ChatMessage[], isFirstTurn: boolean ): Promise< void > => {
+			if ( inFlightRef.current ) {
+				return;
+			}
+			inFlightRef.current = true;
+
 			setState( ( prev ) => ( {
 				...prev,
 				status: 'sending',
@@ -311,6 +323,8 @@ export function useChat( options: UseChatOptions = {} ) {
 						? __( 'The request timed out — please try again.', 'hey-woo' )
 						: __( 'Could not reach Hey Woo. Check your connection and try again.', 'hey-woo' ),
 				} ) );
+			} finally {
+				inFlightRef.current = false;
 			}
 		},
 		[ onConversationSaved ]

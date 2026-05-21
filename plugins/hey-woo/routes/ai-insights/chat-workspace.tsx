@@ -183,7 +183,7 @@ interface ChatErrorBarProps {
  *   - everything    → "Dismiss" to hide the bar so the merchant can type again.
  */
 function ChatErrorBar( { kind, message, onRetry, onDismiss }: ChatErrorBarProps ) {
-	const canRetry = !! kind && ( RETRYABLE_CHAT_ERROR_KINDS as readonly string[] ).includes( kind );
+	const canRetry = !! kind && RETRYABLE_CHAT_ERROR_KINDS.has( kind );
 	const isBadKey = 'bad_key' === kind;
 	const fallback = __( 'Something went wrong.', 'hey-woo' );
 
