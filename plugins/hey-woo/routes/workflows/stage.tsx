@@ -22,7 +22,6 @@ import { useMemo, useState } from '@wordpress/element';
 import { Icon, chartBar } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { useNavigate } from '@wordpress/route';
-import { useConversations } from '../ai-insights/hooks/useConversations';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
 import { getReportMetadata } from './workflow-data';
@@ -40,20 +39,6 @@ export function stage() {
 	const [ search, setSearch ] = useState( '' );
 	const [ category, setCategory ] = useState< string >( ALL_FILTER );
 	const [ cadence, setCadence ] = useState< string >( ALL_FILTER );
-
-	const { conversations } = useConversations();
-	const runningSlugs = useMemo(
-		() => new Set(
-			conversations
-				.filter( ( conversation ) =>
-					conversation.type === 'workflow' &&
-					conversation.workflowRun?.status === 'running'
-				)
-				.map( ( conversation ) => conversation.workflowRun?.slug )
-				.filter( ( slug ): slug is string => Boolean( slug ) )
-		),
-		[ conversations ]
-	);
 
 	const workflows = useMemo< WorkflowCardData[] >(
 		() => WORKFLOWS.map( ( workflow ) => ( {
@@ -175,54 +160,37 @@ export function stage() {
 				</div>
 			) : (
 				<div className="hey-woo-workflows-grid">
-					{ filtered.map( ( workflow ) => {
-						const isRunning = runningSlugs.has( workflow.slug );
-
-						return (
-							<Card key={ workflow.id } className="hey-woo-workflow-card" size="small">
-								<CardHeader className="hey-woo-workflow-card__header">
-									<div className="hey-woo-workflow-card__media" aria-hidden="true">
-										<Icon icon={ chartBar } size={ 24 } />
+					{ filtered.map( ( workflow ) => (
+						<Card key={ workflow.id } className="hey-woo-workflow-card" size="small">
+							<CardHeader className="hey-woo-workflow-card__header">
+								<div className="hey-woo-workflow-card__media" aria-hidden="true">
+									<Icon icon={ chartBar } size={ 24 } />
+								</div>
+								<div className="hey-woo-workflow-card__heading">
+									<h2 className="hey-woo-workflow-card__title">{ workflow.label }</h2>
+									<div className="hey-woo-workflow-card__badges">
+										<span className="hey-woo-workflow-card__badge">
+											{ workflow.metadata.category }
+										</span>
+										<span className="hey-woo-workflow-card__badge hey-woo-workflow-card__badge--muted">
+											{ workflow.metadata.priority }
+										</span>
 									</div>
-									<div className="hey-woo-workflow-card__heading">
-										<h2 className="hey-woo-workflow-card__title">{ workflow.label }</h2>
-										<div className="hey-woo-workflow-card__badges">
-											<span className="hey-woo-workflow-card__badge">
-												{ workflow.metadata.category }
-											</span>
-											<span className="hey-woo-workflow-card__badge hey-woo-workflow-card__badge--muted">
-												{ workflow.metadata.priority }
-											</span>
-											{ isRunning && (
-												<span
-													className="hey-woo-workflow-card__badge hey-woo-workflow-card__badge--running"
-													aria-live="polite"
-												>
-													<span className="hey-woo-workflow-card__pulse" aria-hidden="true" />
-													{ __( 'Running', 'hey-woo' ) }
-												</span>
-											) }
-										</div>
-									</div>
-								</CardHeader>
-								<CardBody className="hey-woo-workflow-card__body">
-									<p className="hey-woo-workflow-card__description">{ workflow.description }</p>
-								</CardBody>
-								<CardFooter className="hey-woo-workflow-card__footer">
-									<Button
-										variant={ isRunning ? 'secondary' : 'primary' }
-										disabled={ isRunning }
-										aria-disabled={ isRunning }
-										onClick={ () => runWorkflow( workflow ) }
-									>
-										{ isRunning
-											? __( 'Running…', 'hey-woo' )
-											: __( 'Run', 'hey-woo' ) }
-									</Button>
-								</CardFooter>
-							</Card>
-						);
-					} ) }
+								</div>
+							</CardHeader>
+							<CardBody className="hey-woo-workflow-card__body">
+								<p className="hey-woo-workflow-card__description">{ workflow.description }</p>
+							</CardBody>
+							<CardFooter className="hey-woo-workflow-card__footer">
+								<Button
+									variant="primary"
+									onClick={ () => runWorkflow( workflow ) }
+								>
+									{ __( 'Run', 'hey-woo' ) }
+								</Button>
+							</CardFooter>
+						</Card>
+					) ) }
 				</div>
 			) }
 		</div>

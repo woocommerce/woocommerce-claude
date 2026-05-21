@@ -13,11 +13,6 @@ import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
 import { ACTIONS_UPDATED_EVENT, loadActionCards } from '../actions/action-store';
-import {
-	startWorkflowRun,
-	workflowFromSlashCommand,
-	workflowRunOptionsFromMessage,
-} from '../workflows/workflow-runs';
 import type { StoredConversation } from './types';
 
 type ShortcutTone = 'primary' | 'neutral';
@@ -283,39 +278,10 @@ function ChatView( {
 
 	const bottomRef = useRef< HTMLDivElement >( null );
 	const didAutoRunWorkflowRef = useRef( false );
-	const navigate = useNavigate();
-	const [ isStartingWorkflow, setIsStartingWorkflow ] = useState( false );
 
-	const startWorkflowFromMessage = useCallback( async ( message: string ) => {
-		const workflow = workflowFromSlashCommand( message );
-		if ( ! workflow ) {
-			return false;
-		}
-
-		setIsStartingWorkflow( true );
-		const conversation = await startWorkflowRun(
-			workflowRunOptionsFromMessage( workflow, message )
-		).finally( () => {
-			setIsStartingWorkflow( false );
-		} );
-
-		void navigate( {
-			to: '/history',
-			search: {
-				conversation: conversation.id,
-			},
-		} );
-
-		return true;
-	}, [ navigate ] );
-
-	const handleSendMessage = useCallback( async ( message: string ) => {
-		if ( await startWorkflowFromMessage( message ) ) {
-			return;
-		}
-
+	const handleSendMessage = useCallback( ( message: string ) => {
 		void sendMessage( message );
-	}, [ sendMessage, startWorkflowFromMessage ] );
+	}, [ sendMessage ] );
 
 	useEffect( () => {
 		if (
@@ -328,16 +294,10 @@ function ChatView( {
 		}
 
 		didAutoRunWorkflowRef.current = true;
-		void ( async () => {
-			if ( await startWorkflowFromMessage( initialWorkflowPrompt ) ) {
-				return;
-			}
-
-			void sendMessage( initialWorkflowPrompt, {
-				displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
-			} );
-		} )();
-	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, startWorkflowFromMessage, state.status, urlConversationId ] );
+		void sendMessage( initialWorkflowPrompt, {
+			displayText: initialWorkflowDisplay || __( 'Run workflow', 'hey-woo' ),
+		} );
+	}, [ initialWorkflowDisplay, initialWorkflowPrompt, sendMessage, state.status, urlConversationId ] );
 
 	// Scroll to the latest message whenever messages change.
 	// Use 'instant' on the first paint (loaded history) to avoid jarring animation.
@@ -356,7 +316,7 @@ function ChatView( {
 		);
 	}
 
-	const isSending = state.status === 'sending' || isStartingWorkflow;
+	const isSending = state.status === 'sending';
 	const chatTitle = initialConversation?.title || __( 'New chat', 'hey-woo' );
 	const chatSubtitle = __( 'Ask anything about your store', 'hey-woo' );
 	const isEmptyNewChat = ! urlConversationId && ! initialWorkflowPrompt && state.messages.length === 0 && ! isSending;
