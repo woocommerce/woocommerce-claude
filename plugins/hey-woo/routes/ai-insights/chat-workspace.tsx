@@ -233,28 +233,15 @@ function ChatProgress( { progressId }: ChatProgressProps ) {
 	const headline = hasTool
 		? friendlyToolLabel( progress.tool as string )
 		: __( 'Hey Woo is working', 'hey-woo' );
-	const detail = hasTool
-		? __( 'Streaming what Hey Woo is doing as it runs.', 'hey-woo' )
-		: __( 'Looking across your store data and preparing a useful answer.', 'hey-woo' );
 
 	return (
 		<div className="hey-woo-progress" role="status" aria-live="polite">
-			<div className="hey-woo-progress__header">
-				<span className="hey-woo-progress__mark" aria-hidden="true">
-					<span />
-				</span>
-				<div className="hey-woo-progress__copy">
-					<span className="hey-woo-progress__eyebrow">
-						{ headline }
-					</span>
-					<span className="hey-woo-progress__text">
-						{ detail }
-					</span>
-				</div>
-			</div>
-			<div className="hey-woo-progress__bar" aria-hidden="true">
+			<span className="hey-woo-progress__mark" aria-hidden="true">
 				<span />
-			</div>
+			</span>
+			<span className="hey-woo-progress__eyebrow">
+				{ headline }
+			</span>
 		</div>
 	);
 }
