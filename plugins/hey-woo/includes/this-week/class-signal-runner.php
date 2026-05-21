@@ -21,6 +21,7 @@ use WooCommerce\HeyWoo\ThisWeek\Detectors\InventoryRiskDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\RefundSpikeDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\RevenueDropDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\SignalDetectorInterface;
+use WooCommerce\HeyWoo\ThisWeek\Notifications\SignalLock;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -39,49 +40,70 @@ class SignalRunner {
 	/**
 	 * Run all detectors once, summarise any that fired, and persist the result.
 	 *
+	 * Wrapped in a transient lock so a wp-cron tick can't interleave with a
+	 * manual "Refresh now". When the lock is already held, the call returns
+	 * a `busy` result without touching state — the caller can decide whether
+	 * to wait or surface 409.
+	 *
 	 * @param array<string,mixed> $options Optional runner options.
 	 *                                     - `skip_ai` (bool): skip the AI call and use deterministic fallback strings.
-	 * @return array{detected:array,skipped:array,signals:array,errors:array}
+	 * @return array{status:string,detected:array,skipped:array,signals:array,errors:array}
 	 */
 	public function run( array $options = array() ) {
-		$skip_ai   = ! empty( $options['skip_ai'] );
-		$detectors = $this->detectors();
-		$detected  = array();
-		$skipped   = array();
-		$signals   = array();
-		$errors    = array();
-		$client    = $skip_ai ? null : $this->resolve_client( $errors );
-
-		foreach ( $detectors as $detector ) {
-			$slug = $detector->slug();
-
-			try {
-				$detection = $detector->detect();
-			} catch ( \Throwable $e ) {
-				$errors[]  = array(
-					'detector' => $slug,
-					'error'    => 'detector_threw',
-					'message'  => $e->getMessage(),
-				);
-				$skipped[] = $slug;
-				continue;
-			}
-
-			if ( null === $detection ) {
-				$skipped[] = $slug;
-				continue;
-			}
-
-			$detected[] = $slug;
-			$signal     = $this->summarise( $detector, $detection, $client, $errors );
-			if ( null !== $signal ) {
-				$signals[] = $signal;
-			}
+		$lock = new SignalLock();
+		if ( ! $lock->acquire() ) {
+			return array(
+				'status'   => 'busy',
+				'detected' => array(),
+				'skipped'  => array(),
+				'signals'  => array(),
+				'errors'   => array(),
+			);
 		}
 
-		SignalStore::replace_with( $signals );
+		try {
+			$skip_ai   = ! empty( $options['skip_ai'] );
+			$detectors = $this->detectors();
+			$detected  = array();
+			$skipped   = array();
+			$signals   = array();
+			$errors    = array();
+			$client    = $skip_ai ? null : $this->resolve_client( $errors );
+
+			foreach ( $detectors as $detector ) {
+				$slug = $detector->slug();
+
+				try {
+					$detection = $detector->detect();
+				} catch ( \Throwable $e ) {
+					$errors[]  = array(
+						'detector' => $slug,
+						'error'    => 'detector_threw',
+						'message'  => $e->getMessage(),
+					);
+					$skipped[] = $slug;
+					continue;
+				}
+
+				if ( null === $detection ) {
+					$skipped[] = $slug;
+					continue;
+				}
+
+				$detected[] = $slug;
+				$signal     = $this->summarise( $detector, $detection, $client, $errors );
+				if ( null !== $signal ) {
+					$signals[] = $signal;
+				}
+			}
+
+			SignalStore::replace_with( $signals );
+		} finally {
+			$lock->release();
+		}
 
 		return array(
+			'status'   => 'ok',
 			'detected' => $detected,
 			'skipped'  => $skipped,
 			'signals'  => $signals,

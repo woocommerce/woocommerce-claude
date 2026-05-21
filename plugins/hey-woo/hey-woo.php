@@ -200,6 +200,10 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-refund-spike-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-failed-order-detector.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-inventory-risk-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-this-week-settings.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-signal-lock.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-digest-mailer.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-scheduler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-runner.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-this-week-rest-controller.php';
 }
@@ -209,6 +213,19 @@ function hey_woo_load_runtime_files() {
  */
 function hey_woo_activate() {
 	add_option( 'hey_woo_first_installed_at', time(), '', false );
+}
+
+/**
+ * Clear Hey Woo cron events on deactivation.
+ */
+function hey_woo_deactivate() {
+	if ( class_exists( \WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler::class ) ) {
+		\WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler::clear_all_events();
+	} else {
+		// Direct fallback when the runtime classes are not loaded yet.
+		wp_clear_scheduled_hook( 'hey_woo_this_week_daily_refresh' );
+		wp_clear_scheduled_hook( 'hey_woo_this_week_weekly_digest' );
+	}
 }
 
 /**
@@ -273,6 +290,10 @@ function hey_woo_init_runtime() {
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
 	( new \WooCommerce\HeyWoo\ThisWeek\ThisWeekRestController() )->register();
+
+	$this_week_scheduler = new \WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler();
+	$this_week_scheduler->register();
+	$this_week_scheduler->ensure_events_scheduled();
 }
 
 /**
@@ -347,4 +368,8 @@ add_action(
 
 if ( function_exists( 'register_activation_hook' ) ) {
 	register_activation_hook( __FILE__, 'hey_woo_activate' );
+}
+
+if ( function_exists( 'register_deactivation_hook' ) ) {
+	register_deactivation_hook( __FILE__, 'hey_woo_deactivate' );
 }

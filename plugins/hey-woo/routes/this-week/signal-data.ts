@@ -39,6 +39,12 @@ export interface RunResult {
 	errors: Array< { detector: string; error: string; message: string } >;
 }
 
+export interface SignalsResponse {
+	signals: Signal[];
+	monitoringEnabled: boolean;
+	nextRefreshAt: number | null;
+}
+
 const SIGNALS_ENDPOINT = '/this-week/signals';
 const RUN_ENDPOINT = '/this-week/run';
 const DISMISS_ENDPOINT = '/this-week/signals/dismiss';
@@ -79,11 +85,22 @@ async function jsonRequest< T >(
 	return ( await response.json() ) as T;
 }
 
-export async function fetchSignals(): Promise< Signal[] > {
-	const result = await jsonRequest< { signals: Signal[] } >( buildUrl( SIGNALS_ENDPOINT ), {
+export async function fetchSignals(): Promise< SignalsResponse > {
+	const result = await jsonRequest< {
+		signals?: unknown;
+		monitoring_enabled?: unknown;
+		next_refresh_at?: unknown;
+	} >( buildUrl( SIGNALS_ENDPOINT ), {
 		method: 'GET',
 	} );
-	return Array.isArray( result.signals ) ? result.signals : [];
+
+	return {
+		signals: Array.isArray( result.signals ) ? ( result.signals as Signal[] ) : [],
+		monitoringEnabled: result.monitoring_enabled !== false,
+		nextRefreshAt: typeof result.next_refresh_at === 'number' && result.next_refresh_at > 0
+			? result.next_refresh_at
+			: null,
+	};
 }
 
 export async function runSignals( options: { skipAi?: boolean } = {} ): Promise< RunResult > {

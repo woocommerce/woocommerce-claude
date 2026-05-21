@@ -50,9 +50,15 @@
 		gap: 12px;
 	}
 
-	&__last-run {
+	&__last-run,
+	&__next-run {
 		font-size: 12px;
 		color: var(--wpds-color-fg-content-subtle, #757575);
+	}
+
+	&__next-run {
+		padding-inline: 8px;
+		border-left: 1px solid var(--wpds-color-stroke-subtle, #e0e0e0);
 	}
 }
 
