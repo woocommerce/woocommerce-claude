@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import moduleData from '../data';
-import type { ChatMessage, ChatResponse, StoredConversation } from '../types';
+import type { ChatMessage, ChatResponse, FeedbackRating, StoredConversation } from '../types';
 import { saveConversationRecord } from './useConversations';
 
 /** Timeout for multi-tool report workflows in milliseconds. */
@@ -294,5 +294,63 @@ export function useChat( options: UseChatOptions = {} ) {
 		setState( ( prev ) => ( { ...prev, status: 'idle', errorMessage: '' } ) );
 	}, [] );
 
-	return { state, sendMessage, clearError, conversationId };
+	const submitFeedback = useCallback(
+		async ( messageId: number, rating: FeedbackRating, comment?: string ): Promise< void > => {
+			const conversation = conversationIdRef.current;
+			const title = titleRef.current;
+			if ( ! conversation || ! title ) {
+				throw new Error( 'no_conversation' );
+			}
+
+			const trimmedComment = comment?.trim() ?? '';
+
+			const response = await fetch( moduleData.restBase + '/feedback', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': moduleData.nonce,
+				},
+				body: JSON.stringify( {
+					conversation_id: conversation,
+					message_id: messageId,
+					rating,
+					comment: trimmedComment,
+				} ),
+			} );
+
+			if ( ! response.ok ) {
+				throw new Error( 'feedback_failed' );
+			}
+
+			const submittedAt = Date.now();
+			const updatedMessages = messagesRef.current.map( ( msg ) => {
+				if ( msg.id !== messageId ) {
+					return msg;
+				}
+
+				return {
+					...msg,
+					feedback: {
+						rating,
+						submittedAt,
+						...( '' !== trimmedComment ? { comment: trimmedComment } : {} ),
+					},
+				};
+			} );
+
+			setState( ( prev ) => ( { ...prev, messages: updatedMessages } ) );
+
+			if ( onConversationSaved ) {
+				await onConversationSaved( {
+					id: conversation,
+					title,
+					messages: updatedMessages,
+					updatedAt: submittedAt,
+				} );
+			}
+		},
+		[ onConversationSaved ]
+	);
+
+	return { state, sendMessage, clearError, submitFeedback, conversationId };
 }

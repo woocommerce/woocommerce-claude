@@ -192,6 +192,7 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-feedback-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
 
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-store.php';
@@ -365,6 +366,7 @@ function hey_woo_init_runtime() {
 	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
+	( new \WooCommerce\HeyWoo\Difm\DifmFeedbackController() )->register();
 
 	if ( hey_woo_today_enabled() ) {
 		( new \WooCommerce\HeyWoo\ThisWeek\ThisWeekRestController() )->register();
