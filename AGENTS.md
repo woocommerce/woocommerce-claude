@@ -33,16 +33,18 @@ hey-woo/
 │   │   │   ├── abilities/                # Claude-specific tools/resources/prompts plus compatibility aliases
 │   │   │   │                             # for shared wc-analytics classes
 │   │   │   ├── api/                      # REST controllers + AnalyticsController compatibility alias
-│   │   │   ├── knowledge/                # Provider pattern (store profile / catalog / product / policy)
+│   │   │   ├── knowledge/                # Provider pattern (store profile / catalogue / product / policy)
 │   │   │   ├── scoring/                  # Engine + 4 factors (product, schema, content, policy)
 │   │   │   ├── settings/                 # WC > Settings > WooCommerce for Claude tab
 │   │   │   └── telemetry/                # SkillTelemetry + handlers (log, Tracks-gated by opt-in toggle)
 │   │   ├── tests/integration/            # PHPUnit; runs inside wp-env tests-cli container
 │   │   └── skills/                       # Reference Claude Code / Codex workflow skills
-│   └── hey-woo/                          # Canonical Hey Woo BYOK admin chat plugin package
+│   └── hey-woo/                          # Canonical Hey Woo BYOK admin chat plugin package;
+│                                         # owns its own hey-woo/* wrappers
 ├── php-packages/
 │   └── commerce-abilities/               # Composer path package; owns shared wc-analytics abilities,
-│                                         # AnalyticsService, and LargeRangeGate
+│                                         # AnalyticsService, LargeRangeGate,
+│                                         # store knowledge, and readiness scoring
 ├── tools/
 │   ├── seed-demo-store.php   # 24-month, 5k-order seeded demo store (mt_srand(42))
 │   └── mu-plugins/           # dev-only mu-plugins (allow-insecure-transport for HTTP wp-env)
@@ -78,7 +80,8 @@ pnpm exec wp-env run cli -- wp eval-file /tmp/seed.php
 These are validated decisions. **MUST NOT** relitigate without strong new signal.
 
 - **Plugin-owned MCP server.** WooCommerce for Claude registers its own MCP server at `/wp-json/woocommerce-claude/mcp` via the WordPress MCP adapter (vendored inside WooCommerce as `vendor/wordpress/mcp-adapter`). The plugin boots the adapter on `plugins_loaded` so the endpoint works regardless of WC's `mcp_integration` feature flag, then calls `$adapter->create_server('woocommerce-claude', 'woocommerce-claude', 'mcp', ...)` on `mcp_adapter_init` with a curated list of tools, resources, and prompts. Auth uses an `X-MCP-API-Key: ck:cs` header backed by a standard WC REST API key. The earlier "ride on WC's `woocommerce-mcp` server via `woocommerce_mcp_include_ability`" approach is gone — that endpoint is being deprecated upstream.
-- **Single Abilities API namespace.** Every analytics skill is at `wp-abilities/v1/abilities/wc-analytics/{skill}/run`. The shared `woocommerce/commerce-abilities` package registers those `wc-analytics/*` abilities; WooCommerce for Claude keeps MCP curation/auth and backwards-compatible PHP aliases.
+- **Shared commerce implementation, product-owned IDs.** Every analytics skill is at `wp-abilities/v1/abilities/wc-analytics/{skill}/run`. The shared `woocommerce/commerce-abilities` package registers those `wc-analytics/*` abilities and owns the store knowledge/readiness implementation. WooCommerce for Claude and Hey Woo each keep their own public wrapper IDs (`woocommerce-claude/*` and `hey-woo/*`) so either plugin works without the other installed.
+- **Hey Woo is standalone.** Hey Woo owns equivalent `hey-woo/*` store, product, catalogue, and readiness wrappers for the admin chat. Do not point Hey Woo's DIFM tool bridge at `woocommerce-claude/*` ability IDs; each plugin must work without the other installed.
 - **Three plugin-owned ability prefixes**, declared in `Plugin::OWNED_ABILITY_NAMESPACES`: `wc-analytics/`, `woocommerce-claude/`, `woocommerce-claude-integrations/`. The WC auth scope filter trusts only routes under these prefixes — a WooCommerce for Claude consumer key cannot be replayed against abilities registered by other plugins. Adding a fourth prefix is a single-edit operation; the `Plugin::mcp_tool_ability_ids()` curated list must be updated in lockstep.
 - **Aggregated-only privacy by default.** PII gate (`woocommerce_claude_allow_customer_pii`) is off; merchants opt in only when chaining with email/CRM MCPs that need real addresses. `wc_string_to_bool` reads the option (not `(bool)` — `'no'` would otherwise be truthy).
 - **HPOS-compatible.** Declared via `FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true)`. SQL must read from HPOS tables (`wp_wc_orders_meta` for attribution) when available, falling back to `wp_postmeta` only when HPOS isn't enabled. The runtime branch lives in `AnalyticsService::get_order_meta_source()` (also reachable through the plugin's `AnalyticsController` compatibility alias).
@@ -93,7 +96,7 @@ These are validated decisions. **MUST NOT** relitigate without strong new signal
 - **PHPCS:** `WordPress-Extra` + `WordPress-Docs` + `WooCommerce` rulesets via `dealerdirect/phpcodesniffer-composer-installer`
 - **PHPUnit 9.6** + `yoast/phpunit-polyfills` — runs *inside* the wp-env `tests-cli` container, not on host PHP
 - **pnpm 10.33.0** for Node tooling (`packageManager` is pinned in `package.json`)
-- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-for-claude.zip` from `plugins/woocommerce-for-claude/`, and `pnpm run hey-woo-plugin-zip` builds `hey-woo.zip` from `plugins/hey-woo/`
+- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-claude.zip` from `plugins/woocommerce-for-claude/`, and `pnpm run hey-woo-plugin-zip` builds `hey-woo.zip` from `plugins/hey-woo/`
 
 ## Common pitfalls
 
@@ -150,4 +153,4 @@ The plugin is published as a UK-Automattic-shaped product (default seed store is
   3. Tool/ability descriptions don't violate the merchant-scope rule (the description-guardrail sweep enforces the obvious cases; review catches the rest).
   4. CONTRIBUTING.md "Design patterns worth knowing" section updated when a new reusable pattern is established.
   5. AGENTS.md (this file) updated when a new gotcha, command, or convention is introduced.
-- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-for-claude.zip`, `hey-woo.zip`, and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.
+- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-claude.zip`, `hey-woo.zip`, and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.

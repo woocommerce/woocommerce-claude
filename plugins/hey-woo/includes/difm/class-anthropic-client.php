@@ -52,9 +52,7 @@ class AnthropicClient implements DifmAiClientInterface {
 	 *
 	 * Priority:
 	 *   1. `HEY_WOO_ANTHROPIC_KEY` PHP constant (key never touches the DB)
-	 *   2. `WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY` PHP constant (legacy fallback)
-	 *   3. `hey_woo_anthropic_api_key` wp_options value
-	 *   4. `woocommerce_claude_anthropic_api_key` wp_options value (legacy fallback)
+	 *   2. `hey_woo_anthropic_api_key` wp_options value
 	 *
 	 * @return string Empty string when no key is configured.
 	 */
@@ -63,16 +61,7 @@ class AnthropicClient implements DifmAiClientInterface {
 			return (string) HEY_WOO_ANTHROPIC_KEY;
 		}
 
-		if ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) ) {
-			return (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY;
-		}
-
-		$current_key = (string) get_option( 'hey_woo_anthropic_api_key', '' );
-		if ( '' !== $current_key ) {
-			return $current_key;
-		}
-
-		return (string) get_option( 'woocommerce_claude_anthropic_api_key', '' );
+		return (string) get_option( 'hey_woo_anthropic_api_key', '' );
 	}
 
 	/**

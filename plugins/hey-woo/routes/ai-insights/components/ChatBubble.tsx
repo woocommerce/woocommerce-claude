@@ -5,6 +5,8 @@ import { __ } from '@wordpress/i18n';
 import type { ChatMessage } from '../types';
 import { MarkdownContent } from './MarkdownContent';
 import { ChatChart } from './ChatChart';
+import { ReportActionCards } from './ReportActionCards';
+import { parseReportActions } from '../report-actions';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
@@ -12,6 +14,9 @@ interface ChatBubbleProps {
 
 export function ChatBubble( { message }: ChatBubbleProps ) {
 	const isUser = message.role === 'user';
+	const { content, actions } = isUser
+		? { content: message.content, actions: [] }
+		: parseReportActions( message.content );
 
 	return (
 		<div
@@ -30,7 +35,8 @@ export function ChatBubble( { message }: ChatBubbleProps ) {
 				</p>
 			) : (
 				<>
-					<MarkdownContent content={ message.content } />
+					{ content && <MarkdownContent content={ content } /> }
+					<ReportActionCards actions={ actions } />
 					{ message.charts && message.charts.length > 0 && (
 						<div className="hey-woo-charts">
 							{ message.charts.map( ( spec, i ) => (

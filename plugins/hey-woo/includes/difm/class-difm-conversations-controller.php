@@ -5,6 +5,7 @@
  * Routes:
  *   GET  /hey-woo/v1/difm/conversations — Return stored conversations for the current user.
  *   POST /hey-woo/v1/difm/conversations — Create or update a conversation (upsert by ID).
+ *   DELETE /hey-woo/v1/difm/conversations — Delete one or more stored conversations.
  *
  * Conversations are stored as a JSON-encoded array in user meta under the key
  * `hey_woo_conversations`, capped at MAX_CONVERSATIONS entries
@@ -42,7 +43,7 @@ class DifmConversationsController {
 	/**
 	 * Maximum number of conversations kept per user.
 	 */
-	const MAX_CONVERSATIONS = 5;
+	const MAX_CONVERSATIONS = 50;
 
 	/**
 	 * Register REST route hooks.
@@ -96,6 +97,11 @@ class DifmConversationsController {
 						),
 					),
 				),
+				array(
+					'methods'             => \WP_REST_Server::DELETABLE,
+					'callback'            => array( $this, 'delete_conversations' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+				),
 			)
 		);
 	}
@@ -139,6 +145,17 @@ class DifmConversationsController {
 			'updatedAt' => (int) $request['updatedAt'],
 		);
 
+		if ( is_array( $raw_body_params ) && isset( $raw_body_params['type'] ) ) {
+			$type = sanitize_key( (string) $raw_body_params['type'] );
+			if ( in_array( $type, array( 'chat', 'workflow' ), true ) ) {
+				$incoming['type'] = $type;
+			}
+		}
+
+		if ( is_array( $raw_body_params ) && isset( $raw_body_params['workflowRun'] ) && is_array( $raw_body_params['workflowRun'] ) ) {
+			$incoming['workflowRun'] = self::sanitize_workflow_run_meta( $raw_body_params['workflowRun'] );
+		}
+
 		$conversations = self::get_recent_conversations( $user_id );
 
 		// Remove existing entry with same ID (upsert).
@@ -166,6 +183,108 @@ class DifmConversationsController {
 		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
 
 		return rest_ensure_response( array( 'status' => 'ok' ) );
+	}
+
+	/**
+	 * Sanitize workflow-run metadata before storing it in user meta.
+	 *
+	 * @param array<string,mixed> $meta Raw workflow metadata.
+	 * @return array<string,mixed>
+	 */
+	private static function sanitize_workflow_run_meta( array $meta ) {
+		$status = isset( $meta['status'] ) ? sanitize_key( (string) $meta['status'] ) : 'running';
+		if ( ! in_array( $status, array( 'running', 'complete', 'error' ), true ) ) {
+			$status = 'running';
+		}
+
+		return array(
+			'slug'              => isset( $meta['slug'] ) ? sanitize_key( (string) $meta['slug'] ) : '',
+			'label'             => isset( $meta['label'] ) ? sanitize_text_field( (string) $meta['label'] ) : '',
+			'status'            => $status,
+			'runMode'           => isset( $meta['runMode'] ) ? sanitize_key( (string) $meta['runMode'] ) : 'now',
+			'period'            => isset( $meta['period'] ) ? sanitize_key( (string) $meta['period'] ) : '',
+			'periodLabel'       => isset( $meta['periodLabel'] ) ? sanitize_text_field( (string) $meta['periodLabel'] ) : '',
+			'compare'           => ! empty( $meta['compare'] ),
+			'actionCards'       => ! empty( $meta['actionCards'] ),
+			'adminNotification' => ! empty( $meta['adminNotification'] ),
+			'startedAt'         => isset( $meta['startedAt'] ) ? (int) $meta['startedAt'] : 0,
+			'scheduleLabel'     => isset( $meta['scheduleLabel'] ) ? sanitize_text_field( (string) $meta['scheduleLabel'] ) : '',
+			'completedAt'       => isset( $meta['completedAt'] ) ? (int) $meta['completedAt'] : 0,
+			'errorMessage'      => isset( $meta['errorMessage'] ) ? sanitize_text_field( (string) $meta['errorMessage'] ) : '',
+		);
+	}
+
+	/**
+	 * DELETE handler — remove one or more conversations by ID.
+	 *
+	 * @param \WP_REST_Request $request Request object.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function delete_conversations( $request ) {
+		$user_id = get_current_user_id();
+		$ids     = $request->get_param( 'ids' );
+
+		if ( ! is_array( $ids ) ) {
+			$raw_body = $request->get_body();
+			if ( is_string( $raw_body ) && '' !== $raw_body ) {
+				$decoded_body = json_decode( $raw_body, true );
+				if ( is_array( $decoded_body ) && isset( $decoded_body['ids'] ) ) {
+					$ids = $decoded_body['ids'];
+				}
+			}
+		}
+
+		if ( is_string( $ids ) ) {
+			$ids = array( $ids );
+		}
+
+		if ( ! is_array( $ids ) ) {
+			return new \WP_Error(
+				'hey_woo_missing_conversation_ids',
+				__( 'Select at least one conversation to delete.', 'hey-woo' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$ids = array_values(
+			array_filter(
+				array_unique(
+					array_map(
+						function ( $id ) {
+							return sanitize_text_field( (string) $id );
+						},
+						$ids
+					)
+				)
+			)
+		);
+
+		if ( empty( $ids ) ) {
+			return new \WP_Error(
+				'hey_woo_missing_conversation_ids',
+				__( 'Select at least one conversation to delete.', 'hey-woo' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$conversations = self::get_recent_conversations( $user_id );
+		$conversations = array_values(
+			array_filter(
+				$conversations,
+				function ( $conversation ) use ( $ids ) {
+					return ! isset( $conversation['id'] ) || ! in_array( $conversation['id'], $ids, true );
+				}
+			)
+		);
+
+		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
+
+		return rest_ensure_response(
+			array(
+				'status'        => 'ok',
+				'conversations' => $conversations,
+			)
+		);
 	}
 
 	/**

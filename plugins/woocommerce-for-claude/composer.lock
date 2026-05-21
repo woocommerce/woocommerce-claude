@@ -12,7 +12,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../php-packages/commerce-abilities",
-                "reference": "7e12a82f1ac485b4a12aaf9ee9d921984f7c01e2"
+                "reference": "3dab90025941c94291be53579856607104a9ed2c"
             },
             "require": {
                 "php": ">=7.4"
@@ -26,7 +26,7 @@
             "license": [
                 "GPL-3.0-or-later"
             ],
-            "description": "Shared commerce analytics abilities for WooCommerce AI products.",
+            "description": "Shared commerce abilities, analytics, store knowledge, and readiness scoring for WooCommerce AI products.",
             "transport-options": {
                 "symlink": false,
                 "relative": true

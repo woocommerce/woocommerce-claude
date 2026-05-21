@@ -1,0 +1,204 @@
+// Hey Woo Workflows route — cards + setup modal.
+
+.hey-woo-page--workflows {
+	--hey-woo-workflows-stroke: var(--wpds-color-stroke-subtle, #e0e0e0);
+	--hey-woo-workflows-surface: var(--wpds-color-bg-surface, #fff);
+	--hey-woo-workflows-surface-weak: var(--wpds-color-bg-surface-neutral-weak, #f6f7f7);
+	--hey-woo-workflows-content: var(--wpds-color-fg-content-neutral, #1e1e1e);
+	--hey-woo-workflows-muted: var(--wpds-color-fg-content-subtle, #757575);
+	--hey-woo-workflows-accent: var(--wpds-color-fg-content-info, #3858e9);
+	--hey-woo-workflows-success: var(--wpds-color-fg-content-success, #007017);
+	--hey-woo-workflows-success-weak: var(--wpds-color-bg-surface-success-weak, #edfaef);
+	--hey-woo-workflows-gap: var(--wpds-dimension-gap-md, 16px);
+	--hey-woo-workflows-radius: var(--wpds-dimension-radius-md, 8px);
+
+	width: 100%;
+	min-height: calc(100vh - 16px);
+	max-width: none;
+	padding-bottom: 32px;
+	box-sizing: border-box;
+}
+
+.hey-woo-workflows-header {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 24px 0 16px;
+	border-bottom: 1px solid var(--hey-woo-workflows-stroke);
+
+	&__title {
+		margin: 0;
+		color: var(--hey-woo-workflows-content);
+		font-size: 22px;
+		font-weight: 600;
+		line-height: 1.25;
+	}
+
+	&__count {
+		margin: 4px 0 0;
+		color: var(--hey-woo-workflows-muted);
+		font-size: 13px;
+		line-height: 1.4;
+	}
+}
+
+.hey-woo-workflows-toolbar {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+	gap: 12px;
+	padding: 16px 0;
+
+	&__search {
+		min-width: 0;
+	}
+}
+
+.hey-woo-workflows-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: var(--hey-woo-workflows-gap);
+	padding-top: 4px;
+}
+
+.hey-woo-workflow-card {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	background: var(--hey-woo-workflows-surface);
+	border: 1px solid var(--hey-woo-workflows-stroke);
+	border-radius: var(--hey-woo-workflows-radius);
+	transition: box-shadow 0.15s ease, transform 0.15s ease;
+
+	&:hover {
+		box-shadow: 0 4px 12px rgba(30, 30, 30, 0.08);
+	}
+
+	&__header {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 16px 16px 8px;
+		border-bottom: 0;
+	}
+
+	&__media {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		border-radius: 6px;
+		background: var(--hey-woo-workflows-surface-weak);
+		color: var(--hey-woo-workflows-content);
+		flex-shrink: 0;
+	}
+
+	&__heading {
+		min-width: 0;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	&__title {
+		margin: 0;
+		color: var(--hey-woo-workflows-content);
+		font-size: 15px;
+		font-weight: 600;
+		line-height: 1.3;
+	}
+
+	&__badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	&__badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 2px 8px;
+		border-radius: 999px;
+		background: var(--hey-woo-workflows-surface-weak);
+		color: var(--hey-woo-workflows-content);
+		font-size: 12px;
+		font-weight: 500;
+		line-height: 1.4;
+
+		&--muted {
+			color: var(--hey-woo-workflows-muted);
+		}
+
+		&--running {
+			background: var(--hey-woo-workflows-success-weak);
+			color: var(--hey-woo-workflows-success);
+		}
+	}
+
+	&__pulse {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: currentColor;
+		animation: hey-woo-workflow-pulse 1.6s ease-in-out infinite;
+	}
+
+	&__body {
+		flex: 1;
+		padding: 0 16px 12px;
+	}
+
+	&__description {
+		margin: 0;
+		color: var(--hey-woo-workflows-muted);
+		font-size: 13px;
+		line-height: 1.5;
+	}
+
+	&__footer {
+		display: flex;
+		justify-content: flex-end;
+		padding: 12px 16px 16px;
+		border-top: 0;
+	}
+}
+
+@keyframes hey-woo-workflow-pulse {
+	0%, 100% {
+		opacity: 0.4;
+		transform: scale(0.85);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.hey-woo-workflows-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	padding: 64px 0;
+	color: var(--hey-woo-workflows-muted);
+	font-size: 13px;
+	line-height: 1.5;
+
+	p {
+		margin: 0;
+	}
+}
+
+@media (max-width: 720px) {
+	.hey-woo-workflows-toolbar {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.hey-woo-workflows-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

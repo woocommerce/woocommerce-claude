@@ -11,6 +11,7 @@ use WooCommerce\HeyWoo\Difm\AnthropicClient;
 use WooCommerce\HeyWoo\Difm\DifmProviderEnvironment;
 use WooCommerce\HeyWoo\Difm\DifmProviderResolver;
 use WooCommerce\HeyWoo\Difm\WordPressAiClientAdapter;
+use WooCommerce\HeyWoo\ThisWeek\Notifications\ThisWeekSettings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -58,19 +59,9 @@ class SettingsPage extends \WC_Settings_Page {
 	const ANTHROPIC_CONNECTOR_REMOVE_LOCAL_FIELD = 'hey_woo_remove_local_anthropic_key';
 
 	/**
-	 * Legacy option name used by WooCommerce for Claude's BYOK screen.
-	 */
-	const LEGACY_DIFM_API_KEY_OPTION = 'woocommerce_claude_anthropic_api_key';
-
-	/**
 	 * Server constant name for the Anthropic key.
 	 */
 	const DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
-
-	/**
-	 * Legacy server constant name used by WooCommerce for Claude.
-	 */
-	const LEGACY_DIFM_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY';
 
 	/**
 	 * Option name that stores the merchant's anonymised usage tracking choice.
@@ -158,6 +149,69 @@ class SettingsPage extends \WC_Settings_Page {
 			'id'   => 'hey_woo_difm_section',
 		);
 
+		if ( function_exists( 'hey_woo_today_enabled' ) && hey_woo_today_enabled() ) {
+			$settings[] = array(
+				'type'  => 'title',
+				'title' => __( 'This Week monitoring', 'hey-woo' ),
+				'id'    => 'hey_woo_this_week_section',
+				'desc'  => __( 'Hey Woo refreshes the This Week feed once a day in your store timezone and can send a weekly summary of unresolved signals to the WooCommerce admin email.', 'hey-woo' ),
+			);
+
+			$settings[] = array(
+				'type'     => 'checkbox',
+				'id'       => ThisWeekSettings::OPTION_ENABLED,
+				'title'    => __( 'Enable monitoring', 'hey-woo' ),
+				'desc'     => __( 'Refresh the This Week signal feed automatically once a day.', 'hey-woo' ),
+				'default'  => 'yes',
+				'autoload' => true,
+			);
+
+			$settings[] = array(
+				'type'     => 'checkbox',
+				'id'       => ThisWeekSettings::OPTION_DIGEST_ENABLED,
+				'title'    => __( 'Send weekly email digest', 'hey-woo' ),
+				'desc'     => __( 'Email a short summary of unresolved signals to the WooCommerce admin email. Skipped silently when nothing material is detected.', 'hey-woo' ),
+				'default'  => 'yes',
+				'autoload' => true,
+			);
+
+			$settings[] = array(
+				'type'     => 'select',
+				'id'       => ThisWeekSettings::OPTION_DIGEST_DAY,
+				'title'    => __( 'Digest day', 'hey-woo' ),
+				'default'  => ThisWeekSettings::DEFAULT_DIGEST_DAY,
+				'options'  => array(
+					'monday'    => __( 'Monday', 'hey-woo' ),
+					'tuesday'   => __( 'Tuesday', 'hey-woo' ),
+					'wednesday' => __( 'Wednesday', 'hey-woo' ),
+					'thursday'  => __( 'Thursday', 'hey-woo' ),
+					'friday'    => __( 'Friday', 'hey-woo' ),
+					'saturday'  => __( 'Saturday', 'hey-woo' ),
+					'sunday'    => __( 'Sunday', 'hey-woo' ),
+				),
+				'autoload' => true,
+			);
+
+			$settings[] = array(
+				'type'              => 'text',
+				'id'                => ThisWeekSettings::OPTION_DIGEST_TIME,
+				'title'             => __( 'Digest time', 'hey-woo' ),
+				'desc'              => __( 'Store-local 24-hour time, formatted as HH:MM.', 'hey-woo' ),
+				'default'           => ThisWeekSettings::DEFAULT_DIGEST_TIME,
+				'placeholder'       => '09:00',
+				'autoload'          => true,
+				'custom_attributes' => array(
+					'type'    => 'time',
+					'pattern' => '[0-2][0-9]:[0-5][0-9]',
+				),
+			);
+
+			$settings[] = array(
+				'type' => 'sectionend',
+				'id'   => 'hey_woo_this_week_section',
+			);
+		}
+
 		return $settings;
 	}
 
@@ -214,12 +268,12 @@ class SettingsPage extends \WC_Settings_Page {
 			if ( '' !== $anthropic_constant ) {
 				return sprintf(
 					/* translators: %s: PHP constant name. */
-					__( 'A direct Anthropic key is configured via the <code>%s</code> server constant. WordPress 7.0 uses native AI connectors for Ask AI, so server-managed keys should be configured through the native <code>ANTHROPIC_API_KEY</code> connector constant or in Settings > Connectors.', 'hey-woo' ),
+					__( 'A direct Anthropic key is configured via the <code>%s</code> server constant. WordPress 7.0 uses native AI connectors for Hey Woo, so server-managed keys should be configured through the native <code>ANTHROPIC_API_KEY</code> connector constant or in Settings > Connectors.', 'hey-woo' ),
 					esc_html( $anthropic_constant )
 				);
 			}
 
-			return __( 'Ask AI uses native WordPress AI providers configured in Settings > Connectors. Connect Anthropic, OpenAI, Google, or another provider there, then choose from the connected providers here.', 'hey-woo' );
+			return __( 'Hey Woo uses native WordPress AI providers configured in Settings > Connectors. Connect Anthropic, OpenAI, Google, or another provider there, then choose from the connected providers here.', 'hey-woo' );
 		}
 
 		if ( '' !== $anthropic_constant ) {
@@ -230,7 +284,7 @@ class SettingsPage extends \WC_Settings_Page {
 			);
 		}
 
-		return __( 'On this WordPress version, Ask AI uses the direct Anthropic client. Enter an Anthropic API key below, or define <code>HEY_WOO_ANTHROPIC_KEY</code> in <code>wp-config.php</code> for a server-managed key. WordPress 7.0 or later uses native WordPress AI connectors instead.', 'hey-woo' );
+		return __( 'On this WordPress version, Hey Woo uses the direct Anthropic client. Enter an Anthropic API key below, or define <code>HEY_WOO_ANTHROPIC_KEY</code> in <code>wp-config.php</code> for a server-managed key. WordPress 7.0 or later uses native WordPress AI connectors instead.', 'hey-woo' );
 	}
 
 	/**
@@ -285,8 +339,8 @@ class SettingsPage extends \WC_Settings_Page {
 				<?php endif; ?>
 				<?php if ( ( new DifmProviderResolver() )->has_configured_provider() ) : ?>
 					<p>
-						<a class="button" href="<?php echo esc_url( $this->get_ask_ai_url() ); ?>">
-							<?php esc_html_e( 'Open Ask AI', 'hey-woo' ); ?>
+						<a class="button" href="<?php echo esc_url( $this->get_hey_woo_url() ); ?>">
+							<?php esc_html_e( 'Open Hey Woo', 'hey-woo' ); ?>
 						</a>
 					</p>
 				<?php endif; ?>
@@ -312,7 +366,7 @@ class SettingsPage extends \WC_Settings_Page {
 			<div class="hey-woo-connector-migration">
 				<?php if ( 'none' === $connector_source ) : ?>
 					<p><strong><?php esc_html_e( 'Move saved Anthropic key to WordPress connectors', 'hey-woo' ); ?></strong></p>
-					<p><?php esc_html_e( 'A legacy Anthropic key is still saved locally. Move it to the native Anthropic connector so Ask AI can use the WordPress 7.0 provider flow, then remove the local copy.', 'hey-woo' ); ?></p>
+					<p><?php esc_html_e( 'A legacy Anthropic key is still saved locally. Move it to the native Anthropic connector so Hey Woo can use the WordPress 7.0 provider flow, then remove the local copy.', 'hey-woo' ); ?></p>
 					<p>
 						<button
 							type="submit"
@@ -325,7 +379,7 @@ class SettingsPage extends \WC_Settings_Page {
 					</p>
 				<?php else : ?>
 					<p><strong><?php esc_html_e( 'Remove legacy local Anthropic key', 'hey-woo' ); ?></strong></p>
-					<p><?php esc_html_e( 'The native Anthropic connector is already configured. Remove the old database copy so the connector is the only stored key used by Ask AI.', 'hey-woo' ); ?></p>
+					<p><?php esc_html_e( 'The native Anthropic connector is already configured. Remove the old database copy so the connector is the only stored key used by Hey Woo.', 'hey-woo' ); ?></p>
 					<p>
 						<button
 							type="submit"
@@ -509,10 +563,10 @@ class SettingsPage extends \WC_Settings_Page {
 						/>
 						<?php esc_html_e( 'Remove saved key', 'hey-woo' ); ?>
 					</label>
-					<?php if ( '' !== $this->get_ask_ai_url() ) : ?>
+					<?php if ( '' !== $this->get_hey_woo_url() ) : ?>
 						<p>
-							<a class="button" href="<?php echo esc_url( $this->get_ask_ai_url() ); ?>">
-								<?php esc_html_e( 'Open Ask AI', 'hey-woo' ); ?>
+							<a class="button" href="<?php echo esc_url( $this->get_hey_woo_url() ); ?>">
+								<?php esc_html_e( 'Open Hey Woo', 'hey-woo' ); ?>
 							</a>
 						</p>
 					<?php endif; ?>
@@ -693,7 +747,7 @@ class SettingsPage extends \WC_Settings_Page {
 
 		$this->delete_api_key_option( DifmProviderResolver::PROVIDER_ANTHROPIC );
 		update_option( self::DIFM_PROVIDER_OPTION, DifmProviderResolver::PROVIDER_ANTHROPIC, 'no' );
-		\WC_Admin_Settings::add_message( __( 'Hey Woo: legacy local Anthropic key removed. Ask AI will use the native Anthropic connector.', 'hey-woo' ) );
+		\WC_Admin_Settings::add_message( __( 'Hey Woo: legacy local Anthropic key removed. Hey Woo will use the native Anthropic connector.', 'hey-woo' ) );
 	}
 
 	/**
@@ -808,10 +862,6 @@ class SettingsPage extends \WC_Settings_Page {
 			$constant_name = self::DIFM_API_KEY_CONSTANT;
 		}
 
-		if ( '' === $constant_name && defined( self::LEGACY_DIFM_API_KEY_CONSTANT ) ) {
-			$constant_name = self::LEGACY_DIFM_API_KEY_CONSTANT;
-		}
-
 		/**
 		 * Filter the detected direct Anthropic key constant for tests.
 		 *
@@ -853,7 +903,7 @@ class SettingsPage extends \WC_Settings_Page {
 			return $current_key;
 		}
 
-		return (string) get_option( self::LEGACY_DIFM_API_KEY_OPTION, '' );
+		return '';
 	}
 
 	/**
@@ -893,7 +943,7 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Delete a direct API key option and any legacy alias.
+	 * Delete a direct API key option.
 	 *
 	 * @param string $provider Provider value.
 	 * @return void
@@ -902,15 +952,14 @@ class SettingsPage extends \WC_Settings_Page {
 		unset( $provider );
 
 		delete_option( self::ANTHROPIC_API_KEY_OPTION );
-		delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 	}
 
 	/**
-	 * Return the Ask AI admin URL when the app page is available.
+	 * Return the Hey Woo admin URL when the app page is available.
 	 *
 	 * @return string
 	 */
-	private function get_ask_ai_url() {
+	private function get_hey_woo_url() {
 		if ( ! ( new DifmProviderResolver() )->has_configured_provider() ) {
 			return '';
 		}

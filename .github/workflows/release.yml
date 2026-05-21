@@ -107,23 +107,29 @@ jobs:
 
       - name: Verify zips were produced
         run: |
-          if [ ! -f woocommerce-for-claude.zip ]; then
-            echo "ERROR: woocommerce-for-claude.zip not found" >&2
+          if [ ! -f woocommerce-claude.zip ]; then
+            echo "ERROR: woocommerce-claude.zip not found" >&2
             exit 1
           fi
           if [ ! -f woocommerce-claude-agent-plugin.zip ]; then
             echo "ERROR: woocommerce-claude-agent-plugin.zip not found" >&2
             exit 1
           fi
-          unzip -t woocommerce-for-claude.zip
+          unzip -t woocommerce-claude.zip
           unzip -t woocommerce-claude-agent-plugin.zip
+
+      - name: Verify release package contract
+        run: ./bin/check-release-contract
+
+      - name: Verify 0.4.2 upgrade compatibility
+        run: ./bin/check-upgrade-compat
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6
         with:
           name: woocommerce-claude-${{ env.VERSION }}
           path: |
-            woocommerce-for-claude.zip
+            woocommerce-claude.zip
             woocommerce-claude-agent-plugin.zip
           retention-days: 30
 
@@ -134,7 +140,7 @@ jobs:
           name: ${{ env.TAG_NAME }}
           target_commitish: ${{ github.sha }}
           files: |
-            woocommerce-for-claude.zip
+            woocommerce-claude.zip
             woocommerce-claude-agent-plugin.zip
           generate_release_notes: true
           draft: ${{ inputs.draft }}

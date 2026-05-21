@@ -44,6 +44,9 @@ jobs:
       - name: Run PHPCS for Hey Woo
         run: plugins/woocommerce-for-claude/vendor/bin/phpcs --standard=plugins/woocommerce-for-claude/phpcs.xml.dist --runtime-set text_domain hey-woo plugins/hey-woo/hey-woo.php plugins/hey-woo/includes
 
+      - name: Verify release package contract
+        run: ./bin/check-release-contract
+
   phpunit:
     name: PHPUnit (integration)
     runs-on: ubuntu-latest

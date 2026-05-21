@@ -660,15 +660,14 @@ class Test_Rest_Api_Key extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Legacy `.mcpb` bundles distributed before the wordpress/mcp
-	 * migration ship the credential as `X-MCP-API-Key` and target the
-	 * deprecated WC core MCP endpoint at /wp-json/woocommerce/mcp. The
-	 * auth callback for the new endpoint no longer accepts that header,
-	 * but the route-scope filter must still recognise it — otherwise a
-	 * pre-migration bundle whose credential matches our stored one
-	 * silently bypasses the scope guard against the WC core endpoint
-	 * (which still authenticates the same WC API key when its feature
-	 * flag is on). Pin the deny path so a regression here doesn't
+	 * Short-lived pre-release `.mcpb` bundles shipped the credential as
+	 * `X-MCP-API-Key` and could target the deprecated WC core MCP endpoint
+	 * at /wp-json/woocommerce/mcp. The generated setup path is Basic auth
+	 * again, but the route-scope filter must still recognise this header —
+	 * otherwise a leaked pre-release bundle whose credential matches our
+	 * stored one silently bypasses the scope guard against the WC core
+	 * endpoint (which still authenticates the same WC API key when its
+	 * feature flag is on). Pin the deny path so a regression here doesn't
 	 * re-open that bypass.
 	 */
 	public function test_legacy_x_mcp_api_key_header_is_scope_denied_on_non_mcp_routes() {

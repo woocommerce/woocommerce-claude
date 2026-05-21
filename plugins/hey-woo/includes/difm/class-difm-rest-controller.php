@@ -33,6 +33,34 @@ class DifmRestController {
 	const CHAT_ROUTE = '/difm/chat';
 
 	/**
+	 * Title-generation route.
+	 */
+	const TITLE_ROUTE = '/difm/title';
+
+	/**
+	 * Max output tokens for the title-generation call.
+	 *
+	 * Titles cap at 6 words, so a handful of tokens is enough. Keep the budget
+	 * small to keep cost negligible — one of these fires per fresh chat.
+	 */
+	const TITLE_MAX_TOKENS = 32;
+
+	/**
+	 * Per-user cooldown between title-generation calls, in seconds.
+	 *
+	 * The UI fires at most one call per fresh chat — long enough to be
+	 * effectively unlimited in normal use, but short enough to bound an
+	 * authorised user (or compromised session) hammering the endpoint to
+	 * burn AI tokens.
+	 */
+	const TITLE_COOLDOWN_SECONDS = 2;
+
+	/**
+	 * Transient prefix for the per-user title-generation throttle.
+	 */
+	const TITLE_THROTTLE_PREFIX = 'hey_woo_title_throttle_';
+
+	/**
 	 * Maximum number of history turns accepted per request (user + assistant pairs).
 	 */
 	const MAX_HISTORY_TURNS = 20;
@@ -79,12 +107,12 @@ class DifmRestController {
 		'analytics_breakdown'  => 'wc-analytics/breakdown',
 		'analytics_series'     => 'wc-analytics/series',
 		'analytics_rows'       => 'wc-analytics/rows',
-		'get_product_details'  => 'woocommerce-claude/get-product-details',
-		'search_products'      => 'woocommerce-claude/search-products',
-		'get_store_profile'    => 'woocommerce-claude/get-store-profile',
-		'get_readiness_score'  => 'woocommerce-claude/get-readiness-score',
-		'get_recommendations'  => 'woocommerce-claude/get-recommendations',
-		'suggest_improvements' => 'woocommerce-claude/suggest-improvements',
+		'get_product_details'  => 'hey-woo/get-product-details',
+		'search_products'      => 'hey-woo/search-products',
+		'get_store_profile'    => 'hey-woo/get-store-profile',
+		'get_readiness_score'  => 'hey-woo/get-readiness-score',
+		'get_recommendations'  => 'hey-woo/get-recommendations',
+		'suggest_improvements' => 'hey-woo/suggest-improvements',
 	);
 
 	/**
@@ -144,6 +172,32 @@ class DifmRestController {
 									),
 								),
 							),
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			self::TITLE_ROUTE,
+			array(
+				array(
+					'methods'             => \WP_REST_Server::CREATABLE,
+					'callback'            => array( $this, 'generate_conversation_title' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+					'args'                => array(
+						'user_message'      => array(
+							'type'              => 'string',
+							'required'          => true,
+							'sanitize_callback' => 'sanitize_text_field',
+							'minLength'         => 1,
+						),
+						'assistant_message' => array(
+							'type'              => 'string',
+							'required'          => true,
+							'sanitize_callback' => 'sanitize_text_field',
+							'minLength'         => 1,
 						),
 					),
 				),
@@ -246,6 +300,151 @@ class DifmRestController {
 	}
 
 	/**
+	 * POST /hey-woo/v1/difm/title — generate a short conversation title.
+	 *
+	 * Called fire-and-forget by the frontend after the first assistant
+	 * response. The library uses the resulting title in place of the
+	 * truncated-first-message placeholder so merchants can scan past chats.
+	 * Cheap one-shot call: minimal token budget, no tools, no history.
+	 *
+	 * @param \WP_REST_Request $request Incoming request.
+	 * @return \WP_REST_Response
+	 */
+	public function generate_conversation_title( \WP_REST_Request $request ) {
+		$user_id      = get_current_user_id();
+		$throttle_key = self::TITLE_THROTTLE_PREFIX . (int) $user_id;
+		if ( false !== get_transient( $throttle_key ) ) {
+			return new \WP_Error(
+				'hey_woo_title_throttled',
+				__( 'Title generation is rate limited. Try again in a moment.', 'hey-woo' ),
+				array( 'status' => 429 )
+			);
+		}
+		set_transient( $throttle_key, 1, self::TITLE_COOLDOWN_SECONDS );
+
+		$resolver = new DifmProviderResolver();
+		$client   = $resolver->resolve_client();
+
+		if ( is_wp_error( $client ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $client->get_error_message(),
+				)
+			);
+		}
+
+		$user_message      = (string) $request->get_param( 'user_message' );
+		$assistant_message = (string) $request->get_param( 'assistant_message' );
+
+		// Cap inputs so unusually long turns don't inflate token usage.
+		$user_message      = function_exists( 'mb_substr' )
+			? mb_substr( $user_message, 0, 600 )
+			: substr( $user_message, 0, 600 );
+		$assistant_message = function_exists( 'mb_substr' )
+			? mb_substr( $assistant_message, 0, 1200 )
+			: substr( $assistant_message, 0, 1200 );
+
+		$system_prompt = 'You generate short conversation titles for a WooCommerce merchant assistant called Hey Woo. '
+			. 'Return ONLY the title text — 3 to 6 words, plain text, no quotes, no leading or trailing punctuation, '
+			. 'no prefix like "Title:". Capitalise only the first word and proper nouns. The title should describe what '
+			. 'the merchant asked about (e.g. "Refund spike investigation", "Top product review", "Failed orders chase"). '
+			. 'Do not mention "Hey Woo", "the merchant", "the user", or any meta-language about the conversation itself.';
+
+		$user_prompt = "Merchant message:\n" . $user_message . "\n\nAssistant reply:\n" . $assistant_message;
+
+		$result = $client->messages(
+			array(
+				array(
+					'role'    => 'user',
+					'content' => $user_prompt,
+				),
+			),
+			$system_prompt,
+			array(),
+			self::TITLE_MAX_TOKENS,
+			array(
+				'surface' => 'difm_conversation_title',
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => $result->get_error_message(),
+				)
+			);
+		}
+
+		$content = isset( $result['content'] ) && is_array( $result['content'] ) ? $result['content'] : array();
+		$title   = $this->extract_title_from_content( $content );
+
+		if ( '' === $title ) {
+			return rest_ensure_response(
+				array(
+					'status'  => 'error',
+					'message' => __( 'The provider returned an empty title.', 'hey-woo' ),
+				)
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'status' => 'ok',
+				'title'  => $title,
+			)
+		);
+	}
+
+	/**
+	 * Pull the title string out of a provider response, trimming any wrapping
+	 * the model might add despite the system prompt.
+	 *
+	 * PHP `trim()` operates on bytes, not characters, so passing multibyte
+	 * curly quotes / LTR marks / zero-width joiners in the mask can shave
+	 * partial UTF-8 sequences off the ends of an otherwise valid title. We
+	 * use UTF-8-aware regex with the /u flag instead.
+	 *
+	 * @param array<int,array<string,mixed>> $content Provider content blocks.
+	 * @return string
+	 */
+	private function extract_title_from_content( array $content ) {
+		$text = '';
+		foreach ( $content as $block ) {
+			if ( is_array( $block ) && isset( $block['type'] ) && 'text' === $block['type'] && isset( $block['text'] ) ) {
+				$text .= (string) $block['text'];
+			}
+		}
+
+		$text = trim( $text );
+		if ( '' === $text ) {
+			return '';
+		}
+
+		// Strip wrapping quote-like characters (ASCII quotes, backticks, and
+		// the curly Unicode quotes the model sometimes adds). Uses a UTF-8
+		// regex so we don't byte-strip leading bytes off other multibyte
+		// characters at the edges.
+		$wrap_chars = '\s"\'`\x{201C}\x{201D}\x{2018}\x{2019}';
+		$text       = preg_replace( '/^[' . $wrap_chars . ']+|[' . $wrap_chars . ']+$/u', '', (string) $text );
+		// Drop a "Title:" / "Suggested title:" prefix if present.
+		$text = preg_replace( '/^(suggested\s+)?title\s*[:\-–—]\s*/iu', '', (string) $text );
+		// Collapse internal whitespace.
+		$text = preg_replace( '/\s+/u', ' ', (string) $text );
+		// Trim trailing punctuation + quote-like chars (UTF-8 aware).
+		$text = preg_replace( '/[' . $wrap_chars . '.!?]+$/u', '', (string) $text );
+
+		if ( function_exists( 'mb_substr' ) ) {
+			$text = mb_substr( (string) $text, 0, 80 );
+		} else {
+			$text = substr( (string) $text, 0, 80 );
+		}
+
+		return (string) $text;
+	}
+
+	/**
 	 * Run a chat completion with optional tool calls.
 	 *
 	 * @param DifmAiClientInterface $client               AI provider client.
@@ -300,7 +499,7 @@ class DifmRestController {
 					);
 					$messages[]            = array(
 						'role'    => 'user',
-						'content' => 'The previous answer said or implied that a chart was shown, but no render_chart tool call was made. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
+						'content' => 'Internal correction: the previous draft referred to a chart but did not include chart data. Do not acknowledge this correction, apologise, or say "you are right". Return the final merchant-facing answer directly. Use the data already in this conversation to answer with a short text summary, then call render_chart as your final action. If the data is not sufficient to render a truthful chart, say that plainly and do not claim a chart is shown.',
 					);
 					++$iterations;
 					continue;
@@ -823,10 +1022,6 @@ class DifmRestController {
 			$ability = $this->get_ability( $ability_id );
 
 			if ( ! $ability ) {
-				if ( $this->is_optional_external_ability( $ability_id ) ) {
-					continue;
-				}
-
 				return new \WP_Error(
 					'missing_ability',
 					sprintf(
@@ -870,20 +1065,6 @@ class DifmRestController {
 		$tools[] = $this->build_render_chart_tool_definition();
 
 		return $tools;
-	}
-
-	/**
-	 * Whether an ability belongs to another plugin and should be omitted when absent.
-	 *
-	 * Hey Woo can use WooCommerce for Claude's product/readiness abilities when
-	 * both plugins are active, but it must still work with the shared analytics
-	 * abilities only when WooCommerce for Claude is not installed.
-	 *
-	 * @param string $ability_id Ability ID.
-	 * @return bool
-	 */
-	private function is_optional_external_ability( $ability_id ) {
-		return 0 === strpos( (string) $ability_id, 'woocommerce-claude/' );
 	}
 
 	/**

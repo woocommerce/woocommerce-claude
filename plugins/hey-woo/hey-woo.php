@@ -3,7 +3,7 @@
  * Plugin Name: Hey Woo
  * Plugin URI: https://woocommerce.com/
  * Description: Bring-your-own-key WooCommerce assistant powered by shared commerce abilities.
- * Version: 0.4.2
+ * Version: 0.4.3
  * Author: Automattic
  * Author URI: https://automattic.com/
  * Text Domain: hey-woo
@@ -21,22 +21,25 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HEY_WOO_VERSION', '0.4.2' );
+define( 'HEY_WOO_VERSION', '0.4.3' );
 define( 'HEY_WOO_PLUGIN_FILE', __FILE__ );
 define( 'HEY_WOO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
 hey_woo_load_commerce_abilities();
 
 /**
- * Load the vendored commerce-abilities package classes.
+ * Load the shared commerce-abilities package classes.
  *
  * The shared package currently has no third-party runtime dependencies. Loading
  * the package files directly avoids collisions between multiple plugin copies
  * that vendor the same Composer autoloader class name from the same lock file.
  */
 function hey_woo_load_commerce_abilities() {
-	$hey_woo_package_dir = HEY_WOO_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/';
-	$hey_woo_classes     = array(
+	$hey_woo_package_dirs = array(
+		dirname( dirname( HEY_WOO_PLUGIN_DIR ) ) . '/php-packages/commerce-abilities/src/',
+		HEY_WOO_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/',
+	);
+	$hey_woo_classes      = array(
 		\WooCommerce\CommerceAbilities\Loader::class => 'loader.php',
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsBootstrap::class => 'Abilities/class-analytics-bootstrap.php',
 		\WooCommerce\CommerceAbilities\Abilities\LargeRangeGate::class => 'Abilities/class-large-range-gate.php',
@@ -46,14 +49,65 @@ function hey_woo_load_commerce_abilities() {
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsSeriesAbility::class => 'Abilities/class-analytics-series-ability.php',
 		\WooCommerce\CommerceAbilities\Abilities\AnalyticsRowsAbility::class => 'Abilities/class-analytics-rows-ability.php',
 		\WooCommerce\CommerceAbilities\Analytics\AnalyticsService::class => 'Analytics/class-analytics-service.php',
+		\WooCommerce\CommerceAbilities\Knowledge\KnowledgeProvider::class => 'Knowledge/interface-knowledge-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\KnowledgeRegistry::class => 'Knowledge/class-knowledge-registry.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\StoreProfileProvider::class => 'Knowledge/providers/class-store-profile-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\CatalogProvider::class => 'Knowledge/providers/class-catalog-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\ProductProvider::class => 'Knowledge/providers/class-product-provider.php',
+		\WooCommerce\CommerceAbilities\Knowledge\Providers\PolicyProvider::class => 'Knowledge/providers/class-policy-provider.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\ProductCompleteness::class => 'Scoring/factors/class-product-completeness.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\SchemaCoverage::class => 'Scoring/factors/class-schema-coverage.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\PolicyCompleteness::class => 'Scoring/factors/class-policy-completeness.php',
+		\WooCommerce\CommerceAbilities\Scoring\Factors\ContentQuality::class => 'Scoring/factors/class-content-quality.php',
+		\WooCommerce\CommerceAbilities\Scoring\ScoringEngine::class => 'Scoring/class-scoring-engine.php',
+		\WooCommerce\CommerceAbilities\Store\StoreKnowledge::class => 'Store/class-store-knowledge.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetStoreProfileAbilityTrait::class => 'Abilities/Store/trait-get-store-profile-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\SearchProductsAbilityTrait::class => 'Abilities/Store/trait-search-products-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetProductDetailsAbilityTrait::class => 'Abilities/Store/trait-get-product-details-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetReadinessScoreAbilityTrait::class => 'Abilities/Store/trait-get-readiness-score-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\GetRecommendationsAbilityTrait::class => 'Abilities/Store/trait-get-recommendations-ability.php',
+		\WooCommerce\CommerceAbilities\Abilities\Store\SuggestImprovementsAbilityTrait::class => 'Abilities/Store/trait-suggest-improvements-ability.php',
 	);
 
 	foreach ( $hey_woo_classes as $class_name => $relative_path ) {
-		$file = $hey_woo_package_dir . $relative_path;
-		if ( ! class_exists( $class_name, false ) && file_exists( $file ) ) {
+		$file = hey_woo_find_commerce_abilities_file( $hey_woo_package_dirs, $relative_path );
+		if ( ! hey_woo_commerce_abilities_symbol_exists( $class_name ) && file_exists( $file ) ) {
 			require_once $file;
 		}
 	}
+}
+
+/**
+ * Return the first available commerce-abilities package file.
+ *
+ * Local monorepo checkouts may not have run Composer for Hey Woo yet, while
+ * release zips rely on the vendored path package copy.
+ *
+ * @param array  $package_dirs Package source directories to search.
+ * @param string $relative_path Relative file path within the package source.
+ * @return string Absolute path, or the release-vendor path when none exists.
+ */
+function hey_woo_find_commerce_abilities_file( $package_dirs, $relative_path ) {
+	foreach ( $package_dirs as $package_dir ) {
+		$file = $package_dir . $relative_path;
+		if ( file_exists( $file ) ) {
+			return $file;
+		}
+	}
+
+	return HEY_WOO_PLUGIN_DIR . 'vendor/woocommerce/commerce-abilities/src/' . $relative_path;
+}
+
+/**
+ * Whether a shared commerce-abilities symbol is already loaded.
+ *
+ * @param string $symbol_name Fully-qualified class, interface, or trait name.
+ * @return bool
+ */
+function hey_woo_commerce_abilities_symbol_exists( $symbol_name ) {
+	return class_exists( $symbol_name, false )
+		|| interface_exists( $symbol_name, false )
+		|| trait_exists( $symbol_name, false );
 }
 
 /**
@@ -107,8 +161,31 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
 
+	// Store knowledge and readiness scoring.
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/class-knowledge-registry.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-store-profile-provider.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-catalog-provider.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-product-provider.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/knowledge/providers/class-policy-provider.php';
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/class-scoring-engine.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-product-completeness.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-schema-coverage.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-policy-completeness.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/scoring/factors/class-content-quality.php';
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-abilities-bootstrap.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-store-profile-ability.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-search-products-ability.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-product-details-ability.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-readiness-score-ability.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-get-recommendations-ability.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/abilities/class-suggest-improvements-ability.php';
+
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-environment.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-ai-api-proxy-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
@@ -116,6 +193,51 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-store.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/interface-signal-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-ability-runner.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-revenue-drop-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-revenue-win-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-refund-spike-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-failed-order-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-inventory-risk-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-new-customer-win-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-this-week-settings.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-signal-lock.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-digest-mailer.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/notifications/class-scheduler.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-runner.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-kpi-snapshot.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-this-week-rest-controller.php';
+}
+
+/**
+ * Run first-activation bootstrap for Hey Woo.
+ *
+ * Stores the first installation timestamp and opts new installs into
+ * anonymised usage telemetry by default. Existing installs keep their
+ * stored preference because the telemetry default helper only writes
+ * when the option is absent.
+ */
+function hey_woo_activate() {
+	add_option( 'hey_woo_first_installed_at', time(), '', false );
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
+	\WooCommerce\HeyWoo\Settings\SettingsPage::maybe_set_default_telemetry_option();
+}
+
+/**
+ * Clear Hey Woo cron events on deactivation.
+ */
+function hey_woo_deactivate() {
+	if ( class_exists( \WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler::class ) ) {
+		\WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler::clear_all_events();
+	} else {
+		// Direct fallback when the runtime classes are not loaded yet.
+		wp_clear_scheduled_hook( 'hey_woo_this_week_daily_refresh' );
+		wp_clear_scheduled_hook( 'hey_woo_this_week_weekly_digest' );
+	}
 }
 
 /**
@@ -132,15 +254,75 @@ function hey_woo_migrate_difm_provider_option() {
 
 	$provider_is_absent = false === get_option( 'hey_woo_difm_provider', false );
 	$has_anthropic_key  = '' !== (string) get_option( 'hey_woo_anthropic_api_key', '' )
-		|| '' !== (string) get_option( 'woocommerce_claude_anthropic_api_key', '' )
-		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY )
-		|| ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) && '' !== (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY );
+		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY );
 
 	if ( $provider_is_absent && $has_anthropic_key ) {
 		update_option( 'hey_woo_difm_provider', 'anthropic' );
 	}
 
 	update_option( 'hey_woo_difm_provider_migrated', '1' );
+}
+
+/**
+ * Whether the Today proactive home surface should register itself.
+ *
+ * The Today surface includes the signal detectors, runner, REST routes,
+ * cron events, weekly digest, settings section, and sidebar item. While
+ * we validate whether the underlying workflows are useful to merchants,
+ * this proactive layer stays parked behind a flag — the code ships, gets
+ * exercised by CI, and can be flipped on per-environment without a
+ * re-implementation. Flipped off by default.
+ *
+ * Override via the HEY_WOO_TODAY_ENABLED constant in wp-config.php:
+ *
+ *   define( 'HEY_WOO_TODAY_ENABLED', true );
+ *
+ * or via the hey_woo_today_enabled filter (e.g. from a mu-plugin):
+ *
+ *   add_filter( 'hey_woo_today_enabled', '__return_true' );
+ *
+ * @return bool
+ */
+function hey_woo_today_enabled() {
+	$enabled = defined( 'HEY_WOO_TODAY_ENABLED' ) ? (bool) HEY_WOO_TODAY_ENABLED : false;
+
+	/**
+	 * Filter whether the Today proactive home surface is registered.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param bool $enabled Resolved flag value.
+	 */
+	return (bool) apply_filters( 'hey_woo_today_enabled', $enabled );
+}
+
+/**
+ * Whether the Actions board surface should register itself.
+ *
+ * Actions is the persistent to-do board for recommendations the merchant
+ * can add from generated reports. While we validate whether the chat +
+ * workflow surface itself is useful, the Actions board stays parked
+ * behind a flag (same pattern as Today). Default off.
+ *
+ * Override via the HEY_WOO_ACTIONS_ENABLED constant in wp-config.php:
+ *
+ *   define( 'HEY_WOO_ACTIONS_ENABLED', true );
+ *
+ * or via the hey_woo_actions_enabled filter from a mu-plugin.
+ *
+ * @return bool
+ */
+function hey_woo_actions_enabled() {
+	$enabled = defined( 'HEY_WOO_ACTIONS_ENABLED' ) ? (bool) HEY_WOO_ACTIONS_ENABLED : false;
+
+	/**
+	 * Filter whether the Actions board surface is registered.
+	 *
+	 * @since 0.5.0
+	 *
+	 * @param bool $enabled Resolved flag value.
+	 */
+	return (bool) apply_filters( 'hey_woo_actions_enabled', $enabled );
 }
 
 /**
@@ -167,12 +349,46 @@ function hey_woo_init_runtime() {
 	add_filter( 'hey_woo_telemetry_handlers', array( \WooCommerce\HeyWoo\Telemetry\TelemetryHandler::class, 'maybe_add_tracks_handler' ) );
 
 	\WooCommerce\HeyWoo\Telemetry\TelemetryHandler::init();
+	hey_woo_register_providers();
+
+	hey_woo_add_action_once(
+		'wp_abilities_api_categories_init',
+		array( \WooCommerce\HeyWoo\Abilities\AbilitiesBootstrap::class, 'register_category' )
+	);
+	hey_woo_add_action_once(
+		'wp_abilities_api_init',
+		array( \WooCommerce\HeyWoo\Abilities\AbilitiesBootstrap::class, 'register_abilities' )
+	);
 
 	add_filter( 'woocommerce_get_settings_pages', 'hey_woo_register_settings_page' );
 
 	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
+
+	if ( hey_woo_today_enabled() ) {
+		( new \WooCommerce\HeyWoo\ThisWeek\ThisWeekRestController() )->register();
+
+		$this_week_scheduler = new \WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler();
+		$this_week_scheduler->register();
+		$this_week_scheduler->ensure_events_scheduled();
+	}
+}
+
+/**
+ * Register Hey Woo knowledge providers.
+ */
+function hey_woo_register_providers() {
+	$registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( 'hey-woo' );
+
+	/**
+	 * Allow other plugins to register their own Hey Woo knowledge providers.
+	 *
+	 * @since 0.4.2
+	 *
+	 * @param \WooCommerce\HeyWoo\Knowledge\KnowledgeRegistry $registry The knowledge registry instance.
+	 */
+	do_action( 'hey_woo_register_providers', $registry );
 }
 
 /**
@@ -229,15 +445,10 @@ add_action(
 	}
 );
 
-/**
- * On activation, opt new installs into anonymised usage telemetry by default.
- *
- * Existing installs keep their stored preference across reactivation.
- */
-register_activation_hook(
-	__FILE__,
-	function () {
-		require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
-		\WooCommerce\HeyWoo\Settings\SettingsPage::maybe_set_default_telemetry_option();
-	}
-);
+if ( function_exists( 'register_activation_hook' ) ) {
+	register_activation_hook( __FILE__, 'hey_woo_activate' );
+}
+
+if ( function_exists( 'register_deactivation_hook' ) ) {
+	register_deactivation_hook( __FILE__, 'hey_woo_deactivate' );
+}

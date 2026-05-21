@@ -56,7 +56,6 @@ class Plugin {
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-skill-telemetry.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/telemetry/class-anthropic-telemetry.php';
 
 		// Knowledge system.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/knowledge/interface-knowledge-provider.php';
@@ -128,16 +127,6 @@ class Plugin {
 		// the download handler since it's only used on that one path.
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-rest-api-key.php';
 		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/setup/class-setup-page.php';
-
-		// DIFM — AI Insights (Bring Your Own Key). The admin page, REST
-		// controller, and Anthropic client are loaded lazily by the hooks they
-		// register, so we only require the class files here and let the hooks
-		// instantiate as needed.
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-workflow-skills.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
-		require_once WOOCOMMERCE_CLAUDE_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
 	}
 
 	/**
@@ -163,15 +152,6 @@ class Plugin {
 
 		// WooCommerce Settings tab.
 		add_filter( 'woocommerce_get_settings_pages', array( $this, 'register_settings_page' ) );
-
-		// AI Insights admin page + REST controllers. Hey Woo owns the BYOK
-		// admin-chat product when it is installed, so avoid registering the
-		// legacy WooCommerce for Claude surface beside it.
-		if ( ! $this->is_hey_woo_active() ) {
-			( new Difm\DifmAdminPage() )->register();
-			( new Difm\DifmRestController() )->register();
-			( new Difm\DifmConversationsController() )->register();
-		}
 
 		// Enable WooCommerce REST API key authentication for our custom namespace.
 		// WC's auth handler only processes requests to /wc/ routes by default.
@@ -244,29 +224,6 @@ class Plugin {
 			$handlers[] = new Telemetry\Handlers\TracksHandler();
 		}
 		return $handlers;
-	}
-
-	/**
-	 * Whether the Hey Woo plugin is active in this request.
-	 *
-	 * @return bool
-	 */
-	private function is_hey_woo_active() {
-		if ( defined( 'HEY_WOO_PLUGIN_FILE' ) ) {
-			return true;
-		}
-
-		$active_plugins = (array) get_option( 'active_plugins', array() );
-		if ( in_array( 'hey-woo/hey-woo.php', $active_plugins, true ) ) {
-			return true;
-		}
-
-		if ( is_multisite() ) {
-			$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
-			return isset( $network_plugins['hey-woo/hey-woo.php'] );
-		}
-
-		return false;
 	}
 
 	/**
@@ -684,7 +641,7 @@ INSTRUCTIONS;
 			return false;
 		}
 
-		list( $consumer_key, $consumer_secret ) = self::extract_basic_auth( $request );
+		list( $consumer_key, $consumer_secret ) = self::extract_mcp_credential( $request );
 		if ( '' === $consumer_key || '' === $consumer_secret ) {
 			return false;
 		}
@@ -726,7 +683,7 @@ INSTRUCTIONS;
 	}
 
 	/**
-	 * Pull a Basic Auth credential pair off the current request.
+	 * Pull a WooCommerce REST API credential pair off the current request.
 	 *
 	 * Tries `PHP_AUTH_USER`/`PHP_AUTH_PW` first (what mod_php and
 	 * php-fpm normally populate from `Authorization: Basic …`). Then
@@ -739,12 +696,15 @@ INSTRUCTIONS;
 	 * supports.
 	 *
 	 * Returns `['', '']` if no credential is present or the header is
-	 * malformed — caller treats that as auth failure.
+	 * malformed. As a compatibility fallback for short-lived generated
+	 * configs from the 0.4.3 pre-release window, it also accepts an
+	 * `X-MCP-API-Key: ck_xxx:cs_xxx` header. New setup bundles use
+	 * Basic auth.
 	 *
 	 * @param \WP_REST_Request $request The current REST request.
 	 * @return array{0:string,1:string} `[username, password]`.
 	 */
-	private static function extract_basic_auth( $request ) {
+	private static function extract_mcp_credential( $request ) {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only inspection of an in-flight REST request.
 		// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- credentials are byte-compared, not interpolated; sanitisation would corrupt them.
 		if ( ! empty( $_SERVER['PHP_AUTH_USER'] ) && isset( $_SERVER['PHP_AUTH_PW'] ) ) {
@@ -758,13 +718,13 @@ INSTRUCTIONS;
 
 		$header = $request->get_header( 'authorization' );
 		if ( ! is_string( $header ) || 0 !== stripos( $header, 'Basic ' ) ) {
-			return array( '', '' );
+			return self::extract_mcp_api_key_header( $request );
 		}
 
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- decoding HTTP Basic auth header per RFC 7617; strict mode rejects invalid input.
 		$decoded = base64_decode( substr( $header, 6 ), true );
 		if ( false === $decoded || false === strpos( $decoded, ':' ) ) {
-			return array( '', '' );
+			return self::extract_mcp_api_key_header( $request );
 		}
 
 		list( $username, $password ) = explode( ':', $decoded, 2 );
@@ -772,15 +732,26 @@ INSTRUCTIONS;
 	}
 
 	/**
+	 * Pull the short-lived pre-release custom-header credential, when present.
+	 *
+	 * @param \WP_REST_Request $request The current REST request.
+	 * @return array{0:string,1:string} `[username, password]`, or empty strings.
+	 */
+	private static function extract_mcp_api_key_header( $request ) {
+		$api_key = $request->get_header( 'x-mcp-api-key' );
+		if ( is_string( $api_key ) && false !== strpos( $api_key, ':' ) ) {
+			list( $username, $password ) = explode( ':', $api_key, 2 );
+			return array( trim( $username ), trim( $password ) );
+		}
+
+		return array( '', '' );
+	}
+
+	/**
 	 * Register all knowledge providers.
 	 */
 	private function register_providers() {
-		$registry = Knowledge\KnowledgeRegistry::instance();
-
-		$registry->register( new Knowledge\Providers\StoreProfileProvider() );
-		$registry->register( new Knowledge\Providers\CatalogProvider() );
-		$registry->register( new Knowledge\Providers\ProductProvider() );
-		$registry->register( new Knowledge\Providers\PolicyProvider() );
+		$registry = \WooCommerce\CommerceAbilities\Store\StoreKnowledge::register_default_providers( 'woocommerce-claude' );
 
 		/**
 		 * Allow other plugins to register their own knowledge providers.

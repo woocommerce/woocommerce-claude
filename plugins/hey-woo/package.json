@@ -1,6 +1,6 @@
 {
   "name": "hey-woo",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Bring-your-own-key WooCommerce assistant plugin.",
   "private": true,
   "packageManager": "pnpm@10.33.0",
@@ -15,9 +15,9 @@
     "vendor"
   ],
   "scripts": {
-    "build": "NODE_PATH=../woocommerce-for-claude/node_modules ../woocommerce-for-claude/node_modules/.bin/wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
-    "build:production": "NODE_ENV=production NODE_PATH=../woocommerce-for-claude/node_modules ../woocommerce-for-claude/node_modules/.bin/wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
-    "plugin-zip": "pnpm run build:production && ../woocommerce-for-claude/node_modules/.bin/wp-scripts plugin-zip",
+    "build": "wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "build:production": "NODE_ENV=production wp-build && mkdir -p build/modules/boot && cp shims/boot-asset.php build/modules/boot/index.min.asset.php",
+    "plugin-zip": "pnpm run build:production && wp-scripts plugin-zip",
     "postinstall": "XDEBUG_MODE=off composer install --quiet"
   },
   "wpPlugin": {
@@ -42,6 +42,7 @@
     "@wordpress/boot": "0.11.0",
     "@wordpress/components": "33.0.0",
     "@wordpress/data": "10.44.0",
+    "@wordpress/dataviews": "14.2.0",
     "@wordpress/element": "^6.35.0",
     "@wordpress/i18n": "^6.9.0",
     "@wordpress/icons": "^12.0.0",

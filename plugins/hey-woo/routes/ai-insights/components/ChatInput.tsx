@@ -11,6 +11,9 @@ import type { WorkflowAction } from '../workflows';
 interface ChatInputProps {
 	onSend: ( message: string ) => void;
 	disabled: boolean;
+	placeholder?: string;
+	rows?: number;
+	variant?: 'docked' | 'hero';
 }
 
 function commandMatchRank( workflow: WorkflowAction, query: string ): number | null {
@@ -45,7 +48,13 @@ function commandMatchRank( workflow: WorkflowAction, query: string ): number | n
 	return null;
 }
 
-export function ChatInput( { onSend, disabled }: ChatInputProps ) {
+export function ChatInput( {
+	onSend,
+	disabled,
+	placeholder = __( 'Ask about your store, or type / to see workflows…', 'hey-woo' ),
+	rows = 2,
+	variant = 'docked',
+}: ChatInputProps ) {
 	const [ value, setValue ] = useState( '' );
 	const [ activeCommandIndex, setActiveCommandIndex ] = useState( 0 );
 	const [ dismissedCommandValue, setDismissedCommandValue ] = useState( '' );
@@ -143,7 +152,7 @@ export function ChatInput( { onSend, disabled }: ChatInputProps ) {
 	};
 
 	return (
-		<form className="hey-woo-input" onSubmit={ handleFormSubmit }>
+		<form className={ `hey-woo-input hey-woo-input--${ variant }` } onSubmit={ handleFormSubmit }>
 			<div className="hey-woo-input__main">
 				<TextareaControl
 					ref={ textareaRef }
@@ -153,8 +162,8 @@ export function ChatInput( { onSend, disabled }: ChatInputProps ) {
 					value={ value }
 					onChange={ handleChange }
 					onKeyDown={ handleKeyDown }
-					placeholder={ __( 'Ask about your store, or type / to see workflows…', 'hey-woo' ) }
-					rows={ 2 }
+					placeholder={ placeholder }
+					rows={ rows }
 					disabled={ disabled }
 					aria-expanded={ isCommandMenuOpen }
 					aria-controls={ isCommandMenuOpen ? 'hey-woo-command-menu' : undefined }
@@ -192,12 +201,12 @@ export function ChatInput( { onSend, disabled }: ChatInputProps ) {
 				icon={ send }
 				iconPosition="right"
 				__next40pxDefaultSize
-				disabled={ disabled || ! value.trim() }
+				disabled={ disabled || ( variant === 'docked' && ! value.trim() ) }
 				isBusy={ disabled }
 				accessibleWhenDisabled
 				aria-label={ __( 'Send message', 'hey-woo' ) }
 			>
-				{ __( 'Send', 'hey-woo' ) }
+				{ variant === 'docked' ? __( 'Send', 'hey-woo' ) : null }
 			</Button>
 		</form>
 	);

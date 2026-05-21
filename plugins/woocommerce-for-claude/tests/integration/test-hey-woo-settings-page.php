@@ -40,7 +40,6 @@ class Test_Hey_Woo_Settings_Page extends WP_UnitTestCase {
 
 		delete_option( HeyWooSettingsPage::DIFM_API_KEY_OPTION );
 		delete_option( HeyWooSettingsPage::DIFM_PROVIDER_OPTION );
-		delete_option( HeyWooSettingsPage::LEGACY_DIFM_API_KEY_OPTION );
 		delete_option( HeyWooSettingsPage::TELEMETRY_OPTION );
 		$_POST           = array();
 		$current_section = '';
