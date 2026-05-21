@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import moduleData from '../ai-insights/data';
 import { SignalCard } from './components/SignalCard';
-import { fetchSignals, runSignals, type Signal } from './signal-data';
+import { fetchSignals, RunnerBusyError, runSignals, type Signal } from './signal-data';
 
 type LoadState = 'loading' | 'idle' | 'running';
 
@@ -16,16 +16,20 @@ export function stage() {
 	const [ signals, setSignals ] = useState< Signal[] >( [] );
 	const [ loadState, setLoadState ] = useState< LoadState >( 'loading' );
 	const [ lastRunLabel, setLastRunLabel ] = useState< string >( '' );
+	const [ nextRefreshLabel, setNextRefreshLabel ] = useState< string >( '' );
+	const [ monitoringEnabled, setMonitoringEnabled ] = useState< boolean >( true );
 	const [ runError, setRunError ] = useState< string >( '' );
 	const [ loadFailed, setLoadFailed ] = useState< boolean >( false );
 
 	const loadSignals = useCallback( async () => {
 		try {
 			const next = await fetchSignals();
-			setSignals( next );
+			setSignals( next.signals );
+			setMonitoringEnabled( next.monitoringEnabled );
+			setNextRefreshLabel( next.nextRefreshAt ? formatScheduledTime( next.nextRefreshAt ) : '' );
 			setLoadFailed( false );
-			if ( next.length > 0 ) {
-				const newest = Math.max( ...next.map( ( signal ) => signal.last_detected_at ) );
+			if ( next.signals.length > 0 ) {
+				const newest = Math.max( ...next.signals.map( ( signal ) => signal.last_detected_at ) );
 				setLastRunLabel( formatLastRun( newest ) );
 			}
 		} catch ( error ) {
@@ -48,8 +52,22 @@ export function stage() {
 			setSignals( result.signals );
 			setLoadFailed( false );
 			setLastRunLabel( formatLastRun( Math.floor( Date.now() / 1000 ) ) );
+			// Refresh the schedule readout — the next-scheduled time may shift after a manual run completes.
+			await loadSignals();
 		} catch ( error ) {
-			setRunError( error instanceof Error ? error.message : __( 'Something went wrong.', 'hey-woo' ) );
+			const isBusy = error instanceof RunnerBusyError;
+			setRunError(
+				isBusy
+					? __( 'Hey Woo is already refreshing in the background. We’ll show the new signals as soon as it finishes.', 'hey-woo' )
+					: error instanceof Error
+						? error.message
+						: __( 'Something went wrong.', 'hey-woo' )
+			);
+			if ( isBusy ) {
+				// Poll the GET endpoint until the in-flight runner pass completes
+				// so the merchant sees the new signals without another manual click.
+				window.setTimeout( () => void loadSignals(), 5000 );
+			}
 		} finally {
 			setLoadState( 'idle' );
 		}
@@ -70,11 +88,17 @@ export function stage() {
 						{ __( 'This week', 'hey-woo' ) }
 					</h1>
 					<p className="hey-woo-this-week-header__subtitle">
-						{ sprintf(
-							/* translators: %s: store name */
-							__( 'Material changes Hey Woo has spotted in %s — refreshed on demand.', 'hey-woo' ),
-							storeName
-						) }
+						{ monitoringEnabled
+							? sprintf(
+									/* translators: %s: store name */
+									__( 'Material changes Hey Woo has spotted in %s, refreshed daily in your store timezone.', 'hey-woo' ),
+									storeName
+							  )
+							: sprintf(
+									/* translators: %s: store name */
+									__( 'This Week monitoring is turned off. Hey Woo will only refresh signals for %s when you press Refresh now.', 'hey-woo' ),
+									storeName
+							  ) }
 					</p>
 				</div>
 				<div className="hey-woo-this-week-header__actions">
@@ -84,6 +108,15 @@ export function stage() {
 								/* translators: %s: human-friendly last-run timestamp */
 								__( 'Last refreshed %s', 'hey-woo' ),
 								lastRunLabel
+							) }
+						</span>
+					) }
+					{ monitoringEnabled && nextRefreshLabel && (
+						<span className="hey-woo-this-week-header__next-run">
+							{ sprintf(
+								/* translators: %s: human-friendly next-scheduled-refresh timestamp */
+								__( 'Next refresh %s', 'hey-woo' ),
+								nextRefreshLabel
 							) }
 						</span>
 					) }
@@ -114,7 +147,12 @@ export function stage() {
 			) : loadFailed ? (
 				<LoadFailedState isRunning={ isRunning } onRun={ handleRunNow } />
 			) : signals.length === 0 ? (
-				<EmptyState isRunning={ isRunning } onRun={ handleRunNow } />
+				<EmptyState
+					isRunning={ isRunning }
+					monitoringEnabled={ monitoringEnabled }
+					nextRefreshLabel={ nextRefreshLabel }
+					onRun={ handleRunNow }
+				/>
 			) : (
 				<>
 					<p className="hey-woo-this-week-feed__lede" aria-live="polite">
@@ -144,13 +182,28 @@ export function stage() {
 	);
 }
 
-function EmptyState( { isRunning, onRun }: { isRunning: boolean; onRun: () => void } ) {
+interface EmptyStateProps {
+	isRunning: boolean;
+	monitoringEnabled: boolean;
+	nextRefreshLabel: string;
+	onRun: () => void;
+}
+
+function EmptyState( { isRunning, monitoringEnabled, nextRefreshLabel, onRun }: EmptyStateProps ) {
+	const copy = monitoringEnabled
+		? nextRefreshLabel
+			? sprintf(
+					/* translators: %s: scheduled refresh time */
+					__( 'Hey Woo did not find any signals worth surfacing right now. The next automatic check is %s — refresh anytime if you want a fresh look.', 'hey-woo' ),
+					nextRefreshLabel
+			  )
+			: __( 'Hey Woo did not find any signals worth surfacing right now. The next automatic check will run within a day.', 'hey-woo' )
+		: __( 'Hey Woo did not find any signals worth surfacing right now. Monitoring is off, so use Refresh now to check again.', 'hey-woo' );
+
 	return (
 		<div className="hey-woo-this-week-empty" role="status">
 			<h2>{ __( 'Nothing material this week', 'hey-woo' ) }</h2>
-			<p>
-				{ __( 'Hey Woo did not find any signals worth surfacing right now. Use Refresh now to check again later.', 'hey-woo' ) }
-			</p>
+			<p>{ copy }</p>
 			<Button
 				type="button"
 				variant="secondary"
@@ -191,4 +244,43 @@ function formatLastRun( timestamp: number ): string {
 		dateStyle: 'medium',
 		timeStyle: 'short',
 	} ).format( new Date( timestamp * 1000 ) );
+}
+
+function formatScheduledTime( timestamp: number ): string {
+	const date = new Date( timestamp * 1000 );
+	const now = new Date();
+
+	const sameDay = date.getFullYear() === now.getFullYear()
+		&& date.getMonth() === now.getMonth()
+		&& date.getDate() === now.getDate();
+
+	const tomorrow = new Date( now );
+	tomorrow.setDate( now.getDate() + 1 );
+	const isTomorrow = date.getFullYear() === tomorrow.getFullYear()
+		&& date.getMonth() === tomorrow.getMonth()
+		&& date.getDate() === tomorrow.getDate();
+
+	const time = new Intl.DateTimeFormat( undefined, { timeStyle: 'short' } ).format( date );
+
+	if ( sameDay ) {
+		return sprintf(
+			/* translators: %s: time of day */
+			__( 'today at %s', 'hey-woo' ),
+			time
+		);
+	}
+
+	if ( isTomorrow ) {
+		return sprintf(
+			/* translators: %s: time of day */
+			__( 'tomorrow at %s', 'hey-woo' ),
+			time
+		);
+	}
+
+	return new Intl.DateTimeFormat( undefined, {
+		weekday: 'long',
+		hour: 'numeric',
+		minute: '2-digit',
+	} ).format( date );
 }

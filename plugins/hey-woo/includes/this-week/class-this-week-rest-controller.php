@@ -13,6 +13,9 @@
 
 namespace WooCommerce\HeyWoo\ThisWeek;
 
+use WooCommerce\HeyWoo\ThisWeek\Notifications\Scheduler;
+use WooCommerce\HeyWoo\ThisWeek\Notifications\ThisWeekSettings;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -113,13 +116,21 @@ class ThisWeekRestController {
 	/**
 	 * GET handler — return all unresolved signals plus metadata.
 	 *
+	 * Includes the next-scheduled-refresh timestamp so the frontend can show
+	 * the merchant when Hey Woo will look again without the merchant having
+	 * to push the manual refresh.
+	 *
 	 * @return \WP_REST_Response
 	 */
 	public function get_signals() {
+		$next_refresh_at = wp_next_scheduled( Scheduler::HOOK_DAILY_REFRESH );
+
 		return rest_ensure_response(
 			array(
-				'status'  => 'ok',
-				'signals' => SignalStore::unresolved(),
+				'status'             => 'ok',
+				'signals'            => SignalStore::unresolved(),
+				'monitoring_enabled' => ThisWeekSettings::is_enabled(),
+				'next_refresh_at'    => $next_refresh_at ? (int) $next_refresh_at : null,
 			)
 		);
 	}
@@ -127,12 +138,24 @@ class ThisWeekRestController {
 	/**
 	 * POST handler — trigger a synchronous runner pass.
 	 *
+	 * Returns HTTP 409 when another pass (manual or scheduled) is already
+	 * mid-flight so the caller can back off and reload rather than race the
+	 * persisted signals option.
+	 *
 	 * @param \WP_REST_Request $request Request object.
-	 * @return \WP_REST_Response
+	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function run( $request ) {
 		$skip_ai = (bool) $request->get_param( 'skip_ai' );
 		$result  = ( new SignalRunner() )->run( array( 'skip_ai' => $skip_ai ) );
+
+		if ( 'busy' === ( $result['status'] ?? '' ) ) {
+			return new \WP_Error(
+				'hey_woo_runner_busy',
+				__( 'Hey Woo is already refreshing the This Week feed. Try again in a moment.', 'hey-woo' ),
+				array( 'status' => 409 )
+			);
+		}
 
 		return rest_ensure_response(
 			array(

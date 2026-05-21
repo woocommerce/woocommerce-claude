@@ -11,6 +11,7 @@ use WooCommerce\HeyWoo\Difm\AnthropicClient;
 use WooCommerce\HeyWoo\Difm\DifmProviderEnvironment;
 use WooCommerce\HeyWoo\Difm\DifmProviderResolver;
 use WooCommerce\HeyWoo\Difm\WordPressAiClientAdapter;
+use WooCommerce\HeyWoo\ThisWeek\Notifications\ThisWeekSettings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -138,6 +139,67 @@ class SettingsPage extends \WC_Settings_Page {
 		$settings[] = array(
 			'type' => 'sectionend',
 			'id'   => 'hey_woo_difm_section',
+		);
+
+		$settings[] = array(
+			'type'  => 'title',
+			'title' => __( 'This Week monitoring', 'hey-woo' ),
+			'id'    => 'hey_woo_this_week_section',
+			'desc'  => __( 'Hey Woo refreshes the This Week feed once a day in your store timezone and can send a weekly summary of unresolved signals to the WooCommerce admin email.', 'hey-woo' ),
+		);
+
+		$settings[] = array(
+			'type'     => 'checkbox',
+			'id'       => ThisWeekSettings::OPTION_ENABLED,
+			'title'    => __( 'Enable monitoring', 'hey-woo' ),
+			'desc'     => __( 'Refresh the This Week signal feed automatically once a day.', 'hey-woo' ),
+			'default'  => 'yes',
+			'autoload' => true,
+		);
+
+		$settings[] = array(
+			'type'     => 'checkbox',
+			'id'       => ThisWeekSettings::OPTION_DIGEST_ENABLED,
+			'title'    => __( 'Send weekly email digest', 'hey-woo' ),
+			'desc'     => __( 'Email a short summary of unresolved signals to the WooCommerce admin email. Skipped silently when nothing material is detected.', 'hey-woo' ),
+			'default'  => 'yes',
+			'autoload' => true,
+		);
+
+		$settings[] = array(
+			'type'     => 'select',
+			'id'       => ThisWeekSettings::OPTION_DIGEST_DAY,
+			'title'    => __( 'Digest day', 'hey-woo' ),
+			'default'  => ThisWeekSettings::DEFAULT_DIGEST_DAY,
+			'options'  => array(
+				'monday'    => __( 'Monday', 'hey-woo' ),
+				'tuesday'   => __( 'Tuesday', 'hey-woo' ),
+				'wednesday' => __( 'Wednesday', 'hey-woo' ),
+				'thursday'  => __( 'Thursday', 'hey-woo' ),
+				'friday'    => __( 'Friday', 'hey-woo' ),
+				'saturday'  => __( 'Saturday', 'hey-woo' ),
+				'sunday'    => __( 'Sunday', 'hey-woo' ),
+			),
+			'autoload' => true,
+		);
+
+		$settings[] = array(
+			'type'              => 'text',
+			'id'                => ThisWeekSettings::OPTION_DIGEST_TIME,
+			'title'             => __( 'Digest time', 'hey-woo' ),
+			'desc'              => __( 'Store-local 24-hour time, formatted as HH:MM.', 'hey-woo' ),
+			'default'           => ThisWeekSettings::DEFAULT_DIGEST_TIME,
+			'placeholder'       => '09:00',
+			'autoload'          => true,
+			'custom_attributes' => array(
+				'type'    => 'time',
+				'pattern' => '[0-2][0-9]:[0-5][0-9]',
+			),
+		);
+
+		$settings[] = array(
+			'type' => 'sectionend',
+			'id'   => 'hey_woo_this_week_section',
 		);
 
 		return $settings;
