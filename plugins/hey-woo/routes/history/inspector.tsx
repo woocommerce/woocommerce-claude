@@ -3,11 +3,14 @@
  */
 import '../ai-insights/style.scss';
 import './style.scss';
-import { Button, Modal } from '@wordpress/components';
+import { Button, Modal, Spinner } from '@wordpress/components';
 import { useState } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
 import { useConversations } from '../ai-insights/hooks/useConversations';
+import { MarkdownContent } from '../ai-insights/components/MarkdownContent';
+import { ReportActionCards } from '../ai-insights/components/ReportActionCards';
+import { parseReportActions } from '../ai-insights/report-actions';
 import {
 	formatUpdatedAt,
 	lastSpeakerLabel,
@@ -23,7 +26,19 @@ export function inspector() {
 	const conversation = conversations.find( ( item ) => item.id === conversationId );
 
 	if ( ! conversation ) {
-		return null;
+		return (
+			<aside className="hey-woo-history-preview" aria-label={ __( 'Conversation preview', 'hey-woo' ) }>
+				<div className="hey-woo-history-preview__content">
+					<div className="hey-woo-history-preview__running" role="status">
+						<Spinner />
+						<div>
+							<h3>{ __( 'Loading library item', 'hey-woo' ) }</h3>
+							<p>{ __( 'Hey Woo is fetching the latest report details.', 'hey-woo' ) }</p>
+						</div>
+					</div>
+				</div>
+			</aside>
+		);
 	}
 
 	return (
@@ -50,6 +65,16 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 	const [ isDeleting, setIsDeleting ] = useState( false );
 	const historyConversation = toHistoryConversation( conversation );
 	const recentMessages = conversation.messages.slice( -4 );
+	const isWorkflowRun = conversation.type === 'workflow' || Boolean( conversation.workflowRun );
+	const workflowStatus = conversation.workflowRun?.status;
+	const latestAssistantMessage = [ ...conversation.messages ].reverse().find(
+		( message ) => message.role === 'assistant' && message.content.trim()
+	);
+	const reportContent = latestAssistantMessage
+		? parseReportActions( latestAssistantMessage.content )
+		: { content: '', actions: [] };
+	const hasReportContent = Boolean( reportContent.content.trim() );
+	const isReportItem = isWorkflowRun || hasReportContent;
 
 	const closeInspector = () => {
 		void navigate( {
@@ -93,9 +118,31 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 			</header>
 
 			<div className="hey-woo-history-preview__content">
-				<p className="hey-woo-history-preview__description">{ messagePreview( conversation.messages ) }</p>
+				<p className="hey-woo-history-preview__description">
+					{ isWorkflowRun && workflowStatus === 'running'
+						? __( 'This workflow is running. You can leave this screen and come back to the Library when it finishes.', 'hey-woo' )
+						: messagePreview( conversation.messages ) }
+				</p>
 
 				<dl className="hey-woo-history-preview__meta">
+					{ conversation.workflowRun && (
+						<div>
+							<dt>{ __( 'Workflow', 'hey-woo' ) }</dt>
+							<dd>{ conversation.workflowRun.label }</dd>
+						</div>
+					) }
+					{ conversation.workflowRun && (
+						<div>
+							<dt>{ __( 'Status', 'hey-woo' ) }</dt>
+							<dd>{ historyConversation.statusLabel }</dd>
+						</div>
+					) }
+					{ conversation.workflowRun && (
+						<div>
+							<dt>{ __( 'Period', 'hey-woo' ) }</dt>
+							<dd>{ conversation.workflowRun.periodLabel }</dd>
+						</div>
+					) }
 					<div>
 						<dt>{ __( 'Updated', 'hey-woo' ) }</dt>
 						<dd>{ formatUpdatedAt( conversation.updatedAt ) }</dd>
@@ -114,9 +161,42 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 						<dt>{ __( 'Last reply', 'hey-woo' ) }</dt>
 						<dd>{ lastSpeakerLabel( conversation.messages ) }</dd>
 					</div>
+					{ conversation.workflowRun?.scheduleLabel && (
+						<div>
+							<dt>{ __( 'Requested cadence', 'hey-woo' ) }</dt>
+							<dd>{ conversation.workflowRun.scheduleLabel }</dd>
+						</div>
+					) }
 				</dl>
 
-				{ recentMessages.length > 0 && (
+				{ isWorkflowRun && workflowStatus === 'running' && (
+					<div className="hey-woo-history-preview__running" role="status">
+						<Spinner />
+						<div>
+							<h3>{ __( 'Preparing report', 'hey-woo' ) }</h3>
+							<p>{ __( 'Hey Woo is collecting the relevant store signals and drafting the briefing.', 'hey-woo' ) }</p>
+						</div>
+					</div>
+				) }
+
+				{ isWorkflowRun && workflowStatus === 'error' && (
+					<div className="hey-woo-history-preview__error" role="alert">
+						<h3>{ __( 'Workflow could not finish', 'hey-woo' ) }</h3>
+						<p>{ conversation.workflowRun?.errorMessage || messagePreview( conversation.messages ) }</p>
+					</div>
+				) }
+
+				{ hasReportContent && ( ! isWorkflowRun || workflowStatus === 'complete' ) && (
+					<div className="hey-woo-history-preview__reports">
+						<MarkdownContent content={ reportContent.content } />
+						<ReportActionCards
+							actions={ reportContent.actions }
+							reportLabel={ conversation.title }
+						/>
+					</div>
+				) }
+
+				{ ( ! isReportItem || ( workflowStatus === 'complete' && ! hasReportContent ) ) && recentMessages.length > 0 && (
 					<div className="hey-woo-history-preview__messages">
 						<h3>{ __( 'Recent messages', 'hey-woo' ) }</h3>
 						<ol>
@@ -140,8 +220,15 @@ function HistoryPreviewPanel( { conversation, onDelete }: HistoryPreviewPanelPro
 				>
 					{ __( 'Delete', 'hey-woo' ) }
 				</Button>
-				<Button type="button" variant="primary" onClick={ continueChat }>
-					{ __( 'Continue chat', 'hey-woo' ) }
+				<Button
+					type="button"
+					variant="primary"
+					disabled={ isWorkflowRun && workflowStatus === 'running' }
+					onClick={ continueChat }
+				>
+					{ isReportItem
+						? __( 'Ask about this report', 'hey-woo' )
+						: __( 'Continue chat', 'hey-woo' ) }
 				</Button>
 			</div>
 

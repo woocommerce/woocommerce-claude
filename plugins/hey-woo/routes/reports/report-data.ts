@@ -2,8 +2,8 @@
  * Shared report workflow metadata and launch helpers.
  */
 import { __, sprintf } from '@wordpress/i18n';
-import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
+import { WORKFLOWS } from '../ai-insights/workflows';
 
 export type RunMode = 'now' | 'weekly';
 export type PeriodOption = 'last_7_days' | 'last_30_days' | 'month_to_date' | 'quarter_to_date';
@@ -166,39 +166,6 @@ export function launchChatWorkflow( prompt: string, displayText = __( 'Run workf
 	window.location.assign( url.toString() );
 }
 
-const STRUCTURED_REPORT_SCHEMA_WITH_ACTIONS = '{"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]}';
-
-const STRUCTURED_REPORT_SCHEMA_WITHOUT_ACTIONS = '{"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":[]}';
-
-function buildStructuredReportInstruction( workflow: WorkflowAction, actionCards: boolean ): string {
-	const schema = actionCards
-		? STRUCTURED_REPORT_SCHEMA_WITH_ACTIONS
-		: STRUCTURED_REPORT_SCHEMA_WITHOUT_ACTIONS;
-	const limits = actionCards
-		? __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5, actions <= 3.', 'hey-woo' )
-		: __( 'Limits: metric_tiles <= 5, insights <= 5, charts <= 1, tables <= 2, caveats <= 2, sources <= 5.', 'hey-woo' );
-	const weeklyGuidance = workflow.slug === 'weekly-store-review'
-		? __( 'For the weekly store review, compose a briefing: metric_tiles are the tape, summary is the editor note, and insights are the ranked "what to look at" leads. Do not return a top-products-only answer. Do not restate a headline metric as an insight. Use insights for patterns the data actually supports: trend shift, product movement, customer/cohort movement, checkout pipeline, refund pattern, channel concentration, or tracking coverage. Prefer a compact evidence table when long product or channel names would make a chart hard to read. Only include a chart when it explains a movement or mix shift better than the table.', 'hey-woo' )
-		: '';
-
-	return [
-		sprintf(
-			/* translators: %s: JSON schema example for a structured report block */
-			__( 'Return a concise merchant briefing followed by one fenced code block whose language is exactly hey-woo-report. The block must contain one compact JSON object, no markdown, with this schema: %s.', 'hey-woo' ),
-			schema
-		),
-		limits,
-		__( 'Shape the JSON like Hey Woo: summary is a short editorial note, metric_tiles are the metrics tape, insights are the ranked leads, charts and tables are supporting evidence, caveats are small notes, and sources name the aggregate surfaces used.', 'hey-woo' ),
-		__( 'Only include values returned by tools or already present in the conversation; do not invent metrics. Read precomputed deltas, percentages, coverage, rates, and comparisons directly instead of recalculating them. If the data does not support a chart or table, leave that array empty and explain why in caveats.', 'hey-woo' ),
-		__( 'Lead discipline: pick 3-5 observations that earn attention. Good leads name the driver or useful non-driver; weak leads merely say revenue/orders/AOV changed. Small samples must be caveated in the insight body, not overstated in the headline.', 'hey-woo' ),
-		weeklyGuidance,
-		actionCards
-			? __( 'Put recommended action cards in actions inside hey-woo-report; do not output a separate hey-woo-actions block. Each action must come from a specific insight, be evidence-backed, and be doable by a merchant. Do not add vague actions like "review the report".', 'hey-woo' )
-			: __( 'Keep actions empty in the JSON and keep any next steps inside the report summary.', 'hey-woo' ),
-		__( 'Do not call the separate chart renderer for this report; any useful visual belongs in the hey-woo-report charts array.', 'hey-woo' ),
-	].filter( Boolean ).join( ' ' );
-}
-
 export function buildWorkflowPrompt(
 	workflow: WorkflowAction,
 	runMode: RunMode,
@@ -227,15 +194,15 @@ export function buildWorkflowPrompt(
 		runMode === 'weekly'
 			? sprintf(
 					/* translators: 1: weekday, 2: time */
-					__( 'Schedule preference: weekly on %1$s at %2$s. Include this in the setup summary, but do not claim an automatic schedule has been saved.', 'hey-woo' ),
+					__( 'Schedule preference: weekly on %1$s at %2$s. Mention it briefly in the intro, but do not claim an automatic schedule has been saved.', 'hey-woo' ),
 					day,
 					time
 			  )
 			: __( 'Run mode: one-off report.', 'hey-woo' ),
-		buildStructuredReportInstruction( workflow, actionCards ),
+		__( 'Format: write a merchant-friendly markdown report with clear section headings. Use tables when comparing multiple products, channels, or cohorts. Only call render_chart when a chart explains a movement better than a table.', 'hey-woo' ),
 		actionCards
-			? __( 'Keep recommended actions short, merchant-doable, and present in the hey-woo-report actions array only. Do not say the actions have been created automatically.', 'hey-woo' )
-			: __( 'Keep the output to the report summary and next actions; do not suggest separate action cards.', 'hey-woo' ),
+			? __( 'End the report with a "## Next Actions" heading followed by three merchant-doable steps as a numbered or bulleted list. Each step should start with a short bold title, then a one-sentence explanation tied to specific evidence in the report. Do not add vague actions like "review the report".', 'hey-woo' )
+			: __( 'Do not include a separate Next Actions section; any next steps should sit inside the report summary.', 'hey-woo' ),
 		adminNotification
 			? __( 'Notification preference: show the result in WooCommerce admin.', 'hey-woo' )
 			: __( 'Notification preference: no admin notification.', 'hey-woo' ),

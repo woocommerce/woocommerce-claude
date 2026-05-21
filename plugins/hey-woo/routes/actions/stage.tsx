@@ -94,6 +94,7 @@ function ActionCard( {
 	const previousLane = LANES[ currentLaneIndex - 1 ];
 	const nextLane = LANES[ currentLaneIndex + 1 ];
 	const sourceLabel = card.reportLabel ?? card.source;
+	const summary = card.summary || card.description || card.evidence;
 	const openCard = () => onOpen( card.id );
 	const handleKeyDown = ( event: React.KeyboardEvent< HTMLElement > ) => {
 		if ( event.key === 'Enter' || event.key === ' ' ) {
@@ -119,7 +120,10 @@ function ActionCard( {
 			onDragStart={ () => onDragStart( card.id ) }
 		>
 			<header className="hey-woo-action-card__header">
-				<span className="hey-woo-action-card__priority">{ PRIORITY_LABELS[ card.priority ] }</span>
+				<div className="hey-woo-action-card__meta">
+					<span className="hey-woo-action-card__priority">{ PRIORITY_LABELS[ card.priority ] }</span>
+					<span className="hey-woo-action-card__status">{ STATUS_LABELS[ card.status ] }</span>
+				</div>
 				<Button
 					type="button"
 					icon={ trash }
@@ -136,7 +140,10 @@ function ActionCard( {
 
 			<h3>{ card.title }</h3>
 			{ card.keyMetric && (
-				<p className="hey-woo-action-card__signal">{ card.keyMetric }</p>
+				<strong className="hey-woo-action-card__signal">{ card.keyMetric }</strong>
+			) }
+			{ summary && (
+				<p className="hey-woo-action-card__summary">{ summary }</p>
 			) }
 			{ card.impact && (
 				<p className="hey-woo-action-card__impact">{ card.impact }</p>
@@ -211,12 +218,24 @@ function ActionDetailsModal( {
 
 	return (
 		<Modal
-			title={ card.title }
+			title={ __( 'Action details', 'hey-woo' ) }
 			size="medium"
 			className="hey-woo-actions-modal hey-woo-action-details-modal"
 			onRequestClose={ onClose }
 		>
 			<div className="hey-woo-action-details">
+				<header className="hey-woo-action-details__hero">
+					<div className="hey-woo-action-details__hero-meta">
+						<span className={ `hey-woo-action-details__priority hey-woo-action-details__priority--${ card.priority }` }>
+							{ PRIORITY_LABELS[ card.priority ] }
+						</span>
+						<span>{ STATUS_LABELS[ card.status ] }</span>
+						<span>{ card.reportLabel ?? card.source }</span>
+					</div>
+					<h2>{ card.title }</h2>
+					{ summary && <p>{ summary }</p> }
+				</header>
+
 				<div className="hey-woo-action-details__controls">
 					<SelectControl
 						label={ __( 'Status', 'hey-woo' ) }
@@ -239,13 +258,6 @@ function ActionDetailsModal( {
 						onChange={ ( priority ) => onUpdate( card.id, { priority: priority as ActionPriority } ) }
 					/>
 				</div>
-
-				{ summary && (
-					<section className="hey-woo-action-details__section">
-						<h3>{ __( 'Summary', 'hey-woo' ) }</h3>
-						<p>{ summary }</p>
-					</section>
-				) }
 
 				{ hasSignals && (
 					<section className="hey-woo-action-details__section">
@@ -449,6 +461,7 @@ export function stage() {
 					type="button"
 					variant="primary"
 					icon={ plus }
+					__next40pxDefaultSize
 					onClick={ () => setIsAddModalOpen( true ) }
 				>
 					{ __( 'Add card', 'hey-woo' ) }
@@ -496,6 +509,7 @@ export function stage() {
 							<Button
 								type="button"
 								variant="tertiary"
+								__next40pxDefaultSize
 								onClick={ closeAddModal }
 							>
 								{ __( 'Cancel', 'hey-woo' ) }
@@ -503,6 +517,7 @@ export function stage() {
 							<Button
 								type="submit"
 								variant="primary"
+								__next40pxDefaultSize
 								disabled={ ! form.title.trim() }
 							>
 								{ __( 'Create card', 'hey-woo' ) }

@@ -3,46 +3,48 @@
  */
 import '../ai-insights/style.scss';
 import './style.scss';
-import { Button } from '@wordpress/components';
+import { Button, CheckboxControl, SelectControl, TextControl } from '@wordpress/components';
 import { useState } from '@wordpress/element';
-import { __, sprintf } from '@wordpress/i18n';
+import { __ } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
 import {
 	PERIOD_LABELS,
 	WEEKDAYS,
-	buildWorkflowPrompt,
 	getReportMetadata,
 	getWorkflowBySlug,
-	launchChatWorkflow,
 } from './report-data';
+import { startWorkflowRun } from './workflow-runs';
 import type { PeriodOption, RunMode } from './report-data';
 import type { WorkflowAction } from '../ai-insights/workflows';
 
 export function inspector() {
-	const search = useSearch( { strict: false } ) as { workflow?: string };
+	const search = useSearch( { strict: false } ) as { workflow?: string; run?: string };
 	const workflow = typeof search.workflow === 'string' ? getWorkflowBySlug( search.workflow ) : undefined;
+	const initialRunMode: RunMode = search.run === 'weekly' ? 'weekly' : 'now';
 
 	if ( ! workflow ) {
 		return null;
 	}
 
-	return <ReportSetupPanel key={ workflow.slug } workflow={ workflow } />;
+	return <ReportSetupPanel key={ `${ workflow.slug }-${ initialRunMode }` } workflow={ workflow } initialRunMode={ initialRunMode } />;
 }
 
 interface ReportSetupPanelProps {
+	initialRunMode: RunMode;
 	workflow: WorkflowAction;
 }
 
-function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
+function ReportSetupPanel( { initialRunMode, workflow }: ReportSetupPanelProps ) {
 	const metadata = getReportMetadata( workflow );
 	const navigate = useNavigate();
-	const [ runMode, setRunMode ] = useState< RunMode >( 'now' );
+	const [ runMode, setRunMode ] = useState< RunMode >( initialRunMode );
 	const [ period, setPeriod ] = useState< PeriodOption >( metadata.defaultPeriod );
 	const [ compare, setCompare ] = useState( true );
 	const [ day, setDay ] = useState( metadata.defaultDay );
 	const [ time, setTime ] = useState( '09:00' );
 	const [ actionCards, setActionCards ] = useState( true );
 	const [ adminNotification, setAdminNotification ] = useState( true );
+	const [ isStarting, setIsStarting ] = useState( false );
 
 	const closeInspector = () => {
 		void navigate( {
@@ -51,8 +53,9 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 		} );
 	};
 
-	const handleStart = () => {
-		const prompt = buildWorkflowPrompt(
+	const handleStart = async () => {
+		setIsStarting( true );
+		const conversation = await startWorkflowRun( {
 			workflow,
 			runMode,
 			period,
@@ -60,18 +63,16 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 			day,
 			time,
 			actionCards,
-			adminNotification
-		);
+			adminNotification,
+		} );
+		setIsStarting( false );
 
-		launchChatWorkflow(
-			prompt,
-			sprintf(
-				/* translators: 1: workflow name, 2: period label */
-				__( 'Run %1$s workflow for %2$s', 'hey-woo' ),
-				workflow.label,
-				PERIOD_LABELS[ period ]
-			)
-		);
+		void navigate( {
+			to: '/history',
+			search: {
+				conversation: conversation.id,
+			},
+		} );
 	};
 
 	return (
@@ -97,93 +98,88 @@ function ReportSetupPanel( { workflow }: ReportSetupPanelProps ) {
 				<div className="hey-woo-report-preview__field">
 					<span className="hey-woo-report-preview__label">{ __( 'Run', 'hey-woo' ) }</span>
 					<div className="hey-woo-segmented-control" role="radiogroup">
-						<button
+						<Button
 							type="button"
+							variant="tertiary"
 							className={ runMode === 'now' ? 'is-selected' : undefined }
 							aria-pressed={ runMode === 'now' }
+							__next40pxDefaultSize
 							onClick={ () => setRunMode( 'now' ) }
 						>
 							{ __( 'Now', 'hey-woo' ) }
-						</button>
-						<button
+						</Button>
+						<Button
 							type="button"
+							variant="tertiary"
 							className={ runMode === 'weekly' ? 'is-selected' : undefined }
 							aria-pressed={ runMode === 'weekly' }
+							__next40pxDefaultSize
 							onClick={ () => setRunMode( 'weekly' ) }
 						>
 							{ __( 'Weekly', 'hey-woo' ) }
-						</button>
+						</Button>
 					</div>
 				</div>
 
 				{ runMode === 'weekly' && (
 					<div className="hey-woo-report-preview__row">
-						<label className="hey-woo-report-preview__field">
-							<span className="hey-woo-report-preview__label">{ __( 'Day', 'hey-woo' ) }</span>
-							<select value={ day } onChange={ ( event ) => setDay( event.target.value ) }>
-								{ WEEKDAYS.map( ( weekday ) => (
-									<option key={ weekday } value={ weekday }>
-										{ weekday }
-									</option>
-								) ) }
-							</select>
-						</label>
+						<SelectControl
+							label={ __( 'Day', 'hey-woo' ) }
+							value={ day }
+							options={ WEEKDAYS.map( ( weekday ) => ( {
+								label: weekday,
+								value: weekday,
+							} ) ) }
+							onChange={ setDay }
+						/>
 
-						<label className="hey-woo-report-preview__field">
-							<span className="hey-woo-report-preview__label">{ __( 'Time', 'hey-woo' ) }</span>
-							<input
-								type="time"
-								value={ time }
-								onChange={ ( event ) => setTime( event.target.value ) }
-							/>
-						</label>
+						<TextControl
+							label={ __( 'Time', 'hey-woo' ) }
+							type="time"
+							value={ time }
+							onChange={ setTime }
+						/>
 					</div>
 				) }
 
-				<label className="hey-woo-report-preview__field">
-					<span className="hey-woo-report-preview__label">{ __( 'Period', 'hey-woo' ) }</span>
-					<select
-						value={ period }
-						onChange={ ( event ) => setPeriod( event.target.value as PeriodOption ) }
-					>
-						{ Object.entries( PERIOD_LABELS ).map( ( [ value, label ] ) => (
-							<option key={ value } value={ value }>
-								{ label }
-							</option>
-						) ) }
-					</select>
-				</label>
+				<SelectControl
+					label={ __( 'Period', 'hey-woo' ) }
+					value={ period }
+					options={ Object.entries( PERIOD_LABELS ).map( ( [ value, label ] ) => ( {
+						label,
+						value,
+					} ) ) }
+					onChange={ ( value ) => setPeriod( value as PeriodOption ) }
+				/>
 
 				<div className="hey-woo-report-preview__checks">
-					<label>
-						<input
-							type="checkbox"
-							checked={ compare }
-							onChange={ ( event ) => setCompare( event.target.checked ) }
-						/>
-						<span>{ __( 'Compare with previous period', 'hey-woo' ) }</span>
-					</label>
-					<label>
-							<input
-								type="checkbox"
-								checked={ actionCards }
-								onChange={ ( event ) => setActionCards( event.target.checked ) }
-							/>
-							<span>{ __( 'Include addable recommended actions', 'hey-woo' ) }</span>
-						</label>
-					<label>
-						<input
-							type="checkbox"
-							checked={ adminNotification }
-							onChange={ ( event ) => setAdminNotification( event.target.checked ) }
-						/>
-						<span>{ __( 'Show in WooCommerce admin', 'hey-woo' ) }</span>
-					</label>
+					<CheckboxControl
+						label={ __( 'Compare with previous period', 'hey-woo' ) }
+						checked={ compare }
+						onChange={ setCompare }
+					/>
+					<CheckboxControl
+						label={ __( 'Include addable recommended actions', 'hey-woo' ) }
+						checked={ actionCards }
+						onChange={ setActionCards }
+					/>
+					<CheckboxControl
+						label={ __( 'Show in WooCommerce admin', 'hey-woo' ) }
+						checked={ adminNotification }
+						onChange={ setAdminNotification }
+					/>
 				</div>
 			</div>
 
 			<div className="hey-woo-report-preview__actions">
-				<Button type="button" variant="primary" onClick={ handleStart }>
+				<Button
+					type="button"
+					variant="primary"
+					__next40pxDefaultSize
+					isBusy={ isStarting }
+					disabled={ isStarting }
+					onClick={ handleStart }
+				>
 					{ __( 'Start workflow', 'hey-woo' ) }
 				</Button>
 			</div>

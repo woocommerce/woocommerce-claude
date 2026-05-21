@@ -10,18 +10,22 @@ import { Icon, chartBar } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
 import { useAdaptiveDataViewsPageSize } from '../ai-insights/hooks/useAdaptiveDataViewsPageSize';
+import { useConversations } from '../ai-insights/hooks/useConversations';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
 import { getReportMetadata } from './report-data';
+import type { StoredConversation } from '../ai-insights/types';
 import type { Action, Field, View } from '@wordpress/dataviews/wp';
 
 interface ReportWorkflow extends WorkflowAction {
 	id: string;
 	category: string;
 	priority: string;
+	lastRunLabel: string;
+	output: string;
 }
 
-const REPORT_VISIBLE_FIELDS = [ 'category', 'priority' ];
+const REPORT_VISIBLE_FIELDS = [ 'category', 'priority', 'lastRunLabel' ];
 const REPORT_PAGE_SIZE_OPTIONS = [ 10, 18, 30, 50 ];
 const REPORT_LAYOUTS = {
 	table: {
@@ -34,6 +38,7 @@ const REPORT_LAYOUTS = {
 			styles: {
 				category: { width: '180px' },
 				priority: { width: '140px' },
+				lastRunLabel: { width: '160px' },
 			},
 		},
 	},
@@ -72,23 +77,71 @@ const DEFAULT_REPORTS_VIEW: View = {
 	...REPORT_LAYOUTS.table,
 };
 
+function workflowMatchesConversation(
+	workflow: WorkflowAction,
+	conversation: StoredConversation
+): boolean {
+	if ( conversation.workflowRun?.slug === workflow.slug ) {
+		return true;
+	}
+
+	const firstUserMessage = conversation.messages.find( ( message ) => message.role === 'user' );
+	const content = firstUserMessage?.content.trim().toLowerCase() || '';
+
+	return content.startsWith( `/${ workflow.slug }` ) ||
+		content.includes( workflow.label.toLowerCase() );
+}
+
+function formatLastRun( timestamp: number | undefined ): string {
+	if ( ! timestamp ) {
+		return __( 'Not run yet', 'hey-woo' );
+	}
+
+	return new Intl.DateTimeFormat( undefined, {
+		dateStyle: 'medium',
+		timeStyle: 'short',
+	} ).format( new Date( timestamp ) );
+}
+
+function workflowRunLabel( conversation: StoredConversation | undefined ): string {
+	if ( ! conversation ) {
+		return __( 'Not run yet', 'hey-woo' );
+	}
+
+	if ( conversation.workflowRun?.status === 'running' ) {
+		return __( 'Running now', 'hey-woo' );
+	}
+
+	if ( conversation.workflowRun?.status === 'error' ) {
+		return __( 'Needs attention', 'hey-woo' );
+	}
+
+	return formatLastRun( conversation.workflowRun?.completedAt || conversation.updatedAt );
+}
+
 export function stage() {
 	const search = useSearch( { strict: false } ) as { workflow?: string };
 	const navigate = useNavigate();
 	const selectedWorkflowSlug = typeof search.workflow === 'string' ? search.workflow : '';
 	const [ view, setView ] = useState< View >( DEFAULT_REPORTS_VIEW );
+	const { conversations } = useConversations();
 	const reportWorkflows = useMemo< ReportWorkflow[] >(
 		() => WORKFLOWS.map( ( workflow ) => {
 			const metadata = getReportMetadata( workflow );
+			const matchingRuns = conversations
+				.filter( ( conversation ) => workflowMatchesConversation( workflow, conversation ) )
+				.sort( ( a, b ) => b.updatedAt - a.updatedAt );
 
 			return {
 				...workflow,
 				id: workflow.slug,
 				category: metadata.category,
 				priority: metadata.priority,
+				lastRunLabel: workflowRunLabel( matchingRuns[ 0 ] ),
+				output: __( 'Briefing and action cards', 'hey-woo' ),
 			};
 		} ),
-		[]
+		[ conversations ]
 	);
 	const { perPageSizes, rootRef } = useAdaptiveDataViewsPageSize( {
 		itemCount: reportWorkflows.length,
@@ -174,6 +227,23 @@ export function stage() {
 				},
 				getValue: ( { item } ) => item.priority,
 			},
+			{
+				id: 'lastRunLabel',
+				label: __( 'Last run', 'hey-woo' ),
+				enableGlobalSearch: true,
+				enableSorting: true,
+				getValue: ( { item } ) => item.lastRunLabel,
+				render: ( { item } ) => (
+					<span className="hey-woo-workflow-state">{ item.lastRunLabel }</span>
+				),
+			},
+			{
+				id: 'output',
+				label: __( 'Output', 'hey-woo' ),
+				enableGlobalSearch: true,
+				enableSorting: false,
+				getValue: ( { item } ) => item.output,
+			},
 		],
 		[ categoryOptions, priorityOptions ]
 	);
@@ -228,7 +298,12 @@ export function stage() {
 				empty={
 					<div className="hey-woo-reports-empty" role="status">
 						<p>{ __( 'No workflows match those filters.', 'hey-woo' ) }</p>
-						<Button type="button" variant="secondary" onClick={ resetView }>
+						<Button
+							type="button"
+							variant="secondary"
+							__next40pxDefaultSize
+							onClick={ resetView }
+						>
 							{ __( 'Clear filters', 'hey-woo' ) }
 						</Button>
 					</div>
