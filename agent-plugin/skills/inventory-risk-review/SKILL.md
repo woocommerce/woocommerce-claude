@@ -85,27 +85,27 @@ Produce a review with this shape:
 
 **Low-stock review threshold:** [threshold used in merchant language, such as "5 units or fewer", or "Not used" if stock quantities were unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the strongest stock risks, product coverage, whether top sellers include current stock issues, and whether the review is based on current catalogue state plus period sales. Say plainly if there are no current stock-risk rows.
 
-#### 2. Priority Stock Risks
+#### Priority Stock Risks
 
 List the highest-priority products that are currently out of stock, on backorder, or below the review threshold and had period sales. Include current stock status/quantity, period revenue, units sold, order count, and links when available. Use small-sample caveats where needed.
 
-#### 3. Restock or Watch
+#### Restock or Watch
 
 Name products to restock, monitor, or check manually. Base priority on returned revenue, units, order count, stock status, stock quantity, comparison movement, and whether the product appears in top sellers. Do not calculate reorder quantities, suggest purchase orders, or mention supplier lead times.
 
-#### 4. Promotion Checks
+#### Promotion Checks
 
 List products that are currently sale-priced while out of stock, on backorder, or below the review threshold. Call this sale-price or merchandising risk, not advertising performance. If none are returned, say no sale-priced stock issues matched the review.
 
-#### 5. Slow Movers
+#### Slow Movers
 
 List stocked products with zero paid sales in the period when returned. Include product-created date, current stock quantity if present, price, and links when available. Frame these as review candidates, not final clearance decisions.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, product merchandising, sale pricing, fulfilment settings, customer support, or connected marketing tools.
 

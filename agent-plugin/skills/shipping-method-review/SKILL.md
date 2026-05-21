@@ -81,31 +81,31 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the strongest shipping-method mix signal, paid revenue/order concentration, shipping charges collected when returned, pipeline, refunds, and whether unassigned coverage deserves attention. Say plainly if there were no paid orders in the period.
 
-#### 2. Paid Method Mix
+#### Paid Method Mix
 
 Summarise the leading methods by paid revenue and paid order count. Include returned revenue share, paid revenue, orders, items sold, average order value, and comparison movement. Keep high-value and high-volume methods separate when they differ.
 
-#### 3. Shipping Charges
+#### Shipping Charges
 
 Report the store-wide shipping charges collected when returned, with comparison movement when returned. Be explicit that this is the available charge figure for the period; only describe individual-method charge amounts if a returned field provides them. Mention tax separately only when useful and returned.
 
-#### 4. Pipeline and Coverage
+#### Pipeline and Coverage
 
 List methods with material on-hold value or orders. Keep them separate from collected revenue. Summarise coverage percent and the "(Unassigned)" row when present, translating it into practical checks for shipping zones, local pickup, digital products, or imported orders.
 
-#### 5. Refund Signals
+#### Refund Signals
 
 List methods with notable refund amount, refund count, or refund rate when returned. Include small-sample caveats. Frame each as a support, fulfilment, or shipping-settings check, not a conclusion about why refunds happened or whether a shipping method is good or bad.
 
-#### 6. Operational Checks
+#### Operational Checks
 
 List two or three checks grounded in the data: shipping-zone labels, free-shipping or local-pickup settings, shipping classes/rates, on-hold payment follow-up, refund/support notes, or shipping-account dashboard checks where the merchant already has that dashboard. Do not invent arrival timing or capacity problems.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, shipping settings, shipping classes, payment/order workflows, fulfilment/support workflows, shipping-account dashboards, or connected analytics tools.
 

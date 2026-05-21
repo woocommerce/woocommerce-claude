@@ -111,31 +111,31 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the strongest channel signal, paid revenue and order context, whether tracking coverage supports confident channel analysis, and whether pipeline skew needs attention. Say plainly if the sample or coverage is too small to interpret.
 
-#### 2. Revenue by Channel
+#### Revenue by Channel
 
 Summarise the leading channels by paid revenue and orders. Include share of paid revenue, average order value, comparison movement, dropped-out channels, and refunds only when returned and useful. Avoid "best performing" unless you define it as paid WooCommerce revenue only.
 
-#### 3. Customer Mix
+#### Customer Mix
 
 Summarise new versus returning customer signals by channel when returned, plus overall customer context from the customer totals. Keep it period-scoped and caveat small samples.
 
-#### 4. Pipeline and Payment Skew
+#### Pipeline and Payment Skew
 
 List channels or sources that materially over-index on on-hold pipeline. Pair with payment-method diagnostics when available. Keep pending value separate from collected revenue, and avoid the phrase "lost revenue" entirely.
 
-#### 5. Source, Medium, and Campaign Detail
+#### Source, Medium, and Campaign Detail
 
 Use this section only for useful detail from source, medium, channel-source, campaign, or device breakdowns. If campaign coverage is low, say that campaign-tag detail is thin and treat it as a tracking check rather than a performance ranking.
 
-#### 6. Tracking Hygiene
+#### Tracking Hygiene
 
 Summarise attribution coverage, unassigned/direct concentration, and any campaign-tag gaps. Suggest practical checks such as WooCommerce order attribution settings, campaign-tag consistency, checkout return links, caching that may strip campaign tags, and ad/email links that should preserve tracking tags.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, payment settings, campaign tagging, email/CRM tools, campaign dashboards, analytics dashboards, or checkout/payment workflows.
 

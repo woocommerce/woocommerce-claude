@@ -79,27 +79,27 @@ Produce a triage report with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering collected revenue movement, order count, average order value, customers, and whether the headline is truly a drop. If revenue is not down, say that clearly.
 
-#### 2. Severity
+#### Severity
 
 Call the triage level `Low`, `Medium`, or `High` with one sentence explaining why. Base it on revenue movement, order/customer movement, refund pressure, pipeline size, and whether product/channel drivers are concentrated enough to act on.
 
-#### 3. Drop Drivers
+#### Drop Drivers
 
 List the main levers that moved: order volume, basket size, customer mix, refunds, and pending pipeline. Use only returned comparison fields and keep it to the two or three highest-signal drivers.
 
-#### 4. Product and Channel Signals
+#### Product and Channel Signals
 
 Name the products and channels that most help explain the movement. Include dropped-out top products/channels when relevant, product links when available, and attribution-coverage caveats when needed.
 
-#### 5. Likely Checks
+#### Likely Checks
 
 List two or three checks grounded in the data: stock availability, product page/content changes, pricing or discount timing, campaign/tagging health, email cadence, payment gateway health, fulfilment delays, or refund/support patterns.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, product content, marketing tools, fulfilment/support workflows, payment processor dashboards, carrier tools, or connected analytics/ad tools.
 

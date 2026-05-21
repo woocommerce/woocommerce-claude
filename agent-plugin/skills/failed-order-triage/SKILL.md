@@ -78,31 +78,31 @@ Produce a triage report with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering on-hold orders, failed orders, and whether those buckets are growing, shrinking, or flat. You may mention only the current paid-order count as neutral background, never paid-order growth, a denominator, a share, or a reason to downgrade the issue. Say plainly if there is no meaningful failed/on-hold issue.
 
-#### 2. Severity
+#### Severity
 
 Call the triage level `Low`, `Medium`, or `High` with one sentence explaining why. Base it on returned order counts, value, movement, stale age buckets, and whether card gateways appear in on-hold pipeline.
 
-#### 3. On-Hold Pipeline
+#### On-Hold Pipeline
 
 Summarise on-hold count/value, oldest age, age buckets, and payment-method signals. Distinguish expected manual-payment clearing from abnormal gateway behaviour.
 
-#### 4. Failed Orders
+#### Failed Orders
 
 Summarise failed order count/value and whether it changed from the comparison period. Keep cause language cautious unless gateway/channel data supports it.
 
-#### 5. Priority Queue
+#### Priority Queue
 
 List up to five orders to chase first. If both on-hold and failed rows exist, list up to four oldest on-hold rows first, preserving the row order returned by the oldest-on-hold rows call, then one most recent failed row. If fewer than four on-hold rows exist, fill the remaining slots with the most recent failed rows. Do not skip an older on-hold row to include a second failed row, and do not reshuffle same-day on-hold rows by value or item count. Use order links, dates, statuses, and values. Do not call failed rows "highest-value" unless you explicitly sorted them by value. Do not include customer names or addresses. Do not add a calculated total or percentage beneath the queue. The specific orders named later in Next Actions must come from this queue, unless you explicitly say you are expanding beyond the queue.
 
-#### 6. Likely Checks
+#### Likely Checks
 
 List two or three checks grounded in the data: payment gateway logs, bank-transfer instructions, webhook health, fraud rules, stock holds, abandoned customer follow-up, or channel-specific tracking. If the data is too thin, say what to check manually rather than guessing.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, payment gateway dashboards/logs, fulfilment/support workflows, or a connected marketing/analytics tool.
 

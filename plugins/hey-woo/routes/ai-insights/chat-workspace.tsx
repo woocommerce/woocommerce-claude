@@ -191,10 +191,9 @@ function ChatErrorBar( { kind, message, onRetry, onDismiss }: ChatErrorBarProps 
 /**
  * Friendly merchant-facing labels for the tool names the controller exposes.
  *
- * Kept in lock-step with `DifmRestController::TOOL_ABILITY_MAP` plus the
- * `render_chart` pseudo-tool. Tools that do not appear here fall back to the
- * generic "Working on your request" copy so a new tool name shipped without
- * a label still degrades gracefully.
+ * Kept in lock-step with `DifmRestController::TOOL_ABILITY_MAP`. Tools that
+ * do not appear here fall back to the generic "Working on your request"
+ * copy so a new tool name shipped without a label still degrades gracefully.
  */
 function friendlyToolLabel( tool: string ): string {
 	switch ( tool ) {
@@ -218,8 +217,6 @@ function friendlyToolLabel( tool: string ): string {
 			return __( 'Gathering recommendations', 'hey-woo' );
 		case 'suggest_improvements':
 			return __( 'Suggesting improvements', 'hey-woo' );
-		case 'render_chart':
-			return __( 'Preparing a chart', 'hey-woo' );
 		default:
 			return __( 'Working on your request', 'hey-woo' );
 	}
@@ -442,8 +439,8 @@ function ChatView( {
 					onSend={ handleSendMessage }
 					disabled={ isSending }
 					placeholder={ __( 'Ask anything', 'hey-woo' ) }
-					rows={ 4 }
-					variant="hero"
+					rows={ 1 }
+					variant="docked"
 				/>
 			</div>
 		</div>

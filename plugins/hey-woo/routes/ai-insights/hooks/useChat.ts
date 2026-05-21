@@ -276,7 +276,6 @@ export function useChat( options: UseChatOptions = {} ) {
 					id: nextId.current++,
 					role: 'assistant',
 					content: json.reply,
-					...( json.charts?.length ? { charts: json.charts } : {} ),
 				};
 
 				// Build the saved-messages snapshot from the always-current

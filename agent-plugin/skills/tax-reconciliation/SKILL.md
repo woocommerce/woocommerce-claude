@@ -70,11 +70,11 @@ Produce a reconciliation report with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering collected paid tax, order tax, shipping tax, refunded tax, net tax, pending/on-hold tax, and dashboard-equivalent tax. Say plainly if no tax was collected. Describe net tax as an operational reconciliation figure, not filing advice.
 
-#### 2. Reconciliation
+#### Reconciliation
 
 Show the core checks in merchant language:
 
@@ -85,19 +85,19 @@ Show the core checks in merchant language:
 
 Use exact returned figures. Do not expose internal field names.
 
-#### 3. Tax Rates
+#### Tax Rates
 
 List the top rates with country/state where available, rate percent, paid tax, order tax, shipping tax, order count, refunded tax, pending/on-hold tax, dashboard-equivalent tax, and share of collected paid tax. Add small-sample language where needed.
 
-#### 4. Readiness
+#### Readiness
 
 Say whether the tax data is ready for a collection/reconciliation workflow. Base this only on tax settings and tax analytics, not catalogue AI-readiness. Mention missing or suspicious tax setup only if returned store profile or tax analytics supports it.
 
-#### 5. Issues
+#### Issues
 
 List the practical checks suggested by the data: on-hold tax to chase, refunded-tax concentration, missing current rate metadata, zero/low taxable share, shipping tax mismatch, or tax settings to confirm in WooCommerce admin. Keep this as checks, not legal conclusions.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, tax settings, order/payment workflows, shipping settings, payment processor dashboards, or accounting workflows.
 

@@ -58,27 +58,27 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range]
 
-#### 1. Headline
+#### Headline
 
 Two or three sentences covering collected revenue, orders, average order value, customer count, and refund rate. Lead with the most important movement.
 
-#### 2. What changed
+#### What changed
 
 Three bullets maximum. Focus on material changes in revenue, order volume, AOV, customer mix, pipeline/on-hold orders, or refunds. If the week was broadly flat, say that plainly.
 
-#### 3. Products
+#### Products
 
 Name the top products and the meaningful movement. Flag concentration risk if one product dominates the week.
 
-#### 4. Channels
+#### Channels
 
 Summarise the leading channels and any notable mix shift. If unassigned/direct traffic is large, explain that tracking may need attention without overstating the cause.
 
-#### 5. Watch List
+#### Watch List
 
 List up to three issues worth checking: refund spikes or low refund risk, weak product performance, unusual on-hold pipeline, small-sample anomalies, or channel mix changes.
 
-#### 6. Next Actions
+#### Next Actions
 
 Give three merchant-actionable steps. Each action should be doable in WooCommerce admin, marketing tools, fulfilment/support workflows, or a connected analytics/ad platform. Do not suggest building a new skill, endpoint, or plugin feature. A follow-up question is optional after the three actions, but it must not replace them.
 

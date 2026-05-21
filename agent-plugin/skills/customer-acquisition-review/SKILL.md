@@ -92,31 +92,31 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering new customers, returning customers, repeat-customer share, new-customer spend signal, whether acquisition grew or softened versus the comparison, and whether the sample is large enough to interpret.
 
-#### 2. New Versus Returning Customers
+#### New Versus Returning Customers
 
 Summarise the period customer mix: total customers, new customers, returning customers, overlap customers when relevant, orders, revenue, average order value, spend per customer, and comparison movement. Keep first-time customer period signals separate from returning-customer context.
 
-#### 3. Acquisition Channels
+#### Acquisition Channels
 
 Name the channels that brought the most useful acquisition signal. Include paid revenue, orders, new customers, returning customers, revenue share when returned, comparison movement, dropped-out channels, and attribution-coverage caveats. Keep pending channel pipeline separate from paid customer acquisition.
 
-#### 4. First-Time Customer Quality Signals
+#### First-Time Customer Quality Signals
 
 Use only returned first-time customer signals: new-customer revenue, new-customer average order value, new-customer spend per customer, new-customer orders per customer, and historic acquisition-cohort repeat behaviour when available. Say plainly when the period is too recent or too small to judge.
 
-#### 5. Repeat and Customer-Value Context
+#### Repeat and Customer-Value Context
 
 Summarise supported context from returning customers, active-base lifetime metrics, one-time versus repeat lifetime segments, cohort retention, time-between-orders, and basket-depth signals. Frame these as historic actuals and retention context, not predictions.
 
-#### 6. Tracking and Data Quality
+#### Tracking and Data Quality
 
 Call out attribution coverage, unassigned/direct concentration, guest-checkout or persistent-identity caveats when returned, and any reason the channel readout should be treated as partial.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, order attribution or campaign-tagging settings, email/CRM or coupon tools, product merchandising, checkout/payment settings, or connected analytics/ad platforms.
 

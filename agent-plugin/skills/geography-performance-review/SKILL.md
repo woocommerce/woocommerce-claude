@@ -96,31 +96,31 @@ Produce a review with this shape:
 
 **Country basis:** Billing country
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the highest-signal country concentration, order/customer context, biggest movement versus the comparison period, whether refunds deserve attention, and any coverage caveat. Say plainly if the country sample is too small to interpret.
 
-#### 2. Country Revenue and Orders
+#### Country Revenue and Orders
 
 List the leading billing countries by paid revenue and any order-led countries that matter. Include paid revenue, orders, average order value when returned, items sold when useful, share of paid revenue, comparison movement, and pending/on-hold revenue when material. Keep pending revenue separate from collected revenue.
 
-#### 3. Movement and Concentration
+#### Movement and Concentration
 
 Name countries that newly entered or dropped out of top results, countries with material movement, and whether revenue is concentrated or broadly spread. Use returned movement and share fields only. Do not infer causes.
 
-#### 4. Customer Mix
+#### Customer Mix
 
 Summarise store-wide new versus returning customer mix for the period, then active-customer context for selected countries when returned: active customers, share of active customers, lifetime spend context, and sample caveats. Keep country-level customer aggregates separate from store-wide new/returning mix.
 
-#### 5. Refund Signals
+#### Refund Signals
 
 List country refund signals when returned. Include refund amount, refund count, orders refunded, refund rate when defined, share of refunds, and average days to refund when useful. Use small-sample caveats and frame actions as checks, not conclusions.
 
-#### 6. Coverage and Tax Context
+#### Coverage and Tax Context
 
 Summarise billing-country coverage, unassigned country caveats, and any non-advice tax-threshold context. Phrase tax notes as "worth checking with your accountant or tax tool", not as a filing or registration conclusion.
 
-#### 7. Operational Next Actions
+#### Operational Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, checkout/address settings, payment settings, product merchandising, fulfilment/support workflows, accounting workflows, or connected analytics/ad platforms.
 

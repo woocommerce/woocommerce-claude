@@ -67,31 +67,31 @@ Produce a triage report with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering coupon attachment rate, orders with coupons, discount amount, revenue with coupons, AOV with/without coupons, and whether coupon use is up, down, or flat. If there was no coupon usage, say that plainly.
 
-#### 2. Severity
+#### Severity
 
 Call the triage level `Low`, `Medium`, or `High` with one sentence explaining why. Base it on discount cost, effective campaign cost, refund pressure, AOV gap, pipeline size, and whether the risk is concentrated in one or two codes.
 
-#### 3. Coupon Economics
+#### Coupon Economics
 
 Summarise the store-wide coupon picture: discount given, average discount per coupon order, coupon-order revenue, AOV with versus without coupons, and distinct coupons used. Use only returned fields.
 
-#### 4. Top Coupon Signals
+#### Top Coupon Signals
 
 List the coupon codes that most help explain the period. Include order count, revenue, discount amount, effective campaign cost, refund rate when meaningful, new-customer signal, links when available, and small-sample caveats where needed.
 
-#### 5. Movement and Pipeline
+#### Movement and Pipeline
 
 Name the biggest comparison moves, new or dropped-out top coupons, and any on-hold coupon pipeline. Keep pending coupon revenue separate from collected revenue.
 
-#### 6. Likely Checks
+#### Likely Checks
 
 List two or three checks grounded in the data: coupon minimum spend, expiry dates, usage limits, product/category exclusions, stacking, margin floors, landing-page/campaign timing, refund/support patterns, or gateway issues for coupon-linked pipeline.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, coupon settings, marketing tools, fulfilment/support workflows, payment processor dashboards, carrier tools, or connected analytics/ad tools.
 

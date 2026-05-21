@@ -2,24 +2,6 @@
  * Shared TypeScript interfaces for the Hey Woo conversational assistant.
  */
 
-export interface ChartDataPoint {
-	x: string;
-	y: number;
-}
-
-export interface ChartSeries {
-	name: string;
-	data: ChartDataPoint[];
-}
-
-export interface ChartSpec {
-	type: 'line' | 'bar' | 'pie';
-	title: string;
-	x_label?: string;
-	y_label?: string;
-	series: ChartSeries[];
-}
-
 export type FeedbackRating = 'up' | 'down';
 
 /**
@@ -38,7 +20,6 @@ export interface ChatMessage {
 	id: number;
 	role: 'user' | 'assistant';
 	content: string;
-	charts?: ChartSpec[];
 	feedback?: MessageFeedback;
 }
 
@@ -114,7 +95,7 @@ export const RETRYABLE_CHAT_ERROR_KINDS: ReadonlySet< ChatErrorKind > = new Set<
  * Top-level response shape from POST /hey-woo/v1/difm/chat.
  */
 export type ChatResponse =
-	| { status: 'ok'; reply: string; charts?: ChartSpec[] }
+	| { status: 'ok'; reply: string }
 	| { status: 'no_key' }
 	| { status: 'error'; kind?: ChatErrorKind; message: string };
 

@@ -93,31 +93,31 @@ Produce a review with this shape:
 
 **Compared with:** [comparison range, or "Not compared" if unavailable]
 
-#### 1. Snapshot
+#### Snapshot
 
 Two or three sentences covering the strongest merchandising signal, whether sales are concentrated or broad, whether current stock or sale-price state needs attention, and whether slow movers or product-page gaps deserve review. Say plainly if the product sample is too small to interpret.
 
-#### 2. Products to Feature or Watch
+#### Products to Feature or Watch
 
 Summarise top products by revenue, units sold, and order count. Include product links when available, SKU when useful, current stock status only when returned, period revenue, units sold, orders, and comparison movement. Separate feature candidates from watch items when a top seller is currently constrained or has only a small sample.
 
-#### 3. Category and SKU Coverage
+#### Category and SKU Coverage
 
 Summarise parent-product coverage, SKU or variation coverage, and top categories. Explain what moved versus what did not. Treat coverage gaps as a review of existing category placement, variation visibility, product pages, or merchandising, not a product-expansion recommendation.
 
-#### 4. Current Stock and Sale Pricing
+#### Current Stock and Sale Pricing
 
 List current stock constraints and sale-priced products that deserve merchandising attention. Include current stock status/quantity, sale-price state, period revenue, units sold, orders, and links when available. Keep stock and sale-price claims as current-state checks, not causes. If none are found, use plain merchant wording such as "I did not find any current sale-priced products needing merchandising attention." Do not create sale-pricing checks from product-detail pricing fields, and do not say "sale flag", "flagged", rows, views, parent-level pricing, variation-level pricing, or raw field names.
 
-#### 5. Slow Movers
+#### Slow Movers
 
 List products with no paid sales in the period when returned. Include current price, SKU, stock status/quantity, sale-price state, product-created date, and links when available. Frame these as review candidates, not automatic clearance or deletion decisions.
 
-#### 6. Product-Page Actions
+#### Product-Page Actions
 
 For the products checked in detail, list factual page actions: improve descriptions, add or refresh images, add visible attributes, tidy categories/tags, check upsells or cross-sells, or clarify stock/backorder messaging. Do not invent product claims, visitor behaviour, shopper motivations, conversion effects, or sale-state source comparisons.
 
-#### 7. Next Actions
+#### Next Actions
 
 Give three concrete merchant-actionable steps. Each should be doable in WooCommerce admin, product merchandising, sale pricing, product-page content, fulfilment/support workflows, or connected marketing tools.
 
