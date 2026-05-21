@@ -199,15 +199,12 @@ export function ChatInput( {
 				className="hey-woo-input__send"
 				variant="primary"
 				icon={ send }
-				iconPosition="right"
 				__next40pxDefaultSize
 				disabled={ disabled || ( variant === 'docked' && ! value.trim() ) }
 				isBusy={ disabled }
 				accessibleWhenDisabled
 				aria-label={ __( 'Send message', 'hey-woo' ) }
-			>
-				{ variant === 'docked' ? __( 'Send', 'hey-woo' ) : null }
-			</Button>
+			/>
 		</form>
 	);
 }
