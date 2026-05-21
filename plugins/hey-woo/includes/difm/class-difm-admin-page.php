@@ -111,7 +111,7 @@ class DifmAdminPage {
 
 			heywoo_register_hey_woo_insights_menu_item(
 				'hey-woo-history',
-				__( 'Library', 'hey-woo' ),
+				__( 'History', 'hey-woo' ),
 				'/history'
 			);
 
