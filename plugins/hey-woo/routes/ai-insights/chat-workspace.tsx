@@ -75,8 +75,12 @@ function ChatShortcuts() {
 	const navigate = useNavigate();
 
 	const launchWorkflow = ( slug: string, display: string ) => {
+		// Stay on '/' so the workflow runs in the same route bundle. Each route
+		// has its own `moduleData` singleton, so hopping to '/chat' would leave
+		// the post-completion redirect to `/?conversationId=<id>` reading a
+		// stale conversations cache and flashing a blank chat.
 		void navigate( {
-			to: '/chat',
+			to: '/',
 			search: {
 				workflowPrompt: `/${ slug }`,
 				workflowDisplay: display,
