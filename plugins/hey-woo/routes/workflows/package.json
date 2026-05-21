@@ -1,6 +1,6 @@
 {
 	"route": {
-		"path": "/reports",
+		"path": "/workflows",
 		"page": "hey-woo-insights"
 	}
 }

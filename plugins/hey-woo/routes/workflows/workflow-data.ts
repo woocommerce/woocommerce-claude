@@ -1,9 +1,20 @@
 /**
- * Shared report workflow metadata and launch helpers.
+ * Shared workflow metadata and launch helpers.
  */
 import { __, sprintf } from '@wordpress/i18n';
+import moduleData from '../ai-insights/data';
+import type {
+	ChatMessage,
+	ChatResponse,
+	StoredConversation,
+} from '../ai-insights/types';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
+import { CONVERSATIONS_UPDATED_EVENT } from '../ai-insights/hooks/useConversations';
+import {
+	clearWorkflowRunning,
+	markWorkflowRunning,
+} from './running-store';
 
 export type RunMode = 'now' | 'weekly';
 export type PeriodOption = 'last_7_days' | 'last_30_days' | 'month_to_date' | 'quarter_to_date';
@@ -156,14 +167,127 @@ export function getWorkflowBySlug( workflowSlug: string ): WorkflowAction | unde
 	return WORKFLOWS.find( ( workflow ) => workflow.slug === workflowSlug );
 }
 
-export function launchChatWorkflow( prompt: string, displayText = __( 'Run workflow', 'hey-woo' ) ): void {
-	const url = new URL( window.location.href );
-	const routeSearch = new URLSearchParams();
-	routeSearch.set( 'workflowPrompt', prompt );
-	routeSearch.set( 'workflowDisplay', displayText );
+const MAX_LIBRARY_CONVERSATIONS = 5;
+const WORKFLOW_TIMEOUT_MS = 180_000;
 
-	url.searchParams.set( 'p', `/chat?${ routeSearch.toString() }` );
-	window.location.assign( url.toString() );
+function upsertConversation(
+	conversations: StoredConversation[],
+	incoming: StoredConversation
+): StoredConversation[] {
+	const without = conversations.filter( ( item ) => item.id !== incoming.id );
+	without.unshift( incoming );
+	without.sort( ( a, b ) => b.updatedAt - a.updatedAt );
+	return without.slice( 0, MAX_LIBRARY_CONVERSATIONS );
+}
+
+function publishConversations( conversations: StoredConversation[] ): void {
+	moduleData.conversations = conversations;
+	window.dispatchEvent(
+		new CustomEvent< StoredConversation[] >( CONVERSATIONS_UPDATED_EVENT, {
+			detail: conversations,
+		} )
+	);
+}
+
+async function persistConversation( conversation: StoredConversation ): Promise< void > {
+	const next = upsertConversation( moduleData.conversations, conversation );
+	publishConversations( next );
+
+	try {
+		await fetch( moduleData.restBase + '/conversations', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-WP-Nonce': moduleData.nonce,
+			},
+			body: JSON.stringify( conversation ),
+		} );
+	} catch ( _err ) {
+		// Silent failure — conversation remains in local state.
+	}
+}
+
+/**
+ * Run a workflow in the background.
+ *
+ * Does not navigate. Marks the workflow as running, persists a placeholder
+ * conversation so it appears in the Library immediately, fetches the assistant
+ * reply, and updates the conversation when the reply lands. The running flag
+ * is cleared regardless of success or failure.
+ */
+export async function runWorkflowInBackground( {
+	workflow,
+	prompt,
+	displayText,
+}: {
+	workflow: WorkflowAction;
+	prompt: string;
+	displayText: string;
+} ): Promise< void > {
+	const conversationId =
+		typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+			? crypto.randomUUID()
+			: `wf-${ workflow.slug }-${ Date.now() }`;
+
+	markWorkflowRunning( workflow.slug, conversationId );
+
+	const userMessage: ChatMessage = {
+		id: 0,
+		role: 'user',
+		content: displayText,
+	};
+
+	await persistConversation( {
+		id: conversationId,
+		title: displayText,
+		messages: [ userMessage ],
+		updatedAt: Date.now(),
+	} );
+
+	const controller = new AbortController();
+	const timeoutId = setTimeout( () => controller.abort(), WORKFLOW_TIMEOUT_MS );
+
+	try {
+		const response = await fetch( moduleData.restBase + '/chat', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-WP-Nonce': moduleData.nonce,
+			},
+			body: JSON.stringify( {
+				message: prompt,
+				history: [],
+			} ),
+			signal: controller.signal,
+		} );
+
+		if ( ! response.ok ) {
+			throw new Error( 'workflow_request_failed' );
+		}
+
+		const json = ( await response.json() ) as ChatResponse;
+
+		if ( json.status === 'ok' ) {
+			const assistantMessage: ChatMessage = {
+				id: 1,
+				role: 'assistant',
+				content: json.reply,
+				...( json.charts?.length ? { charts: json.charts } : {} ),
+			};
+
+			await persistConversation( {
+				id: conversationId,
+				title: displayText,
+				messages: [ userMessage, assistantMessage ],
+				updatedAt: Date.now(),
+			} );
+		}
+	} catch ( _err ) {
+		// Leave the placeholder conversation in place so the merchant can retry from chat.
+	} finally {
+		clearTimeout( timeoutId );
+		clearWorkflowRunning( workflow.slug );
+	}
 }
 
 const STRUCTURED_REPORT_SCHEMA_WITH_ACTIONS = '{"title":"","subtitle":"","summary":"","metric_tiles":[{"label":"","value":"","trend":"","caption":"","tone":"neutral"}],"insights":[{"title":"","summary":"","category":"","status":"","metric":"","tone":"neutral"}],"charts":[{"type":"bar","title":"","x_label":"","y_label":"","series":[{"name":"","data":[{"x":"","y":0}]}]}],"tables":[{"title":"","columns":[],"rows":[],"note":""}],"caveats":[{"title":"","detail":"","tone":"warning"}],"sources":[{"label":"","detail":""}],"actions":[{"title":"","priority":"medium","summary":"","key_metric":"","impact":"","evidence":"","next_steps":[],"expected_outcome":""}]}';
