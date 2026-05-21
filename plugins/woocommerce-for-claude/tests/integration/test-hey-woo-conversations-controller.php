@@ -2,8 +2,8 @@
 /**
  * Integration tests for the Hey Woo conversations REST controller.
  *
- * Focused on the stale-write guard: out-of-order POSTs to the same conversation
- * ID must not let an older `updatedAt` overwrite a newer stored entry.
+ * Focused on the per-user advisory lock and stale-write guard in
+ * {@see WooCommerce\HeyWoo\Difm\DifmConversationsController::save_conversation()}.
  *
  * @package WooCommerce\Claude\Tests
  */
@@ -13,7 +13,7 @@ use WooCommerce\HeyWoo\Difm\DifmConversationsController;
 require_once WP_PLUGIN_DIR . '/hey-woo/includes/difm/class-difm-conversations-controller.php';
 
 /**
- * Tests the conversations controller's stale-write guard.
+ * Tests the conversations controller's lock + stale-write semantics.
  */
 class Test_Hey_Woo_Conversations_Controller extends WP_UnitTestCase {
 
@@ -192,5 +192,73 @@ class Test_Hey_Woo_Conversations_Controller extends WP_UnitTestCase {
 		$stored = $this->get_stored_conversations();
 		$this->assertCount( 1, $stored );
 		$this->assertSame( 'conv-fresh', $stored[0]['id'] );
+	}
+
+	/**
+	 * When another connection already holds the per-user advisory lock, a
+	 * concurrent save must return 503 so the client can retry rather than
+	 * silently stomping on the in-flight write.
+	 *
+	 * Simulates the contention case the in-process integration test cannot
+	 * otherwise exercise: two PHP-FPM workers reaching save_conversation()
+	 * for the same user at once.
+	 */
+	public function test_returns_503_when_lock_is_held_by_concurrent_worker() {
+		$lock_key = DifmConversationsController::LOCK_KEY_PREFIX . $this->admin_user_id;
+		$other    = $this->open_secondary_db_connection();
+		$acquired = $other->get_var( $other->prepare( 'SELECT GET_LOCK(%s, %d)', $lock_key, 5 ) );
+		$this->assertSame( '1', (string) $acquired, 'Pre-acquired lock must succeed on the secondary connection.' );
+
+		// Force the controller's own GET_LOCK call to give up immediately so the
+		// test does not have to wait out the production timeout.
+		add_filter( 'hey_woo_conversation_lock_timeout', '__return_zero' );
+
+		try {
+			$response = $this->post_conversation( $this->build_payload( 'conv-locked', 1000, 'first' ) );
+
+			$this->assertSame( 503, $response->get_status(), 'Contended save must surface 503.' );
+			$body = $response->get_data();
+			$this->assertIsArray( $body );
+			$this->assertSame( 'hey_woo_conversation_lock_timeout', $body['code'] );
+
+			// Nothing was persisted — the write was rejected before the read.
+			$this->assertCount( 0, $this->get_stored_conversations() );
+		} finally {
+			remove_filter( 'hey_woo_conversation_lock_timeout', '__return_zero' );
+			$other->get_var( $other->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_key ) );
+			$other->close();
+		}
+	}
+
+	/**
+	 * Once the contending worker releases the lock, the next save succeeds.
+	 * Asserts the lock is correctly released by the controller (no leak across
+	 * requests) by running an immediately-following save after the simulated
+	 * contention ends.
+	 */
+	public function test_save_succeeds_after_concurrent_worker_releases_lock() {
+		$lock_key = DifmConversationsController::LOCK_KEY_PREFIX . $this->admin_user_id;
+		$other    = $this->open_secondary_db_connection();
+		$other->get_var( $other->prepare( 'SELECT GET_LOCK(%s, %d)', $lock_key, 5 ) );
+		$other->get_var( $other->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_key ) );
+		$other->close();
+
+		$response = $this->post_conversation( $this->build_payload( 'conv-after-lock', 1000, 'ok' ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$stored = $this->get_stored_conversations();
+		$this->assertCount( 1, $stored );
+		$this->assertSame( 'conv-after-lock', $stored[0]['id'] );
+	}
+
+	/**
+	 * Open a second wpdb connection so it can hold a GET_LOCK independently
+	 * of the connection the controller uses.
+	 *
+	 * @return \wpdb
+	 */
+	private function open_secondary_db_connection() {
+		// phpcs:ignore WordPress.DB.RestrictedClasses.mysql__wpdb -- Intentional: we need a separate session to simulate cross-worker contention.
+		return new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST );
 	}
 }

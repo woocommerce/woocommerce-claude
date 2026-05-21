@@ -46,6 +46,24 @@ class DifmConversationsController {
 	const MAX_CONVERSATIONS = 50;
 
 	/**
+	 * Prefix for the per-user MySQL advisory lock taken around the read →
+	 * stale-check → write sequence in {@see save_conversation()}.
+	 *
+	 * Lock keys are limited to 64 chars in MySQL 5.7+; this prefix plus a 64-bit
+	 * user id stays well within that bound.
+	 */
+	const LOCK_KEY_PREFIX = 'hey_woo_conv:';
+
+	/**
+	 * GET_LOCK acquisition timeout, in seconds.
+	 *
+	 * Short on purpose: under contention we'd rather return 503 quickly than
+	 * tie up a PHP-FPM worker. Overridable via the `hey_woo_conversation_lock_timeout`
+	 * filter (tests use 0 for fast contention assertions).
+	 */
+	const LOCK_TIMEOUT_SECONDS = 2;
+
+	/**
 	 * Register REST route hooks.
 	 *
 	 * @return void
@@ -118,6 +136,11 @@ class DifmConversationsController {
 	/**
 	 * POST handler — upsert a conversation by ID, keeping at most MAX_CONVERSATIONS.
 	 *
+	 * The read → stale-check → write sequence runs under a per-user MySQL
+	 * advisory lock so two concurrent PHP-FPM workers cannot interleave their
+	 * SELECT/UPDATE pairs and let an older write land last. See
+	 * {@see with_user_lock()} for the lock contract.
+	 *
 	 * @param \WP_REST_Request $request Request object.
 	 * @return \WP_REST_Response|\WP_Error
 	 */
@@ -156,61 +179,116 @@ class DifmConversationsController {
 			$incoming['workflowRun'] = self::sanitize_workflow_run_meta( $raw_body_params['workflowRun'] );
 		}
 
-		$conversations = self::get_recent_conversations( $user_id );
+		return $this->with_user_lock(
+			$user_id,
+			function () use ( $user_id, $incoming ) {
+				$conversations = self::get_recent_conversations( $user_id );
 
-		// Stale-write guard: if a stored entry already has a newer updatedAt for this
-		// id, reject — otherwise a slow, older POST could overwrite a faster, newer one.
-		//
-		// Best-effort: the SELECT → check → update_user_meta sequence is not atomic,
-		// so two concurrent PHP-FPM workers can both pass the guard inside the
-		// millisecond-scale read-write window and the older write can still land
-		// last. The window is tiny in practice and a full fix needs a per-user
-		// advisory lock (GET_LOCK) or per-conversation rows; both are out of scope
-		// here. Treat this as a sharp narrowing of the previous unbounded race.
-		foreach ( $conversations as $existing ) {
-			if ( ! isset( $existing['id'] ) || $existing['id'] !== $incoming['id'] ) {
-				continue;
-			}
-			$stored_updated_at = isset( $existing['updatedAt'] ) ? (int) $existing['updatedAt'] : 0;
-			if ( $incoming['updatedAt'] < $stored_updated_at ) {
-				return new \WP_Error(
-					'hey_woo_stale_conversation_write',
-					__( 'A newer version of this conversation is already stored.', 'hey-woo' ),
-					array(
-						'status'     => 409,
-						'storedAt'   => $stored_updated_at,
-						'incomingAt' => $incoming['updatedAt'],
+				// Stale-write guard: if a stored entry already has a newer updatedAt for
+				// this id, reject — otherwise a slow, older POST could overwrite a faster,
+				// newer one. The enclosing lock makes this guard atomic with the write.
+				foreach ( $conversations as $existing ) {
+					if ( ! isset( $existing['id'] ) || $existing['id'] !== $incoming['id'] ) {
+						continue;
+					}
+					$stored_updated_at = isset( $existing['updatedAt'] ) ? (int) $existing['updatedAt'] : 0;
+					if ( $incoming['updatedAt'] < $stored_updated_at ) {
+						return new \WP_Error(
+							'hey_woo_stale_conversation_write',
+							__( 'A newer version of this conversation is already stored.', 'hey-woo' ),
+							array(
+								'status'     => 409,
+								'storedAt'   => $stored_updated_at,
+								'incomingAt' => $incoming['updatedAt'],
+							)
+						);
+					}
+					break;
+				}
+
+				// Remove existing entry with same ID (upsert).
+				$conversations = array_values(
+					array_filter(
+						$conversations,
+						function ( $conv ) use ( $incoming ) {
+							return $conv['id'] !== $incoming['id'];
+						}
 					)
 				);
+
+				// Prepend the updated conversation.
+				array_unshift( $conversations, $incoming );
+
+				// Sort by updatedAt descending, keep most recent MAX_CONVERSATIONS.
+				usort(
+					$conversations,
+					function ( $a, $b ) {
+						return $b['updatedAt'] - $a['updatedAt'];
+					}
+				);
+				$conversations = array_slice( $conversations, 0, self::MAX_CONVERSATIONS );
+
+				update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
+
+				return rest_ensure_response( array( 'status' => 'ok' ) );
 			}
-			break;
+		);
+	}
+
+	/**
+	 * Run a callback under a per-user MySQL advisory lock.
+	 *
+	 * The lock is keyed on the user id so saves for one user never block another
+	 * user's saves. On timeout we surface a 503 so the client can retry — the
+	 * client-side save chain in `useConversations.ts` already coalesces same-id
+	 * saves, so 503s in practice indicate genuine multi-tab or multi-consumer
+	 * contention rather than a self-collision.
+	 *
+	 * This is the only place in the plugin that uses GET_LOCK; the choice is
+	 * documented here because it sets a precedent. Alternatives considered:
+	 * per-conversation rows (much larger change) and Redis-backed locks (extra
+	 * infra dependency). GET_LOCK is connection-scoped, releases automatically
+	 * when the connection dies, and is portable across the MySQL/MariaDB
+	 * versions WordPress already supports.
+	 *
+	 * @param int      $user_id  WordPress user id; namespaces the lock.
+	 * @param callable $callback No-arg callback whose return value is propagated.
+	 * @return mixed The callback's return value, or a WP_Error if the lock
+	 *               cannot be acquired within the configured timeout.
+	 */
+	private function with_user_lock( $user_id, callable $callback ) {
+		global $wpdb;
+
+		$key = self::LOCK_KEY_PREFIX . (int) $user_id;
+		/**
+		 * Filter the GET_LOCK acquisition timeout for conversation writes.
+		 *
+		 * @since 0.5.0
+		 *
+		 * @param int $timeout_seconds Default {@see self::LOCK_TIMEOUT_SECONDS}.
+		 */
+		$timeout = (int) apply_filters( 'hey_woo_conversation_lock_timeout', self::LOCK_TIMEOUT_SECONDS );
+		if ( $timeout < 0 ) {
+			$timeout = 0;
 		}
 
-		// Remove existing entry with same ID (upsert).
-		$conversations = array_values(
-			array_filter(
-				$conversations,
-				function ( $conv ) use ( $incoming ) {
-					return $conv['id'] !== $incoming['id'];
-				}
-			)
-		);
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- GET_LOCK is a session-scoped advisory lock; caching would defeat the purpose.
+		$acquired = $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, %d)', $key, $timeout ) );
 
-		// Prepend the updated conversation.
-		array_unshift( $conversations, $incoming );
+		if ( '1' !== (string) $acquired ) {
+			return new \WP_Error(
+				'hey_woo_conversation_lock_timeout',
+				__( 'The conversation is being saved by another request. Retry in a moment.', 'hey-woo' ),
+				array( 'status' => 503 )
+			);
+		}
 
-		// Sort by updatedAt descending, keep most recent MAX_CONVERSATIONS.
-		usort(
-			$conversations,
-			function ( $a, $b ) {
-				return $b['updatedAt'] - $a['updatedAt'];
-			}
-		);
-		$conversations = array_slice( $conversations, 0, self::MAX_CONVERSATIONS );
-
-		update_user_meta( $user_id, self::USER_META_KEY, wp_slash( $conversations ) );
-
-		return rest_ensure_response( array( 'status' => 'ok' ) );
+		try {
+			return $callback();
+		} finally {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- See acquire site above; RELEASE_LOCK must mirror it.
+			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $key ) );
+		}
 	}
 
 	/**
