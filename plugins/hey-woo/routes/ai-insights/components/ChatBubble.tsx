@@ -4,10 +4,7 @@
 import { __ } from '@wordpress/i18n';
 import type { ChatMessage, FeedbackRating } from '../types';
 import { MarkdownContent } from './MarkdownContent';
-import { ChatChart } from './ChatChart';
-import { ReportActionCards } from './ReportActionCards';
 import { MessageFeedback } from './MessageFeedback';
-import { parseReportActions } from '../report-actions';
 
 interface ChatBubbleProps {
 	message: ChatMessage;
@@ -20,9 +17,6 @@ interface ChatBubbleProps {
 
 export function ChatBubble( { message, onSubmitFeedback }: ChatBubbleProps ) {
 	const isUser = message.role === 'user';
-	const { content, actions } = isUser
-		? { content: message.content, actions: [] }
-		: parseReportActions( message.content );
 
 	return (
 		<div
@@ -41,15 +35,7 @@ export function ChatBubble( { message, onSubmitFeedback }: ChatBubbleProps ) {
 				</p>
 			) : (
 				<>
-					{ content && <MarkdownContent content={ content } /> }
-					<ReportActionCards actions={ actions } />
-					{ message.charts && message.charts.length > 0 && (
-						<div className="hey-woo-charts">
-							{ message.charts.map( ( spec, i ) => (
-								<ChatChart key={ i } spec={ spec } />
-							) ) }
-						</div>
-					) }
+					<MarkdownContent content={ message.content } />
 					{ onSubmitFeedback && (
 						<MessageFeedback
 							messageId={ message.id }

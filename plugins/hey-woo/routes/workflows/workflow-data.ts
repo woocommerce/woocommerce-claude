@@ -189,7 +189,7 @@ export function buildWorkflowPrompt(
 					time
 			  )
 			: __( 'Run mode: one-off report.', 'hey-woo' ),
-		__( 'Format: write a merchant-friendly markdown report with clear section headings. Use tables when comparing multiple products, channels, or cohorts. Only call render_chart when a chart explains a movement better than a table.', 'hey-woo' ),
+		__( 'Format: write a merchant-friendly markdown report with clear section headings. Use tables when comparing multiple products, channels, or cohorts.', 'hey-woo' ),
 		actionCards
 			? __( 'End the report with a "## Next Actions" heading followed by three merchant-doable steps as a numbered or bulleted list. Each step should start with a short bold title, then a one-sentence explanation tied to specific evidence in the report. Do not add vague actions like "review the report".', 'hey-woo' )
 			: __( 'Do not include a separate Next Actions section; any next steps should sit inside the report summary.', 'hey-woo' ),
