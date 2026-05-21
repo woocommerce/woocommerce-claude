@@ -56,14 +56,18 @@ class DifmFeedbackController {
 	const COMMENT_MAX_LENGTH = 1000;
 
 	/**
-	 * Per-user cooldown between feedback submissions, in seconds.
+	 * Per-user cooldown between feedback submissions on *different* messages,
+	 * in seconds.
 	 *
-	 * Real merchant gestures fire at human cadence — thumb click followed by
-	 * a Send several seconds later. A short cooldown bounds bursts from a
-	 * compromised or scripted session without disrupting normal use; the
-	 * client surfaces 429 responses as a generic retry error.
+	 * The throttle is scoped to (user, last message_id): same-message
+	 * follow-ups (e.g., the comment after the thumb gesture) bypass the
+	 * cooldown because they're the legitimate two-step UX, while a rapid
+	 * submission against a different message_id inside this window is
+	 * rejected with 429. A short, defensive cap on cross-message bursts —
+	 * not a security boundary; the client surfaces 429s as a generic retry
+	 * error.
 	 */
-	const FEEDBACK_COOLDOWN_SECONDS = 1;
+	const FEEDBACK_COOLDOWN_SECONDS = 2;
 
 	/**
 	 * Object cache group for the per-user feedback throttle.
@@ -167,18 +171,26 @@ class DifmFeedbackController {
 		// against unknown conversation IDs consume the slot too, so a spammer
 		// cannot loop on cheap 404s to learn which IDs exist.
 		//
+		// The slot stores the message_id we accepted so a same-message
+		// follow-up (the legitimate "comment after thumb" gesture) can share
+		// the slot and skip the 429. A different message_id inside the
+		// cooldown window still trips the throttle.
+		//
 		// Without a persistent object cache, wp_cache_add only protects within
 		// a single PHP process and the throttle is effectively best-effort.
 		// That's acceptable for the BYOK beta: the endpoint is gated by
 		// manage_woocommerce and the cooldown is a defensive cap on bursts
 		// from a scripted session, not a security boundary.
 		$throttle_key = (string) $user_id;
-		if ( ! wp_cache_add( $throttle_key, 1, self::FEEDBACK_CACHE_GROUP, self::FEEDBACK_COOLDOWN_SECONDS ) ) {
-			return new \WP_Error(
-				'hey_woo_feedback_throttled',
-				__( 'Feedback is rate limited. Try again in a moment.', 'hey-woo' ),
-				array( 'status' => 429 )
-			);
+		if ( ! wp_cache_add( $throttle_key, $message_id, self::FEEDBACK_CACHE_GROUP, self::FEEDBACK_COOLDOWN_SECONDS ) ) {
+			$claimed_message_id = wp_cache_get( $throttle_key, self::FEEDBACK_CACHE_GROUP );
+			if ( false === $claimed_message_id || (int) $claimed_message_id !== $message_id ) {
+				return new \WP_Error(
+					'hey_woo_feedback_throttled',
+					__( 'Feedback is rate limited. Try again in a moment.', 'hey-woo' ),
+					array( 'status' => 429 )
+				);
+			}
 		}
 
 		if ( ! self::user_owns_conversation( $user_id, $conversation_id ) ) {

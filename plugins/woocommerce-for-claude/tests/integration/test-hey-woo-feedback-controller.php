@@ -51,7 +51,7 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 
 		$this->seed_user_conversations(
 			$this->admin_user_id,
-			array( 'conv-123', 'conv-456', 'conv-789', 'conv-throttle', 'conv-route' )
+			array( 'conv-123', 'conv-456', 'conv-789', 'conv-throttle', 'conv-route', 'conv-same-msg' )
 		);
 
 		$this->capturing_handler = new class() implements TelemetryHandlerInterface {
@@ -348,7 +348,13 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Back-to-back submissions are throttled with a 429.
+	 * Back-to-back submissions on *different* message_ids are throttled with a 429.
+	 *
+	 * The throttle is scoped per (user, last message_id) — a rapid second
+	 * submission against a new message inside the cooldown is the scripted-
+	 * burst signal we want to bound. Same-message follow-ups (the legitimate
+	 * comment-after-thumb gesture) are covered in
+	 * test_rapid_submissions_on_same_message_are_not_rate_limited.
 	 */
 	public function test_rapid_submissions_are_rate_limited() {
 		$first = $this->post_feedback(
@@ -373,11 +379,44 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Back-to-back submissions on the *same* message_id bypass the throttle.
+	 *
+	 * Locks in the per-(user, message_id) scope: the legit two-step UX is
+	 * thumb (POST 1) → type comment → Send (POST 2) — both POSTs share the
+	 * same message_id and must succeed even when the comment lands inside
+	 * the cooldown window.
+	 */
+	public function test_rapid_submissions_on_same_message_are_not_rate_limited() {
+		$thumb = $this->post_feedback(
+			array(
+				'conversation_id' => 'conv-same-msg',
+				'message_id'      => 9,
+				'rating'          => 'up',
+			)
+		);
+		$this->assertSame( 200, $thumb->get_status() );
+
+		$comment = $this->post_feedback(
+			array(
+				'conversation_id' => 'conv-same-msg',
+				'message_id'      => 9,
+				'rating'          => 'up',
+				'comment'         => 'Followed up within the cooldown window.',
+			)
+		);
+
+		$this->assertSame( 200, $comment->get_status() );
+		$this->assertCount( 2, $this->capturing_handler->events, 'Both same-message submissions should reach telemetry.' );
+		$this->assertSame( 'yes', $this->capturing_handler->events[1]['data']['has_comment'] );
+	}
+
+	/**
 	 * A 404 probe against an unknown conversation consumes the throttle slot.
 	 *
 	 * The atomic claim runs before the ownership check on purpose — otherwise a
-	 * spammer hitting unknown IDs would receive unthrottled 404s. The next
-	 * valid POST from the same user is expected to come back as 429.
+	 * spammer hitting unknown IDs would receive unthrottled 404s. Because the
+	 * slot now remembers the probed message_id, the follow-up here uses a
+	 * different message_id so it trips the per-(user, last message_id) throttle.
 	 */
 	public function test_probe_against_unknown_conversation_consumes_throttle_slot() {
 		$probe = $this->post_feedback(
