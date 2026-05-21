@@ -87,11 +87,53 @@ class DifmRestController {
 	const PENDING_LARGE_RANGE_PREFIX = 'hey_woo_difm_large_range_';
 
 	/**
+	 * Chat-progress route.
+	 *
+	 * Lightweight read-only endpoint the frontend polls during a chat turn
+	 * to surface "Looking up store totals…" / "Reading product details…"
+	 * style hints driven by the actual tool the controller is executing.
+	 */
+	const PROGRESS_ROUTE = '/difm/chat-progress';
+
+	/**
+	 * Transient prefix for the per-request chat-progress payload.
+	 */
+	const PROGRESS_TRANSIENT_PREFIX = 'hey_woo_chat_progress_';
+
+	/**
+	 * TTL for chat-progress transients, in seconds.
+	 *
+	 * Longer than any single chat turn (the chat call itself times out at
+	 * 180s on the client) but short enough that an abandoned request does
+	 * not linger in the options table.
+	 */
+	const PROGRESS_TTL_SECONDS = 300;
+
+	/**
+	 * Maximum accepted length of a chat-progress identifier.
+	 *
+	 * UUIDs are 36 characters; allow a small headroom for callers that
+	 * supply an alternative opaque token.
+	 */
+	const PROGRESS_ID_MAX_LENGTH = 64;
+
+	/**
 	 * Workflow slug active for the current request.
 	 *
 	 * @var string
 	 */
 	private $active_workflow_slug = '';
+
+	/**
+	 * Progress identifier supplied by the frontend for the current chat
+	 * request, used as the transient key the chat-progress poll reads.
+	 *
+	 * Empty string when the client did not supply one, in which case the
+	 * controller skips progress writes entirely.
+	 *
+	 * @var string
+	 */
+	private $progress_id = '';
 
 	/**
 	 * Provider-visible tool names mapped to registered WordPress abilities.
@@ -151,13 +193,13 @@ class DifmRestController {
 					'callback'            => array( $this, 'send_chat_message' ),
 					'permission_callback' => array( $this, 'check_permission' ),
 					'args'                => array(
-						'message' => array(
+						'message'     => array(
 							'type'              => 'string',
 							'required'          => true,
 							'sanitize_callback' => 'sanitize_text_field',
 							'minLength'         => 1,
 						),
-						'history' => array(
+						'history'     => array(
 							'type'     => 'array',
 							'required' => false,
 							'default'  => array(),
@@ -173,6 +215,36 @@ class DifmRestController {
 									),
 								),
 							),
+						),
+						'progress_id' => array(
+							'type'              => 'string',
+							'required'          => false,
+							'default'           => '',
+							'sanitize_callback' => 'sanitize_text_field',
+							'validate_callback' => 'rest_validate_request_arg',
+							'maxLength'         => self::PROGRESS_ID_MAX_LENGTH,
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE,
+			self::PROGRESS_ROUTE,
+			array(
+				array(
+					'methods'             => \WP_REST_Server::READABLE,
+					'callback'            => array( $this, 'read_chat_progress' ),
+					'permission_callback' => array( $this, 'check_permission' ),
+					'args'                => array(
+						'progress_id' => array(
+							'type'              => 'string',
+							'required'          => true,
+							'sanitize_callback' => 'sanitize_text_field',
+							'validate_callback' => 'rest_validate_request_arg',
+							'minLength'         => 1,
+							'maxLength'         => self::PROGRESS_ID_MAX_LENGTH,
 						),
 					),
 				),
@@ -230,6 +302,8 @@ class DifmRestController {
 	 * @return \WP_REST_Response
 	 */
 	public function send_chat_message( \WP_REST_Request $request ) {
+		$this->progress_id = $this->sanitise_progress_id( $request->get_param( 'progress_id' ) );
+
 		$resolver = new DifmProviderResolver();
 		$client   = $resolver->resolve_client();
 		if ( is_wp_error( $client ) ) {
@@ -925,6 +999,8 @@ class DifmRestController {
 				$this->summarise_tool_input_for_log( $input )
 			)
 		);
+
+		$this->record_progress( $tool_name, 'captured' === $phase ? 'captured' : 'execute' );
 	}
 
 	/**
@@ -952,6 +1028,8 @@ class DifmRestController {
 		}
 
 		TelemetryHandler::record( 'difm_tool_result', $data );
+
+		$this->record_progress( $tool_name, 'complete' );
 	}
 
 	/**
@@ -971,6 +1049,121 @@ class DifmRestController {
 				'event'    => 'difm_workflow_selected',
 				'workflow' => (string) $workflow['slug'],
 				'match'    => isset( $workflow['match'] ) ? (string) $workflow['match'] : '',
+			)
+		);
+	}
+
+	/**
+	 * Constrain a raw progress identifier to a safe shape for transient keying.
+	 *
+	 * Falls back to '' when the supplied value is missing, empty, or contains
+	 * characters that would not survive a transient key round-trip. Length is
+	 * capped at PROGRESS_ID_MAX_LENGTH as a defence in depth on top of the
+	 * REST schema validator.
+	 *
+	 * @param mixed $raw Raw progress_id from the request.
+	 * @return string
+	 */
+	private function sanitise_progress_id( $raw ) {
+		if ( ! is_scalar( $raw ) ) {
+			return '';
+		}
+
+		$value = sanitize_text_field( (string) $raw );
+		// Allow UUIDs, hex tokens, and short opaque slugs without exotic chars.
+		if ( ! preg_match( '/^[A-Za-z0-9._-]+$/', $value ) ) {
+			return '';
+		}
+
+		if ( strlen( $value ) > self::PROGRESS_ID_MAX_LENGTH ) {
+			return '';
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Build the transient key for the current chat-progress payload.
+	 *
+	 * @param string $progress_id Sanitised progress identifier.
+	 * @return string
+	 */
+	private function progress_transient_key( $progress_id ) {
+		return self::PROGRESS_TRANSIENT_PREFIX . $progress_id;
+	}
+
+	/**
+	 * Write a chat-progress payload for the current request so the frontend
+	 * can render a live "what is Hey Woo doing right now" hint while the
+	 * tool loop runs.
+	 *
+	 * Silently skips when the client did not pass a progress_id, so existing
+	 * callers (and the legacy chat path) keep working without changes.
+	 *
+	 * @param string $tool  Provider-visible tool name (e.g. analytics_totals).
+	 * @param string $phase Phase marker: 'execute', 'captured', or 'complete'.
+	 * @return void
+	 */
+	private function record_progress( $tool, $phase ) {
+		if ( '' === $this->progress_id ) {
+			return;
+		}
+
+		set_transient(
+			$this->progress_transient_key( $this->progress_id ),
+			array(
+				'tool'      => (string) $tool,
+				'phase'     => (string) $phase,
+				'timestamp' => time(),
+			),
+			self::PROGRESS_TTL_SECONDS
+		);
+	}
+
+	/**
+	 * GET /hey-woo/v1/difm/chat-progress — read the latest progress payload.
+	 *
+	 * Polled by the frontend during a chat turn to surface tool-loop hints.
+	 * Returns null fields when no payload is recorded yet, so the client can
+	 * fall back to the generic "Hey Woo is working" copy without branching
+	 * on response shape.
+	 *
+	 * @param \WP_REST_Request $request Incoming request.
+	 * @return \WP_REST_Response
+	 */
+	public function read_chat_progress( \WP_REST_Request $request ) {
+		$progress_id = $this->sanitise_progress_id( $request->get_param( 'progress_id' ) );
+
+		if ( '' === $progress_id ) {
+			return rest_ensure_response(
+				array(
+					'status'    => 'ok',
+					'tool'      => null,
+					'phase'     => null,
+					'timestamp' => null,
+				)
+			);
+		}
+
+		$payload = get_transient( $this->progress_transient_key( $progress_id ) );
+
+		if ( ! is_array( $payload ) ) {
+			return rest_ensure_response(
+				array(
+					'status'    => 'ok',
+					'tool'      => null,
+					'phase'     => null,
+					'timestamp' => null,
+				)
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'status'    => 'ok',
+				'tool'      => isset( $payload['tool'] ) ? (string) $payload['tool'] : null,
+				'phase'     => isset( $payload['phase'] ) ? (string) $payload['phase'] : null,
+				'timestamp' => isset( $payload['timestamp'] ) ? (int) $payload['timestamp'] : null,
 			)
 		);
 	}

@@ -23,6 +23,12 @@ export interface ChatState {
 	status: ChatStatus;
 	errorMessage: string;
 	errorKind?: ChatErrorKind;
+	/**
+	 * Identifier for the in-flight chat turn, threaded into the POST body and
+	 * read by useChatProgress to poll the matching server-side transient.
+	 * Refreshed on every runChatRequest call.
+	 */
+	progressId?: string;
 }
 
 export interface UseChatOptions {
@@ -190,11 +196,14 @@ export function useChat( options: UseChatOptions = {} ) {
 			}
 			inFlightRef.current = true;
 
+			const progressId = crypto.randomUUID();
+
 			setState( ( prev ) => ( {
 				...prev,
 				status: 'sending',
 				errorMessage: '',
 				errorKind: undefined,
+				progressId,
 			} ) );
 
 			let timeoutId: ReturnType< typeof setTimeout > | undefined;
@@ -212,6 +221,7 @@ export function useChat( options: UseChatOptions = {} ) {
 					body: JSON.stringify( {
 						message: text,
 						history,
+						progress_id: progressId,
 					} ),
 					signal: controller.signal,
 				} );

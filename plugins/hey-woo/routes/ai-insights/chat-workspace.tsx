@@ -8,6 +8,7 @@ import { __, _n, sprintf } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
 import moduleData from './data';
 import { useChat } from './hooks/useChat';
+import { useChatProgress } from './hooks/useChatProgress';
 import { useConversations } from './hooks/useConversations';
 import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
@@ -218,12 +219,57 @@ function ChatErrorBar( { kind, message, onRetry, onDismiss }: ChatErrorBarProps 
 	);
 }
 
-function ChatProgress() {
-	const steps = [
-		__( 'Reading store context', 'hey-woo' ),
-		__( 'Checking the relevant signals', 'hey-woo' ),
-		__( 'Drafting the response', 'hey-woo' ),
-	];
+/**
+ * Friendly merchant-facing labels for the tool names the controller exposes.
+ *
+ * Kept in lock-step with `DifmRestController::TOOL_ABILITY_MAP` plus the
+ * `render_chart` pseudo-tool. Tools that do not appear here fall back to the
+ * generic "Working on your request" copy so a new tool name shipped without
+ * a label still degrades gracefully.
+ */
+function friendlyToolLabel( tool: string ): string {
+	switch ( tool ) {
+		case 'analytics_totals':
+			return __( 'Looking up store totals', 'hey-woo' );
+		case 'analytics_breakdown':
+			return __( 'Breaking down by category or product', 'hey-woo' );
+		case 'analytics_series':
+			return __( 'Plotting trend data', 'hey-woo' );
+		case 'analytics_rows':
+			return __( 'Filtering store records', 'hey-woo' );
+		case 'get_product_details':
+			return __( 'Reading product details', 'hey-woo' );
+		case 'search_products':
+			return __( 'Searching products', 'hey-woo' );
+		case 'get_store_profile':
+			return __( 'Checking store profile', 'hey-woo' );
+		case 'get_readiness_score':
+			return __( 'Calculating readiness score', 'hey-woo' );
+		case 'get_recommendations':
+			return __( 'Gathering recommendations', 'hey-woo' );
+		case 'suggest_improvements':
+			return __( 'Suggesting improvements', 'hey-woo' );
+		case 'render_chart':
+			return __( 'Preparing a chart', 'hey-woo' );
+		default:
+			return __( 'Working on your request', 'hey-woo' );
+	}
+}
+
+interface ChatProgressProps {
+	progressId?: string;
+}
+
+function ChatProgress( { progressId }: ChatProgressProps ) {
+	const progress = useChatProgress( progressId, true );
+
+	const hasTool = !! progress.tool;
+	const headline = hasTool
+		? friendlyToolLabel( progress.tool as string )
+		: __( 'Hey Woo is working', 'hey-woo' );
+	const detail = hasTool
+		? __( 'Streaming what Hey Woo is doing as it runs.', 'hey-woo' )
+		: __( 'Looking across your store data and preparing a useful answer.', 'hey-woo' );
 
 	return (
 		<div className="hey-woo-progress" role="status" aria-live="polite">
@@ -233,21 +279,16 @@ function ChatProgress() {
 				</span>
 				<div className="hey-woo-progress__copy">
 					<span className="hey-woo-progress__eyebrow">
-						{ __( 'Hey Woo is working', 'hey-woo' ) }
+						{ headline }
 					</span>
 					<span className="hey-woo-progress__text">
-						{ __( 'Looking across your store data and preparing a useful answer.', 'hey-woo' ) }
+						{ detail }
 					</span>
 				</div>
 			</div>
 			<div className="hey-woo-progress__bar" aria-hidden="true">
 				<span />
 			</div>
-			<ul className="hey-woo-progress__steps" aria-hidden="true">
-				{ steps.map( ( step ) => (
-					<li key={ step }>{ step }</li>
-				) ) }
-			</ul>
 		</div>
 	);
 }
@@ -414,7 +455,7 @@ function ChatView( {
 						/>
 					) ) }
 
-					{ isSending && <ChatProgress /> }
+					{ isSending && <ChatProgress progressId={ state.progressId } /> }
 
 					{ state.status === 'error' && (
 						<ChatErrorBar
