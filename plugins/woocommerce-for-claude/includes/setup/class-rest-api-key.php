@@ -76,11 +76,8 @@ class RestApiKey {
 
 	/**
 	 * Split a joined `ck_xxx:cs_xxx` credential into its consumer-key and
-	 * consumer-secret halves. The bundle and the manual setup snippets
-	 * ship them as separate env vars (`WP_API_USERNAME`, `WP_API_PASSWORD`)
-	 * so the proxy can send them as standard Basic Auth, which WC's REST
-	 * API key handler accepts on the routes our
-	 * `enable_wc_auth_for_our_routes` filter widens.
+	 * consumer-secret halves. Generated MCP setup sends these through the
+	 * proxy's native Basic-auth environment variables.
 	 *
 	 * @param string $credential Joined `ck_…:cs_…` value.
 	 * @return array{0:string,1:string} `[username, password]`. Both empty if input is malformed.

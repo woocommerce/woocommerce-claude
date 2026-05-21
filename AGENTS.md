@@ -96,7 +96,7 @@ These are validated decisions. **MUST NOT** relitigate without strong new signal
 - **PHPCS:** `WordPress-Extra` + `WordPress-Docs` + `WooCommerce` rulesets via `dealerdirect/phpcodesniffer-composer-installer`
 - **PHPUnit 9.6** + `yoast/phpunit-polyfills` — runs *inside* the wp-env `tests-cli` container, not on host PHP
 - **pnpm 10.33.0** for Node tooling (`packageManager` is pinned in `package.json`)
-- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-for-claude.zip` from `plugins/woocommerce-for-claude/`, and `pnpm run hey-woo-plugin-zip` builds `hey-woo.zip` from `plugins/hey-woo/`
+- **`@wordpress/scripts plugin-zip`** for release builds; the root `pnpm run plugin-zip` script builds `woocommerce-claude.zip` from `plugins/woocommerce-for-claude/`, and `pnpm run hey-woo-plugin-zip` builds `hey-woo.zip` from `plugins/hey-woo/`
 
 ## Common pitfalls
 
@@ -153,4 +153,4 @@ The plugin is published as a UK-Automattic-shaped product (default seed store is
   3. Tool/ability descriptions don't violate the merchant-scope rule (the description-guardrail sweep enforces the obvious cases; review catches the rest).
   4. CONTRIBUTING.md "Design patterns worth knowing" section updated when a new reusable pattern is established.
   5. AGENTS.md (this file) updated when a new gotcha, command, or convention is introduced.
-- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-for-claude.zip`, `hey-woo.zip`, and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.
+- **Don't commit release zips.** `*.zip` is in `.gitignore`; the release workflow rebuilds `woocommerce-claude.zip`, `hey-woo.zip`, and `woocommerce-claude-agent-plugin.zip` from the tag. Don't update zip artefacts in regular commits.

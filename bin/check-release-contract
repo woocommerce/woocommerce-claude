@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+#
+# Pins the external release/install contract for WooCommerce for Claude.
+# The source can live in a monorepo, but the shipped WordPress artefact must
+# keep the original 0.4.2 public shape:
+#   - release asset: woocommerce-claude.zip
+#   - zip root:      woocommerce-claude/
+#   - plugin file:   woocommerce-claude/woocommerce-claude.php
+#   - MCP setup:     stdio proxy + WP_API_USERNAME/WP_API_PASSWORD
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_DIR="$REPO_ROOT/plugins/woocommerce-for-claude"
+ZIP_PATH="$REPO_ROOT/woocommerce-claude.zip"
+
+fail() {
+	printf 'Release contract check failed: %s\n' "$1" >&2
+	exit 1
+}
+
+json_value() {
+	local file="$1"
+	local key="$2"
+	php -r '$data = json_decode(file_get_contents($argv[1]), true); echo isset($data[$argv[2]]) ? $data[$argv[2]] : "";' "$file" "$key"
+}
+
+ROOT_VERSION="$(json_value "$REPO_ROOT/package.json" version)"
+PLUGIN_PACKAGE_NAME="$(json_value "$PLUGIN_DIR/package.json" name)"
+PLUGIN_PACKAGE_VERSION="$(json_value "$PLUGIN_DIR/package.json" version)"
+AGENT_PLUGIN_VERSION="$(json_value "$REPO_ROOT/agent-plugin/.claude-plugin/plugin.json" version)"
+PLUGIN_HEADER_VERSION="$(awk '/^ \* Version:/ { print $3; exit }' "$PLUGIN_DIR/woocommerce-claude.php")"
+PLUGIN_CONSTANT_VERSION="$(sed -n "s/^define( 'WOOCOMMERCE_CLAUDE_VERSION', '\\([^']*\\)' );/\\1/p" "$PLUGIN_DIR/woocommerce-claude.php")"
+
+[ "$PLUGIN_PACKAGE_NAME" = "woocommerce-claude" ] || fail "plugins/woocommerce-for-claude/package.json name must remain woocommerce-claude."
+[ "$ROOT_VERSION" = "$PLUGIN_PACKAGE_VERSION" ] || fail "root package.json version ($ROOT_VERSION) must match WooCommerce for Claude package version ($PLUGIN_PACKAGE_VERSION)."
+[ "$PLUGIN_HEADER_VERSION" = "$PLUGIN_PACKAGE_VERSION" ] || fail "plugin header version ($PLUGIN_HEADER_VERSION) must match package version ($PLUGIN_PACKAGE_VERSION)."
+[ "$PLUGIN_CONSTANT_VERSION" = "$PLUGIN_PACKAGE_VERSION" ] || fail "WOOCOMMERCE_CLAUDE_VERSION ($PLUGIN_CONSTANT_VERSION) must match package version ($PLUGIN_PACKAGE_VERSION)."
+[ "$AGENT_PLUGIN_VERSION" = "$PLUGIN_PACKAGE_VERSION" ] || fail "agent plugin version ($AGENT_PLUGIN_VERSION) must match package version ($PLUGIN_PACKAGE_VERSION)."
+
+grep -q 'plugins/woocommerce-for-claude/woocommerce-claude.zip woocommerce-claude.zip' "$REPO_ROOT/package.json" || fail "root plugin-zip script must copy woocommerce-claude.zip to the repo root."
+! grep -q 'woocommerce-for-claude.zip' "$REPO_ROOT/package.json" || fail "root package.json must not publish woocommerce-for-claude.zip."
+! grep -q 'woocommerce-for-claude.zip' "$REPO_ROOT/.github/workflows/release.yml" || fail "release workflow must not publish woocommerce-for-claude.zip."
+grep -q 'woocommerce-claude.zip' "$REPO_ROOT/.github/workflows/release.yml" || fail "release workflow must publish woocommerce-claude.zip."
+
+grep -q 'WP_API_USERNAME' "$PLUGIN_DIR/includes/setup/class-mcpb-bundle.php" || fail "MCPB bundle must expose WP_API_USERNAME."
+grep -q 'WP_API_PASSWORD' "$PLUGIN_DIR/includes/setup/class-mcpb-bundle.php" || fail "MCPB bundle must expose WP_API_PASSWORD."
+! grep -q 'CUSTOM_HEADERS' "$PLUGIN_DIR/includes/setup/class-mcpb-bundle.php" || fail "MCPB bundle must not use CUSTOM_HEADERS."
+
+if [ ! -f "$ZIP_PATH" ]; then
+	printf 'Release contract source checks passed. Zip payload checks skipped because %s does not exist.\n' "$ZIP_PATH"
+	exit 0
+fi
+
+unzip -t "$ZIP_PATH" >/dev/null
+ZIP_LIST="$(unzip -Z1 "$ZIP_PATH")"
+
+grep -Fxq 'woocommerce-claude/woocommerce-claude.php' <<< "$ZIP_LIST" || fail "zip must contain woocommerce-claude/woocommerce-claude.php."
+if grep -q '^woocommerce-for-claude/' <<< "$ZIP_LIST"; then
+	fail "zip root must not be woocommerce-for-claude/."
+fi
+grep -Fxq 'woocommerce-claude/vendor/woocommerce/commerce-abilities/src/Abilities/class-analytics-bootstrap.php' <<< "$ZIP_LIST" || fail "zip must vendor commerce-abilities analytics classes."
+
+ZIP_PACKAGE_NAME="$(unzip -p "$ZIP_PATH" woocommerce-claude/package.json | php -r '$data = json_decode(stream_get_contents(STDIN), true); echo isset($data["name"]) ? $data["name"] : "";')"
+[ "$ZIP_PACKAGE_NAME" = "woocommerce-claude" ] || fail "zipped package.json name must remain woocommerce-claude."
+
+unzip -p "$ZIP_PATH" woocommerce-claude/includes/setup/class-mcpb-bundle.php | grep -q 'WP_API_USERNAME' || fail "zipped MCPB bundle must expose WP_API_USERNAME."
+unzip -p "$ZIP_PATH" woocommerce-claude/includes/setup/class-mcpb-bundle.php | grep -q 'WP_API_PASSWORD' || fail "zipped MCPB bundle must expose WP_API_PASSWORD."
+! unzip -p "$ZIP_PATH" woocommerce-claude/includes/setup/class-mcpb-bundle.php | grep -q 'CUSTOM_HEADERS' || fail "zipped MCPB bundle must not use CUSTOM_HEADERS."
+
+printf 'Release contract checks passed.\n'

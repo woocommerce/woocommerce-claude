@@ -18,6 +18,7 @@ const DEFAULTS: ModuleData = {
 	nonce: '',
 	restBase: '',
 	settingsUrl: '',
+	storeName: '',
 	userName: '',
 	currency: '',
 	hasKey: false,

@@ -184,6 +184,7 @@ function hey_woo_load_runtime_files() {
 
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/interface-difm-ai-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-environment.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-ai-api-proxy-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-anthropic-client.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-wordpress-ai-client-adapter.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-provider-resolver.php';
@@ -191,6 +192,13 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+}
+
+/**
+ * Store the first installation timestamp on a fresh activation.
+ */
+function hey_woo_activate() {
+	add_option( 'hey_woo_first_installed_at', time(), '', false );
 }
 
 /**
@@ -325,3 +333,7 @@ add_action(
 		}
 	}
 );
+
+if ( function_exists( 'register_activation_hook' ) ) {
+	register_activation_hook( __FILE__, 'hey_woo_activate' );
+}

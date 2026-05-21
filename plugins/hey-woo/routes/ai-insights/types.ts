@@ -56,6 +56,7 @@ export interface ModuleData {
 	nonce: string;
 	restBase: string;
 	settingsUrl: string;
+	storeName: string;
 	userName: string;
 	currency: string;
 	hasKey: boolean;
