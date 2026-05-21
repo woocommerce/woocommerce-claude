@@ -1,5 +1,5 @@
 {
-  "name": "woocommerce-for-claude",
+  "name": "woocommerce-claude",
   "version": "0.4.3",
   "description": "Makes any WooCommerce store AI-operable",
   "private": true,
