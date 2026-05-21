@@ -55,6 +55,13 @@ function buildUrl( path: string ): string {
 	return `${ base }${ path }`;
 }
 
+export class RunnerBusyError extends Error {
+	constructor( message: string ) {
+		super( message );
+		this.name = 'RunnerBusyError';
+	}
+}
+
 async function jsonRequest< T >(
 	url: string,
 	options: { method: 'GET' | 'POST'; body?: Record< string, unknown > }
@@ -77,6 +84,10 @@ async function jsonRequest< T >(
 			}
 		} catch {
 			// ignore body parse failures
+		}
+
+		if ( response.status === 409 ) {
+			throw new RunnerBusyError( message );
 		}
 
 		throw new Error( message );

@@ -59,8 +59,13 @@ class DigestMailer {
 		$html_body  = $this->html_body( $store_name, $ranked );
 
 		add_filter( 'wp_mail_content_type', array( $this, 'html_content_type' ) );
-		$sent = wp_mail( $recipient, $subject, $html_body, array(), array() );
-		remove_filter( 'wp_mail_content_type', array( $this, 'html_content_type' ) );
+		try {
+			$sent = wp_mail( $recipient, $subject, $html_body, array(), array() );
+		} finally {
+			// Always remove the filter — without try/finally a throwing
+			// wp_mail hook would leak HTML content-type to subsequent mail.
+			remove_filter( 'wp_mail_content_type', array( $this, 'html_content_type' ) );
+		}
 
 		// Logged for support visibility — plain body is the canonical record.
 		unset( $plain_body );
@@ -131,14 +136,30 @@ class DigestMailer {
 	}
 
 	/**
-	 * Recipient — WC admin email, falling back to the site admin.
+	 * Recipient — the address WC sends new-order notifications to.
+	 *
+	 * `woocommerce_email_from_address` is the SENDER (noreply@store), not
+	 * the merchant inbox. The merchant configures their admin-recipient
+	 * for new-order emails under WC settings; that's the same inbox the
+	 * weekly digest should land in. Falls back to WordPress core's
+	 * admin_email when WC hasn't been customised.
 	 *
 	 * @return string
 	 */
 	private function recipient_email() {
-		$wc_email = (string) get_option( 'woocommerce_email_from_address', '' );
-		if ( '' !== $wc_email && is_email( $wc_email ) ) {
-			return $wc_email;
+		$new_order = get_option( 'woocommerce_new_order_settings', array() );
+		$recipient = is_array( $new_order ) && ! empty( $new_order['recipient'] )
+			? (string) $new_order['recipient']
+			: '';
+
+		if ( '' !== $recipient ) {
+			// WC supports comma-separated recipient lists; take the first valid one.
+			foreach ( explode( ',', $recipient ) as $candidate ) {
+				$candidate = trim( $candidate );
+				if ( '' !== $candidate && is_email( $candidate ) ) {
+					return $candidate;
+				}
+			}
 		}
 
 		$site_admin = (string) get_option( 'admin_email', '' );

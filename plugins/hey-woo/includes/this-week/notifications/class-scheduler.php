@@ -55,41 +55,34 @@ class Scheduler {
 	 * @return void
 	 */
 	public function register() {
-		add_filter( 'cron_schedules', array( $this, 'register_weekly_schedule' ) );
 		add_action( self::HOOK_DAILY_REFRESH, array( $this, 'handle_daily_refresh' ) );
 		add_action( self::HOOK_WEEKLY_DIGEST, array( $this, 'handle_weekly_digest' ) );
-		add_action( 'update_option_' . ThisWeekSettings::OPTION_DIGEST_DAY, array( $this, 'reschedule_weekly_digest' ), 10, 0 );
-		add_action( 'update_option_' . ThisWeekSettings::OPTION_DIGEST_TIME, array( $this, 'reschedule_weekly_digest' ), 10, 0 );
-		add_action( 'update_option_' . ThisWeekSettings::OPTION_ENABLED, array( $this, 'reschedule_all' ), 10, 0 );
-		add_action( 'update_option_' . ThisWeekSettings::OPTION_DIGEST_ENABLED, array( $this, 'reschedule_weekly_digest' ), 10, 0 );
+		// WC settings page save fires regardless of whether values changed and
+		// catches the add_option path on first-time saves that update_option_*
+		// hooks miss. Per-option add/update hooks remain as belt-and-braces for
+		// programmatic option changes.
+		add_action( 'woocommerce_settings_save_hey-woo', array( $this, 'reschedule_all' ), 20 );
+		foreach (
+			array(
+				ThisWeekSettings::OPTION_ENABLED,
+				ThisWeekSettings::OPTION_DIGEST_ENABLED,
+				ThisWeekSettings::OPTION_DIGEST_DAY,
+				ThisWeekSettings::OPTION_DIGEST_TIME,
+			) as $option_name
+		) {
+			add_action( 'add_option_' . $option_name, array( $this, 'reschedule_all' ), 10, 0 );
+			add_action( 'update_option_' . $option_name, array( $this, 'reschedule_all' ), 10, 0 );
+		}
 	}
 
 	/**
-	 * Register a `weekly` schedule for wp-cron.
+	 * Schedule the next single event for each hook, when missing.
 	 *
-	 * WordPress core ships hourly/twicedaily/daily; weekly recurrence has to
-	 * be added by plugins via the `cron_schedules` filter.
-	 *
-	 * @param array<string,array<string,mixed>> $schedules Registered cron schedules.
-	 * @return array<string,array<string,mixed>>
-	 */
-	public function register_weekly_schedule( $schedules ) {
-		if ( ! is_array( $schedules ) ) {
-			return array();
-		}
-
-		if ( ! isset( $schedules['weekly'] ) ) {
-			$schedules['weekly'] = array(
-				'interval' => WEEK_IN_SECONDS,
-				'display'  => __( 'Once Weekly', 'hey-woo' ),
-			);
-		}
-
-		return $schedules;
-	}
-
-	/**
-	 * Schedule both events to fire at their next site-local times.
+	 * Events are intentionally NOT recurring. wp-cron's recurring schedules
+	 * fire at fixed UTC intervals, which drifts an hour off the configured
+	 * wall-clock time across DST transitions. Single events recomputed in
+	 * the handler stay anchored to the merchant's local 03:00 (or whatever
+	 * weekly time they pick).
 	 *
 	 * Idempotent — when an event is already scheduled, leaves it alone.
 	 *
@@ -97,11 +90,11 @@ class Scheduler {
 	 */
 	public function ensure_events_scheduled() {
 		if ( ThisWeekSettings::is_enabled() && ! wp_next_scheduled( self::HOOK_DAILY_REFRESH ) ) {
-			wp_schedule_event( $this->next_daily_timestamp(), 'daily', self::HOOK_DAILY_REFRESH );
+			wp_schedule_single_event( $this->next_daily_timestamp(), self::HOOK_DAILY_REFRESH );
 		}
 
 		if ( ThisWeekSettings::is_digest_enabled() && ! wp_next_scheduled( self::HOOK_WEEKLY_DIGEST ) ) {
-			wp_schedule_event( $this->next_weekly_timestamp(), 'weekly', self::HOOK_WEEKLY_DIGEST );
+			wp_schedule_single_event( $this->next_weekly_timestamp(), self::HOOK_WEEKLY_DIGEST );
 		}
 	}
 
@@ -116,7 +109,7 @@ class Scheduler {
 	}
 
 	/**
-	 * Re-schedule both events when the master toggle changes.
+	 * Re-schedule both events when a relevant setting changes.
 	 *
 	 * @return void
 	 */
@@ -126,19 +119,11 @@ class Scheduler {
 	}
 
 	/**
-	 * Re-schedule only the weekly digest after a digest-setting change.
-	 *
-	 * @return void
-	 */
-	public function reschedule_weekly_digest() {
-		wp_clear_scheduled_hook( self::HOOK_WEEKLY_DIGEST );
-		if ( ThisWeekSettings::is_digest_enabled() ) {
-			wp_schedule_event( $this->next_weekly_timestamp(), 'weekly', self::HOOK_WEEKLY_DIGEST );
-		}
-	}
-
-	/**
 	 * Cron callback for the daily refresh.
+	 *
+	 * Reschedules itself at the end so the next firing stays anchored to the
+	 * configured wall-clock time, surviving DST transitions. The reschedule
+	 * is wrapped in a try/finally so a runner failure can't break the cron.
 	 *
 	 * @return void
 	 */
@@ -147,7 +132,11 @@ class Scheduler {
 			return;
 		}
 
-		( new SignalRunner() )->run();
+		try {
+			( new SignalRunner() )->run();
+		} finally {
+			$this->ensure_events_scheduled();
+		}
 	}
 
 	/**
@@ -160,7 +149,11 @@ class Scheduler {
 			return;
 		}
 
-		( new DigestMailer() )->send( SignalStore::unresolved() );
+		try {
+			( new DigestMailer() )->send( SignalStore::unresolved() );
+		} finally {
+			$this->ensure_events_scheduled();
+		}
 	}
 
 	/**
@@ -194,11 +187,11 @@ class Scheduler {
 		$hour   = isset( $parts[0] ) ? (int) $parts[0] : 9;
 		$minute = isset( $parts[1] ) ? (int) $parts[1] : 0;
 
-		// "next $day" returns today's date when today already matches that
-		// weekday, even when the time-of-day has already passed. We compare
-		// against $now after applying the configured time and advance by a
-		// week if needed.
-		$target = $now->modify( 'next ' . $day )->setTime( $hour, $minute );
+		// PHP's "next $day" always advances at least one day, so a Monday
+		// 08:00 save for Monday 09:00 would get scheduled a week late. Use
+		// "this $day" — the Monday of the current week — and then push to
+		// next week only when the resulting target is already in the past.
+		$target = $now->modify( 'this ' . $day )->setTime( $hour, $minute );
 		if ( $target <= $now ) {
 			$target = $target->modify( '+1 week' );
 		}

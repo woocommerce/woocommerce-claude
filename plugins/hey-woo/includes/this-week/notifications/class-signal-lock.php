@@ -1,15 +1,18 @@
 <?php
 /**
- * Transient-based mutex for the "This Week" runner.
+ * Atomic, option-backed mutex for the "This Week" runner.
  *
  * The runner reads and rewrites the `hey_woo_signals` option across an AI
  * call window of several seconds. Without a lock, a concurrent dismiss or
- * a wp-cron tick that fires during a manual "Refresh now" can clobber each
- * other's writes (the PR 1 race documented in SignalStore::replace_with).
+ * a wp-cron tick that fires during a manual "Refresh now" can clobber
+ * each other's writes.
  *
- * The lock uses a short-TTL transient: cheap, no schema, auto-recovers if a
- * run crashes mid-flight. The TTL is well above the worst-case end-to-end
- * runner time (4 detectors × 1 AI call each, plus a buffer).
+ * `get_transient` + `set_transient` is not atomic — two near-simultaneous
+ * workers can both see the lock as free, both set their token, and both
+ * proceed. Object caches make the window wider. We use `add_option()`
+ * instead: it returns false when the option already exists, providing the
+ * canonical WordPress check-and-set primitive. Expiry is encoded in the
+ * stored payload so a crashed run still auto-recovers after the TTL.
  *
  * @package WooCommerce\HeyWoo\ThisWeek\Notifications
  */
@@ -24,9 +27,9 @@ defined( 'ABSPATH' ) || exit;
 class SignalLock {
 
 	/**
-	 * Transient key holding the lock token.
+	 * Option key holding the lock payload.
 	 */
-	const TRANSIENT_KEY = 'hey_woo_signal_lock';
+	const OPTION_KEY = 'hey_woo_signal_lock';
 
 	/**
 	 * Lock lifetime in seconds. A crashed runner auto-recovers after this.
@@ -43,10 +46,10 @@ class SignalLock {
 	/**
 	 * Attempt to acquire the lock.
 	 *
-	 * Uses `wp_cache_add` / `add_option` semantics via the transient API so
-	 * two near-simultaneous callers cannot both succeed. The first caller
-	 * receives `true`; subsequent callers see `false` until the lock is
-	 * released or its TTL expires.
+	 * `add_option()` is atomic: the underlying INSERT IGNORE either creates
+	 * the row exactly once or fails. We then verify by reading the stored
+	 * token back, so a stale expired payload that someone else just
+	 * overwrote can't trick us into thinking we hold the lock.
 	 *
 	 * @return bool
 	 */
@@ -55,20 +58,25 @@ class SignalLock {
 			return false;
 		}
 
-		$token = wp_generate_password( 16, false, false );
+		$this->purge_if_expired();
 
-		if ( false === get_transient( self::TRANSIENT_KEY ) ) {
-			$set = set_transient( self::TRANSIENT_KEY, $token, self::TTL_SECONDS );
-			if ( $set ) {
-				$held = (string) get_transient( self::TRANSIENT_KEY );
-				if ( $held === $token ) {
-					$this->token = $token;
-					return true;
-				}
-			}
+		$token   = wp_generate_password( 16, false, false );
+		$payload = array(
+			'token'   => $token,
+			'expires' => time() + self::TTL_SECONDS,
+		);
+
+		if ( ! add_option( self::OPTION_KEY, $payload, '', 'no' ) ) {
+			return false;
 		}
 
-		return false;
+		$stored = get_option( self::OPTION_KEY );
+		if ( ! is_array( $stored ) || ! isset( $stored['token'] ) || $stored['token'] !== $token ) {
+			return false;
+		}
+
+		$this->token = $token;
+		return true;
 	}
 
 	/**
@@ -81,20 +89,45 @@ class SignalLock {
 			return;
 		}
 
-		$held = (string) get_transient( self::TRANSIENT_KEY );
-		if ( $held === $this->token ) {
-			delete_transient( self::TRANSIENT_KEY );
+		$stored = get_option( self::OPTION_KEY );
+		if ( is_array( $stored ) && isset( $stored['token'] ) && $stored['token'] === $this->token ) {
+			delete_option( self::OPTION_KEY );
 		}
 
 		$this->token = null;
 	}
 
 	/**
-	 * Whether the lock is currently held by someone (possibly another process).
+	 * Whether a non-expired lock currently exists (possibly held by another process).
 	 *
 	 * @return bool
 	 */
 	public static function is_locked() {
-		return false !== get_transient( self::TRANSIENT_KEY );
+		$stored = get_option( self::OPTION_KEY );
+		if ( ! is_array( $stored ) || ! isset( $stored['expires'] ) ) {
+			return false;
+		}
+
+		return (int) $stored['expires'] > time();
+	}
+
+	/**
+	 * Delete the lock option when its TTL has elapsed.
+	 *
+	 * Called once at the start of an acquire attempt so a crashed run cannot
+	 * permanently block subsequent acquirers. Returns early when no payload
+	 * is stored or the stored payload is still within its TTL.
+	 *
+	 * @return void
+	 */
+	private function purge_if_expired() {
+		$stored = get_option( self::OPTION_KEY );
+		if ( ! is_array( $stored ) || ! isset( $stored['expires'] ) ) {
+			return;
+		}
+
+		if ( (int) $stored['expires'] <= time() ) {
+			delete_option( self::OPTION_KEY );
+		}
 	}
 }

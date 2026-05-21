@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from '@wordpress/element';
 import { __, _n, sprintf } from '@wordpress/i18n';
 import moduleData from '../ai-insights/data';
 import { SignalCard } from './components/SignalCard';
-import { fetchSignals, runSignals, type Signal } from './signal-data';
+import { fetchSignals, RunnerBusyError, runSignals, type Signal } from './signal-data';
 
 type LoadState = 'loading' | 'idle' | 'running';
 
@@ -55,7 +55,19 @@ export function stage() {
 			// Refresh the schedule readout — the next-scheduled time may shift after a manual run completes.
 			await loadSignals();
 		} catch ( error ) {
-			setRunError( error instanceof Error ? error.message : __( 'Something went wrong.', 'hey-woo' ) );
+			const isBusy = error instanceof RunnerBusyError;
+			setRunError(
+				isBusy
+					? __( 'Hey Woo is already refreshing in the background. We’ll show the new signals as soon as it finishes.', 'hey-woo' )
+					: error instanceof Error
+						? error.message
+						: __( 'Something went wrong.', 'hey-woo' )
+			);
+			if ( isBusy ) {
+				// Poll the GET endpoint until the in-flight runner pass completes
+				// so the merchant sees the new signals without another manual click.
+				window.setTimeout( () => void loadSignals(), 5000 );
+			}
 		} finally {
 			setLoadState( 'idle' );
 		}
