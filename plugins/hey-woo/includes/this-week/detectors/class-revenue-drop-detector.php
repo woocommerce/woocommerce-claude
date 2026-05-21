@@ -29,11 +29,6 @@ class RevenueDropDetector implements SignalDetectorInterface {
 	const PREVIOUS_PERIOD_FLOOR = 100.0;
 
 	/**
-	 * Minimum current-period revenue below which we treat the store as inactive.
-	 */
-	const CURRENT_PERIOD_FLOOR = 20.0;
-
-	/**
 	 * Drop percent that escalates severity to "high".
 	 */
 	const HIGH_SEVERITY_THRESHOLD = -25.0;
@@ -77,10 +72,6 @@ class RevenueDropDetector implements SignalDetectorInterface {
 		$change_amount      = (float) ( $comparison['changes']['net_sales']['amount'] ?? 0 );
 
 		if ( $previous_net_sales < self::PREVIOUS_PERIOD_FLOOR ) {
-			return null;
-		}
-
-		if ( $current_net_sales < self::CURRENT_PERIOD_FLOOR && $current_orders === 0 ) {
 			return null;
 		}
 

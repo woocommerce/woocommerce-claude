@@ -131,39 +131,45 @@ class SignalStore {
 	/**
 	 * Replace the stored set with the provided fresh detections.
 	 *
-	 * Any previously stored signal whose slug is absent from `$fresh` is
-	 * dropped — the underlying condition no longer holds, so the card should
-	 * disappear from the feed.
+	 * Each fresh signal is upserted individually so existing dismissed/snoozed
+	 * state survives a runner pass. After the upserts, a separate read-modify-
+	 * write drops any previously stored signal whose slug is no longer in the
+	 * fresh set. Splitting the stale-cleanup off from the upsert loop ensures
+	 * a concurrent dismiss/snooze landing during a runner's AI calls is not
+	 * overwritten by an earlier in-memory snapshot.
+	 *
+	 * Note: a small race window remains during the cleanup write itself. The
+	 * follow-up scheduler PR will replace this with a transient-based lock.
 	 *
 	 * @param array<int,array<string,mixed>> $fresh Fresh detections from a runner pass.
 	 * @return array<int,array<string,mixed>>
 	 */
 	public static function replace_with( array $fresh ) {
-		$by_slug = array();
-		foreach ( self::all() as $existing ) {
-			$slug = isset( $existing['slug'] ) ? (string) $existing['slug'] : '';
-			if ( '' !== $slug ) {
-				$by_slug[ $slug ] = $existing;
-			}
-		}
-
-		$retained = array();
+		$retained_slugs = array();
 		foreach ( $fresh as $signal ) {
 			$slug = isset( $signal['slug'] ) ? sanitize_key( $signal['slug'] ) : '';
 			if ( '' === $slug ) {
 				continue;
 			}
 
-			$retained[ $slug ] = $signal;
+			$retained_slugs[ $slug ] = true;
+			self::upsert( $signal );
 		}
 
-		$next = array();
-		foreach ( $retained as $signal ) {
-			$next[] = self::upsert( $signal );
-		}
+		$current = self::all();
+		$next    = array_values(
+			array_filter(
+				$current,
+				static function ( $signal ) use ( $retained_slugs ) {
+					$slug = isset( $signal['slug'] ) ? (string) $signal['slug'] : '';
+					return '' !== $slug && isset( $retained_slugs[ $slug ] );
+				}
+			)
+		);
 
-		// Drop stale slugs by writing only the retained set.
-		update_option( self::OPTION_NAME, $next, false );
+		if ( count( $next ) !== count( $current ) ) {
+			update_option( self::OPTION_NAME, $next, false );
+		}
 
 		return $next;
 	}

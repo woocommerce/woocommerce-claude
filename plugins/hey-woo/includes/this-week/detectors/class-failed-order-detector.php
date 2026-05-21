@@ -76,7 +76,7 @@ class FailedOrderDetector implements SignalDetectorInterface {
 
 		$pipeline_current = isset( $orders['pipeline'] ) && is_array( $orders['pipeline'] ) ? $orders['pipeline'] : array();
 		$pipeline_count   = (int) ( $pipeline_current['orders_count'] ?? 0 );
-		$pipeline_value   = (float) ( $pipeline_current['total_sales'] ?? $pipeline_current['gross_revenue'] ?? 0 );
+		$pipeline_value   = (float) ( $pipeline_current['revenue'] ?? 0 );
 		$oldest_days      = isset( $pipeline_current['oldest_order_days'] ) ? (int) $pipeline_current['oldest_order_days'] : 0;
 
 		if ( $pipeline_count < self::MIN_PIPELINE_ORDERS || $pipeline_value < self::MIN_PIPELINE_VALUE ) {
@@ -85,7 +85,7 @@ class FailedOrderDetector implements SignalDetectorInterface {
 
 		$comparison        = isset( $orders['comparison'] ) && is_array( $orders['comparison'] ) ? $orders['comparison'] : null;
 		$pipeline_previous = $comparison && isset( $comparison['pipeline'] ) && is_array( $comparison['pipeline'] ) ? $comparison['pipeline'] : array();
-		$previous_value    = (float) ( $pipeline_previous['total_sales'] ?? $pipeline_previous['gross_revenue'] ?? 0 );
+		$previous_value    = (float) ( $pipeline_previous['revenue'] ?? 0 );
 
 		$growth_percent = 0.0;
 		if ( $previous_value > 0 ) {

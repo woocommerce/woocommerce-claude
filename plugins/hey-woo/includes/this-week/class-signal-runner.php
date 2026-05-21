@@ -256,8 +256,8 @@ class SignalRunner {
 			return null;
 		}
 
-		$title    = isset( $decoded['title'] ) ? trim( (string) $decoded['title'] ) : '';
-		$summary  = isset( $decoded['summary'] ) ? trim( (string) $decoded['summary'] ) : '';
+		$title    = self::clean_string( $decoded['title'] ?? null, 120 );
+		$summary  = self::clean_string( $decoded['summary'] ?? null, 320 );
 		$evidence = is_array( $decoded['evidence'] ?? null ) ? $decoded['evidence'] : array();
 		$action   = is_array( $decoded['action'] ?? null ) ? $decoded['action'] : array();
 
@@ -269,15 +269,44 @@ class SignalRunner {
 			'title'    => $title,
 			'summary'  => $summary,
 			'evidence' => array(
-				'label'  => isset( $evidence['label'] ) ? (string) $evidence['label'] : '',
-				'value'  => isset( $evidence['value'] ) ? (string) $evidence['value'] : '',
-				'change' => isset( $evidence['change'] ) ? (string) $evidence['change'] : '',
+				'label'  => self::clean_string( $evidence['label'] ?? null, 80 ),
+				'value'  => self::clean_string( $evidence['value'] ?? null, 60 ),
+				'change' => self::clean_string( $evidence['change'] ?? null, 80 ),
 			),
 			'action'   => array(
-				'title'  => isset( $action['title'] ) ? (string) $action['title'] : '',
-				'detail' => isset( $action['detail'] ) ? (string) $action['detail'] : '',
+				'title'  => self::clean_string( $action['title'] ?? null, 80 ),
+				'detail' => self::clean_string( $action['detail'] ?? null, 320 ),
 			),
 		);
+	}
+
+	/**
+	 * Coerce an AI-returned value into a trimmed, length-clamped scalar string.
+	 *
+	 * Arrays, objects, and non-scalar types collapse to an empty string — the
+	 * runner never trusts the provider to keep types correct, so unexpected
+	 * shapes degrade gracefully instead of emitting array-to-string warnings
+	 * or persisting structured garbage to the signals option.
+	 *
+	 * @param mixed $value      Raw value from the parsed JSON.
+	 * @param int   $max_length Maximum characters to retain.
+	 * @return string
+	 */
+	private static function clean_string( $value, $max_length ) {
+		if ( ! is_scalar( $value ) ) {
+			return '';
+		}
+
+		$text = trim( (string) $value );
+		if ( '' === $text ) {
+			return '';
+		}
+
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $text, 0, (int) $max_length );
+		}
+
+		return substr( $text, 0, (int) $max_length );
 	}
 
 	/**
