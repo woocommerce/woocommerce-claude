@@ -332,6 +332,16 @@ export function useChat( options: UseChatOptions = {} ) {
 
 	const sendMessage = useCallback(
 		async ( text: string, sendOptions: SendMessageOptions = {} ) => {
+			// Drop the send if another provider request is already in flight.
+			// runChatRequest's own guard catches parallel Retry double-clicks,
+			// but sendMessage mutates state and persists the new user message
+			// before runChatRequest runs; without an early return here, a
+			// Retry-then-Send race would leave a phantom user bubble saved
+			// with no assistant reply to follow it.
+			if ( inFlightRef.current ) {
+				return;
+			}
+
 			const history = messagesRef.current;
 			const displayText = sendOptions.displayText?.trim() || text;
 			const isFirstTurn = history.length === 0;
