@@ -1,5 +1,11 @@
 /**
- * Hey Woo Workflows — card library and setup modal.
+ * Hey Woo Workflows — catalogue.
+ *
+ * A merchant-facing catalogue of the slash-command skills. Clicking "Run"
+ * navigates to /chat with the matching `/<workflow-slug>` prompt prefilled;
+ * the chat workspace turns that into a workflow run on first send. No
+ * per-workflow setup form lives here — period, cadence, and other knobs
+ * (when needed) are configured inside the chat.
  */
 import '../ai-insights/style.scss';
 import './style.scss';
@@ -9,24 +15,18 @@ import {
 	CardBody,
 	CardFooter,
 	CardHeader,
-	CheckboxControl,
-	Modal,
 	SelectControl,
 	TextControl,
 } from '@wordpress/components';
 import { useMemo, useState } from '@wordpress/element';
 import { Icon, chartBar } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
+import { useNavigate } from '@wordpress/route';
 import { useConversations } from '../ai-insights/hooks/useConversations';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type { WorkflowAction } from '../ai-insights/workflows';
-import {
-	PERIOD_LABELS,
-	WEEKDAYS,
-	getReportMetadata,
-} from './workflow-data';
-import type { PeriodOption, ReportMetadata, RunMode } from './workflow-data';
-import { startWorkflowRun } from './workflow-runs';
+import { getReportMetadata } from './workflow-data';
+import type { ReportMetadata } from './workflow-data';
 
 interface WorkflowCardData extends WorkflowAction {
 	id: string;
@@ -36,10 +36,10 @@ interface WorkflowCardData extends WorkflowAction {
 const ALL_FILTER = '__all__';
 
 export function stage() {
+	const navigate = useNavigate();
 	const [ search, setSearch ] = useState( '' );
 	const [ category, setCategory ] = useState< string >( ALL_FILTER );
 	const [ cadence, setCadence ] = useState< string >( ALL_FILTER );
-	const [ activeWorkflow, setActiveWorkflow ] = useState< WorkflowCardData | null >( null );
 
 	const { conversations } = useConversations();
 	const runningSlugs = useMemo(
@@ -108,6 +108,16 @@ export function stage() {
 		setSearch( '' );
 		setCategory( ALL_FILTER );
 		setCadence( ALL_FILTER );
+	};
+
+	const runWorkflow = ( workflow: WorkflowCardData ) => {
+		void navigate( {
+			to: '/chat',
+			search: {
+				workflowPrompt: `/${ workflow.slug }`,
+				workflowDisplay: workflow.label,
+			},
+		} );
 	};
 
 	return (
@@ -203,11 +213,11 @@ export function stage() {
 										variant={ isRunning ? 'secondary' : 'primary' }
 										disabled={ isRunning }
 										aria-disabled={ isRunning }
-										onClick={ () => setActiveWorkflow( workflow ) }
+										onClick={ () => runWorkflow( workflow ) }
 									>
 										{ isRunning
 											? __( 'Running…', 'hey-woo' )
-											: __( 'Set up', 'hey-woo' ) }
+											: __( 'Run', 'hey-woo' ) }
 									</Button>
 								</CardFooter>
 							</Card>
@@ -215,155 +225,6 @@ export function stage() {
 					} ) }
 				</div>
 			) }
-
-			{ activeWorkflow && (
-				<WorkflowSetupModal
-					workflow={ activeWorkflow }
-					onClose={ () => setActiveWorkflow( null ) }
-				/>
-			) }
 		</div>
-	);
-}
-
-interface WorkflowSetupModalProps {
-	workflow: WorkflowCardData;
-	onClose: () => void;
-}
-
-function WorkflowSetupModal( { workflow, onClose }: WorkflowSetupModalProps ) {
-	const { metadata } = workflow;
-	const [ runMode, setRunMode ] = useState< RunMode >( 'now' );
-	const [ period, setPeriod ] = useState< PeriodOption >( metadata.defaultPeriod );
-	const [ compare, setCompare ] = useState( true );
-	const [ day, setDay ] = useState( metadata.defaultDay );
-	const [ time, setTime ] = useState( '09:00' );
-	const [ actionCards, setActionCards ] = useState( true );
-	const [ adminNotification, setAdminNotification ] = useState( true );
-
-	const periodOptions = useMemo(
-		() => Object.entries( PERIOD_LABELS ).map( ( [ value, label ] ) => ( {
-			value,
-			label,
-		} ) ),
-		[]
-	);
-
-	const dayOptions = useMemo(
-		() => WEEKDAYS.map( ( weekday ) => ( { value: weekday, label: weekday } ) ),
-		[]
-	);
-
-	const handleStart = () => {
-		void startWorkflowRun( {
-			workflow,
-			runMode,
-			period,
-			compare,
-			day,
-			time,
-			actionCards,
-			adminNotification,
-		} );
-
-		onClose();
-	};
-
-	return (
-		<Modal
-			title={ workflow.label }
-			onRequestClose={ onClose }
-			className="hey-woo-workflow-modal"
-			size="medium"
-		>
-			<p className="hey-woo-workflow-modal__description">{ workflow.description }</p>
-
-			<div className="hey-woo-workflow-modal__field">
-				<span className="hey-woo-workflow-modal__label">{ __( 'Run', 'hey-woo' ) }</span>
-				<div
-					className="hey-woo-workflow-modal__segmented"
-					role="radiogroup"
-					aria-label={ __( 'Run mode', 'hey-woo' ) }
-				>
-					<Button
-						variant={ runMode === 'now' ? 'primary' : 'tertiary' }
-						aria-pressed={ runMode === 'now' }
-						onClick={ () => setRunMode( 'now' ) }
-					>
-						{ __( 'Now', 'hey-woo' ) }
-					</Button>
-					<Button
-						variant={ runMode === 'weekly' ? 'primary' : 'tertiary' }
-						aria-pressed={ runMode === 'weekly' }
-						onClick={ () => setRunMode( 'weekly' ) }
-					>
-						{ __( 'Weekly', 'hey-woo' ) }
-					</Button>
-				</div>
-			</div>
-
-			{ runMode === 'weekly' && (
-				<div className="hey-woo-workflow-modal__row">
-					<SelectControl
-						__nextHasNoMarginBottom
-						__next40pxDefaultSize
-						label={ __( 'Day', 'hey-woo' ) }
-						value={ day }
-						options={ dayOptions }
-						onChange={ setDay }
-					/>
-					<div className="hey-woo-workflow-modal__time-field">
-						<label htmlFor="hey-woo-workflow-time" className="hey-woo-workflow-modal__label">
-							{ __( 'Time', 'hey-woo' ) }
-						</label>
-						<input
-							id="hey-woo-workflow-time"
-							type="time"
-							value={ time }
-							onChange={ ( event ) => setTime( event.target.value ) }
-						/>
-					</div>
-				</div>
-			) }
-
-			<SelectControl
-				__nextHasNoMarginBottom
-				__next40pxDefaultSize
-				label={ __( 'Period', 'hey-woo' ) }
-				value={ period }
-				options={ periodOptions }
-				onChange={ ( next ) => setPeriod( next as PeriodOption ) }
-			/>
-
-			<div className="hey-woo-workflow-modal__checks">
-				<CheckboxControl
-					__nextHasNoMarginBottom
-					label={ __( 'Compare with previous period', 'hey-woo' ) }
-					checked={ compare }
-					onChange={ setCompare }
-				/>
-				<CheckboxControl
-					__nextHasNoMarginBottom
-					label={ __( 'Include addable recommended actions', 'hey-woo' ) }
-					checked={ actionCards }
-					onChange={ setActionCards }
-				/>
-				<CheckboxControl
-					__nextHasNoMarginBottom
-					label={ __( 'Show in WooCommerce admin', 'hey-woo' ) }
-					checked={ adminNotification }
-					onChange={ setAdminNotification }
-				/>
-			</div>
-
-			<div className="hey-woo-workflow-modal__actions">
-				<Button variant="tertiary" onClick={ onClose }>
-					{ __( 'Cancel', 'hey-woo' ) }
-				</Button>
-				<Button variant="primary" onClick={ handleStart }>
-					{ __( 'Start workflow', 'hey-woo' ) }
-				</Button>
-			</div>
-		</Modal>
 	);
 }
