@@ -40,10 +40,13 @@ function publishConversationUpdate( conversations: StoredConversation[] ): void 
 	);
 }
 
-export async function saveConversationRecord( conv: StoredConversation ) {
-	const nextConversations = upsertAndTrim( moduleData.conversations, conv );
-	publishConversationUpdate( nextConversations );
+// Per-conversation-id chain so overlapping saves for the same conversation
+// hit the server in updatedAt order. The server has a stale-write guard, but
+// serialising here avoids cheap 409s when, say, the chat-completion save and
+// the auto-title save race against each other on the same conversation.
+const pendingSaves = new Map< string, Promise< void > >();
 
+async function sendSaveRequest( conv: StoredConversation ): Promise< void > {
 	try {
 		await fetch( moduleData.restBase + '/conversations', {
 			method: 'POST',
@@ -55,6 +58,32 @@ export async function saveConversationRecord( conv: StoredConversation ) {
 		} );
 	} catch ( _err ) {
 		// Silent failure — conversation remains available in local state for this session.
+	}
+}
+
+export async function saveConversationRecord( conv: StoredConversation ) {
+	const nextConversations = upsertAndTrim( moduleData.conversations, conv );
+	publishConversationUpdate( nextConversations );
+
+	const previous = pendingSaves.get( conv.id );
+	const current = ( async () => {
+		if ( previous ) {
+			try {
+				await previous;
+			} catch ( _err ) {
+				// A prior failure must not block subsequent saves.
+			}
+		}
+		await sendSaveRequest( conv );
+	} )();
+
+	pendingSaves.set( conv.id, current );
+	try {
+		await current;
+	} finally {
+		if ( pendingSaves.get( conv.id ) === current ) {
+			pendingSaves.delete( conv.id );
+		}
 	}
 }
 

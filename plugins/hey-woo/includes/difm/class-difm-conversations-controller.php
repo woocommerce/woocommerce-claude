@@ -119,7 +119,7 @@ class DifmConversationsController {
 	 * POST handler — upsert a conversation by ID, keeping at most MAX_CONVERSATIONS.
 	 *
 	 * @param \WP_REST_Request $request Request object.
-	 * @return \WP_REST_Response
+	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function save_conversation( $request ) {
 		$user_id         = get_current_user_id();
@@ -157,6 +157,27 @@ class DifmConversationsController {
 		}
 
 		$conversations = self::get_recent_conversations( $user_id );
+
+		// Stale-write guard: if a stored entry already has a newer updatedAt for this
+		// id, reject — otherwise a slow, older POST could overwrite a faster, newer one.
+		foreach ( $conversations as $existing ) {
+			if ( ! isset( $existing['id'] ) || $existing['id'] !== $incoming['id'] ) {
+				continue;
+			}
+			$stored_updated_at = isset( $existing['updatedAt'] ) ? (int) $existing['updatedAt'] : 0;
+			if ( $incoming['updatedAt'] < $stored_updated_at ) {
+				return new \WP_Error(
+					'hey_woo_stale_conversation_write',
+					__( 'A newer version of this conversation is already stored.', 'hey-woo' ),
+					array(
+						'status'     => 409,
+						'storedAt'   => $stored_updated_at,
+						'incomingAt' => $incoming['updatedAt'],
+					)
+				);
+			}
+			break;
+		}
 
 		// Remove existing entry with same ID (upsert).
 		$conversations = array_values(
