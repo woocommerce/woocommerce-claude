@@ -17,7 +17,7 @@ import {
 	startWorkflowRun,
 	workflowFromSlashCommand,
 	workflowRunOptionsFromMessage,
-} from '../reports/workflow-runs';
+} from '../workflows/workflow-runs';
 import type { StoredConversation } from './types';
 
 type ShortcutTone = 'primary' | 'neutral';

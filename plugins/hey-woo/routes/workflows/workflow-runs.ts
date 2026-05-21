@@ -18,7 +18,7 @@ import {
 	PERIOD_LABELS,
 	type PeriodOption,
 	type RunMode,
-} from './report-data';
+} from './workflow-data';
 
 const WORKFLOW_TIMEOUT_MS = 180_000;
 

@@ -1,5 +1,5 @@
 /**
- * Shared report workflow metadata and launch helpers.
+ * Shared workflow metadata and launch helpers.
  */
 import { __, sprintf } from '@wordpress/i18n';
 import type { WorkflowAction } from '../ai-insights/workflows';
@@ -154,16 +154,6 @@ export function getReportMetadata( workflow: WorkflowAction ): ReportMetadata {
 
 export function getWorkflowBySlug( workflowSlug: string ): WorkflowAction | undefined {
 	return WORKFLOWS.find( ( workflow ) => workflow.slug === workflowSlug );
-}
-
-export function launchChatWorkflow( prompt: string, displayText = __( 'Run workflow', 'hey-woo' ) ): void {
-	const url = new URL( window.location.href );
-	const routeSearch = new URLSearchParams();
-	routeSearch.set( 'workflowPrompt', prompt );
-	routeSearch.set( 'workflowDisplay', displayText );
-
-	url.searchParams.set( 'p', `/chat?${ routeSearch.toString() }` );
-	window.location.assign( url.toString() );
 }
 
 export function buildWorkflowPrompt(

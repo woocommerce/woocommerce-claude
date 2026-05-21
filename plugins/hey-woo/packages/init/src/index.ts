@@ -9,7 +9,7 @@ export async function init(): Promise< void > {
 	dispatch( bootStore ).updateMenuItem( 'hey-woo-history', {
 		icon: archive,
 	} );
-	dispatch( bootStore ).updateMenuItem( 'hey-woo-reports', {
+	dispatch( bootStore ).updateMenuItem( 'hey-woo-workflows', {
 		icon: chartBar,
 	} );
 	dispatch( bootStore ).updateMenuItem( 'hey-woo-actions', {
