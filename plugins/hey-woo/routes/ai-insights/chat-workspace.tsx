@@ -367,6 +367,16 @@ function ChatView( {
 	const chatTitle = initialConversation?.title || __( 'New chat', 'hey-woo' );
 	const chatSubtitle = __( 'Ask anything about your store', 'hey-woo' );
 	const isEmptyNewChat = ! urlConversationId && ! initialWorkflowPrompt && state.messages.length === 0 && ! isSending;
+	// Index of the most recent assistant message — only the latest turn
+	// shows follow-up chips, older ones' suggestions are stale.
+	const lastAssistantIndex = ( () => {
+		for ( let i = state.messages.length - 1; i >= 0; i-- ) {
+			if ( state.messages[ i ].role === 'assistant' ) {
+				return i;
+			}
+		}
+		return -1;
+	} )();
 
 	if ( isEmptyNewChat ) {
 		return (
@@ -413,10 +423,13 @@ function ChatView( {
 						</p>
 					) }
 
-					{ state.messages.map( ( msg ) => (
+					{ state.messages.map( ( msg, idx ) => (
 						<ChatBubble
 							key={ msg.id }
 							message={ msg }
+							isLatest={ idx === lastAssistantIndex }
+							onAskFollowup={ handleSendMessage }
+							followupDisabled={ isSending }
 							onSubmitFeedback={ submitFeedback }
 						/>
 					) ) }
