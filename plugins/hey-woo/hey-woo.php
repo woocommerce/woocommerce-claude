@@ -158,6 +158,7 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/interface-telemetry-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-telemetry-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-log-handler.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/handlers/class-tracks-handler.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/telemetry/class-difm-ai-telemetry.php';
 
 	// Store knowledge and readiness scoring.
@@ -212,10 +213,18 @@ function hey_woo_load_runtime_files() {
 }
 
 /**
- * Store the first installation timestamp on a fresh activation.
+ * Run first-activation bootstrap for Hey Woo.
+ *
+ * Stores the first installation timestamp and opts new installs into
+ * anonymised usage telemetry by default. Existing installs keep their
+ * stored preference because the telemetry default helper only writes
+ * when the option is absent.
  */
 function hey_woo_activate() {
 	add_option( 'hey_woo_first_installed_at', time(), '', false );
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
+	\WooCommerce\HeyWoo\Settings\SettingsPage::maybe_set_default_telemetry_option();
 }
 
 /**
@@ -336,6 +345,8 @@ function hey_woo_register_settings_page( $pages ) {
  */
 function hey_woo_init_runtime() {
 	hey_woo_load_runtime_files();
+
+	add_filter( 'hey_woo_telemetry_handlers', array( \WooCommerce\HeyWoo\Telemetry\TelemetryHandler::class, 'maybe_add_tracks_handler' ) );
 
 	\WooCommerce\HeyWoo\Telemetry\TelemetryHandler::init();
 	hey_woo_register_providers();

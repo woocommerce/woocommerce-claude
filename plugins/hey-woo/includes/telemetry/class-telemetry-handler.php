@@ -38,6 +38,8 @@ class TelemetryHandler {
 		 *
 		 * Return an array of TelemetryHandlerInterface instances.
 		 * The default set contains LogHandler on non-production environments.
+		 * TelemetryHandler::maybe_add_tracks_handler() adds TracksHandler via this filter
+		 * when usage tracking is on.
 		 *
 		 * @since 0.1.0
 		 *
@@ -63,6 +65,23 @@ class TelemetryHandler {
 	}
 
 	/**
+	 * Conditionally add TracksHandler to the telemetry handler list.
+	 *
+	 * Hooked before init() so the option is evaluated when the handler set is
+	 * first built.
+	 *
+	 * @param TelemetryHandlerInterface[] $handlers Current handler list.
+	 * @return TelemetryHandlerInterface[]
+	 */
+	public static function maybe_add_tracks_handler( $handlers ) {
+		if ( 'yes' === get_option( 'hey_woo_telemetry_enabled', 'no' ) ) {
+			$handlers[] = new Handlers\TracksHandler();
+		}
+
+		return $handlers;
+	}
+
+	/**
 	 * Record an event with every registered handler.
 	 *
 	 * @param string $event_name Event or skill identifier.
@@ -80,7 +99,7 @@ class TelemetryHandler {
 	 *
 	 * LogHandler is included on non-production environments (local/development/staging)
 	 * so telemetry events appear in WC logs during development without any setup.
-	 * Production defaults to no telemetry handlers.
+	 * On production, only TracksHandler runs — and only when the setting is on.
 	 *
 	 * @return TelemetryHandlerInterface[]
 	 */

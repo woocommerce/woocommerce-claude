@@ -64,6 +64,11 @@ class SettingsPage extends \WC_Settings_Page {
 	const DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
 
 	/**
+	 * Option name that stores the merchant's anonymised usage tracking choice.
+	 */
+	const TELEMETRY_OPTION = 'hey_woo_telemetry_enabled';
+
+	/**
 	 * Register the tab and wire up WC settings hooks.
 	 */
 	public function __construct() {
@@ -72,10 +77,12 @@ class SettingsPage extends \WC_Settings_Page {
 		parent::__construct();
 
 		add_action( 'woocommerce_admin_field_hey_woo_api_key', array( $this, 'render_api_key_field' ) );
+		add_action( 'woocommerce_admin_field_hey_woo_telemetry', array( $this, 'render_telemetry_field' ) );
 		add_action( 'woocommerce_admin_field_hey_woo_wp_ai_status', array( $this, 'render_wordpress_ai_status_field' ) );
 		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::DIFM_PROVIDER_OPTION, array( $this, 'sanitize_provider_option' ), 10, 3 );
 		add_filter( 'woocommerce_admin_settings_sanitize_option_' . self::DIFM_API_KEY_OPTION, array( $this, 'sanitize_api_key_option' ), 10, 3 );
 		add_action( 'woocommerce_settings_save_hey-woo', array( $this, 'migrate_anthropic_key_to_connector' ), 9 );
+		add_action( 'woocommerce_settings_save_hey-woo', array( $this, 'save_telemetry_option' ) );
 		add_action( 'woocommerce_settings_save_hey-woo', array( $this, 'validate_api_key_on_save' ) );
 	}
 
@@ -86,7 +93,8 @@ class SettingsPage extends \WC_Settings_Page {
 	 */
 	public function get_sections() {
 		return array(
-			'' => __( 'Settings', 'hey-woo' ),
+			''         => __( 'Setup', 'hey-woo' ),
+			'settings' => __( 'Settings', 'hey-woo' ),
 		);
 	}
 
@@ -208,11 +216,43 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
+	 * Settings fields for plugin-level preferences.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function get_settings_for_settings_section() {
+		return array(
+			array(
+				'type'  => 'title',
+				'title' => __( 'Settings', 'hey-woo' ),
+				'id'    => 'hey_woo_settings_section',
+				'desc'  => __( 'Manage Hey Woo preferences that are not tied to a specific Claude connection.', 'hey-woo' ),
+			),
+			array(
+				'type'  => 'hey_woo_telemetry',
+				'id'    => self::TELEMETRY_OPTION,
+				'title' => __( 'Usage tracking', 'hey-woo' ),
+			),
+			array(
+				'type' => 'sectionend',
+				'id'   => 'hey_woo_settings_section',
+			),
+		);
+	}
+
+	/**
 	 * Render the current section.
 	 *
 	 * @return void
 	 */
 	public function output() {
+		global $current_section;
+
+		if ( 'settings' === $current_section ) {
+			\WC_Admin_Settings::output_fields( $this->get_settings_for_settings_section() );
+			return;
+		}
+
 		\WC_Admin_Settings::output_fields( $this->get_settings_for_default_section() );
 	}
 
@@ -377,6 +417,91 @@ class SettingsPage extends \WC_Settings_Page {
 				</p>
 			</div>
 			<?php
+		}
+	}
+
+	/**
+	 * Render the anonymised-usage-data opt-in as a native WC-style checkbox row.
+	 *
+	 * @param array $value WooCommerce settings field definition.
+	 * @return void
+	 */
+	public function render_telemetry_field( $value ) {
+		$telemetry_enabled = 'yes' === get_option( self::TELEMETRY_OPTION, 'no' );
+		$title             = isset( $value['title'] ) ? $value['title'] : '';
+		?>
+		<tr>
+			<th scope="row" class="titledesc"><?php echo esc_html( $title ); ?></th>
+			<td class="forminp forminp-checkbox">
+				<fieldset>
+					<legend class="screen-reader-text"><span><?php echo esc_html( $title ); ?></span></legend>
+					<label for="hey-woo-telemetry-optin">
+						<input
+							id="hey-woo-telemetry-optin"
+							name="<?php echo esc_attr( self::TELEMETRY_OPTION ); ?>"
+							type="checkbox"
+							value="yes"
+							<?php checked( $telemetry_enabled ); ?>
+						/>
+						<?php esc_html_e( 'Share anonymised usage data to help improve Hey Woo', 'hey-woo' ); ?>
+					</label>
+					<p class="description">
+						<?php
+						printf(
+							wp_kses(
+								/* translators: %s: link to WooCommerce's usage tracking page. */
+								__( 'You can opt out at any time. %s', 'hey-woo' ),
+								array(
+									'a' => array(
+										'href'   => array(),
+										'target' => array(),
+										'rel'    => array(),
+									),
+								)
+							),
+							'<a href="https://woocommerce.com/usage-tracking/" target="_blank" rel="noopener">' . esc_html__( 'Learn more about usage tracking.', 'hey-woo' ) . '</a>'
+						);
+						?>
+					</p>
+				</fieldset>
+			</td>
+		</tr>
+		<?php
+	}
+
+	/**
+	 * Persist the telemetry opt-in when Hey Woo settings are saved.
+	 *
+	 * WC does not know about our custom field type, and unchecked checkboxes
+	 * are absent from the request, so handle the option explicitly.
+	 *
+	 * @return void
+	 */
+	public function save_telemetry_option() {
+		global $current_section;
+
+		if ( 'settings' !== $current_section ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- WC settings save handles the nonce.
+		$enabled = isset( $_POST[ self::TELEMETRY_OPTION ] )
+			&& 'yes' === sanitize_key( wp_unslash( $_POST[ self::TELEMETRY_OPTION ] ) );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		update_option( self::TELEMETRY_OPTION, $enabled ? 'yes' : 'no' );
+	}
+
+	/**
+	 * Opt fresh installs into anonymised usage tracking by default.
+	 *
+	 * Existing installs keep their stored preference across reactivation.
+	 *
+	 * @return void
+	 */
+	public static function maybe_set_default_telemetry_option() {
+		if ( false === get_option( self::TELEMETRY_OPTION, false ) ) {
+			update_option( self::TELEMETRY_OPTION, 'yes' );
 		}
 	}
 
