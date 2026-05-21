@@ -95,7 +95,8 @@ EXPECTED_TOOLS=(
 )
 
 php -r '
-	$payload = json_decode( file_get_contents( $argv[1] ), true );
+	$raw = file_get_contents( $argv[1] );
+	$payload = json_decode( $raw, true );
 	if ( ! is_array( $payload ) ) {
 		fwrite( STDERR, "tools/list did not return JSON.\n" );
 		exit( 1 );
@@ -116,6 +117,44 @@ php -r '
 	$missing = array_values( array_diff( array_slice( $argv, 2 ), $names ) );
 	if ( $missing ) {
 		fwrite( STDERR, "tools/list is missing expected tools: " . implode( ", ", $missing ) . "\n" );
+		exit( 1 );
+	}
+
+	// Wire-level JSON Schema guard.
+	//
+	// PHP `json_encode` serialises an empty PHP `array()` as `[]`, but
+	// JSON Schema requires `properties` to be an object (`{}`). A tool
+	// emitting `"inputSchema":{"type":"object","properties":[]}` is
+	// invalid JSON Schema, and Claude Desktops deferred-tool registrar
+	// silently drops the entire connector when it sees that shape —
+	// which means the tools never surface to Claude Code / Cowork agents
+	// even though tools/list returns 200 OK at the transport layer.
+	// See the PHPUnit guard in test-empty-input-schema.php for the
+	// source-side coverage; this is the wire-level mirror so the contract
+	// is also enforced against the round-tripped JSON the proxy actually
+	// hands to Claude Desktop.
+	//
+	// Re-decode in object mode so empty `{}` (stdClass) is distinguishable
+	// from empty `[]` (array) — assoc mode collapses both into the same
+	// PHP value and would miss the bug entirely.
+	$payload_obj = json_decode( $raw );
+	$invalid     = array();
+	foreach ( $payload_obj->result->tools as $tool ) {
+		$schema = $tool->inputSchema ?? null;
+		if ( ! is_object( $schema ) || ! property_exists( $schema, "properties" ) ) {
+			continue;
+		}
+		if ( is_array( $schema->properties ) ) {
+			$invalid[] = $tool->name;
+		}
+	}
+	if ( $invalid ) {
+		fwrite(
+			STDERR,
+			"Invalid inputSchema for: " . implode( ", ", $invalid ) . "\n"
+			. "  Each tools `inputSchema.properties` must JSON-encode as `{}` (object), not `[]` (array).\n"
+			. "  Fix: AbilitiesBootstrap::empty_input_schema() must return `(object) array()`, not `array()`.\n"
+		);
 		exit( 1 );
 	}
 

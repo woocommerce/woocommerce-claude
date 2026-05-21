@@ -31,12 +31,26 @@ class AbilitiesBootstrap {
 	/**
 	 * Return the schema for abilities that accept no input.
 	 *
-	 * @return array
+	 * `properties` must JSON-encode as `{}`, not `[]`. PHP's `json_encode`
+	 * serialises an empty `array()` as `[]`, which is invalid JSON Schema —
+	 * `properties` must be an object (a map of property names to schemas).
+	 * Returning `(object) array()` forces `json_encode` to emit `{}`.
+	 *
+	 * Claude Desktop's deferred-tool registrar validates the schema before
+	 * exposing tools to Claude Code / Cowork agents and silently drops the
+	 * entire connector when any tool's `properties` is `[]`, so this matters
+	 * for tool discoverability, not just spec correctness. v0.4.2 worked
+	 * because the four no-input abilities didn't pass `input_schema` at all;
+	 * the monorepo refactor added the explicit pass-through and surfaced
+	 * the encoding bug. See tests/integration/test-empty-input-schema.php
+	 * for the regression guard.
+	 *
+	 * @return array<string, mixed>
 	 */
 	public static function empty_input_schema() {
 		return array(
 			'type'       => 'object',
-			'properties' => array(),
+			'properties' => (object) array(),
 		);
 	}
 

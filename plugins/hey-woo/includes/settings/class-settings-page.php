@@ -58,19 +58,9 @@ class SettingsPage extends \WC_Settings_Page {
 	const ANTHROPIC_CONNECTOR_REMOVE_LOCAL_FIELD = 'hey_woo_remove_local_anthropic_key';
 
 	/**
-	 * Legacy option name used by WooCommerce for Claude's BYOK screen.
-	 */
-	const LEGACY_DIFM_API_KEY_OPTION = 'woocommerce_claude_anthropic_api_key';
-
-	/**
 	 * Server constant name for the Anthropic key.
 	 */
 	const DIFM_API_KEY_CONSTANT = 'HEY_WOO_ANTHROPIC_KEY';
-
-	/**
-	 * Legacy server constant name used by WooCommerce for Claude.
-	 */
-	const LEGACY_DIFM_API_KEY_CONSTANT = 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY';
 
 	/**
 	 * Register the tab and wire up WC settings hooks.
@@ -683,10 +673,6 @@ class SettingsPage extends \WC_Settings_Page {
 			$constant_name = self::DIFM_API_KEY_CONSTANT;
 		}
 
-		if ( '' === $constant_name && defined( self::LEGACY_DIFM_API_KEY_CONSTANT ) ) {
-			$constant_name = self::LEGACY_DIFM_API_KEY_CONSTANT;
-		}
-
 		/**
 		 * Filter the detected direct Anthropic key constant for tests.
 		 *
@@ -728,7 +714,7 @@ class SettingsPage extends \WC_Settings_Page {
 			return $current_key;
 		}
 
-		return (string) get_option( self::LEGACY_DIFM_API_KEY_OPTION, '' );
+		return '';
 	}
 
 	/**
@@ -768,7 +754,7 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Delete a direct API key option and any legacy alias.
+	 * Delete a direct API key option.
 	 *
 	 * @param string $provider Provider value.
 	 * @return void
@@ -777,7 +763,6 @@ class SettingsPage extends \WC_Settings_Page {
 		unset( $provider );
 
 		delete_option( self::ANTHROPIC_API_KEY_OPTION );
-		delete_option( self::LEGACY_DIFM_API_KEY_OPTION );
 	}
 
 	/**

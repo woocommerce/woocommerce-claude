@@ -3,7 +3,7 @@
  * Plugin Name: Hey Woo
  * Plugin URI: https://woocommerce.com/
  * Description: Bring-your-own-key WooCommerce assistant powered by shared commerce abilities.
- * Version: 0.4.2
+ * Version: 0.4.3
  * Author: Automattic
  * Author URI: https://automattic.com/
  * Text Domain: hey-woo
@@ -21,7 +21,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HEY_WOO_VERSION', '0.4.2' );
+define( 'HEY_WOO_VERSION', '0.4.3' );
 define( 'HEY_WOO_PLUGIN_FILE', __FILE__ );
 define( 'HEY_WOO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -215,9 +215,7 @@ function hey_woo_migrate_difm_provider_option() {
 
 	$provider_is_absent = false === get_option( 'hey_woo_difm_provider', false );
 	$has_anthropic_key  = '' !== (string) get_option( 'hey_woo_anthropic_api_key', '' )
-		|| '' !== (string) get_option( 'woocommerce_claude_anthropic_api_key', '' )
-		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY )
-		|| ( defined( 'WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY' ) && '' !== (string) WOOCOMMERCE_CLAUDE_ANTHROPIC_KEY );
+		|| ( defined( 'HEY_WOO_ANTHROPIC_KEY' ) && '' !== (string) HEY_WOO_ANTHROPIC_KEY );
 
 	if ( $provider_is_absent && $has_anthropic_key ) {
 		update_option( 'hey_woo_difm_provider', 'anthropic' );
