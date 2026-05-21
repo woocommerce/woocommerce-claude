@@ -303,7 +303,7 @@ export function useChat( options: UseChatOptions = {} ) {
 
 				// Upgrade the truncated placeholder title to a real AI-generated one
 				// after the first turn completes. Fire-and-forget so the merchant
-				// never waits on it; the Library reflects the upgraded title on next
+				// never waits on it; History reflects the upgraded title on next
 				// view.
 				if ( isFirstTurn && conversationIdRef.current ) {
 					void upgradeConversationTitle(

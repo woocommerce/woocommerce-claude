@@ -1,8 +1,7 @@
 /**
- * Shared helpers for the Library DataViews route.
+ * Shared helpers for the History DataViews route.
  */
 import { __ } from '@wordpress/i18n';
-import { parseReportActions } from '../ai-insights/report-actions';
 import { WORKFLOWS } from '../ai-insights/workflows';
 import type {
 	ChatMessage,
@@ -15,7 +14,6 @@ export type ConversationSource = 'chat' | 'report';
 export interface HistoryConversation extends StoredConversation {
 	lastSpeaker: string;
 	messageCount: number;
-	preview: string;
 	source: ConversationSource;
 	sourceLabel: string;
 	status: string;
@@ -32,23 +30,6 @@ export function formatUpdatedAt( updatedAt: number ): string {
 		dateStyle: 'medium',
 		timeStyle: 'short',
 	} ).format( new Date( updatedAt ) );
-}
-
-export function messagePreview( messages: ChatMessage[] ): string {
-	const message = [ ...messages ].reverse().find( ( item ) => item.content.trim() );
-
-	if ( ! message ) {
-		return __( 'No messages yet.', 'hey-woo' );
-	}
-
-	const { content } = parseReportActions( message.content );
-	const preview = content
-		.replace( /^#{1,6}\s+/gm, '' )
-		.replace( /\*\*(.+?)\*\*/g, '$1' )
-		.replace( /\s+/g, ' ' )
-		.trim();
-
-	return preview.length > 140 ? `${ preview.slice( 0, 137 ) }...` : preview;
 }
 
 export function conversationSource( conversation: StoredConversation ): ConversationSource {
@@ -103,7 +84,6 @@ export function toHistoryConversation( conversation: StoredConversation ): Histo
 		...conversation,
 		lastSpeaker: lastSpeakerLabel( conversation.messages ),
 		messageCount: conversation.messages.length,
-		preview: conversation.workflowRun?.errorMessage || messagePreview( conversation.messages ),
 		source,
 		sourceLabel: conversationSourceLabel( source ),
 		status,

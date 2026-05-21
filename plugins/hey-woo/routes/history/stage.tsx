@@ -1,5 +1,5 @@
 /**
- * Hey Woo Library - conversation management route.
+ * Hey Woo History - conversation management route.
  */
 import '../ai-insights/style.scss';
 import './style.scss';
@@ -8,7 +8,7 @@ import { Button } from '@wordpress/components';
 import { useCallback, useMemo, useState } from '@wordpress/element';
 import { Icon, commentContent, trash } from '@wordpress/icons';
 import { __, _n, sprintf } from '@wordpress/i18n';
-import { useNavigate, useSearch } from '@wordpress/route';
+import { useNavigate } from '@wordpress/route';
 import { useAdaptiveDataViewsPageSize } from '../ai-insights/hooks/useAdaptiveDataViewsPageSize';
 import { useConversations } from '../ai-insights/hooks/useConversations';
 import {
@@ -24,7 +24,6 @@ const HISTORY_LAYOUTS = {
 	table: {
 		fields: HISTORY_VISIBLE_FIELDS,
 		titleField: 'title',
-		descriptionField: 'preview',
 		showMedia: false,
 		layout: {
 			density: 'balanced',
@@ -39,7 +38,6 @@ const HISTORY_LAYOUTS = {
 	list: {
 		fields: HISTORY_VISIBLE_FIELDS,
 		titleField: 'title',
-		descriptionField: 'preview',
 		showMedia: false,
 		layout: {
 			density: 'balanced',
@@ -49,7 +47,6 @@ const HISTORY_LAYOUTS = {
 		fields: HISTORY_VISIBLE_FIELDS,
 		titleField: 'title',
 		mediaField: 'media',
-		descriptionField: 'preview',
 		showMedia: true,
 		layout: {
 			badgeFields: [ 'source', 'status' ],
@@ -98,8 +95,8 @@ function DeleteConversationsModal( {
 				{ sprintf(
 					/* translators: %d: number of conversations */
 					_n(
-						'Delete %d conversation from the library?',
-						'Delete %d conversations from the library?',
+						'Delete %d conversation from history?',
+						'Delete %d conversations from history?',
 						deleteCount,
 						'hey-woo'
 					),
@@ -145,9 +142,7 @@ function DeleteConversationsModal( {
 }
 
 export function stage() {
-	const search = useSearch( { strict: false } ) as { conversation?: string };
 	const navigate = useNavigate();
-	const selectedConversationId = typeof search.conversation === 'string' ? search.conversation : '';
 	const [ view, setView ] = useState< View >( DEFAULT_HISTORY_VIEW );
 	const [ selection, setSelection ] = useState< string[] >( [] );
 	const { conversations, deleteConversations } = useConversations();
@@ -169,30 +164,19 @@ export function stage() {
 		[]
 	);
 
-	const selectConversation = useCallback( ( conversationId: string ) => {
+	const openConversation = useCallback( ( conversationId: string ) => {
 		void navigate( {
-			to: '/history',
+			to: '/chat',
 			search: {
-				conversation: conversationId,
+				conversationId,
 			},
-		} );
-	}, [ navigate ] );
-
-	const closeSelectedConversation = useCallback( () => {
-		void navigate( {
-			to: '/history',
-			search: {},
 		} );
 	}, [ navigate ] );
 
 	const deleteConversationIds = useCallback( async ( conversationIds: string[] ) => {
 		await deleteConversations( conversationIds );
 		setSelection( [] );
-
-		if ( selectedConversationId && conversationIds.includes( selectedConversationId ) ) {
-			closeSelectedConversation();
-		}
-	}, [ closeSelectedConversation, deleteConversations, selectedConversationId ] );
+	}, [ deleteConversations ] );
 
 	const fields = useMemo< Field< HistoryConversation >[] >(
 		() => [
@@ -213,14 +197,6 @@ export function stage() {
 				enableHiding: false,
 				enableGlobalSearch: true,
 				getValue: ( { item } ) => item.title,
-			},
-			{
-				id: 'preview',
-				label: __( 'Preview', 'hey-woo' ),
-				enableHiding: false,
-				enableGlobalSearch: true,
-				enableSorting: false,
-				getValue: ( { item } ) => item.preview,
 			},
 			{
 				id: 'source',
@@ -289,21 +265,6 @@ export function stage() {
 	const actions = useMemo< Action< HistoryConversation >[] >(
 		() => [
 			{
-				id: 'preview-conversation',
-				label: ( items ) => items[ 0 ]?.id === selectedConversationId
-					? __( 'Selected', 'hey-woo' )
-					: __( 'Preview', 'hey-woo' ),
-				isPrimary: true,
-				context: 'single',
-				callback: ( items ) => {
-					const conversation = items[ 0 ];
-
-					if ( conversation ) {
-						selectConversation( conversation.id );
-					}
-				},
-			},
-			{
 				id: 'delete-conversations',
 				label: ( items ) => sprintf(
 					/* translators: %d: number of conversations */
@@ -326,7 +287,7 @@ export function stage() {
 				),
 			},
 		],
-		[ deleteConversationIds, selectConversation, selectedConversationId ]
+		[ deleteConversationIds ]
 	);
 	const resetView = () => setView( DEFAULT_HISTORY_VIEW );
 	const hasConversationHistory = historyItems.length > 0;
@@ -335,7 +296,7 @@ export function stage() {
 		<div ref={ rootRef } className="hey-woo-page hey-woo-page--history">
 			<header className="hey-woo-history-header">
 				<div>
-					<h1 className="hey-woo-history-header__title">{ __( 'Library', 'hey-woo' ) }</h1>
+					<h1 className="hey-woo-history-header__title">{ __( 'History', 'hey-woo' ) }</h1>
 					<p className="hey-woo-history-header__count">
 						{ sprintf(
 							/* translators: %d: number of visible conversations */
@@ -370,8 +331,8 @@ export function stage() {
 					<div className="hey-woo-history-empty" role="status">
 						<p>
 							{ hasConversationHistory
-								? __( 'No library items match those filters.', 'hey-woo' )
-								: __( 'No library items yet.', 'hey-woo' ) }
+								? __( 'No history items match those filters.', 'hey-woo' )
+								: __( 'No history items yet.', 'hey-woo' ) }
 						</p>
 						<Button
 							type="button"
@@ -395,10 +356,10 @@ export function stage() {
 				isItemClickable={ () => true }
 				onChangeSelection={ setSelection }
 				onChangeView={ setView }
-				onClickItem={ ( item ) => selectConversation( item.id ) }
+				onClickItem={ ( item ) => openConversation( item.id ) }
 				onReset={ resetView }
 				paginationInfo={ paginationInfo }
-				searchLabel={ __( 'Search library', 'hey-woo' ) }
+				searchLabel={ __( 'Search history', 'hey-woo' ) }
 				selection={ selection }
 				view={ view }
 			/>

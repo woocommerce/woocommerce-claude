@@ -311,7 +311,7 @@ function ChatView( {
 	// and the new mount can briefly render the empty home before the
 	// conversations state catches up — the merchant sees the report
 	// disappear and reload to a blank screen. The conversation is already
-	// persisted via useConversations, so it shows up in the Library and a
+	// persisted via useConversations, so it shows up in History and a
 	// refresh from there restores the chat.
 	const handleConversationSaved = useCallback( async (
 		conversation: StoredConversation

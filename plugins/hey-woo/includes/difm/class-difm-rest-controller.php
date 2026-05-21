@@ -379,7 +379,7 @@ class DifmRestController {
 	 * POST /hey-woo/v1/difm/title — generate a short conversation title.
 	 *
 	 * Called fire-and-forget by the frontend after the first assistant
-	 * response. The library uses the resulting title in place of the
+	 * response. History uses the resulting title in place of the
 	 * truncated-first-message placeholder so merchants can scan past chats.
 	 * Cheap one-shot call: minimal token budget, no tools, no history.
 	 *
