@@ -5,6 +5,7 @@ import { useState, useCallback, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import moduleData from '../data';
 import type { ChatMessage, ChatResponse, StoredConversation } from '../types';
+import { saveConversationRecord } from './useConversations';
 
 /** Timeout for multi-tool report workflows in milliseconds. */
 const REQUEST_TIMEOUT_MS = 180_000;
@@ -45,6 +46,67 @@ function generateTitle( text: string ): string {
 	return ( lastSpace > 20 ? truncated.slice( 0, lastSpace ) : truncated ) + '…';
 }
 
+/**
+ * Ask the server for an AI-generated short title for the first turn of a chat.
+ *
+ * Fires fire-and-forget after the first assistant response, so the merchant
+ * never waits on it. When the server returns a title, the matching stored
+ * conversation is saved again with the new title, replacing the truncated
+ * first-message placeholder useChat assigned when sendMessage opened the chat.
+ *
+ * Silent on every error path — a failure leaves the placeholder title.
+ */
+async function upgradeConversationTitle(
+	conversationId: string,
+	userMessage: string,
+	assistantMessage: string
+): Promise< void > {
+	try {
+		const response = await fetch( moduleData.restBase + '/title', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-WP-Nonce': moduleData.nonce,
+			},
+			body: JSON.stringify( {
+				user_message: userMessage,
+				assistant_message: assistantMessage,
+			} ),
+		} );
+
+		if ( ! response.ok ) {
+			return;
+		}
+
+		const json = ( await response.json() ) as {
+			status?: string;
+			title?: unknown;
+		};
+
+		if ( json.status !== 'ok' || typeof json.title !== 'string' ) {
+			return;
+		}
+
+		const nextTitle = json.title.trim();
+		if ( '' === nextTitle ) {
+			return;
+		}
+
+		const latest = moduleData.conversations.find( ( conv ) => conv.id === conversationId );
+		if ( ! latest ) {
+			return;
+		}
+
+		await saveConversationRecord( {
+			...latest,
+			title: nextTitle,
+			updatedAt: Date.now(),
+		} );
+	} catch ( _err ) {
+		// Title upgrade is best-effort; leave the placeholder if anything fails.
+	}
+}
+
 export function useChat( options: UseChatOptions = {} ) {
 	const {
 		initialMessages = [],
@@ -80,6 +142,7 @@ export function useChat( options: UseChatOptions = {} ) {
 	const sendMessage = useCallback( async ( text: string, sendOptions: SendMessageOptions = {} ) => {
 		const history = messagesRef.current;
 		const displayText = sendOptions.displayText?.trim() || text;
+		const isFirstTurn = history.length === 0;
 
 		// Assign conversation ID and title on first send.
 		if ( ! conversationIdRef.current ) {
@@ -196,6 +259,21 @@ export function useChat( options: UseChatOptions = {} ) {
 				messages: [ ...prev.messages, assistantMessage ],
 				status: 'idle',
 			} ) );
+
+			// Upgrade the truncated placeholder title to a real AI-generated one
+			// after the first turn completes. Fire-and-forget so the merchant
+			// never waits on it; the Library reflects the upgraded title on next
+			// view.
+			if ( isFirstTurn && conversationIdRef.current ) {
+				void upgradeConversationTitle( conversationIdRef.current, displayText, json.reply ).then( () => {
+					const upgraded = moduleData.conversations.find(
+						( conv ) => conv.id === conversationIdRef.current
+					);
+					if ( upgraded && upgraded.title ) {
+						titleRef.current = upgraded.title;
+					}
+				} );
+			}
 		} catch ( err ) {
 			if ( timeoutId ) {
 				clearTimeout( timeoutId );
