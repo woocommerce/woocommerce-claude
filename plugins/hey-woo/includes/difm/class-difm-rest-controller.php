@@ -925,7 +925,7 @@ class DifmRestController {
 	 * @return string
 	 */
 	private function strip_followup_block( $content ) {
-		$pattern = '/\n*```suggested-followups\s*\n[\s\S]*?\n```\s*$/i';
+		$pattern  = '/\n*```suggested-followups\s*\n[\s\S]*?\n```\s*$/i';
 		$stripped = preg_replace( $pattern, '', $content );
 		return null === $stripped ? $content : rtrim( $stripped );
 	}
