@@ -24,11 +24,6 @@ export function ChatBubble( { message, onSubmitFeedback }: ChatBubbleProps ) {
 			role="article"
 			aria-label={ isUser ? __( 'You', 'hey-woo' ) : __( 'Assistant', 'hey-woo' ) }
 		>
-			{ ! isUser && (
-				<span className="hey-woo-bubble__role">
-					{ __( 'Hey Woo', 'hey-woo' ) }
-				</span>
-			) }
 			{ isUser ? (
 				<p className="hey-woo-bubble__content hey-woo-bubble__content--plain">
 					{ message.content }

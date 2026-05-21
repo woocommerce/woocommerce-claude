@@ -268,16 +268,6 @@
 	font-size: 14px;
 	box-sizing: border-box;
 
-	&__role {
-		display: block;
-		font-size: 11px;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		margin-bottom: 4px;
-		opacity: 0.65;
-	}
-
 	&__content {
 		margin: 0;
 		word-break: break-word;
@@ -289,8 +279,8 @@
 		&--markdown {
 			overflow-x: auto;
 			white-space: normal;
-			font-size: 15px;
-			line-height: 1.65;
+			font-size: 16px;
+			line-height: 1.7;
 			color: var(--wpds-color-fg-content-neutral, #1e1e1e);
 
 			p,
@@ -302,9 +292,10 @@
 			h4,
 			h5,
 			h6,
+			blockquote,
 			table,
 			hr {
-				margin: 0 0 14px;
+				margin: 0 0 16px;
 			}
 
 			> :last-child {
@@ -328,11 +319,11 @@
 			}
 
 			h3 {
-				font-size: 28px;
-				line-height: 1.2;
+				font-size: 34px;
+				line-height: 1.15;
 				font-weight: 700;
-				letter-spacing: -0.01em;
-				margin: 32px 0 16px;
+				letter-spacing: -0.02em;
+				margin: 32px 0 18px;
 			}
 
 			h4 {
@@ -386,6 +377,20 @@
 				color: var(--wpds-color-fg-content-info, #3858e9);
 			}
 
+			blockquote {
+				margin: 24px 0;
+				padding: 4px 0 4px 20px;
+				border-left: 4px solid var(--wpds-color-fg-content-info, #3858e9);
+				color: var(--wpds-color-fg-content-neutral, #1e1e1e);
+				font-size: 17px;
+				font-weight: 500;
+				line-height: 1.55;
+
+				> :last-child {
+					margin-bottom: 0;
+				}
+			}
+
 			hr {
 				margin: 32px 0;
 				border: 0;
@@ -396,6 +401,7 @@
 				width: max-content;
 				min-width: 100%;
 				max-width: 100%;
+				margin: 20px 0;
 				border-collapse: collapse;
 				font-size: 14px;
 				line-height: 1.5;
@@ -403,15 +409,23 @@
 
 			th,
 			td {
-				padding: 8px 10px;
-				border: 1px solid #dcdcde;
+				padding: 10px 14px 10px 0;
+				border-bottom: 1px solid #f0f0f0;
 				text-align: left;
 				vertical-align: top;
 			}
 
 			th {
-				background: #f6f7f7;
-				font-weight: 600;
+				border-bottom: 2px solid var(--wpds-color-fg-content-neutral, #1e1e1e);
+				color: var(--wpds-color-fg-content-subtle, #50575e);
+				font-size: 11px;
+				font-weight: 700;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+			}
+
+			tr:last-child td {
+				border-bottom: 0;
 			}
 		}
 	}
@@ -420,10 +434,6 @@
 		align-self: flex-end;
 		background: #3858e9;
 		color: #fff;
-
-		.hey-woo-bubble__role {
-			color: rgba(255, 255, 255, 0.8);
-		}
 	}
 
 	&--assistant {
