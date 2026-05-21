@@ -192,6 +192,16 @@ function hey_woo_load_runtime_files() {
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-rest-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-conversations-controller.php';
 	require_once HEY_WOO_PLUGIN_DIR . 'includes/difm/class-difm-admin-page.php';
+
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-store.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/interface-signal-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-ability-runner.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-revenue-drop-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-refund-spike-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-failed-order-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/detectors/class-inventory-risk-detector.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-signal-runner.php';
+	require_once HEY_WOO_PLUGIN_DIR . 'includes/this-week/class-this-week-rest-controller.php';
 }
 
 /**
@@ -262,6 +272,7 @@ function hey_woo_init_runtime() {
 	( new \WooCommerce\HeyWoo\Difm\DifmAdminPage() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmRestController() )->register();
 	( new \WooCommerce\HeyWoo\Difm\DifmConversationsController() )->register();
+	( new \WooCommerce\HeyWoo\ThisWeek\ThisWeekRestController() )->register();
 }
 
 /**

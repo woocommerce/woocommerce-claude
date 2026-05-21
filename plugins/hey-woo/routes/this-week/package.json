@@ -1,0 +1,6 @@
+{
+	"route": {
+		"path": "/this-week",
+		"page": "hey-woo-insights"
+	}
+}

@@ -1,8 +1,11 @@
 import { store as bootStore } from '@wordpress/boot';
 import { dispatch } from '@wordpress/data';
-import { archive, chartBar, check, commentContent } from '@wordpress/icons';
+import { archive, chartBar, check, commentContent, alignNone } from '@wordpress/icons';
 
 export async function init(): Promise< void > {
+	dispatch( bootStore ).updateMenuItem( 'hey-woo-this-week', {
+		icon: alignNone,
+	} );
 	dispatch( bootStore ).updateMenuItem( 'hey-woo-chat', {
 		icon: commentContent,
 	} );
