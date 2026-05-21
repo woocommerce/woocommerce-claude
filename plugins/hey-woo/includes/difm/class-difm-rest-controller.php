@@ -118,6 +118,15 @@ class DifmRestController {
 	const PROGRESS_ID_MAX_LENGTH = 64;
 
 	/**
+	 * Allowed character grammar for a chat-progress identifier.
+	 *
+	 * Enforced at the REST schema layer via JSON Schema's `pattern` plus a
+	 * belt-and-suspenders re-check in sanitise_progress_id(). UUIDs, hex
+	 * tokens, and short opaque slugs without exotic characters all pass.
+	 */
+	const PROGRESS_ID_PATTERN = '^[A-Za-z0-9._-]+$';
+
+	/**
 	 * Workflow slug active for the current request.
 	 *
 	 * @var string
@@ -223,6 +232,7 @@ class DifmRestController {
 							'sanitize_callback' => 'sanitize_text_field',
 							'validate_callback' => 'rest_validate_request_arg',
 							'maxLength'         => self::PROGRESS_ID_MAX_LENGTH,
+							'pattern'           => self::PROGRESS_ID_PATTERN,
 						),
 					),
 				),
@@ -245,6 +255,7 @@ class DifmRestController {
 							'validate_callback' => 'rest_validate_request_arg',
 							'minLength'         => 1,
 							'maxLength'         => self::PROGRESS_ID_MAX_LENGTH,
+							'pattern'           => self::PROGRESS_ID_PATTERN,
 						),
 					),
 				),

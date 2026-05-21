@@ -191,27 +191,13 @@ class Test_Hey_Woo_Chat_Progress extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Disallowed characters in progress_id yield the empty payload — the
-	 * controller's defensive sanitiser drops them before the transient
-	 * lookup runs. The schema-level validator does not reject these because
-	 * they are within the length budget, so the empty payload is the right
-	 * behaviour.
+	 * Disallowed characters in progress_id are rejected at the schema layer
+	 * with a 400 — the JSON Schema `pattern` enforces the [A-Za-z0-9._-]+
+	 * grammar before the controller's defensive sanitiser ever runs.
 	 */
-	public function test_progress_id_with_disallowed_characters_returns_empty_payload() {
-		$this->seed_progress(
-			'persisted-progress-id',
-			array(
-				'tool'      => 'analytics_series',
-				'phase'     => 'complete',
-				'timestamp' => 1700000001,
-			)
-		);
-
+	public function test_progress_id_with_disallowed_characters_is_rejected() {
 		$response = $this->get_progress( 'persisted-progress-id; rm -rf /' );
 
-		$this->assertSame( 200, $response->get_status() );
-		$data = $response->get_data();
-		$this->assertNull( $data['tool'] );
-		$this->assertNull( $data['phase'] );
+		$this->assertSame( 400, $response->get_status() );
 	}
 }
