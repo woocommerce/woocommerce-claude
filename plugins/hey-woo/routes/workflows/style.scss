@@ -7,6 +7,7 @@
 	--hey-woo-workflows-content: var(--wpds-color-fg-content-neutral, #1e1e1e);
 	--hey-woo-workflows-muted: var(--wpds-color-fg-content-subtle, #757575);
 	--hey-woo-workflows-accent: var(--wpds-color-fg-content-info, #3858e9);
+	--hey-woo-workflows-accent-weak: var(--wpds-color-bg-surface-info-weak, #f0f6fc);
 	--hey-woo-workflows-success: var(--wpds-color-fg-content-success, #007017);
 	--hey-woo-workflows-success-weak: var(--wpds-color-bg-surface-success-weak, #edfaef);
 	--hey-woo-workflows-gap: var(--wpds-dimension-gap-md, 16px);
@@ -43,20 +44,9 @@
 	}
 }
 
-.hey-woo-workflows-toolbar {
-	display: grid;
-	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
-	gap: 12px;
-	padding: 16px 0;
-
-	&__search {
-		min-width: 0;
-	}
-}
-
 .hey-woo-workflows-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: var(--hey-woo-workflows-gap);
 	padding-top: 4px;
 }
@@ -68,17 +58,19 @@
 	background: var(--hey-woo-workflows-surface);
 	border: 1px solid var(--hey-woo-workflows-stroke);
 	border-radius: var(--hey-woo-workflows-radius);
-	transition: box-shadow 0.15s ease, transform 0.15s ease;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 
 	&:hover {
-		box-shadow: 0 4px 12px rgba(30, 30, 30, 0.08);
+		border-color: var(--hey-woo-workflows-accent);
+		box-shadow: 0 6px 16px rgba(30, 30, 30, 0.08);
+		transform: translateY(-1px);
 	}
 
 	&__header {
 		display: flex;
 		align-items: flex-start;
-		gap: 12px;
-		padding: 16px 16px 8px;
+		gap: 14px;
+		padding: 20px 20px 10px;
 		border-bottom: 0;
 	}
 
@@ -86,11 +78,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 36px;
-		height: 36px;
-		border-radius: 6px;
-		background: var(--hey-woo-workflows-surface-weak);
-		color: var(--hey-woo-workflows-content);
+		width: 44px;
+		height: 44px;
+		border-radius: 10px;
+		background: var(--hey-woo-workflows-accent-weak);
+		color: var(--hey-woo-workflows-accent);
 		flex-shrink: 0;
 	}
 
@@ -105,7 +97,7 @@
 	&__title {
 		margin: 0;
 		color: var(--hey-woo-workflows-content);
-		font-size: 15px;
+		font-size: 16px;
 		font-weight: 600;
 		line-height: 1.3;
 	}
@@ -149,7 +141,7 @@
 
 	&__body {
 		flex: 1;
-		padding: 0 16px 12px;
+		padding: 0 20px 14px;
 	}
 
 	&__description {
@@ -162,7 +154,7 @@
 	&__footer {
 		display: flex;
 		justify-content: flex-end;
-		padding: 12px 16px 16px;
+		padding: 12px 20px 20px;
 		border-top: 0;
 	}
 }
@@ -178,26 +170,13 @@
 	}
 }
 
-.hey-woo-workflows-empty {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 12px;
-	padding: 64px 0;
-	color: var(--hey-woo-workflows-muted);
-	font-size: 13px;
-	line-height: 1.5;
-
-	p {
-		margin: 0;
+@media (max-width: 1024px) {
+	.hey-woo-workflows-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 
 @media (max-width: 720px) {
-	.hey-woo-workflows-toolbar {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
 	.hey-woo-workflows-grid {
 		grid-template-columns: minmax(0, 1fr);
 	}
