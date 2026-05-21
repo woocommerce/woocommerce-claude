@@ -1,6 +1,6 @@
 {
 	"route": {
-		"path": "/this-week",
+		"path": "/today",
 		"page": "hey-woo-insights"
 	}
 }

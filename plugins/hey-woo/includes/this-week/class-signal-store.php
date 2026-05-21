@@ -34,6 +34,13 @@ class SignalStore {
 	const SEVERITIES = array( 'high', 'medium', 'low' );
 
 	/**
+	 * Allowed tone tokens. `positive` is a win the merchant should celebrate;
+	 * `negative` is something needing attention. Defaults to `negative` so
+	 * pre-existing stored signals without a tone keep their original framing.
+	 */
+	const TONES = array( 'positive', 'negative' );
+
+	/**
 	 * Return every persisted signal in storage order.
 	 *
 	 * @return array<int,array<string,mixed>>
@@ -103,6 +110,7 @@ class SignalStore {
 		$record   = array(
 			'slug'              => $slug,
 			'severity'          => self::clamp_severity( $signal['severity'] ?? 'medium' ),
+			'tone'              => self::clamp_tone( $signal['tone'] ?? 'negative' ),
 			'title'             => isset( $signal['title'] ) ? (string) $signal['title'] : '',
 			'summary'           => isset( $signal['summary'] ) ? (string) $signal['summary'] : '',
 			'evidence'          => self::normalise_evidence( $signal['evidence'] ?? array() ),
@@ -292,6 +300,7 @@ class SignalStore {
 		return array(
 			'slug'              => $slug,
 			'severity'          => self::clamp_severity( $signal['severity'] ?? 'medium' ),
+			'tone'              => self::clamp_tone( $signal['tone'] ?? 'negative' ),
 			'title'             => isset( $signal['title'] ) ? (string) $signal['title'] : '',
 			'summary'           => isset( $signal['summary'] ) ? (string) $signal['summary'] : '',
 			'evidence'          => self::normalise_evidence( $signal['evidence'] ?? array() ),
@@ -314,6 +323,17 @@ class SignalStore {
 	private static function clamp_severity( $severity ) {
 		$severity = is_string( $severity ) ? strtolower( $severity ) : '';
 		return in_array( $severity, self::SEVERITIES, true ) ? $severity : 'medium';
+	}
+
+	/**
+	 * Clamp tone to the allowed token set.
+	 *
+	 * @param string $tone Raw tone value.
+	 * @return string
+	 */
+	private static function clamp_tone( $tone ) {
+		$tone = is_string( $tone ) ? strtolower( $tone ) : '';
+		return in_array( $tone, self::TONES, true ) ? $tone : 'negative';
 	}
 
 	/**

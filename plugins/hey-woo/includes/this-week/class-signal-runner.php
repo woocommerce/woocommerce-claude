@@ -18,8 +18,10 @@ use WooCommerce\HeyWoo\Difm\DifmProviderResolver;
 use WooCommerce\HeyWoo\Difm\WorkflowSkills;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\FailedOrderDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\InventoryRiskDetector;
+use WooCommerce\HeyWoo\ThisWeek\Detectors\NewCustomerWinDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\RefundSpikeDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\RevenueDropDetector;
+use WooCommerce\HeyWoo\ThisWeek\Detectors\RevenueWinDetector;
 use WooCommerce\HeyWoo\ThisWeek\Detectors\SignalDetectorInterface;
 use WooCommerce\HeyWoo\ThisWeek\Notifications\SignalLock;
 
@@ -123,9 +125,11 @@ class SignalRunner {
 	protected function detectors() {
 		$detectors = array(
 			new RevenueDropDetector(),
+			new RevenueWinDetector(),
 			new RefundSpikeDetector(),
 			new FailedOrderDetector(),
 			new InventoryRiskDetector(),
+			new NewCustomerWinDetector(),
 		);
 
 		/**
@@ -429,6 +433,7 @@ class SignalRunner {
 		return array(
 			'slug'          => isset( $detection['slug'] ) ? (string) $detection['slug'] : '',
 			'severity'      => isset( $detection['severity'] ) ? (string) $detection['severity'] : 'medium',
+			'tone'          => isset( $detection['tone'] ) ? (string) $detection['tone'] : 'negative',
 			'workflow_slug' => $workflow_slug,
 			'title'         => isset( $payload['title'] ) && '' !== $payload['title'] ? (string) $payload['title'] : ( isset( $detection['title'] ) ? (string) $detection['title'] : '' ),
 			'summary'       => isset( $payload['summary'] ) ? (string) $payload['summary'] : '',
