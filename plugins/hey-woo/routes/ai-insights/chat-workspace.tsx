@@ -2,9 +2,9 @@
  * Shared chat workspace used by the New chat route.
  */
 import { Button } from '@wordpress/components';
-import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
-import { Icon, archive, calendar, chartBar, check, page, trendingUp } from '@wordpress/icons';
-import { __, _n, sprintf } from '@wordpress/i18n';
+import { useCallback, useEffect, useRef } from '@wordpress/element';
+import { Icon, chartBar, globe, payment, people, tag, trendingDown } from '@wordpress/icons';
+import { __, sprintf } from '@wordpress/i18n';
 import { useNavigate, useSearch } from '@wordpress/route';
 import moduleData from './data';
 import { useChat } from './hooks/useChat';
@@ -13,7 +13,6 @@ import { useConversations } from './hooks/useConversations';
 import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
 import { NoKey } from './components/states/NoKey';
-import { ACTIONS_UPDATED_EVENT, loadActionCards } from '../actions/action-store';
 import { RETRYABLE_CHAT_ERROR_KINDS } from './types';
 import type { ChatErrorKind, StoredConversation } from './types';
 
@@ -54,10 +53,6 @@ function ChatHeader( { title, subtitle }: ChatHeaderProps ) {
 	);
 }
 
-function openActionCount(): number {
-	return loadActionCards().filter( ( card ) => card.status !== 'done' ).length;
-}
-
 function ChatShortcutCard( { shortcut }: { shortcut: ChatShortcut } ) {
 	return (
 		<button
@@ -78,19 +73,6 @@ function ChatShortcutCard( { shortcut }: { shortcut: ChatShortcut } ) {
 
 function ChatShortcuts() {
 	const navigate = useNavigate();
-	const [ actionsCount, setActionsCount ] = useState( () => openActionCount() );
-
-	useEffect( () => {
-		const refreshActionsCount = () => setActionsCount( openActionCount() );
-
-		window.addEventListener( ACTIONS_UPDATED_EVENT, refreshActionsCount );
-		window.addEventListener( 'storage', refreshActionsCount );
-
-		return () => {
-			window.removeEventListener( ACTIONS_UPDATED_EVENT, refreshActionsCount );
-			window.removeEventListener( 'storage', refreshActionsCount );
-		};
-	}, [] );
 
 	const goTo = ( to: string, search: Record< string, string > = {} ) => {
 		void navigate( {
@@ -98,63 +80,50 @@ function ChatShortcuts() {
 			search,
 		} );
 	};
-	const actionTitle = actionsCount > 0
-		? sprintf(
-				/* translators: %d: number of open action cards */
-				_n( 'Review %d open action', 'Review %d open actions', actionsCount, 'hey-woo' ),
-				actionsCount
-		  )
-		: __( 'Review action board', 'hey-woo' );
+
 	const shortcuts: ChatShortcut[] = [
 		{
-			id: 'run-workflow',
-			title: __( 'Run a workflow', 'hey-woo' ),
-			description: __( 'Start a store review, acquisition check, refund triage, or catalogue audit.', 'hey-woo' ),
+			id: 'weekly-store-review',
+			title: __( 'How did the store do this week?', 'hey-woo' ),
+			description: __( 'Get a merchant-friendly review of revenue, orders, customers, and what to do next.', 'hey-woo' ),
 			icon: <Icon icon={ chartBar } size={ 22 } />,
 			tone: 'primary',
-			onClick: () => goTo( '/reports' ),
+			onClick: () => goTo( '/reports', { workflow: 'weekly-store-review' } ),
 		},
 		{
-			id: 'actions',
-			title: actionTitle,
-			description: __( 'Work through recommended follow-ups from reports and chats.', 'hey-woo' ),
-			icon: <Icon icon={ check } size={ 22 } />,
-			onClick: () => goTo( '/actions' ),
+			id: 'revenue-drop-triage',
+			title: __( 'What’s driving revenue down?', 'hey-woo' ),
+			description: __( 'Diagnose a soft week or month and find the channels, products, or refunds behind it.', 'hey-woo' ),
+			icon: <Icon icon={ trendingDown } size={ 22 } />,
+			onClick: () => goTo( '/reports', { workflow: 'revenue-drop-triage' } ),
 		},
 		{
-			id: 'library',
-			title: __( 'Open library', 'hey-woo' ),
-			description: __( 'Find previous reports, investigations, and chats.', 'hey-woo' ),
-			icon: <Icon icon={ archive } size={ 22 } />,
-			onClick: () => goTo( '/history' ),
+			id: 'channel-performance-review',
+			title: __( 'Where are my paying customers coming from?', 'hey-woo' ),
+			description: __( 'See which channels, sources, and campaigns are driving revenue and new customers.', 'hey-woo' ),
+			icon: <Icon icon={ globe } size={ 22 } />,
+			onClick: () => goTo( '/reports', { workflow: 'channel-performance-review' } ),
 		},
 		{
-			id: 'schedule-weekly-review',
-			title: __( 'Schedule a weekly review', 'hey-woo' ),
-			description: __( 'Set up a recurring store check for the week ahead.', 'hey-woo' ),
-			icon: <Icon icon={ calendar } size={ 22 } />,
-			onClick: () => goTo( '/reports', {
-				workflow: 'weekly-store-review',
-				run: 'weekly',
-			} ),
+			id: 'product-performance-review',
+			title: __( 'Which products are pulling their weight?', 'hey-woo' ),
+			description: __( 'Spot top sellers, slow movers, and shifts in product mix worth acting on.', 'hey-woo' ),
+			icon: <Icon icon={ tag } size={ 22 } />,
+			onClick: () => goTo( '/reports', { workflow: 'product-performance-review' } ),
 		},
 		{
-			id: 'check-what-changed',
-			title: __( 'Check what changed', 'hey-woo' ),
-			description: __( 'Investigate revenue, orders, refunds, products, or channels.', 'hey-woo' ),
-			icon: <Icon icon={ trendingUp } size={ 22 } />,
-			onClick: () => goTo( '/reports', {
-				workflow: 'revenue-drop-triage',
-			} ),
+			id: 'failed-order-triage',
+			title: __( 'What’s stuck in checkout?', 'hey-woo' ),
+			description: __( 'Triage failed, on-hold, and unpaid orders so nothing slips through.', 'hey-woo' ),
+			icon: <Icon icon={ payment } size={ 22 } />,
+			onClick: () => goTo( '/reports', { workflow: 'failed-order-triage' } ),
 		},
 		{
-			id: 'catalogue-content',
-			title: __( 'Improve catalogue content', 'hey-woo' ),
-			description: __( 'Find missing product data, weak descriptions, and content gaps.', 'hey-woo' ),
-			icon: <Icon icon={ page } size={ 22 } />,
-			onClick: () => goTo( '/reports', {
-				workflow: 'catalog-audit',
-			} ),
+			id: 'customer-value-review',
+			title: __( 'Are my customers coming back?', 'hey-woo' ),
+			description: __( 'Look at lifetime value, repeat rates, and cohorts to find loyalty opportunities.', 'hey-woo' ),
+			icon: <Icon icon={ people } size={ 22 } />,
+			onClick: () => goTo( '/reports', { workflow: 'customer-value-review' } ),
 		},
 	];
 
