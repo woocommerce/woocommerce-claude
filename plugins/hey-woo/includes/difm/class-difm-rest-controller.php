@@ -46,6 +46,21 @@ class DifmRestController {
 	const TITLE_MAX_TOKENS = 32;
 
 	/**
+	 * Per-user cooldown between title-generation calls, in seconds.
+	 *
+	 * The UI fires at most one call per fresh chat — long enough to be
+	 * effectively unlimited in normal use, but short enough to bound an
+	 * authorised user (or compromised session) hammering the endpoint to
+	 * burn AI tokens.
+	 */
+	const TITLE_COOLDOWN_SECONDS = 2;
+
+	/**
+	 * Transient prefix for the per-user title-generation throttle.
+	 */
+	const TITLE_THROTTLE_PREFIX = 'hey_woo_title_throttle_';
+
+	/**
 	 * Maximum number of history turns accepted per request (user + assistant pairs).
 	 */
 	const MAX_HISTORY_TURNS = 20;
@@ -296,6 +311,17 @@ class DifmRestController {
 	 * @return \WP_REST_Response
 	 */
 	public function generate_conversation_title( \WP_REST_Request $request ) {
+		$user_id      = get_current_user_id();
+		$throttle_key = self::TITLE_THROTTLE_PREFIX . (int) $user_id;
+		if ( false !== get_transient( $throttle_key ) ) {
+			return new \WP_Error(
+				'hey_woo_title_throttled',
+				__( 'Title generation is rate limited. Try again in a moment.', 'hey-woo' ),
+				array( 'status' => 429 )
+			);
+		}
+		set_transient( $throttle_key, 1, self::TITLE_COOLDOWN_SECONDS );
+
 		$resolver = new DifmProviderResolver();
 		$client   = $resolver->resolve_client();
 
@@ -375,6 +401,11 @@ class DifmRestController {
 	 * Pull the title string out of a provider response, trimming any wrapping
 	 * the model might add despite the system prompt.
 	 *
+	 * PHP `trim()` operates on bytes, not characters, so passing multibyte
+	 * curly quotes / LTR marks / zero-width joiners in the mask can shave
+	 * partial UTF-8 sequences off the ends of an otherwise valid title. We
+	 * use UTF-8-aware regex with the /u flag instead.
+	 *
 	 * @param array<int,array<string,mixed>> $content Provider content blocks.
 	 * @return string
 	 */
@@ -391,21 +422,26 @@ class DifmRestController {
 			return '';
 		}
 
-		// Strip wrapping quotes the model sometimes adds despite the system prompt.
-		$text = trim( $text, " \t\n\r\0\x0B\"'“”‘’`" );
+		// Strip wrapping quote-like characters (ASCII quotes, backticks, and
+		// the curly Unicode quotes the model sometimes adds). Uses a UTF-8
+		// regex so we don't byte-strip leading bytes off other multibyte
+		// characters at the edges.
+		$wrap_chars = '\s"\'`\x{201C}\x{201D}\x{2018}\x{2019}';
+		$text       = preg_replace( '/^[' . $wrap_chars . ']+|[' . $wrap_chars . ']+$/u', '', (string) $text );
 		// Drop a "Title:" / "Suggested title:" prefix if present.
-		$text = preg_replace( '/^(suggested\s+)?title\s*[:\-–—]\s*/i', '', $text );
-		// Collapse internal whitespace and trim any trailing punctuation/quote.
-		$text = preg_replace( '/\s+/', ' ', (string) $text );
-		$text = rtrim( (string) $text, " \t\n\r\0\x0B.!?\"'“”‘’`" );
+		$text = preg_replace( '/^(suggested\s+)?title\s*[:\-–—]\s*/iu', '', (string) $text );
+		// Collapse internal whitespace.
+		$text = preg_replace( '/\s+/u', ' ', (string) $text );
+		// Trim trailing punctuation + quote-like chars (UTF-8 aware).
+		$text = preg_replace( '/[' . $wrap_chars . '.!?]+$/u', '', (string) $text );
 
 		if ( function_exists( 'mb_substr' ) ) {
-			$text = mb_substr( $text, 0, 80 );
+			$text = mb_substr( (string) $text, 0, 80 );
 		} else {
-			$text = substr( $text, 0, 80 );
+			$text = substr( (string) $text, 0, 80 );
 		}
 
-		return $text;
+		return (string) $text;
 	}
 
 	/**
