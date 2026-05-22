@@ -72,6 +72,36 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The connector-mode BAD_KEY copy must point merchants at
+	 * Settings > Connectors (where they actually re-enter the key on WP 7.0)
+	 * rather than the legacy "Settings > Hey Woo" surface.
+	 */
+	public function test_connector_mode_bad_key_message_points_to_connectors() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		add_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+
+		$error      = new WP_Error( 'anthropic_error', 'invalid x-api-key', array( 'status' => 401 ) );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+		$this->assertStringContainsString( 'Settings > Connectors', $classified['message'] );
+
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+	}
+
+	/**
+	 * The legacy BAD_KEY copy must still point at the Hey Woo settings tab,
+	 * which is where merchants on WP <= 6.9 enter their Anthropic key.
+	 */
+	public function test_legacy_mode_bad_key_message_points_to_hey_woo_settings() {
+		$error      = new WP_Error( 'anthropic_error', 'invalid x-api-key', array( 'status' => 401 ) );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+		$this->assertStringContainsString( 'Settings > Hey Woo', $classified['message'] );
+	}
+
+	/**
 	 * Cases covering every documented kind plus the generic fallback.
 	 *
 	 * @return array<string,array{0:string,1:string,2:mixed,3?:string}>

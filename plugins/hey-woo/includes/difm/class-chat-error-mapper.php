@@ -198,6 +198,9 @@ class ChatErrorMapper {
 	private static function message_for( $kind ) {
 		switch ( $kind ) {
 			case self::KIND_BAD_KEY:
+				if ( DifmProviderEnvironment::is_connector_mode() ) {
+					return __( 'Hey Woo could not reach the AI provider. Your provider key may be invalid or revoked — open Settings > Connectors and re-enter the key for your selected provider.', 'hey-woo' );
+				}
 				return __( 'Hey Woo could not reach the AI provider with the current settings. Update them in WooCommerce > Settings > Hey Woo and try again.', 'hey-woo' );
 
 			case self::KIND_RATE_LIMITED:

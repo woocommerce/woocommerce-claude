@@ -142,10 +142,18 @@ class DifmAdminPage {
 		$user_id  = get_current_user_id();
 		$resolver = new DifmProviderResolver();
 
+		// In WP 7.0 connector mode the merchant manages their AI provider key
+		// in Settings > Connectors, so link the SPA's "Open settings" / "Add
+		// an AI provider" CTAs straight there instead of detouring through
+		// the Hey Woo settings tab (which would just point at Connectors).
+		$settings_url = DifmProviderEnvironment::is_connector_mode()
+			? DifmProviderEnvironment::connectors_url()
+			: admin_url( 'admin.php?page=wc-settings&tab=hey-woo' );
+
 		$data = array(
 			'nonce'         => wp_create_nonce( 'wp_rest' ),
 			'restBase'      => rest_url( 'hey-woo/v1/difm' ),
-			'settingsUrl'   => admin_url( 'admin.php?page=wc-settings&tab=hey-woo' ),
+			'settingsUrl'   => $settings_url,
 			'storeName'     => get_bloginfo( 'name' ),
 			'userName'      => wp_get_current_user()->display_name,
 			'currency'      => get_woocommerce_currency_symbol(),
