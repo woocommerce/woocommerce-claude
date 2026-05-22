@@ -1104,7 +1104,9 @@
 	gap: 16px;
 
 	&__icon {
-		font-size: 48px;
+		// The Icon SVG sizes itself via the `size` prop; this container just
+		// sets the colour the SVG inherits via currentColor.
+		color: #757575;
 		line-height: 1;
 	}
 
@@ -1121,6 +1123,24 @@
 		max-width: 440px;
 		line-height: 1.6;
 		margin: 0;
+	}
+
+	&__steps {
+		font-size: 14px;
+		color: #50575e;
+		max-width: 440px;
+		line-height: 1.6;
+		margin: 0;
+		padding-left: 24px;
+		text-align: left;
+
+		li {
+			margin-bottom: 6px;
+
+			&:last-child {
+				margin-bottom: 0;
+			}
+		}
 	}
 
 	&__cta {
