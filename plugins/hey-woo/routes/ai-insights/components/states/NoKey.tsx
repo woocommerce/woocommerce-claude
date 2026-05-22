@@ -29,6 +29,12 @@ export function NoKey() {
 					<ol className="hey-woo-state__steps">
 						<li>
 							{ __(
+								'In Settings › Connectors, pick a provider (Anthropic, OpenAI, Google…) and paste your API key.',
+								'hey-woo'
+							) }
+						</li>
+						<li>
+							{ __(
 								'Install and activate the WordPress AI plugin.',
 								'hey-woo'
 							) }
@@ -36,12 +42,6 @@ export function NoKey() {
 						<li>
 							{ __(
 								'Open the plugin’s settings and toggle Enable AI on.',
-								'hey-woo'
-							) }
-						</li>
-						<li>
-							{ __(
-								'In Settings › Connectors, pick a provider (Anthropic, OpenAI, Google…) and paste your API key.',
 								'hey-woo'
 							) }
 						</li>
