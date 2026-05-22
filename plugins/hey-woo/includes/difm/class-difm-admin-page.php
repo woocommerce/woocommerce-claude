@@ -53,10 +53,12 @@ class DifmAdminPage {
 	}
 
 	/**
-	 * Add the AI Insights submenu under WooCommerce.
+	 * Add the Hey Woo submenu under WooCommerce.
 	 *
-	 * AI Insights needs a configured AI provider before it can be
-	 * used, so keep the navigation out of the way until one is configured.
+	 * The menu item appears whenever the runtime is available so a freshly
+	 * installed merchant has a clear entry point. When no AI provider is
+	 * configured yet, the SPA renders its "Add an AI provider to get started"
+	 * state, which points merchants at the connector/key setup flow.
 	 *
 	 * The callback is __return_null because the boot interceptor in build/build.php
 	 * renders the full-page SPA on admin_init and calls exit() before WordPress
@@ -65,7 +67,7 @@ class DifmAdminPage {
 	 * @return void
 	 */
 	public function add_menu_page() {
-		if ( ! $this->has_ai_provider() || ! $this->has_required_runtime() ) {
+		if ( ! $this->has_required_runtime() ) {
 			return;
 		}
 
