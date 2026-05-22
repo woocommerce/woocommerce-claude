@@ -143,23 +143,28 @@ class Test_Hey_Woo_Settings_Page extends WP_UnitTestCase {
 
 	/**
 	 * Fresh installs default on without overwriting an existing preference.
+	 *
+	 * Drives the activation hook directly so the inlined default-telemetry
+	 * write in hey_woo_activate() stays covered. The hook is the only caller
+	 * that should ever set this default — settings-page render code reads the
+	 * option but never seeds it.
 	 */
 	public function test_activation_default_sets_missing_usage_tracking_preference_only() {
 		delete_option( HeyWooSettingsPage::TELEMETRY_OPTION );
 
-		HeyWooSettingsPage::maybe_set_default_telemetry_option();
+		hey_woo_activate();
 
 		$this->assertSame( 'yes', get_option( HeyWooSettingsPage::TELEMETRY_OPTION ) );
 
 		update_option( HeyWooSettingsPage::TELEMETRY_OPTION, 'no' );
 
-		HeyWooSettingsPage::maybe_set_default_telemetry_option();
+		hey_woo_activate();
 
 		$this->assertSame( 'no', get_option( HeyWooSettingsPage::TELEMETRY_OPTION ) );
 
 		update_option( HeyWooSettingsPage::TELEMETRY_OPTION, 'yes' );
 
-		HeyWooSettingsPage::maybe_set_default_telemetry_option();
+		hey_woo_activate();
 
 		$this->assertSame( 'yes', get_option( HeyWooSettingsPage::TELEMETRY_OPTION ) );
 	}
