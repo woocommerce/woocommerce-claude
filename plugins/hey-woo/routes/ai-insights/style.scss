@@ -1104,7 +1104,9 @@
 	gap: 16px;
 
 	&__icon {
-		font-size: 48px;
+		// The Icon SVG sizes itself via the `size` prop; this container just
+		// sets the colour the SVG inherits via currentColor.
+		color: #757575;
 		line-height: 1;
 	}
 
