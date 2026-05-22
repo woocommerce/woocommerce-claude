@@ -141,6 +141,7 @@
 .hey-woo-chat-hero {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
 	gap: var(--wpds-dimension-gap-xl, 24px);
 	width: 100%;
 	margin: 0 auto;
@@ -154,6 +155,47 @@
 		font-weight: var(--wpds-typography-font-weight-medium, 500);
 		line-height: var(--wpds-typography-line-height-2xl, 40px);
 		letter-spacing: 0;
+		text-align: center;
+	}
+
+	&__sparkle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		margin-bottom: -8px;
+	}
+
+	&__intro {
+		margin: -8px 0 0;
+		max-width: 560px;
+		color: #6b7280;
+		font-size: 14px;
+		line-height: 1.5;
+		text-align: center;
+	}
+
+	> .hey-woo-input {
+		width: 100%;
+	}
+}
+
+.hey-woo-chat-shortcuts-group {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	width: 100%;
+	max-width: 640px;
+	margin: 8px auto 0;
+
+	&__label {
+		margin: 0;
+		color: #757575;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
 		text-align: center;
 	}
 }
@@ -227,15 +269,6 @@
 		line-height: 1.35;
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
-	}
-
-	&--primary {
-		border-color: #c7d1ff;
-
-		.hey-woo-chat-shortcut__icon {
-			background: #eef2ff;
-			color: #3858e9;
-		}
 	}
 }
 
@@ -749,40 +782,11 @@
 	color: #1e1e1e;
 
 	&__mark {
-		position: relative;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		width: 24px;
 		height: 24px;
-		border-radius: 999px;
-		background: #eef2ff;
-		color: #3858e9;
-
-		&::before,
-		&::after {
-			content: "";
-			position: absolute;
-			inset: 4px;
-			border: 2px solid currentColor;
-			border-radius: inherit;
-			opacity: 0.2;
-		}
-
-		&::after {
-			border-right-color: transparent;
-			border-bottom-color: transparent;
-			opacity: 1;
-			animation: hey-woo-progress-spin 1.1s linear infinite;
-		}
-
-		span {
-			width: 5px;
-			height: 5px;
-			border-radius: 999px;
-			background: currentColor;
-			animation: hey-woo-progress-pulse 1.4s ease-in-out infinite;
-		}
 	}
 
 	&__eyebrow {
@@ -793,21 +797,48 @@
 	}
 }
 
-@keyframes hey-woo-progress-spin {
-	to {
-		transform: rotate(360deg);
-	}
+// ── Hey Woo sparkle ──────────────────────────────────────────────────────────
+
+.hey-woo-sparkle {
+	display: block;
+	transform-origin: center;
 }
 
-@keyframes hey-woo-progress-pulse {
-	0%, 100% {
-		opacity: 0.55;
-		transform: scale(0.72);
+.hey-woo-sparkle--animated {
+	animation: hey-woo-sparkle-breathe 2.4s ease-in-out infinite;
+
+	path {
+		transform-origin: center;
+		animation: hey-woo-sparkle-pulse 1.6s ease-in-out infinite;
 	}
 
-	50% {
-		opacity: 1;
-		transform: scale(1);
+	// Chase clockwise from the top. Path order in HeySparkle.tsx:
+	//   1-4 = solid outer quadrants (TR, BR, BL, TL)
+	//   5-8 = multiply lobes (T, R, B, L)
+	path:nth-child(5) { animation-delay: 0s; }     // top
+	path:nth-child(1) { animation-delay: 0.1s; }   // top-right
+	path:nth-child(6) { animation-delay: 0.2s; }   // right
+	path:nth-child(2) { animation-delay: 0.3s; }   // bottom-right
+	path:nth-child(7) { animation-delay: 0.4s; }   // bottom
+	path:nth-child(3) { animation-delay: 0.5s; }   // bottom-left
+	path:nth-child(8) { animation-delay: 0.6s; }   // left
+	path:nth-child(4) { animation-delay: 0.7s; }   // top-left
+}
+
+@keyframes hey-woo-sparkle-breathe {
+	0%, 100% { transform: scale(1); }
+	50% { transform: scale(1.04); }
+}
+
+@keyframes hey-woo-sparkle-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hey-woo-sparkle--animated,
+	.hey-woo-sparkle--animated path {
+		animation: none;
 	}
 }
 

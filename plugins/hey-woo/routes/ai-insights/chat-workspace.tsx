@@ -12,18 +12,16 @@ import { useChatProgress } from './hooks/useChatProgress';
 import { useConversations } from './hooks/useConversations';
 import { ChatBubble } from './components/ChatBubble';
 import { ChatInput } from './components/ChatInput';
+import { HeySparkle } from './components/HeySparkle';
 import { NoKey } from './components/states/NoKey';
 import { RETRYABLE_CHAT_ERROR_KINDS } from './types';
 import type { ChatErrorKind, StoredConversation } from './types';
-
-type ShortcutTone = 'primary' | 'neutral';
 
 interface ChatShortcut {
 	id: string;
 	title: string;
 	description: string;
 	icon: JSX.Element;
-	tone?: ShortcutTone;
 	onClick: () => void;
 }
 
@@ -57,7 +55,7 @@ function ChatShortcutCard( { shortcut }: { shortcut: ChatShortcut } ) {
 	return (
 		<button
 			type="button"
-			className={ `hey-woo-chat-shortcut hey-woo-chat-shortcut--${ shortcut.tone ?? 'neutral' }` }
+			className="hey-woo-chat-shortcut"
 			onClick={ shortcut.onClick }
 		>
 			<span className="hey-woo-chat-shortcut__icon" aria-hidden="true">
@@ -94,7 +92,6 @@ function ChatShortcuts() {
 			title: __( 'How did the store do this week?', 'hey-woo' ),
 			description: __( 'Get a merchant-friendly review of revenue, orders, customers, and what to do next.', 'hey-woo' ),
 			icon: <Icon icon={ chartBar } size={ 22 } />,
-			tone: 'primary',
 		},
 		{
 			id: 'revenue-drop-triage',
@@ -134,11 +131,16 @@ function ChatShortcuts() {
 	} ) );
 
 	return (
-		<nav className="hey-woo-chat-shortcuts" aria-label={ __( 'Hey Woo shortcuts', 'hey-woo' ) }>
-			{ shortcuts.map( ( shortcut ) => (
-				<ChatShortcutCard key={ shortcut.id } shortcut={ shortcut } />
-			) ) }
-		</nav>
+		<div className="hey-woo-chat-shortcuts-group">
+			<p className="hey-woo-chat-shortcuts-group__label">
+				{ __( 'Not sure where to start? Try one of these', 'hey-woo' ) }
+			</p>
+			<nav className="hey-woo-chat-shortcuts" aria-label={ __( 'Hey Woo shortcuts', 'hey-woo' ) }>
+				{ shortcuts.map( ( shortcut ) => (
+					<ChatShortcutCard key={ shortcut.id } shortcut={ shortcut } />
+				) ) }
+			</nav>
+		</div>
 	);
 }
 
@@ -243,7 +245,7 @@ function ChatProgress( { progressId }: ChatProgressProps ) {
 	return (
 		<div className="hey-woo-progress" role="status" aria-live="polite">
 			<span className="hey-woo-progress__mark" aria-hidden="true">
-				<span />
+				<HeySparkle size={ 24 } animated />
 			</span>
 			<span className="hey-woo-progress__eyebrow">
 				{ headline }
@@ -401,6 +403,9 @@ function ChatView( {
 				<div className="hey-woo-chat-content hey-woo-chat-content--start">
 					<div className="hey-woo-chat-start">
 						<section className="hey-woo-chat-hero" aria-label={ __( 'Start a chat', 'hey-woo' ) }>
+							<div className="hey-woo-chat-hero__sparkle">
+								<HeySparkle size={ 44 } />
+							</div>
 							<h2>
 								{ sprintf(
 									/* translators: %s: current user's display name */
@@ -408,10 +413,15 @@ function ChatView( {
 									moduleData.userName || __( 'there', 'hey-woo' )
 								) }
 							</h2>
+							<p className="hey-woo-chat-hero__intro">
+								{ __(
+									'Hey Woo turns your store data into plain-English answers. Ask about revenue, customers, products, or orders — or type / to launch a guided workflow.',
+									'hey-woo'
+								) }
+							</p>
 							<ChatInput
 								onSend={ handleSendMessage }
 								disabled={ isSending }
-								placeholder={ __( 'Ask anything', 'hey-woo' ) }
 								rows={ 4 }
 								variant="hero"
 							/>
