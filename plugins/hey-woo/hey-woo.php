@@ -225,8 +225,12 @@ function hey_woo_load_runtime_files() {
 function hey_woo_activate() {
 	add_option( 'hey_woo_first_installed_at', time(), '', false );
 
-	require_once HEY_WOO_PLUGIN_DIR . 'includes/settings/class-settings-page.php';
-	\WooCommerce\HeyWoo\Settings\SettingsPage::maybe_set_default_telemetry_option();
+	// Opt fresh installs into anonymised telemetry. Inlined here so activation
+	// does not require WC_Settings_Page (and therefore WooCommerce) to be
+	// loaded — on some sites WC isn't available when the activation hook runs.
+	if ( false === get_option( 'hey_woo_telemetry_enabled', false ) ) {
+		update_option( 'hey_woo_telemetry_enabled', 'yes' );
+	}
 }
 
 /**

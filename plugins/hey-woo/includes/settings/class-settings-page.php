@@ -493,19 +493,6 @@ class SettingsPage extends \WC_Settings_Page {
 	}
 
 	/**
-	 * Opt fresh installs into anonymised usage tracking by default.
-	 *
-	 * Existing installs keep their stored preference across reactivation.
-	 *
-	 * @return void
-	 */
-	public static function maybe_set_default_telemetry_option() {
-		if ( false === get_option( self::TELEMETRY_OPTION, false ) ) {
-			update_option( self::TELEMETRY_OPTION, 'yes' );
-		}
-	}
-
-	/**
 	 * Render a masked API key field that never outputs the stored secret.
 	 *
 	 * @param array $value WooCommerce settings field definition.
