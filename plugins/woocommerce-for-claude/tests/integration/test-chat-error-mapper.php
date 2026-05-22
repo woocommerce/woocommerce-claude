@@ -17,6 +17,24 @@ require_once WP_PLUGIN_DIR . '/hey-woo/includes/difm/class-chat-error-mapper.php
 class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 
 	/**
+	 * Force legacy (non-connector) mode by default so existing "→ generic"
+	 * data rows keep their original expectations. Tests that need the
+	 * connector-mode safety net flip the filter inline.
+	 */
+	public function set_up() {
+		parent::set_up();
+		add_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+	}
+
+	/**
+	 * Restore default connector-mode detection.
+	 */
+	public function tear_down() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		parent::tear_down();
+	}
+
+	/**
 	 * The classifier returns kind + a non-empty message for every input.
 	 *
 	 * @param string $expected_kind Expected mapper kind.
@@ -33,6 +51,24 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 		$this->assertSame( $expected_kind, $classified['kind'] );
 		$this->assertIsString( $classified['message'] );
 		$this->assertNotSame( '', trim( $classified['message'] ) );
+	}
+
+	/**
+	 * In WP 7.0 connector mode, anything that would otherwise fall through
+	 * to the generic kind is reclassified as bad_key so the merchant gets an
+	 * actionable "Open settings" CTA. Inverts the legacy default that set_up
+	 * applies.
+	 */
+	public function test_connector_mode_promotes_unknown_codes_to_bad_key() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		add_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+
+		$error      = new WP_Error( 'something_unexpected', 'unknown failure', array() );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_true' );
 	}
 
 	/**

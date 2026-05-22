@@ -138,6 +138,19 @@ class ChatErrorMapper {
 			);
 		}
 
+		// Connector-mode safety net: by this point we've ruled out known
+		// transport, rate-limit, timeout, and overload signatures. Anything
+		// left in WP 7.0 connector mode is almost always a connector/key
+		// problem (most often an upstream-revoked or invalid key). Routing
+		// the residue through bad_key gives the merchant an actionable
+		// "Open settings" CTA instead of a dead-end generic message.
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
+			return array(
+				'kind'    => self::KIND_BAD_KEY,
+				'message' => self::message_for( self::KIND_BAD_KEY ),
+			);
+		}
+
 		return array(
 			'kind'    => self::KIND_GENERIC,
 			'message' => self::message_for( self::KIND_GENERIC ),
