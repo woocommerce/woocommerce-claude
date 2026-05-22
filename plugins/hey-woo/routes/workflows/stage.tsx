@@ -81,8 +81,15 @@ export function stage() {
 	);
 
 	const runWorkflow = ( workflow: WorkflowCardData ) => {
+		// Route to '/' (the ai-insights bundle root) rather than '/chat'.
+		// The chat workspace's post-completion redirect lands on
+		// '/?conversationId=<id>' and reads moduleData.conversations from
+		// the bundle that handles the URL. Each route bundle has its own
+		// moduleData singleton, so hopping to '/chat' here means the
+		// redirect target reads a stale cache and flashes a blank chat
+		// while the report is loading.
 		void navigate( {
-			to: '/chat',
+			to: '/',
 			search: {
 				workflowPrompt: `/${ workflow.slug }`,
 				workflowDisplay: workflow.label,

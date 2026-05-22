@@ -165,8 +165,12 @@ export function stage() {
 	);
 
 	const openConversation = useCallback( ( conversationId: string ) => {
+		// Route to '/' (ai-insights bundle) rather than '/chat' (chat bundle).
+		// The chat workspace's post-completion redirect always lands on '/',
+		// so starting in '/chat' creates a one-way bundle hop that flashes a
+		// blank screen the first time the chat continues.
 		void navigate( {
-			to: '/chat',
+			to: '/',
 			search: {
 				conversationId,
 			},
@@ -311,7 +315,7 @@ export function stage() {
 					__next40pxDefaultSize
 					onClick={ () => {
 						void navigate( {
-							to: '/chat',
+							to: '/',
 							search: {},
 						} );
 					} }
@@ -340,7 +344,7 @@ export function stage() {
 							__next40pxDefaultSize
 							onClick={ hasConversationHistory ? resetView : () => {
 								void navigate( {
-									to: '/chat',
+									to: '/',
 									search: {},
 								} );
 							} }
