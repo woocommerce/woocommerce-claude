@@ -69,6 +69,26 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 				array(),
 			),
 
+			// WP 7.0 connector-mode failures from WordPressAiClientAdapter.
+			// These nearly always indicate a key/auth problem on the
+			// connector side (e.g. an upstream-revoked Anthropic key), so the
+			// mapper routes them through bad_key for an actionable CTA.
+			'wordpress_ai_error code → bad_key'           => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_error',
+				array(),
+			),
+			'wordpress_ai_unavailable code → bad_key'     => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_unavailable',
+				array(),
+			),
+			'wordpress_ai_exception code → bad_key'       => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_exception',
+				array(),
+			),
+
 			// HTTP status-driven classification.
 			'anthropic 401 → bad_key'                     => array(
 				ChatErrorMapper::KIND_BAD_KEY,

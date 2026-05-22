@@ -69,10 +69,27 @@ class ChatErrorMapper {
 
 		// Explicit provider configuration codes — these can fire before any
 		// HTTP request. `no_model` and `no_ai_provider` come from
-		// AiApiProxyClient and DifmProviderResolver respectively; they share
-		// the bad_key remediation (open the Hey Woo settings tab) so the UI
-		// can offer one consistent action.
-		if ( in_array( $code, array( 'no_api_key', 'invalid_key', 'empty_key', 'no_model', 'no_ai_provider' ), true ) ) {
+		// AiApiProxyClient and DifmProviderResolver respectively. The
+		// `wordpress_ai_*` codes come from WordPressAiClientAdapter when the
+		// connector-side call throws or returns an unrecognised error — in
+		// practice these are nearly always key/auth issues (e.g. a revoked
+		// upstream key), so route them through bad_key to give the merchant
+		// an actionable "Open settings" action instead of a dead-end generic
+		// error.
+		if ( in_array(
+			$code,
+			array(
+				'no_api_key',
+				'invalid_key',
+				'empty_key',
+				'no_model',
+				'no_ai_provider',
+				'wordpress_ai_error',
+				'wordpress_ai_unavailable',
+				'wordpress_ai_exception',
+			),
+			true
+		) ) {
 			return array(
 				'kind'    => self::KIND_BAD_KEY,
 				'message' => self::message_for( self::KIND_BAD_KEY ),
