@@ -143,6 +143,41 @@ const REPORT_METADATA: Record< string, ReportMetadata > = {
 	},
 };
 
+/**
+ * Colour slot used to tint a category badge. Same `category` string always
+ * maps to the same slot, so two cards with category "Store performance" will
+ * carry the same green badge.
+ */
+export type CategoryColorSlot = 'info' | 'success' | 'warning' | 'neutral';
+
+/**
+ * Category → WPDS colour slot. Keyed on the English source string because
+ * REPORT_METADATA uses the same source key. Categories not in this map fall
+ * back to neutral, which is intentionally indistinguishable from the
+ * "last run" badge — so a site running in a non-English locale degrades to a
+ * uniform grey palette rather than a misleading mix of greens and blues.
+ */
+const CATEGORY_COLOR_SLOTS: Record< string, CategoryColorSlot > = {
+	'Store performance': 'success',
+	'Customers': 'success',
+	'Markets': 'success',
+	'Products': 'success',
+	'Trading': 'info',
+	'Marketing': 'info',
+	'Catalogue': 'info',
+	'Orders': 'info',
+	'Content': 'info',
+	'Operations': 'warning',
+	'Payments': 'warning',
+	'Finance': 'warning',
+	'Store health': 'warning',
+	'Shipping': 'warning',
+};
+
+export function getCategoryColorSlot( category: string ): CategoryColorSlot {
+	return CATEGORY_COLOR_SLOTS[ category ] ?? 'neutral';
+}
+
 export function getReportMetadata( workflow: WorkflowAction ): ReportMetadata {
 	return REPORT_METADATA[ workflow.slug ] ?? {
 		category: __( 'Workflow', 'hey-woo' ),
