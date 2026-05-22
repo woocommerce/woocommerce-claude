@@ -3,7 +3,7 @@
  * Plugin Name: Hey Woo
  * Plugin URI: https://woocommerce.com/
  * Description: Bring-your-own-key WooCommerce assistant powered by shared commerce abilities.
- * Version: 0.4.3
+ * Version: 0.1.0
  * Author: Automattic
  * Author URI: https://automattic.com/
  * Text Domain: hey-woo
@@ -21,7 +21,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'HEY_WOO_VERSION', '0.4.3' );
+define( 'HEY_WOO_VERSION', '0.1.0' );
 define( 'HEY_WOO_PLUGIN_FILE', __FILE__ );
 define( 'HEY_WOO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 
