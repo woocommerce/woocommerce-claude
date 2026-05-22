@@ -129,7 +129,9 @@ export function stage() {
 							</Button>
 						</CardHeader>
 						<CardBody className="hey-woo-workflow-card__body">
-							<p className="hey-woo-workflow-card__description">{ workflow.description }</p>
+							<p className="hey-woo-workflow-card__description">
+								{ workflow.summary ?? workflow.description }
+							</p>
 							{ workflow.lastRun !== null && (
 								<span className="hey-woo-workflow-card__badge hey-woo-workflow-card__badge--neutral hey-woo-workflow-card__last-run">
 									{ sprintf(

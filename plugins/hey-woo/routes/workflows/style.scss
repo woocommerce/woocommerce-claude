@@ -16,7 +16,7 @@
 	width: 100%;
 	min-height: calc(100vh - 16px);
 	max-width: none;
-	padding-bottom: 32px;
+	padding-bottom: 48px;
 	box-sizing: border-box;
 }
 
@@ -48,7 +48,8 @@
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: var(--hey-woo-workflows-gap);
-	padding-top: 4px;
+	padding-top: 24px;
+	padding-bottom: 8px;
 }
 
 .hey-woo-workflow-card {
