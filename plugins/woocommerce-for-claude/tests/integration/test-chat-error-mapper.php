@@ -17,6 +17,24 @@ require_once WP_PLUGIN_DIR . '/hey-woo/includes/difm/class-chat-error-mapper.php
 class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 
 	/**
+	 * Force legacy (non-connector) mode by default so existing "→ generic"
+	 * data rows keep their original expectations. Tests that need the
+	 * connector-mode safety net flip the filter inline.
+	 */
+	public function set_up() {
+		parent::set_up();
+		add_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+	}
+
+	/**
+	 * Restore default connector-mode detection.
+	 */
+	public function tear_down() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		parent::tear_down();
+	}
+
+	/**
 	 * The classifier returns kind + a non-empty message for every input.
 	 *
 	 * @param string $expected_kind Expected mapper kind.
@@ -33,6 +51,54 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 		$this->assertSame( $expected_kind, $classified['kind'] );
 		$this->assertIsString( $classified['message'] );
 		$this->assertNotSame( '', trim( $classified['message'] ) );
+	}
+
+	/**
+	 * In WP 7.0 connector mode, anything that would otherwise fall through
+	 * to the generic kind is reclassified as bad_key so the merchant gets an
+	 * actionable "Open settings" CTA. Inverts the legacy default that set_up
+	 * applies.
+	 */
+	public function test_connector_mode_promotes_unknown_codes_to_bad_key() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		add_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+
+		$error      = new WP_Error( 'something_unexpected', 'unknown failure', array() );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+	}
+
+	/**
+	 * The connector-mode BAD_KEY copy must point merchants at
+	 * Settings > Connectors (where they actually re-enter the key on WP 7.0)
+	 * rather than the legacy "Settings > Hey Woo" surface.
+	 */
+	public function test_connector_mode_bad_key_message_points_to_connectors() {
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_false' );
+		add_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+
+		$error      = new WP_Error( 'anthropic_error', 'invalid x-api-key', array( 'status' => 401 ) );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+		$this->assertStringContainsString( 'Settings > Connectors', $classified['message'] );
+
+		remove_filter( 'hey_woo_difm_connector_mode', '__return_true' );
+	}
+
+	/**
+	 * The legacy BAD_KEY copy must still point at the Hey Woo settings tab,
+	 * which is where merchants on WP <= 6.9 enter their Anthropic key.
+	 */
+	public function test_legacy_mode_bad_key_message_points_to_hey_woo_settings() {
+		$error      = new WP_Error( 'anthropic_error', 'invalid x-api-key', array( 'status' => 401 ) );
+		$classified = ChatErrorMapper::classify( $error );
+
+		$this->assertSame( ChatErrorMapper::KIND_BAD_KEY, $classified['kind'] );
+		$this->assertStringContainsString( 'Settings > Hey Woo', $classified['message'] );
 	}
 
 	/**
@@ -66,6 +132,26 @@ class Test_Chat_Error_Mapper extends WP_UnitTestCase {
 			'no_ai_provider code → bad_key'               => array(
 				ChatErrorMapper::KIND_BAD_KEY,
 				'no_ai_provider',
+				array(),
+			),
+
+			// WP 7.0 connector-mode failures from WordPressAiClientAdapter.
+			// These nearly always indicate a key/auth problem on the
+			// connector side (e.g. an upstream-revoked Anthropic key), so the
+			// mapper routes them through bad_key for an actionable CTA.
+			'wordpress_ai_error code → bad_key'           => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_error',
+				array(),
+			),
+			'wordpress_ai_unavailable code → bad_key'     => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_unavailable',
+				array(),
+			),
+			'wordpress_ai_exception code → bad_key'       => array(
+				ChatErrorMapper::KIND_BAD_KEY,
+				'wordpress_ai_exception',
 				array(),
 			),
 

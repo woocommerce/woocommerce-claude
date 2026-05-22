@@ -69,10 +69,27 @@ class ChatErrorMapper {
 
 		// Explicit provider configuration codes — these can fire before any
 		// HTTP request. `no_model` and `no_ai_provider` come from
-		// AiApiProxyClient and DifmProviderResolver respectively; they share
-		// the bad_key remediation (open the Hey Woo settings tab) so the UI
-		// can offer one consistent action.
-		if ( in_array( $code, array( 'no_api_key', 'invalid_key', 'empty_key', 'no_model', 'no_ai_provider' ), true ) ) {
+		// AiApiProxyClient and DifmProviderResolver respectively. The
+		// `wordpress_ai_*` codes come from WordPressAiClientAdapter when the
+		// connector-side call throws or returns an unrecognised error — in
+		// practice these are nearly always key/auth issues (e.g. a revoked
+		// upstream key), so route them through bad_key to give the merchant
+		// an actionable "Open settings" action instead of a dead-end generic
+		// error.
+		if ( in_array(
+			$code,
+			array(
+				'no_api_key',
+				'invalid_key',
+				'empty_key',
+				'no_model',
+				'no_ai_provider',
+				'wordpress_ai_error',
+				'wordpress_ai_unavailable',
+				'wordpress_ai_exception',
+			),
+			true
+		) ) {
 			return array(
 				'kind'    => self::KIND_BAD_KEY,
 				'message' => self::message_for( self::KIND_BAD_KEY ),
@@ -118,6 +135,19 @@ class ChatErrorMapper {
 			return array(
 				'kind'    => self::KIND_OVERLOADED,
 				'message' => self::message_for( self::KIND_OVERLOADED ),
+			);
+		}
+
+		// Connector-mode safety net: by this point we've ruled out known
+		// transport, rate-limit, timeout, and overload signatures. Anything
+		// left in WP 7.0 connector mode is almost always a connector/key
+		// problem (most often an upstream-revoked or invalid key). Routing
+		// the residue through bad_key gives the merchant an actionable
+		// "Open settings" CTA instead of a dead-end generic message.
+		if ( DifmProviderEnvironment::is_connector_mode() ) {
+			return array(
+				'kind'    => self::KIND_BAD_KEY,
+				'message' => self::message_for( self::KIND_BAD_KEY ),
 			);
 		}
 
@@ -168,6 +198,9 @@ class ChatErrorMapper {
 	private static function message_for( $kind ) {
 		switch ( $kind ) {
 			case self::KIND_BAD_KEY:
+				if ( DifmProviderEnvironment::is_connector_mode() ) {
+					return __( 'Hey Woo could not reach the AI provider. Your provider key may be invalid or revoked — open Settings > Connectors and re-enter the key for your selected provider.', 'hey-woo' );
+				}
 				return __( 'Hey Woo could not reach the AI provider with the current settings. Update them in WooCommerce > Settings > Hey Woo and try again.', 'hey-woo' );
 
 			case self::KIND_RATE_LIMITED:
