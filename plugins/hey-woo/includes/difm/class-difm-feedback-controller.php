@@ -43,9 +43,10 @@ class DifmFeedbackController {
 	/**
 	 * Telemetry event name passed to TelemetryHandler::record().
 	 *
-	 * Matches the difm_* naming used by tool-call / tool-result / workflow-selected.
+	 * Lands in Tracks as wcadmin_hey_woo_message_feedback_submitted — see
+	 * TracksHandler for the source/context prefixing.
 	 */
-	const EVENT_NAME = 'difm_feedback';
+	const EVENT_NAME = 'message_feedback_submitted';
 
 	/**
 	 * Maximum characters retained from a merchant comment.
@@ -214,7 +215,6 @@ class DifmFeedbackController {
 		TelemetryHandler::record(
 			self::EVENT_NAME,
 			array(
-				'event'           => self::EVENT_NAME,
 				'conversation_id' => $conversation_id,
 				'message_id'      => $message_id,
 				'rating'          => $rating,

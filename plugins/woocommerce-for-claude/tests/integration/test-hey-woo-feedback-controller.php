@@ -191,7 +191,7 @@ class Test_Hey_Woo_Feedback_Controller extends WP_UnitTestCase {
 
 		$this->assertCount( 1, $this->capturing_handler->events );
 		$event = $this->capturing_handler->events[0];
-		$this->assertSame( 'difm_feedback', $event['event'] );
+		$this->assertSame( 'message_feedback_submitted', $event['event'] );
 		$this->assertSame( 'conv-123', $event['data']['conversation_id'] );
 		$this->assertSame( 7, $event['data']['message_id'] );
 		$this->assertSame( 'up', $event['data']['rating'] );
