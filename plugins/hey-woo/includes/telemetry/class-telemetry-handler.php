@@ -74,7 +74,12 @@ class TelemetryHandler {
 	 * @return TelemetryHandlerInterface[]
 	 */
 	public static function maybe_add_tracks_handler( $handlers ) {
-		if ( 'yes' === get_option( 'hey_woo_telemetry_enabled', 'no' ) ) {
+		// Default 'yes' matches the activation-hook default in hey_woo_activate()
+		// and the settings-page render default, so a missing option behaves the
+		// same as an opted-in install rather than silently dropping events.
+		// Merchants who explicitly turn the setting off get 'no' stored and the
+		// handler stays absent.
+		if ( 'yes' === get_option( 'hey_woo_telemetry_enabled', 'yes' ) ) {
 			$handlers[] = new Handlers\TracksHandler();
 		}
 

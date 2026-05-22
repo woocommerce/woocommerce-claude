@@ -427,7 +427,10 @@ class SettingsPage extends \WC_Settings_Page {
 	 * @return void
 	 */
 	public function render_telemetry_field( $value ) {
-		$telemetry_enabled = 'yes' === get_option( self::TELEMETRY_OPTION, 'no' );
+		// Default 'yes' matches the activation-hook default in hey_woo_activate(),
+		// so the box renders pre-checked even on installs where activation never
+		// ran or the option was later deleted.
+		$telemetry_enabled = 'yes' === get_option( self::TELEMETRY_OPTION, 'yes' );
 		$title             = isset( $value['title'] ) ? $value['title'] : '';
 		?>
 		<tr>

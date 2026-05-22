@@ -131,10 +131,20 @@ class Test_Hey_Woo_Settings_Page extends WP_UnitTestCase {
 	}
 
 	/**
-	 * TracksHandler is registered only when the Hey Woo usage setting is on.
+	 * TracksHandler is on by default and stays off only on explicit opt-out.
+	 *
+	 * The read-default in maybe_add_tracks_handler() is 'yes' so missing
+	 * options behave like the activation default. Storing 'no' is the only
+	 * way to keep the handler out of the registry.
 	 */
 	public function test_tracks_handler_is_gated_by_usage_tracking_option() {
 		delete_option( HeyWooSettingsPage::TELEMETRY_OPTION );
+
+		$default_handlers = HeyWooTelemetryHandler::maybe_add_tracks_handler( array() );
+		$this->assertCount( 1, $default_handlers );
+		$this->assertInstanceOf( HeyWooTracksHandler::class, $default_handlers[0] );
+
+		update_option( HeyWooSettingsPage::TELEMETRY_OPTION, 'no' );
 
 		$this->assertSame( array(), HeyWooTelemetryHandler::maybe_add_tracks_handler( array() ) );
 
