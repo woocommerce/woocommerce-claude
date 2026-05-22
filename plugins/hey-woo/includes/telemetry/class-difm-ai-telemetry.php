@@ -27,11 +27,10 @@ class DifmAiTelemetry {
 	 */
 	public static function record_request( $provider, $model, array $body, $body_json, $request_id, array $context = array() ) {
 		TelemetryHandler::record(
-			'difm_ai_request',
+			'ai_requested',
 			array_merge(
 				self::build_request_context( $provider, $model, $body, $body_json, $context ),
 				array(
-					'event'      => 'difm_ai_request',
 					'request_id' => $request_id,
 				)
 			)
@@ -51,10 +50,9 @@ class DifmAiTelemetry {
 	 */
 	public static function record_transport_error( $provider, $model, $request_id, $duration_ms, $error_code, array $context = array() ) {
 		TelemetryHandler::record(
-			'difm_ai_transport_error',
+			'ai_transport_failed',
 			array_merge(
 				array(
-					'event'       => 'difm_ai_transport_error',
 					'provider'    => (string) $provider,
 					'model'       => (string) $model,
 					'request_id'  => $request_id,
@@ -80,11 +78,8 @@ class DifmAiTelemetry {
 	 */
 	public static function record_response( $provider, $model, $request_id, $status_code, $duration_ms, $decoded, $raw_body = '' ) {
 		TelemetryHandler::record(
-			'difm_ai_response',
-			array_merge(
-				array( 'event' => 'difm_ai_response' ),
-				self::build_response_context( $provider, $model, $request_id, $status_code, $duration_ms, $decoded, $raw_body )
-			)
+			'ai_responded',
+			self::build_response_context( $provider, $model, $request_id, $status_code, $duration_ms, $decoded, $raw_body )
 		);
 	}
 

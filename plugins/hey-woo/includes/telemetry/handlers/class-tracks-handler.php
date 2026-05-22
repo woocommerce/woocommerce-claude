@@ -17,24 +17,29 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Routes telemetry events to WooCommerce Tracks (wcadmin_ prefix).
+ *
+ * Per Tracks naming conventions, each logical event must be its own hardcoded
+ * Tracks name in the form <source>_<context>_<subcontext>_<action>. Callers
+ * pass the <subcontext>_<action> tail; this handler prepends the hey_woo_
+ * context, and WC_Tracks adds the wcadmin_ source. So a caller-supplied
+ * 'message_feedback_submitted' becomes wcadmin_hey_woo_message_feedback_submitted
+ * in Tracks.
  */
 class TracksHandler implements TelemetryHandlerInterface {
 
 	/**
-	 * Generic Tracks event name (without the wcadmin_ prefix that WC_Tracks adds).
+	 * Context segment for every Hey Woo Tracks event.
 	 */
-	const EVENT_NAME = 'hey_woo_telemetry_event';
+	const EVENT_PREFIX = 'hey_woo_';
 
 	/**
-	 * Send the whole telemetry payload to Tracks.
+	 * Send the whole telemetry payload to Tracks under a per-event name.
 	 *
-	 * @param string $event_name Event or skill identifier.
+	 * @param string $event_name Hardcoded event tail (e.g. 'message_feedback_submitted').
 	 * @param array  $data       Telemetry payload.
 	 * @return void
 	 */
 	public function record( $event_name, $data ) {
-		unset( $event_name );
-
 		if ( ! class_exists( 'WC_Tracks' ) ) {
 			return;
 		}
@@ -47,7 +52,7 @@ class TracksHandler implements TelemetryHandlerInterface {
 		}
 
 		\WC_Tracks::record_event(
-			self::EVENT_NAME,
+			self::EVENT_PREFIX . (string) $event_name,
 			$this->normalise_data( $data )
 		);
 	}

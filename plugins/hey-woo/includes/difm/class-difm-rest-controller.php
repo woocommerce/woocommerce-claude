@@ -1020,10 +1020,9 @@ class DifmRestController {
 	 */
 	private function log_tool_call( $tool_name, array $input, $tool_id = '', $ability_id = '', $phase = '' ) {
 		TelemetryHandler::record(
-			'difm_tool_call',
+			'tool_called',
 			array_merge(
 				array(
-					'event'      => 'difm_tool_call',
 					'tool'       => $tool_name,
 					'tool_id'    => $tool_id,
 					'ability_id' => $ability_id,
@@ -1048,7 +1047,6 @@ class DifmRestController {
 	 */
 	private function log_tool_result( $tool_name, $status, $error_code, $duration_ms, $output ) {
 		$data = array(
-			'event'       => 'difm_tool_result',
 			'tool'        => $tool_name,
 			'status'      => $status,
 			'error_code'  => $error_code,
@@ -1060,7 +1058,7 @@ class DifmRestController {
 			$data['output_bytes'] = is_string( $encoded ) ? strlen( $encoded ) : 0;
 		}
 
-		TelemetryHandler::record( 'difm_tool_result', $data );
+		TelemetryHandler::record( 'tool_completed', $data );
 
 		$this->record_progress( $tool_name, 'complete' );
 	}
@@ -1077,9 +1075,8 @@ class DifmRestController {
 		}
 
 		TelemetryHandler::record(
-			'difm_workflow_selected',
+			'workflow_selected',
 			array(
-				'event'    => 'difm_workflow_selected',
 				'workflow' => (string) $workflow['slug'],
 				'match'    => isset( $workflow['match'] ) ? (string) $workflow['match'] : '',
 			)
