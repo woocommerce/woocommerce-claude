@@ -1,6 +1,6 @@
 {
   "name": "hey-woo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bring-your-own-key WooCommerce assistant plugin.",
   "private": true,
   "packageManager": "pnpm@10.33.0",
