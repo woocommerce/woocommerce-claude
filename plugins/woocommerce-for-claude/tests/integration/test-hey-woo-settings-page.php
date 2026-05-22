@@ -9,6 +9,11 @@ use WooCommerce\HeyWoo\Settings\SettingsPage as HeyWooSettingsPage;
 use WooCommerce\HeyWoo\Telemetry\Handlers\TracksHandler as HeyWooTracksHandler;
 use WooCommerce\HeyWoo\Telemetry\TelemetryHandler as HeyWooTelemetryHandler;
 
+// Load the Hey Woo main plugin file so functions defined there (notably
+// hey_woo_activate) are available to tests. Idempotent: top-level loaders use
+// class_exists / file_exists guards so re-including is safe.
+require_once WP_PLUGIN_DIR . '/hey-woo/hey-woo.php';
+
 require_once WP_PLUGIN_DIR . '/hey-woo/includes/telemetry/interface-telemetry-handler.php';
 require_once WP_PLUGIN_DIR . '/hey-woo/includes/telemetry/class-telemetry-handler.php';
 require_once WP_PLUGIN_DIR . '/hey-woo/includes/telemetry/handlers/class-tracks-handler.php';
