@@ -1,6 +1,7 @@
 /**
  * No-provider state - shown when no AI provider is configured.
  */
+import { Button } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { Icon, plugins } from '@wordpress/icons';
 import moduleData from '../../data';
@@ -54,14 +55,15 @@ export function NoKey() {
 					) }
 				</p>
 			) }
-			<a
+			<Button
+				variant="primary"
 				href={ settingsUrl }
-				className="button button-primary hey-woo-state__cta"
+				className="hey-woo-state__cta"
 			>
 				{ isConnectorMode
 					? __( 'Open Settings › Connectors', 'hey-woo' )
 					: __( 'Add an AI provider in Settings', 'hey-woo' ) }
-			</a>
+			</Button>
 		</div>
 	);
 }
