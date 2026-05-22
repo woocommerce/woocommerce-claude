@@ -18,43 +18,12 @@ export function NoKey() {
 			<h2 className="hey-woo-state__heading">
 				{ __( 'Set up an AI provider to get started', 'hey-woo' ) }
 			</h2>
-			{ isConnectorMode ? (
-				<>
-					<p className="hey-woo-state__message">
-						{ __(
-							'Hey Woo answers questions about your store using an AI provider you connect on this site. Three quick steps:',
-							'hey-woo'
-						) }
-					</p>
-					<ol className="hey-woo-state__steps">
-						<li>
-							{ __(
-								'In Settings › Connectors, pick a provider (Anthropic, OpenAI, Google…) and paste your API key.',
-								'hey-woo'
-							) }
-						</li>
-						<li>
-							{ __(
-								'Install and activate the WordPress AI plugin.',
-								'hey-woo'
-							) }
-						</li>
-						<li>
-							{ __(
-								'Open the plugin’s settings and toggle Enable AI on.',
-								'hey-woo'
-							) }
-						</li>
-					</ol>
-				</>
-			) : (
-				<p className="hey-woo-state__message">
-					{ __(
-						"Add an Anthropic API key and Hey Woo will answer questions about your store's performance, orders, and customer trends from WordPress admin.",
-						'hey-woo'
-					) }
-				</p>
-			) }
+			<p className="hey-woo-state__message">
+				{ __(
+					'Hey Woo answers questions about your store using an AI provider you connect on this site.',
+					'hey-woo'
+				) }
+			</p>
 			<Button
 				variant="primary"
 				href={ settingsUrl }

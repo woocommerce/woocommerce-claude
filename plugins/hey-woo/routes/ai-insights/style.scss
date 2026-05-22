@@ -1125,24 +1125,6 @@
 		margin: 0;
 	}
 
-	&__steps {
-		font-size: 14px;
-		color: #50575e;
-		max-width: 440px;
-		line-height: 1.6;
-		margin: 0;
-		padding-left: 24px;
-		text-align: left;
-
-		li {
-			margin-bottom: 6px;
-
-			&:last-child {
-				margin-bottom: 0;
-			}
-		}
-	}
-
 	&__cta {
 		margin-top: 8px;
 	}
