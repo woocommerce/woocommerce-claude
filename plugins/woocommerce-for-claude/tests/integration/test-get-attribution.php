@@ -755,9 +755,10 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 	/**
 	 * Per-group pipeline_revenue picks up on-hold orders tagged to the
 	 * same attribution group. admin_equivalent_revenue sums paid +
-	 * on-hold + refunded for the group. Fixture:
+	 * refunded for the group — on the default date_paid basis on-hold G
+	 * has no paid date, so, like WC's dashboard, it's left out. Fixture:
 	 *   - google: paid $150 (B+B2), on-hold $50 (G) → pipeline 50,
-	 *     admin_equivalent 200 (3 orders).
+	 *     admin_equivalent 150 (2 orders).
 	 *   - facebook: paid $60 (C), refunded $30 (H) → pipeline 0,
 	 *     admin_equivalent 90 (2 orders).
 	 */
@@ -769,11 +770,11 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 		$this->assertSame( 50.00, (float) $google['pipeline_revenue'], 'G on-hold $50 tagged google.' );
 		$this->assertSame( 1, (int) $google['pipeline_orders_count'] );
 		$this->assertSame(
-			200.00,
+			150.00,
 			(float) $google['admin_equivalent_revenue'],
-			'B $100 + B2 $50 paid + G $50 on-hold = $200 across admin statuses.'
+			'B $100 + B2 $50 paid = $150; on-hold G has no paid date so the dashboard-matching view leaves it out.'
 		);
-		$this->assertSame( 3, (int) $google['admin_equivalent_orders_count'] );
+		$this->assertSame( 2, (int) $google['admin_equivalent_orders_count'] );
 
 		$facebook = $this->find_group( $result['top_groups'], 'facebook' );
 		$this->assertNotNull( $facebook );
@@ -790,9 +791,10 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 		$this->assertSame( 50.00, (float) $result['pipeline']['revenue'] );
 		$this->assertSame( 1, (int) $result['pipeline']['orders_count'] );
 
-		// Top-level admin_equivalent: paid $340 + on-hold $50 + refunded $30 = $420 / 8 orders.
-		$this->assertSame( 420.00, (float) $result['admin_equivalent']['revenue'] );
-		$this->assertSame( 8, (int) $result['admin_equivalent']['orders_count'] );
+		// Top-level admin_equivalent: paid $340 + refunded $30 = $370 / 7 orders
+		// (on-hold G has no paid date on the default date_paid basis).
+		$this->assertSame( 370.00, (float) $result['admin_equivalent']['revenue'] );
+		$this->assertSame( 7, (int) $result['admin_equivalent']['orders_count'] );
 	}
 
 	/**

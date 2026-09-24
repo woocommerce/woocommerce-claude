@@ -102,17 +102,174 @@ class AnalyticsService {
 	}
 
 	/**
+	 * Date basis WC core Analytics uses when `woocommerce_date_type` is unset.
+	 *
+	 * WC never writes the option on install — it only exists once the
+	 * merchant saves Analytics > Settings — so on most stores this default
+	 * is the basis their dashboard figures use. Mirrors the fallback in
+	 * WC core's `Reports\Orders\DataStore` and `Reports\Orders\Stats\DataStore`.
+	 */
+	const DEFAULT_DATE_COLUMN = 'date_paid';
+
+	/**
 	 * Get the date column to use for analytics queries.
 	 *
 	 * Reads the merchant's WC Analytics "Date type" setting.
-	 * Options: date_created, date_paid, date_completed.
+	 * Options: date_created, date_paid, date_completed. Falls back to
+	 * `date_paid` when the option is unset or holds an unexpected value,
+	 * matching WC core Analytics so our figures reconcile with the
+	 * dashboard out of the box.
 	 *
 	 * @return string Column name.
 	 */
 	public static function get_date_column() {
-		$date_type = get_option( 'woocommerce_date_type', 'date_created' );
+		$date_type = get_option( 'woocommerce_date_type', self::DEFAULT_DATE_COLUMN );
 		$allowed   = array( 'date_created', 'date_paid', 'date_completed' );
-		return in_array( $date_type, $allowed, true ) ? $date_type : 'date_created';
+		return in_array( $date_type, $allowed, true ) ? $date_type : self::DEFAULT_DATE_COLUMN;
+	}
+
+	/**
+	 * Plain-English disclosure of the date basis, for verb-tool responses.
+	 *
+	 * Gives the model enough to explain why a figure might not match what
+	 * the merchant remembers — e.g. an order placed on Friday but paid on
+	 * Monday lands in Monday's figures on the `date_paid` basis.
+	 *
+	 * @return array { value: string, definition: string }.
+	 */
+	public static function get_date_basis() {
+		$column      = self::get_date_column();
+		$definitions = array(
+			'date_paid'      => 'Orders are dated by when payment was received, matching the WooCommerce Analytics dashboard setting. An order placed on one day and paid on a later day counts on the day it was paid. Unpaid orders (on-hold, pending, failed) have no payment date yet, so the pipeline and order-status figures date them by when they were placed, and the dashboard-matching figures leave them out, as the dashboard does. Refunds are dated by when they were issued.',
+			'date_completed' => 'Orders are dated by when they were marked completed, matching the WooCommerce Analytics dashboard setting. Orders still processing have no completion date yet and are not counted until they are completed. Unpaid orders (on-hold, pending, failed) are dated by when they were placed in the pipeline and order-status figures, and left out of the dashboard-matching figures. Refunds are dated by when they were issued.',
+			'date_created'   => 'Orders are dated by when they were placed, matching the WooCommerce Analytics dashboard setting. Refunds are dated by when they were issued.',
+		);
+
+		return array(
+			'value'      => $column,
+			'definition' => $definitions[ $column ],
+		);
+	}
+
+	/**
+	 * Period filter for `wc_order_stats` rows on the merchant's date basis.
+	 *
+	 * Returns a SQL fragment carrying exactly two `%s` placeholders — the
+	 * period start and end timestamps, in that order — so it drops in
+	 * where a `{column} >= %s AND {column} <= %s` pair used to sit without
+	 * changing the caller's prepare() arguments. Callers must still pass
+	 * `$date_start . ' 00:00:00'` and `$date_end . ' 23:59:59'` for those.
+	 *
+	 * On the `date_paid` / `date_completed` bases, rows that never carry
+	 * the basis date fall back to `date_created`:
+	 *
+	 * - Unpaid parent orders (on-hold, pending, failed, cancelled…) — no
+	 *   paid date yet. Without the fallback the pipeline block and the
+	 *   all-status breakdown read zero on stores using WC's default basis.
+	 * - Refund sub-orders — WC core copies the refund's own `date_created`
+	 *   into `date_paid` / `date_completed` at sync time, but rows synced
+	 *   by older versions (or inserted directly) can hold NULL or the
+	 *   column's zero-date default.
+	 *
+	 * Parents in a paid status keep the strict basis column, so processing
+	 * orders on the `date_completed` basis stay excluded — the same as WC
+	 * core. Rows admitted by the fallback are kept out of the
+	 * dashboard-matching view by basis_dated_guard().
+	 *
+	 * The fallback branch is prepared here and inlined as literals. Its
+	 * values are Y-m-d timestamps and status slugs, which never contain
+	 * `%`, so the caller's outer prepare() still sees only its own two
+	 * placeholders. The primary branch stays sargable on
+	 * `idx_date_paid_status_parent`.
+	 *
+	 * @param string $prefix     Table name or alias with trailing dot, or '' for none.
+	 * @param string $date_start YYYY-MM-DD start date.
+	 * @param string $date_end   YYYY-MM-DD end date.
+	 * @return string SQL fragment with two `%s` placeholders.
+	 */
+	private static function period_where( $prefix, $date_start, $date_end ) {
+		global $wpdb;
+
+		$column  = self::get_date_column();
+		$primary = "{$prefix}{$column} >= %s AND {$prefix}{$column} <= %s";
+
+		if ( 'date_created' === $column ) {
+			return $primary;
+		}
+
+		$paid_statuses = self::get_paid_statuses();
+		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
+		$missing       = self::missing_basis_date_sql( $prefix );
+
+		$fallback = $wpdb->prepare(
+			"{$missing}
+				AND ( {$prefix}parent_id != 0 OR {$prefix}status NOT IN ({$paid_ph}) )
+				AND {$prefix}date_created >= %s
+				AND {$prefix}date_created <= %s",
+			array_merge(
+				$paid_statuses,
+				array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
+			)
+		);
+
+		return "( ( {$primary} ) OR ( {$fallback} ) )";
+	}
+
+	/**
+	 * SQL condition: the row has no usable basis date.
+	 *
+	 * WC writes NULL for an unset date, but the column's schema default is
+	 * the zero date, so rows inserted outside WC's sync can carry that.
+	 * WordPress strips NO_ZERO_DATE from the session sql_mode, so the
+	 * comparison is safe.
+	 *
+	 * @param string $prefix Table name or alias with trailing dot, or '' for none.
+	 * @return string SQL condition.
+	 */
+	private static function missing_basis_date_sql( $prefix = '' ) {
+		$column = self::get_date_column();
+		return "( {$prefix}{$column} IS NULL OR {$prefix}{$column} = '0000-00-00 00:00:00' )";
+	}
+
+	/**
+	 * Row-level date expression on the merchant's date basis.
+	 *
+	 * The SELECT-side twin of period_where(): the basis column, falling
+	 * back to `date_created` when it's missing. Use it for time-bucket
+	 * expressions over queries that include pipeline or refund rows, so
+	 * those rows land in a real bucket rather than a NULL one.
+	 *
+	 * @param string $prefix Table name or alias with trailing dot, or '' for none.
+	 * @return string SQL expression.
+	 */
+	private static function row_date_expr( $prefix = '' ) {
+		$column = self::get_date_column();
+		if ( 'date_created' === $column ) {
+			return "{$prefix}date_created";
+		}
+		return "COALESCE(NULLIF({$prefix}{$column}, '0000-00-00 00:00:00'), {$prefix}date_created)";
+	}
+
+	/**
+	 * Extra CASE condition for `admin_equivalent` aggregates.
+	 *
+	 * WC core Analytics filters strictly on the basis column, so an
+	 * on-hold order with no `date_paid` never appears on the dashboard.
+	 * period_where() admits those rows for the pipeline block; this guard
+	 * keeps them out of `admin_equivalent` so it still reconciles with
+	 * what the merchant sees in WooCommerce Analytics. Apply it to the
+	 * parent-order branch only — refund sub-orders stay in, because WC
+	 * core dates them by their own `date_created`.
+	 *
+	 * @param string $prefix Table name or alias with trailing dot, or '' for none.
+	 * @return string SQL fragment (leading ` AND `) or '' on the date_created basis.
+	 */
+	private static function basis_dated_guard( $prefix = '' ) {
+		$column = self::get_date_column();
+		if ( 'date_created' === $column ) {
+			return '';
+		}
+		return ' AND NOT ' . self::missing_basis_date_sql( $prefix );
 	}
 
 	/**
@@ -282,7 +439,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( '' );
 
 		// One query, three views.
 		//
@@ -319,13 +477,12 @@ class AnalyticsService {
 				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$paid_ph}) THEN customer_id END) AS total_customers,
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN net_total ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN net_total
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN net_total
 				         WHEN parent_id != 0 THEN net_total
 				         ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND ( status IN ({$admin_ph}) OR parent_id != 0 )",
 			array_merge(
 				$paid_statuses, // orders_count.
@@ -553,7 +710,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( '' );
 
 		// Same three-view pattern as query_revenue_metrics. See that method's
 		// comment for the rationale. Primary metrics restrict to paid parent
@@ -577,13 +735,12 @@ class AnalyticsService {
 				SUM(CASE WHEN parent_id != 0 AND total_sales < 0 THEN 1 ELSE 0 END) AS refund_count,
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders,
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN net_total ELSE 0 END) AS pipeline_revenue,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN net_total
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders,
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN net_total
 				         WHEN parent_id != 0 THEN net_total
 				         ELSE 0 END) AS admin_revenue
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND ( status IN ({$admin_ph}) OR parent_id != 0 )",
 			array_merge(
 				$paid_statuses, // orders_count.
@@ -680,8 +837,14 @@ class AnalyticsService {
 	 * March orders are TODAY. That matches shot 53's diagnostic intent:
 	 * "are these fresh (recent config blip) or old (real backlog)?"
 	 *
+	 * Age is deliberately measured from `date_created` whatever the date
+	 * basis: on-hold orders have no `date_paid` yet, and "how long has
+	 * this been waiting" is only meaningful from placement.
+	 *
 	 * Period filter still applies — on-hold orders placed BEFORE the
-	 * period's start aren't included. A merchant asking about older
+	 * period's start aren't included. On the date_paid / date_completed
+	 * bases period_where() dates unpaid on-hold orders by `date_created`,
+	 * so the filter and the age agree. A merchant asking about older
 	 * backlogs needs to widen the period (e.g. period=this_year).
 	 *
 	 * @param string $date_start YYYY-MM-DD start date.
@@ -694,15 +857,14 @@ class AnalyticsService {
 		$table             = $wpdb->prefix . 'wc_order_stats';
 		$pipeline_statuses = self::get_pipeline_statuses();
 		$pipeline_ph       = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
-		$date_column       = self::get_date_column();
+		$period_where      = self::period_where( '', $date_start, $date_end );
 
 		$sql = $wpdb->prepare(
 			"SELECT DATEDIFF(NOW(), date_created) AS age_days
 			FROM {$table}
 			WHERE parent_id = 0
 				AND status IN ({$pipeline_ph})
-				AND {$date_column} >= %s
-				AND {$date_column} <= %s",
+				AND {$period_where}",
 			array_merge(
 				$pipeline_statuses,
 				array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -785,7 +947,7 @@ class AnalyticsService {
 		$pipeline_ph       = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$all_statuses      = array_merge( $paid_statuses, $pipeline_statuses );
 		$all_ph            = implode( ', ', array_fill( 0, count( $all_statuses ), '%s' ) );
-		$date_column       = self::get_date_column();
+		$period_where      = self::period_where( "{$os_table}.", $date_start, $date_end );
 
 		if ( self::hpos_enabled() ) {
 			$orders_table = $wpdb->prefix . 'wc_orders';
@@ -815,8 +977,7 @@ class AnalyticsService {
 			{$join}
 			WHERE {$os_table}.parent_id = 0
 				AND {$os_table}.status IN ({$all_ph})
-				AND {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+				AND {$period_where}
 			GROUP BY method_label, method_key",
 			array_merge(
 				$pipeline_statuses, // pipeline_revenue.
@@ -897,16 +1058,15 @@ class AnalyticsService {
 	private static function query_status_breakdown( $date_start, $date_end ) {
 		global $wpdb;
 
-		$table       = $wpdb->prefix . 'wc_order_stats';
-		$date_column = self::get_date_column();
+		$table        = $wpdb->prefix . 'wc_order_stats';
+		$period_where = self::period_where( '', $date_start, $date_end );
 
 		$sql = $wpdb->prepare(
 			"SELECT status,
 				COUNT(*) AS count,
 				SUM(net_total) AS net_revenue
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND parent_id = 0
 			GROUP BY status
 			ORDER BY count DESC",
@@ -948,13 +1108,13 @@ class AnalyticsService {
 		$table         = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$placeholders  = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( '', $date_start, $date_end );
 
 		// Get min/max to compute bucket boundaries.
 		$range_sql = $wpdb->prepare(
 			"SELECT MIN(net_total) AS min_val, MAX(net_total) AS max_val, COUNT(*) AS total
 			FROM {$table}
-			WHERE {$date_column} >= %s AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND parent_id = 0
 				AND status IN ({$placeholders})",
 			array_merge(
@@ -1001,7 +1161,7 @@ class AnalyticsService {
 				SUM(net_total) AS total_revenue,
 				AVG(net_total) AS avg_value
 			FROM {$table}
-			WHERE {$date_column} >= %s AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND parent_id = 0
 				AND status IN ({$placeholders})
 			GROUP BY bucket
@@ -1036,6 +1196,12 @@ class AnalyticsService {
 	 *
 	 * Returns null if single currency (normal case) or if HPOS not available.
 	 * Returns array of { currency, orders_count, total } if multiple currencies found.
+	 *
+	 * Filters on `date_created_gmt` rather than the merchant's date basis.
+	 * This is a presence check ("did this period see more than one
+	 * currency?") across every order placed, including unpaid ones that
+	 * carry no `date_paid`, so a few orders shifting across the period
+	 * boundary between bases doesn't change the answer.
 	 *
 	 * @param string $date_start YYYY-MM-DD start date.
 	 * @param string $date_end   YYYY-MM-DD end date.
@@ -1093,7 +1259,8 @@ class AnalyticsService {
 	 *
 	 * Returns a heatmap-style array: each row is a day_of_week × hour_of_day
 	 * combination with order count and revenue. Day names are human-readable
-	 * (Monday–Sunday). Only includes paid-status parent orders.
+	 * (Monday–Sunday). Only includes paid-status parent orders. Bucketed by
+	 * when the order was placed, whatever the date basis.
 	 *
 	 * @param string $date_start YYYY-MM-DD start date.
 	 * @param string $date_end   YYYY-MM-DD end date.
@@ -1105,17 +1272,21 @@ class AnalyticsService {
 		$table         = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$placeholders  = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( '', $date_start, $date_end );
 
+		// The period filter follows the merchant's date basis, but the
+		// day/hour buckets always use `date_created`: the heatmap answers
+		// "when do customers place orders", and on the date_paid basis a
+		// bank-transfer order would otherwise land on whenever the
+		// merchant marked it paid.
 		$sql = $wpdb->prepare(
 			"SELECT
-				DAYOFWEEK({$date_column}) AS day_num,
-				HOUR({$date_column}) AS hour_of_day,
+				DAYOFWEEK(date_created) AS day_num,
+				HOUR(date_created) AS hour_of_day,
 				COUNT(*) AS orders_count,
 				SUM(net_total) AS net_revenue
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND parent_id = 0
 				AND status IN ({$placeholders})
 			GROUP BY day_num, hour_of_day
@@ -1773,7 +1944,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( "{$os_table}.", $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( "{$os_table}." );
 
 		// Group by variation_id when requested AND the row has a variation, else product_id.
 		// Variation rows in wc_order_product_lookup carry both product_id and variation_id;
@@ -1815,18 +1987,17 @@ class AnalyticsService {
 				SUM({$pl_table}.coupon_amount) AS discount,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$pl_table}.product_net_revenue ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$pl_table}.product_qty ELSE 0 END) AS pipeline_quantity,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$pl_table}.product_net_revenue
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$pl_table}.product_net_revenue
 				         WHEN {$os_table}.parent_id != 0 THEN {$pl_table}.product_net_revenue
 				         ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$pl_table}.product_qty
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$pl_table}.product_qty
 				         WHEN {$os_table}.parent_id != 0 THEN {$pl_table}.product_qty
 				         ELSE 0 END) AS admin_quantity
 			FROM {$pl_table}
 			INNER JOIN {$os_table} ON {$pl_table}.order_id = {$os_table}.order_id
 			LEFT JOIN {$posts} ON ({$id_column}) = {$posts}.ID
 			LEFT JOIN {$meta_table} ON ({$id_column}) = {$meta_table}.product_id
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( {$os_table}.status IN ({$admin_ph}) OR {$os_table}.parent_id != 0 )
 			GROUP BY product_id
 			HAVING net_revenue != 0 OR quantity != 0
@@ -1898,7 +2069,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( "{$os_table}.", $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( "{$os_table}." );
 
 		// distinct_skus_sold treats each variation as its own SKU; rows where
 		// variation_id=0 fall back to product_id (simple products are their own SKU).
@@ -1920,16 +2092,15 @@ class AnalyticsService {
 				ABS(SUM(CASE WHEN {$pl_table}.product_net_revenue < 0 THEN {$pl_table}.product_net_revenue ELSE 0 END)) AS total_refunds,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$pl_table}.product_net_revenue ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$pl_table}.product_qty ELSE 0 END) AS pipeline_quantity,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$pl_table}.product_net_revenue
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$pl_table}.product_net_revenue
 				         WHEN {$os_table}.parent_id != 0 THEN {$pl_table}.product_net_revenue
 				         ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$pl_table}.product_qty
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$pl_table}.product_qty
 				         WHEN {$os_table}.parent_id != 0 THEN {$pl_table}.product_qty
 				         ELSE 0 END) AS admin_quantity
 			FROM {$pl_table}
 			INNER JOIN {$os_table} ON {$pl_table}.order_id = {$os_table}.order_id
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( {$os_table}.status IN ({$admin_ph}) OR {$os_table}.parent_id != 0 )",
 			array_merge(
 				$paid_statuses, // distinct_products_sold.
@@ -2074,7 +2245,7 @@ class AnalyticsService {
 
 		$paid_statuses = self::get_paid_statuses();
 		$placeholders  = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( "{$os_table}.", $date_start, $date_end );
 
 		$sql = $wpdb->prepare(
 			"SELECT
@@ -2089,8 +2260,7 @@ class AnalyticsService {
 			INNER JOIN {$tr_table} ON {$pl_table}.product_id = {$tr_table}.object_id
 			INNER JOIN {$tt_table} ON {$tr_table}.term_taxonomy_id = {$tt_table}.term_taxonomy_id AND {$tt_table}.taxonomy = 'product_cat'
 			INNER JOIN {$t_table} ON {$tt_table}.term_id = {$t_table}.term_id
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( {$os_table}.status IN ({$placeholders}) OR {$os_table}.parent_id != 0 )
 			GROUP BY {$t_table}.term_id
 			HAVING net_revenue != 0 OR quantity != 0
@@ -2153,7 +2323,8 @@ class AnalyticsService {
 
 		$paid_statuses = self::get_paid_statuses();
 		$status_ph     = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( "{$os_table}.", $date_start, $date_end );
+		$row_date      = self::row_date_expr( "{$os_table}." );
 
 		$id_column = ( 'variation' === $group_by )
 			? "CASE WHEN {$pl_table}.variation_id > 0 THEN {$pl_table}.variation_id ELSE {$pl_table}.product_id END"
@@ -2165,14 +2336,14 @@ class AnalyticsService {
 		switch ( $interval ) {
 			case 'week':
 				// Monday-anchored week start.
-				$bucket_expr = "DATE_FORMAT(DATE_SUB({$os_table}.{$date_column}, INTERVAL WEEKDAY({$os_table}.{$date_column}) DAY), '%%Y-%%m-%%d')";
+				$bucket_expr = "DATE_FORMAT(DATE_SUB({$row_date}, INTERVAL WEEKDAY({$row_date}) DAY), '%%Y-%%m-%%d')";
 				break;
 			case 'month':
-				$bucket_expr = "DATE_FORMAT({$os_table}.{$date_column}, '%%Y-%%m-01')";
+				$bucket_expr = "DATE_FORMAT({$row_date}, '%%Y-%%m-01')";
 				break;
 			case 'day':
 			default:
-				$bucket_expr = "DATE_FORMAT({$os_table}.{$date_column}, '%%Y-%%m-%%d')";
+				$bucket_expr = "DATE_FORMAT({$row_date}, '%%Y-%%m-%%d')";
 				break;
 		}
 
@@ -2186,8 +2357,7 @@ class AnalyticsService {
 				SUM(CASE WHEN {$os_table}.parent_id = 0 THEN {$pl_table}.product_qty ELSE 0 END) AS quantity
 			FROM {$pl_table}
 			INNER JOIN {$os_table} ON {$pl_table}.order_id = {$os_table}.order_id
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND {$os_table}.status IN ({$status_ph})
 				AND ({$id_column}) IN ({$id_ph})
 			GROUP BY product_id, bucket_date
@@ -2723,7 +2893,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( "{$os_table}.", $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( "{$os_table}." );
 
 		$group_expr = self::attribution_group_expr( $group_by );
 		if ( null === $group_expr ) {
@@ -2771,14 +2942,13 @@ class AnalyticsService {
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$os_table}.net_total ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders_count,
 				COUNT(DISTINCT CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$os_table}.customer_id END) AS pipeline_customers,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$os_table}.net_total ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders_count,
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$os_table}.net_total ELSE 0 END) AS admin_revenue,
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders_count,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$paid_ph}) THEN {$os_table}.net_total ELSE 0 END)
 					/ NULLIF(SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$paid_ph}) THEN 1 ELSE 0 END), 0) AS avg_order_value
 			FROM {$os_table}
 			{$meta_joins}
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( {$os_table}.status IN ({$admin_ph}) OR {$os_table}.parent_id != 0 )
 				{$unassigned_filter}
 			GROUP BY group_key
@@ -2869,7 +3039,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( "{$os_table}.", $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( "{$os_table}." );
 
 		$group_expr = self::attribution_group_expr( $group_by );
 		if ( null === $group_expr ) {
@@ -2897,12 +3068,11 @@ class AnalyticsService {
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$os_table}.net_total ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders_count,
 				COUNT(DISTINCT CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$pipeline_ph}) THEN {$os_table}.customer_id END) AS pipeline_customers,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN {$os_table}.net_total ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders_count
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN {$os_table}.net_total ELSE 0 END) AS admin_revenue,
+				SUM(CASE WHEN {$os_table}.parent_id = 0 AND {$os_table}.status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders_count
 			FROM {$os_table}
 			{$meta_joins}
-			WHERE {$os_table}.{$date_column} >= %s
-				AND {$os_table}.{$date_column} <= %s
+			WHERE {$period_where}
 				AND {$os_table}.status IN ({$admin_ph})",
 			array_merge(
 				$paid_statuses,      // net_revenue.
@@ -3196,7 +3366,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( '' );
 
 		// Notes on the query:
 		// - parent_id = 0 excludes refund sub-orders everywhere. Refund rows
@@ -3238,15 +3409,14 @@ class AnalyticsService {
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders,
 
 				-- Admin equivalent (paid + on-hold + refunded; sums match WC Admin convention)
-				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) AND returning_customer = 0 THEN customer_id END) AS admin_new_customers,
-				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) AND returning_customer = 1 THEN customer_id END) AS admin_returning_customers,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders,
-				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN net_total
+				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} AND returning_customer = 0 THEN customer_id END) AS admin_new_customers,
+				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} AND returning_customer = 1 THEN customer_id END) AS admin_returning_customers,
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders,
+				SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN net_total
 				         WHEN parent_id != 0 THEN net_total
 				         ELSE 0 END) AS admin_net_sales
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND ( status IN ({$admin_ph}) OR parent_id != 0 )",
 			array_merge(
 				$paid_statuses, // total_customers.
@@ -3384,7 +3554,8 @@ class AnalyticsService {
 		$paid_ph     = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
+		$row_date     = self::row_date_expr();
 
 		// Bucket expression — produces a YYYY-MM-DD style anchor for each bucket.
 		// Note: % must be doubled (%%) so wpdb::prepare doesn't parse the
@@ -3392,14 +3563,14 @@ class AnalyticsService {
 		switch ( $interval ) {
 			case 'week':
 				// Monday-anchored week start.
-				$bucket_expr = "DATE_FORMAT(DATE_SUB({$date_column}, INTERVAL WEEKDAY({$date_column}) DAY), '%%Y-%%m-%%d')";
+				$bucket_expr = "DATE_FORMAT(DATE_SUB({$row_date}, INTERVAL WEEKDAY({$row_date}) DAY), '%%Y-%%m-%%d')";
 				break;
 			case 'month':
-				$bucket_expr = "DATE_FORMAT({$date_column}, '%%Y-%%m-01')";
+				$bucket_expr = "DATE_FORMAT({$row_date}, '%%Y-%%m-01')";
 				break;
 			case 'day':
 			default:
-				$bucket_expr = "DATE_FORMAT({$date_column}, '%%Y-%%m-%%d')";
+				$bucket_expr = "DATE_FORMAT({$row_date}, '%%Y-%%m-%%d')";
 				break;
 		}
 
@@ -3421,8 +3592,7 @@ class AnalyticsService {
 				COUNT(DISTINCT CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN customer_id END) AS pipeline_customers,
 				SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders
 			FROM {$table}
-			WHERE {$date_column} >= %s
-				AND {$date_column} <= %s
+			WHERE {$period_where}
 				AND status IN ({$paid_ph}, {$pipeline_ph})
 			GROUP BY bucket
 			ORDER BY bucket ASC",
@@ -3796,10 +3966,11 @@ class AnalyticsService {
 	private static function query_lifetime_aggregates( $date_start, $date_end ) {
 		global $wpdb;
 
-		$table       = $wpdb->prefix . 'wc_order_stats';
-		$statuses    = self::get_paid_statuses();
-		$status_ph   = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
-		$date_column = self::get_date_column();
+		$table        = $wpdb->prefix . 'wc_order_stats';
+		$statuses     = self::get_paid_statuses();
+		$status_ph    = implode( ', ', array_fill( 0, count( $statuses ), '%s' ) );
+		$date_column  = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
 
 		// Inner subquery identifies customers active in the period.
 		// Outer query sums lifetime stats for those customers across
@@ -3819,8 +3990,7 @@ class AnalyticsService {
 				AND os.customer_id IN (
 					SELECT DISTINCT customer_id
 					FROM {$table}
-					WHERE {$date_column} >= %s
-						AND {$date_column} <= %s
+					WHERE {$period_where}
 						AND parent_id = 0
 						AND status IN ({$status_ph})
 						AND customer_id > 0
@@ -4760,7 +4930,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( '', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( '' );
 
 		// Base totals — same shape across all dimensions, no JOIN needed.
 		// `refunds` sums refund sub-orders (parent_id != 0) with the
@@ -4776,10 +4947,10 @@ class AnalyticsService {
 					ABS(SUM(CASE WHEN parent_id != 0 THEN (net_total + tax_total + shipping_total) ELSE 0 END)) AS refunds,
 					SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN net_total ELSE 0 END) AS pipeline_revenue,
 					SUM(CASE WHEN parent_id = 0 AND status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders_count,
-					SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN net_total ELSE 0 END) AS admin_revenue,
-					SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders_count
+					SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN net_total ELSE 0 END) AS admin_revenue,
+					SUM(CASE WHEN parent_id = 0 AND status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders_count
 				FROM {$os_table}
-				WHERE {$date_column} >= %s AND {$date_column} <= %s",
+				WHERE {$period_where}",
 				array_merge(
 					$paid_statuses,
 					$paid_statuses,
@@ -4838,7 +5009,7 @@ class AnalyticsService {
 		$os_table      = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( 'os.', $date_start, $date_end );
 
 		switch ( $group_by ) {
 			case 'category':
@@ -4854,7 +5025,7 @@ class AnalyticsService {
 						JOIN {$tt_table} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s",
+							AND {$period_where}",
 						array_merge(
 							$paid_statuses,
 							array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -4872,7 +5043,7 @@ class AnalyticsService {
 						{$addr_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$addr_join['expr']} IS NOT NULL
 							AND {$addr_join['expr']} != ''",
 						array_merge(
@@ -4892,7 +5063,7 @@ class AnalyticsService {
 						{$pm_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$pm_join['expr']} IS NOT NULL
 							AND {$pm_join['expr']} != ''",
 						array_merge(
@@ -4912,7 +5083,7 @@ class AnalyticsService {
 						{$sm_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$sm_join['expr']} IS NOT NULL
 							AND {$sm_join['expr']} != ''",
 						array_merge(
@@ -4941,7 +5112,7 @@ class AnalyticsService {
 		$os_table      = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$period_where  = self::period_where( 'os.', $date_start, $date_end );
 
 		switch ( $group_by ) {
 			case 'category':
@@ -4957,7 +5128,7 @@ class AnalyticsService {
 						JOIN {$tt_table} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s",
+							AND {$period_where}",
 						array_merge(
 							$paid_statuses,
 							array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -4975,7 +5146,7 @@ class AnalyticsService {
 						{$addr_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$addr_join['expr']} IS NOT NULL
 							AND {$addr_join['expr']} != ''",
 						array_merge(
@@ -4995,7 +5166,7 @@ class AnalyticsService {
 						{$pm_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$pm_join['expr']} IS NOT NULL
 							AND {$pm_join['expr']} != ''",
 						array_merge(
@@ -5015,7 +5186,7 @@ class AnalyticsService {
 						{$sm_join['join']}
 						WHERE os.parent_id = 0
 							AND os.status IN ({$paid_ph})
-							AND os.{$date_column} >= %s AND os.{$date_column} <= %s
+							AND {$period_where}
 							AND {$sm_join['expr']} IS NOT NULL
 							AND {$sm_join['expr']} != ''",
 						array_merge(
@@ -5203,7 +5374,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( 'os.' );
 
 		$orderby_col = self::revenue_breakdown_orderby( $orderby );
 
@@ -5217,8 +5389,8 @@ class AnalyticsService {
 				ABS(SUM(CASE WHEN os.parent_id != 0 THEN pl.product_net_revenue ELSE 0 END)) AS refunds,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN pl.product_net_revenue ELSE 0 END) AS pipeline_revenue,
 				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.order_id END) AS pipeline_orders_count,
-				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN pl.product_net_revenue ELSE 0 END) AS admin_revenue,
-				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.order_id END) AS admin_orders_count,
+				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN pl.product_net_revenue ELSE 0 END) AS admin_revenue,
+				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.order_id END) AS admin_orders_count,
 				(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN pl.product_net_revenue ELSE 0 END)
 					/ NULLIF(COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN os.order_id END), 0)) AS avg_order_value
 			FROM {$pl_table} pl
@@ -5226,7 +5398,7 @@ class AnalyticsService {
 			JOIN {$tr_table} tr ON tr.object_id = pl.product_id
 			JOIN {$tt_table} tt ON tt.term_taxonomy_id = tr.term_taxonomy_id AND tt.taxonomy = 'product_cat'
 			JOIN {$t_table} t ON t.term_id = tt.term_id
-			WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( (os.parent_id = 0 AND os.status IN ({$admin_ph})) OR os.parent_id != 0 )
 			GROUP BY t.term_id, t.name
 			HAVING orders_count != 0 OR pipeline_orders_count != 0 OR admin_orders_count != 0
@@ -5395,7 +5567,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( 'os.' );
 
 		$orderby_col = self::revenue_breakdown_orderby( $orderby );
 
@@ -5412,13 +5585,13 @@ class AnalyticsService {
 				ABS(SUM(CASE WHEN os.parent_id != 0 THEN (os.net_total + os.tax_total + os.shipping_total) ELSE 0 END)) AS refunds,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.net_total ELSE 0 END) AS pipeline_revenue,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders_count,
-				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.net_total ELSE 0 END) AS admin_revenue,
-				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders_count,
+				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.net_total ELSE 0 END) AS admin_revenue,
+				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders_count,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN os.net_total ELSE 0 END)
 					/ NULLIF(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN 1 ELSE 0 END), 0) AS avg_order_value
 			FROM {$os_table} os
 			{$join}
-			WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( (os.parent_id = 0 AND os.status IN ({$admin_ph})) OR os.parent_id != 0 )
 				{$unassigned_filter}
 			GROUP BY group_key
@@ -5787,7 +5960,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( 'os.' );
 
 		// The LEFT JOIN subquery aggregates coupon usage per order_id
 		// (orders can use multiple coupons) into a single row carrying
@@ -5813,15 +5987,15 @@ class AnalyticsService {
 					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN COALESCE(cu.discount_amount, 0) ELSE 0 END) AS total_discount_amount,
 					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.net_total ELSE 0 END) AS pipeline_revenue,
 					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN 1 ELSE 0 END) AS pipeline_orders_count,
-					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.net_total ELSE 0 END) AS admin_revenue,
-					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN 1 ELSE 0 END) AS admin_orders_count
+					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.net_total ELSE 0 END) AS admin_revenue,
+					SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN 1 ELSE 0 END) AS admin_orders_count
 				FROM {$os_table} os
 				LEFT JOIN (
 					SELECT order_id, SUM(discount_amount) AS discount_amount
 					FROM {$ocl_table}
 					GROUP BY order_id
 				) cu ON cu.order_id = os.order_id
-				WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s",
+				WHERE {$period_where}",
 				array_merge(
 					$paid_statuses,                                                             // net_revenue.
 					$paid_statuses,                                                             // total_paid_orders.
@@ -5852,8 +6026,7 @@ class AnalyticsService {
 				INNER JOIN {$os_table} os ON os.order_id = ocl.order_id
 				WHERE os.parent_id = 0
 					AND os.status IN ({$paid_ph})
-					AND os.{$date_column} >= %s
-					AND os.{$date_column} <= %s",
+					AND {$period_where}",
 				array_merge(
 					$paid_statuses,
 					array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -5961,7 +6134,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( 'os.' );
 
 		$orderby_col = self::coupon_performance_orderby( $orderby );
 
@@ -5992,8 +6166,8 @@ class AnalyticsService {
 				ABS(SUM(CASE WHEN os.parent_id != 0 THEN (os.net_total + os.tax_total + os.shipping_total) ELSE 0 END)) AS refunds,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.net_total ELSE 0 END) AS pipeline_revenue,
 				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.order_id END) AS pipeline_orders_count,
-				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.net_total ELSE 0 END) AS admin_revenue,
-				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.order_id END) AS admin_orders_count,
+				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.net_total ELSE 0 END) AS admin_revenue,
+				COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.order_id END) AS admin_orders_count,
 				SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN os.net_total ELSE 0 END)
 					/ NULLIF(COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$paid_ph}) THEN os.order_id END), 0) AS avg_order_value
 			FROM {$ocl_table} ocl
@@ -6008,7 +6182,7 @@ class AnalyticsService {
 			LEFT JOIN {$postmeta} pm_amount
 				ON pm_amount.post_id = ocl.coupon_id
 				AND pm_amount.meta_key = 'coupon_amount'
-			WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
+			WHERE {$period_where}
 				AND ( (os.parent_id = 0 AND os.status IN ({$admin_ph})) OR os.parent_id != 0 )
 			GROUP BY ocl.coupon_id, coupon_code, coupon_post_id, coupon_type, coupon_amount
 			HAVING orders_count != 0 OR pipeline_orders_count != 0 OR admin_orders_count != 0
@@ -6368,7 +6542,8 @@ class AnalyticsService {
 		$os_table      = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$parent_date   = self::row_date_expr( 'parent.' );
+		$period_where  = self::period_where( '', $date_start, $date_end );
 
 		// Refund-side aggregate. Self-join on os.parent_id = parent.order_id
 		// so we can (a) read the parent status for partial/full detection
@@ -6382,7 +6557,10 @@ class AnalyticsService {
 		// sense), so filtering refunds by those columns dropped them on
 		// real-world stores configured for payment-date analytics. The
 		// parent side honours the merchant's chosen column so the
-		// DATEDIFF semantics still match their analytics setting.
+		// DATEDIFF semantics still match their analytics setting, falling
+		// back to the parent's `date_created` when that column is empty
+		// (e.g. a processing order refunded before completion on the
+		// date_completed basis) rather than silently dropping the row.
 		//
 		// The LEFT JOIN protects against orphan refund rows (parent
 		// deleted), which shouldn't happen in a healthy store but
@@ -6395,7 +6573,7 @@ class AnalyticsService {
 					COUNT(DISTINCT refund.parent_id) AS orders_refunded_count,
 					SUM(CASE WHEN parent.status = 'wc-refunded' THEN 1 ELSE 0 END) AS full_refunds_count,
 					ABS(SUM(CASE WHEN parent.status != 'wc-refunded' OR parent.status IS NULL THEN (refund.net_total + refund.tax_total + refund.shipping_total) ELSE 0 END)) AS partial_refunds_amount,
-					AVG(DATEDIFF(refund.date_created, parent.{$date_column})) AS avg_days_to_refund
+					AVG(DATEDIFF(refund.date_created, {$parent_date})) AS avg_days_to_refund
 				FROM {$os_table} refund
 				LEFT JOIN {$os_table} parent ON parent.order_id = refund.parent_id AND parent.parent_id = 0
 				WHERE refund.parent_id != 0
@@ -6412,8 +6590,7 @@ class AnalyticsService {
 				FROM {$os_table}
 				WHERE parent_id = 0
 					AND status IN ({$paid_ph})
-					AND {$date_column} >= %s
-					AND {$date_column} <= %s",
+					AND {$period_where}",
 				array_merge(
 					$paid_statuses,
 					array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -6479,11 +6656,11 @@ class AnalyticsService {
 		global $wpdb;
 
 		$os_table    = $wpdb->prefix . 'wc_order_stats';
-		$date_column = self::get_date_column();
+		$parent_date = self::row_date_expr( 'parent.' );
 
 		$rows = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT DATEDIFF(refund.date_created, parent.{$date_column}) AS days_to_refund
+				"SELECT DATEDIFF(refund.date_created, {$parent_date}) AS days_to_refund
 				FROM {$os_table} refund
 				LEFT JOIN {$os_table} parent ON parent.order_id = refund.parent_id AND parent.parent_id = 0
 				WHERE refund.parent_id != 0
@@ -6528,15 +6705,15 @@ class AnalyticsService {
 		global $wpdb;
 
 		$os_table    = $wpdb->prefix . 'wc_order_stats';
-		$date_column = self::get_date_column();
+		$parent_date = self::row_date_expr( 'parent.' );
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
 				"SELECT
-					SUM(CASE WHEN DATEDIFF(refund.date_created, parent.{$date_column}) = 0 THEN 1 ELSE 0 END) AS same_day,
-					SUM(CASE WHEN DATEDIFF(refund.date_created, parent.{$date_column}) BETWEEN 1 AND 7 THEN 1 ELSE 0 END) AS within_week,
-					SUM(CASE WHEN DATEDIFF(refund.date_created, parent.{$date_column}) BETWEEN 8 AND 30 THEN 1 ELSE 0 END) AS within_month,
-					SUM(CASE WHEN DATEDIFF(refund.date_created, parent.{$date_column}) > 30 THEN 1 ELSE 0 END) AS beyond_month,
+					SUM(CASE WHEN DATEDIFF(refund.date_created, {$parent_date}) = 0 THEN 1 ELSE 0 END) AS same_day,
+					SUM(CASE WHEN DATEDIFF(refund.date_created, {$parent_date}) BETWEEN 1 AND 7 THEN 1 ELSE 0 END) AS within_week,
+					SUM(CASE WHEN DATEDIFF(refund.date_created, {$parent_date}) BETWEEN 8 AND 30 THEN 1 ELSE 0 END) AS within_month,
+					SUM(CASE WHEN DATEDIFF(refund.date_created, {$parent_date}) > 30 THEN 1 ELSE 0 END) AS beyond_month,
 					COUNT(*) AS total
 				FROM {$os_table} refund
 				LEFT JOIN {$os_table} parent ON parent.order_id = refund.parent_id AND parent.parent_id = 0
@@ -6636,7 +6813,8 @@ class AnalyticsService {
 		$posts_table   = $wpdb->posts;
 		$paid_statuses = self::get_paid_statuses();
 		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$parent_date   = self::row_date_expr( 'parent.' );
+		$period_where  = self::period_where( 'os2.', $date_start, $date_end );
 
 		// Refund-side aggregate per product: pull product_id, group, sum
 		// ABS of product_net_revenue on the refund rows. Join to parent
@@ -6651,7 +6829,7 @@ class AnalyticsService {
 				ABS(SUM(pl.product_net_revenue)) AS refunds_amount,
 				COUNT(*) AS refunds_count,
 				COUNT(DISTINCT refund.parent_id) AS orders_refunded_count,
-				AVG(DATEDIFF(refund.date_created, parent.{$date_column})) AS avg_days_to_refund,
+				AVG(DATEDIFF(refund.date_created, {$parent_date})) AS avg_days_to_refund,
 				COALESCE(paid.paid_gross, 0) AS gross_revenue
 			FROM {$pl_table} pl
 			JOIN {$os_table} refund ON refund.order_id = pl.order_id
@@ -6663,8 +6841,7 @@ class AnalyticsService {
 				JOIN {$os_table} os2 ON os2.order_id = pl2.order_id
 				WHERE os2.parent_id = 0
 					AND os2.status IN ({$paid_ph})
-					AND os2.{$date_column} >= %s
-					AND os2.{$date_column} <= %s
+					AND {$period_where}
 				GROUP BY pl2.product_id
 			) paid ON paid.product_id = pl.product_id
 			WHERE refund.parent_id != 0
@@ -6731,7 +6908,8 @@ class AnalyticsService {
 		$os_table      = $wpdb->prefix . 'wc_order_stats';
 		$paid_statuses = self::get_paid_statuses();
 		$paid_ph       = implode( ', ', array_fill( 0, count( $paid_statuses ), '%s' ) );
-		$date_column   = self::get_date_column();
+		$parent_date   = self::row_date_expr( 'parent.' );
+		$period_where  = self::period_where( 'os2.', $date_start, $date_end );
 
 		$addr = self::revenue_breakdown_country_join( 'refund' );
 		$join = $addr['join'];
@@ -6753,7 +6931,7 @@ class AnalyticsService {
 				ABS(SUM(refund.net_total + refund.tax_total + refund.shipping_total)) AS refunds_amount,
 				COUNT(*) AS refunds_count,
 				COUNT(DISTINCT refund.parent_id) AS orders_refunded_count,
-				AVG(DATEDIFF(refund.date_created, parent.{$date_column})) AS avg_days_to_refund,
+				AVG(DATEDIFF(refund.date_created, {$parent_date})) AS avg_days_to_refund,
 				COALESCE(paid.paid_gross, 0) AS gross_revenue
 			FROM {$os_table} refund
 			LEFT JOIN {$os_table} parent ON parent.order_id = refund.parent_id AND parent.parent_id = 0
@@ -6764,8 +6942,7 @@ class AnalyticsService {
 				{$paid_addr['join']}
 				WHERE os2.parent_id = 0
 					AND os2.status IN ({$paid_ph})
-					AND os2.{$date_column} >= %s
-					AND os2.{$date_column} <= %s
+					AND {$period_where}
 				GROUP BY country
 			) paid ON paid.country = ({$expr})
 			WHERE refund.parent_id != 0
@@ -7126,7 +7303,9 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where    = self::period_where( '', $date_start, $date_end );
+		$period_where_os = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard     = self::basis_dated_guard( 'os.' );
 
 		// `paid_net_revenue` runs as a separate query against
 		// wc_order_stats only — without the wc_order_tax_lookup join.
@@ -7146,8 +7325,7 @@ class AnalyticsService {
 				FROM {$os_table}
 				WHERE parent_id = 0
 					AND status IN ({$paid_ph})
-					AND {$date_column} >= %s
-					AND {$date_column} <= %s",
+					AND {$period_where}",
 				array_merge(
 					$paid_statuses,
 					array( $date_start . ' 00:00:00', $date_end . ' 23:59:59' )
@@ -7166,11 +7344,11 @@ class AnalyticsService {
 					COALESCE(ABS(SUM(CASE WHEN os.parent_id != 0 THEN tl.total_tax ELSE 0 END)), 0) AS refunded_tax,
 					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN tl.total_tax ELSE 0 END), 0) AS pipeline_total_tax,
 					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.order_id END) AS pipeline_orders_count,
-					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN tl.total_tax ELSE 0 END), 0) AS admin_total_tax,
-					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.order_id END) AS admin_orders_count
+					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN tl.total_tax ELSE 0 END), 0) AS admin_total_tax,
+					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.order_id END) AS admin_orders_count
 				FROM {$os_table} os
 				LEFT JOIN {$tl_table} tl ON tl.order_id = os.order_id
-				WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
+				WHERE {$period_where_os}
 					AND ( os.status IN ({$admin_ph}) OR os.parent_id != 0 )",
 				array_merge(
 					$paid_statuses, // total_tax.
@@ -7255,7 +7433,8 @@ class AnalyticsService {
 		$pipeline_ph = implode( ', ', array_fill( 0, count( $pipeline_statuses ), '%s' ) );
 		$admin_ph    = implode( ', ', array_fill( 0, count( $admin_statuses ), '%s' ) );
 
-		$date_column = self::get_date_column();
+		$period_where = self::period_where( 'os.', $date_start, $date_end );
+		$admin_guard  = self::basis_dated_guard( 'os.' );
 
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
@@ -7272,12 +7451,12 @@ class AnalyticsService {
 					COALESCE(ABS(SUM(CASE WHEN os.parent_id != 0 THEN tl.total_tax ELSE 0 END)), 0) AS refunded_tax,
 					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN tl.total_tax ELSE 0 END), 0) AS pipeline_total_tax,
 					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$pipeline_ph}) THEN os.order_id END) AS pipeline_orders_count,
-					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN tl.total_tax ELSE 0 END), 0) AS admin_equivalent_total_tax,
-					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}) THEN os.order_id END) AS admin_equivalent_orders_count
+					COALESCE(SUM(CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN tl.total_tax ELSE 0 END), 0) AS admin_equivalent_total_tax,
+					COUNT(DISTINCT CASE WHEN os.parent_id = 0 AND os.status IN ({$admin_ph}){$admin_guard} THEN os.order_id END) AS admin_equivalent_orders_count
 				FROM {$os_table} os
 				INNER JOIN {$tl_table} tl ON tl.order_id = os.order_id
 				LEFT JOIN {$tr_table} tr ON tl.tax_rate_id = tr.tax_rate_id
-				WHERE os.{$date_column} >= %s AND os.{$date_column} <= %s
+				WHERE {$period_where}
 					AND ( os.status IN ({$admin_ph}) OR os.parent_id != 0 )
 				GROUP BY tl.tax_rate_id
 				HAVING (total_tax + pipeline_total_tax + refunded_tax) > 0
@@ -7539,10 +7718,11 @@ class AnalyticsService {
 		$os_table = $wpdb->prefix . 'wc_order_stats';
 		$from     = "{$os_table} AS os";
 
-		$date_col         = 'os.' . self::get_date_column();
+		// period_where() keeps unpaid on-hold orders visible (dated by
+		// placement) so a `status = on-hold` filter or the pipeline
+		// sibling block doesn't read zero on the date_paid basis.
 		$base_where_extra = array(
-			"{$date_col} >= %s",
-			"{$date_col} <= %s",
+			self::period_where( 'os.', $dates['start'], $dates['end'] ),
 			'os.parent_id = 0',
 		);
 		$base_where_vals  = array( $dates['start'] . ' 00:00:00', $dates['end'] . ' 23:59:59' );
@@ -7588,7 +7768,7 @@ class AnalyticsService {
 			$pipeline_statuses = array( 'wc-on-hold' );
 			$admin_statuses    = array_unique( array_merge( $paid_statuses, $pipeline_statuses, array( 'wc-refunded' ) ) );
 
-			$pipeline         = self::qa_orders_sibling_block(
+			$pipeline = self::qa_orders_sibling_block(
 				$from,
 				$joins,
 				$base_where_extra,
@@ -7598,10 +7778,17 @@ class AnalyticsService {
 				$pipeline_statuses,
 				'On-hold orders matching your filter — awaiting payment, not yet counted as revenue.'
 			);
+			// Match WC core Analytics: on a date_paid / date_completed
+			// basis, orders without that date never reach the dashboard.
+			$admin_where = $base_where_extra;
+			if ( '' !== self::basis_dated_guard( 'os.' ) ) {
+				$admin_where[] = 'NOT ' . self::missing_basis_date_sql( 'os.' );
+			}
+
 			$admin_equivalent = self::qa_orders_sibling_block(
 				$from,
 				$joins,
-				$base_where_extra,
+				$admin_where,
 				$base_where_vals,
 				$filter_sql,
 				$filter_vals,

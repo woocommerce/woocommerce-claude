@@ -400,13 +400,15 @@ class Test_Get_Tax_Summary extends WP_UnitTestCase {
 
 	/**
 	 * Admin_equivalent reflects what WC Admin's Tax report would
-	 * show — paid + on-hold + refunded parents lumped together.
+	 * show — paid + refunded parents lumped together. On the default
+	 * date_paid basis on-hold E has no paid date, so, like the
+	 * dashboard, it's left out.
 	 */
 	public function test_admin_equivalent_block_matches_wc_admin_definition() {
 		$result = $this->run_ability( $this->default_input() );
 
-		$this->assertSame( 114.00, $result['admin_equivalent']['total_tax'], '94 paid + 20 on-hold' );
-		$this->assertSame( 5, $result['admin_equivalent']['orders_count'], '4 paid + 1 on-hold' );
+		$this->assertSame( 94.00, $result['admin_equivalent']['total_tax'], '94 paid; on-hold E has no paid date' );
+		$this->assertSame( 4, $result['admin_equivalent']['orders_count'], '4 paid; on-hold E has no paid date' );
 	}
 
 	/**

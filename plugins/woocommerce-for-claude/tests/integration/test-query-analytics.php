@@ -400,8 +400,10 @@ class Test_Query_Analytics extends WP_UnitTestCase {
 		$this->assertSame( 1, $result['pipeline']['matched_count'] );
 		$this->assertSame( 80.0, $result['pipeline']['net_revenue'] );
 
+		// On the default date_paid basis the on-hold order has no paid
+		// date, so — like WC's dashboard — admin_equivalent leaves it out.
 		$this->assertIsArray( $result['admin_equivalent'] );
-		$this->assertSame( 6, $result['admin_equivalent']['matched_count'] );
+		$this->assertSame( 5, $result['admin_equivalent']['matched_count'] );
 
 		// sample_size_caveat fires at matched_count ≤ 5 — the fixture happens
 		// to sit at exactly 5 paid orders. Assert the presence not the

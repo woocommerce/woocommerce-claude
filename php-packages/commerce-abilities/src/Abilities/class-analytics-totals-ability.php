@@ -38,6 +38,7 @@ UNIVERSAL RULES (the connector instructions carry these in full — repeated her
 - Never sum across the three views (paid / pipeline / admin_equivalent) — they overlap.
 - Never name internal tool identifiers, parameter names, or storage slugs in merchant-facing output. Phrase follow-ups as questions ("Want me to break this down by product?"), not invocations.
 - Never propose new skills, endpoints, or features as a fix for a gap. The reader is a merchant, not the plugin developer.
+- DATE BASIS — every response carries date_basis: which order date the period is filtered on (by default the payment date, the same as the WooCommerce Analytics dashboard), with a plain-English definition. When a merchant's figure might differ from what they remember — e.g. an order placed on Friday but paid on Monday counts in Monday's figures — say so in plain English ("these figures count orders by the date they were paid, the same as your Analytics dashboard"). Never quote the field name.
 - The 365-day extended-range gate fires on every totals call (all six subjects), at this ability's level — before dispatch to the underlying fetch. When the gate fires, present the cost estimate to the merchant, wait for approval, then re-run with the same params. The error data's cost_estimate.type carries the literal value to pass to wc-analytics-confirm-large-range (totals-prefixed for verb-tool calls — e.g. totals:revenue — so approvals do not collide with breakdown or series calls sharing the same subject). See the connector instructions for the full handshake.
 
 ================================================================================
@@ -489,7 +490,13 @@ DESCRIPTION,
 			)
 		);
 
-		return array_merge( array( 'subject' => $subject ), $result );
+		return array_merge(
+			array(
+				'subject'    => $subject,
+				'date_basis' => AnalyticsService::get_date_basis(),
+			),
+			$result
+		);
 	}
 
 	/**

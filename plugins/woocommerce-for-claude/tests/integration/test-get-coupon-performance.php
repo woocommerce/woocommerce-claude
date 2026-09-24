@@ -508,8 +508,9 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 	/**
 	 * Pipeline + admin_equivalent sibling blocks capture Order E's
 	 * on-hold save15 revenue separately from paid figures. Order E is
-	 * £50 on-hold so pipeline sits at £50; admin_equivalent lumps paid +
-	 * pipeline = £330 / 5 orders.
+	 * £50 on-hold so pipeline sits at £50. On the default date_paid basis
+	 * E has no paid date, so admin_equivalent — like WC's dashboard —
+	 * leaves it out: £280 / 4 orders.
 	 */
 	public function test_pipeline_and_admin_equivalent_sibling_totals() {
 		$result = $this->run_ability();
@@ -517,8 +518,8 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 		$this->assertSame( 50.00, (float) $result['pipeline']['revenue'], 'Order E on-hold.' );
 		$this->assertSame( 1, (int) $result['pipeline']['orders_count'] );
 
-		$this->assertSame( 330.00, (float) $result['admin_equivalent']['revenue'], 'Paid 280 + pipeline 50.' );
-		$this->assertSame( 5, (int) $result['admin_equivalent']['orders_count'] );
+		$this->assertSame( 280.00, (float) $result['admin_equivalent']['revenue'], 'Paid 280; unpaid on-hold E is outside the date_paid dashboard view.' );
+		$this->assertSame( 4, (int) $result['admin_equivalent']['orders_count'] );
 	}
 
 	// ─── Per-coupon rows ───────────────────────────────────────────
@@ -583,9 +584,11 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 		$this->assertSame( 50.00, (float) $save15['pipeline_revenue'], 'Order E on-hold on save15.' );
 		$this->assertSame( 1, (int) $save15['pipeline_orders_count'] );
 
-		// admin_equivalent = paid + pipeline + refunded = 140 + 50 + 0.
-		$this->assertSame( 190.00, (float) $save15['admin_equivalent_revenue'] );
-		$this->assertSame( 3, (int) $save15['admin_equivalent_orders_count'], 'A + C paid + E on-hold.' );
+		// admin_equivalent = paid + refunded = 140 + 0. On the default
+		// date_paid basis on-hold E has no paid date, so it's left out,
+		// matching WC's dashboard.
+		$this->assertSame( 140.00, (float) $save15['admin_equivalent_revenue'] );
+		$this->assertSame( 2, (int) $save15['admin_equivalent_orders_count'], 'A + C paid; E on-hold has no paid date.' );
 	}
 
 	// ─── Multi-coupon double-count ─────────────────────────────────

@@ -233,9 +233,11 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 
 	/**
 	 * Three-view integrity — `metrics` is paid-only, `pipeline` is
-	 * on-hold-only, `admin_equivalent` is paid + on-hold + refunded.
-	 * A pipeline-only customer (D) and a refunded-only customer (E)
-	 * must not leak into the paid view.
+	 * on-hold-only, `admin_equivalent` is paid + refunded (+ on-hold
+	 * orders that carry the basis date). A pipeline-only customer (D)
+	 * and a refunded-only customer (E) must not leak into the paid view.
+	 * On the default date_paid basis D's on-hold order has no paid date,
+	 * so — like WC's dashboard — admin_equivalent leaves it out.
 	 */
 	public function test_three_view_integrity_no_leak() {
 		$result = $this->run_ability();
@@ -254,9 +256,9 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 		// Admin equivalent — paid + on-hold + refunded, sum convention.
 		$adm = $result['admin_equivalent'];
 		$this->assertSame(
-			4,
+			3,
 			(int) $adm['new_customers'],
-			'A, C, D, E all placed a flag=0 order under admin statuses.'
+			'A, C, E placed a flag=0 order under admin statuses; on-hold D has no paid date.'
 		);
 		$this->assertSame(
 			2,
@@ -264,14 +266,14 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 			'B-Oct and C-second placed flag=1 orders under admin statuses.'
 		);
 		$this->assertSame(
-			6,
+			5,
 			(int) $adm['total_customers'],
 			'admin_total = new + returning (WC Admin sum convention; can double-count flag-flippers).'
 		);
 		$this->assertSame(
-			6,
+			5,
 			(int) $adm['orders_count'],
-			'6 admin-status orders: A + B-Oct + C-first + C-second + D + E.'
+			'5 dashboard-visible orders: A + B-Oct + C-first + C-second + E (on-hold D has no paid date).'
 		);
 	}
 

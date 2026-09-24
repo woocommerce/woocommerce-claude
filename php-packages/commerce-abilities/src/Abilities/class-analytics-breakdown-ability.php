@@ -39,6 +39,7 @@ UNIVERSAL RULES (the connector instructions carry these in full):
 - Never sum across the three views per row (paid / pipeline / admin_equivalent) — they overlap.
 - Never name internal tool identifiers, parameter names, or storage slugs in merchant-facing output. Phrase follow-ups as questions, not invocations.
 - Never propose new skills, endpoints, or features as a fix for a gap. The reader is a merchant.
+- DATE BASIS — every response carries date_basis: which order date the period is filtered on (by default the payment date, the same as the WooCommerce Analytics dashboard), with a plain-English definition. When a merchant's figure might differ from what they remember — e.g. an order placed on Friday but paid on Monday counts in Monday's figures — say so in plain English ("these figures count orders by the date they were paid, the same as your Analytics dashboard"). Never quote the field name.
 - Pre-computed share / rate / over-index / coverage / effective-cost fields are pre-computed for a reason — read them; don't derive them. Rounding will disagree with what the tool returned otherwise.
 
 THREE-VIEWS-PER-ROW — the dominant pattern across most subjects:
@@ -525,8 +526,9 @@ DESCRIPTION,
 
 		return array_merge(
 			array(
-				'subject'   => $subject,
-				'dimension' => $dimension,
+				'subject'    => $subject,
+				'dimension'  => $dimension,
+				'date_basis' => AnalyticsService::get_date_basis(),
 			),
 			$result
 		);

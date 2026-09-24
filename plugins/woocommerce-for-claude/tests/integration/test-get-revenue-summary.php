@@ -321,12 +321,14 @@ class Test_Get_Revenue_Summary extends WP_UnitTestCase {
 	/**
 	 * Three-view split: `pipeline` is on-hold-only, `admin_equivalent`
 	 * sums paid + on-hold + refunded parents + refund sub-orders
-	 * (WC Admin Reports convention).
+	 * (WC Admin Reports convention) — but only parents carrying the
+	 * basis date, as WC's dashboard filters strictly on it.
 	 *
-	 * Pipeline: O4 only → £30 / 1 order.
-	 * Admin equivalent: £60 (O1) + £30 (O2) + £30 (O3) + £30 (O4 on-hold)
-	 *   + £30 (O5 refunded main) + (−£30) (O6 refund sub) = £150.
-	 * Admin orders (parent_id=0 in admin statuses): O1–O5 = 5 orders.
+	 * Pipeline: O4 only → £30 / 1 order (dated by placement).
+	 * Admin equivalent on the default date_paid basis: £60 (O1) + £30
+	 *   (O2) + £30 (O3) + £30 (O5 refunded main) + (−£30) (O6 refund
+	 *   sub) = £120. On-hold O4 has no paid date, so it's left out.
+	 * Admin orders: O1, O2, O3, O5 = 4 orders.
 	 * Pending (O7) is NOT in admin statuses so does not contribute.
 	 */
 	public function test_pipeline_and_admin_equivalent_blocks() {
@@ -337,14 +339,14 @@ class Test_Get_Revenue_Summary extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'definition', $result['pipeline'] );
 
 		$this->assertSame(
-			150.00,
+			120.00,
 			(float) $result['admin_equivalent']['revenue'],
-			'£60 + £30 + £30 paid + £30 on-hold + £30 refunded main + (−£30) refund sub = £150.'
+			'£60 + £30 + £30 paid + £30 refunded main + (−£30) refund sub = £120; on-hold O4 has no paid date.'
 		);
 		$this->assertSame(
-			5,
+			4,
 			(int) $result['admin_equivalent']['orders_count'],
-			'5 admin-status parent orders (paid, on-hold, refunded). Pending excluded.'
+			'4 dashboard-visible parent orders (paid, refunded). On-hold O4 has no paid date; pending excluded.'
 		);
 	}
 
