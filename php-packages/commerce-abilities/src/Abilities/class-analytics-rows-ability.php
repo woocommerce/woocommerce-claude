@@ -35,9 +35,11 @@ WHEN TO USE THIS TOOL vs siblings:
 - Use entity=products for catalog-plus-sales-velocity questions ("priced right but not moving", "out-of-stock but had sales last week") that no other tool covers.
 - Use entity=customers for lifetime-attribute filtering ("Germany + LTV > £500 + hasn't ordered in 90 days") that goes beyond the top-N shapes in totals subject=customer_value or totals subject=customers.
 
+DATE BASIS — every response carries date_basis: which order date the period is filtered on (by default the payment date, the same as the WooCommerce Analytics dashboard), with a plain-English definition. When a merchant's figure might differ from what they remember — e.g. an order placed on Friday but paid on Monday counts in Monday's figures — say so in plain English ("these figures count orders by the date they were paid, the same as your Analytics dashboard"). Never quote the field name.
+
 ENTITIES + FIELD REGISTRIES:
 
-ORDERS — filter orders placed in the period. Default status: paid (completed + processing). Use an explicit status filter to include on-hold / refunded / pending.
+ORDERS — filter orders in the period. Default status: paid (completed + processing). Use an explicit status filter to include on-hold / refunded / pending.
 
   Numeric fields: order_total, gross_total, num_items_sold, tax_total, shipping_total, discount_amount
   String fields (with operators is / is_not / is_in / is_not_in / contains / not_contains / starts_with / is_empty / is_not_empty): currency, payment_method, billing_country, billing_state, billing_city, billing_postcode, shipping_country, shipping_state, attribution_channel, attribution_source, attribution_campaign, attribution_device, coupon_code
@@ -320,6 +322,8 @@ DESCRIPTION,
 				'bucket_count'  => null,
 			)
 		);
+
+		$result['date_basis'] = AnalyticsService::get_date_basis();
 
 		return $result;
 	}

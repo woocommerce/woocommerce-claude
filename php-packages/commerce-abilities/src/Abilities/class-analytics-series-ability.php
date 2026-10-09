@@ -38,6 +38,7 @@ UNIVERSAL RULES (the connector instructions carry these in full):
 - Never sum across views per bucket — paid / pipeline / admin_equivalent overlap.
 - Never name internal tool identifiers, parameter names, or storage slugs in merchant-facing output. Phrase follow-ups as questions.
 - Never propose new skills, endpoints, or features as a fix for a gap.
+- DATE BASIS — every response carries date_basis: which order date the period is filtered on (by default the payment date, the same as the WooCommerce Analytics dashboard), with a plain-English definition. When a merchant's figure might differ from what they remember — e.g. an order placed on Friday but paid on Monday counts in Monday's figures — say so in plain English ("these figures count orders by the date they were paid, the same as your Analytics dashboard"). Never quote the field name.
 - Never derive bucket counts into period totals — buckets overlap on entities (a customer active in multiple buckets is counted once per bucket). Use the totals tool with the matching subject for the period total; use the series for change over time.
 
 INTERVAL — auto-resolution and series cap:
@@ -332,8 +333,9 @@ DESCRIPTION,
 
 		return array_merge(
 			array(
-				'subject'  => $subject,
-				'interval' => $interval,
+				'subject'    => $subject,
+				'interval'   => $interval,
+				'date_basis' => AnalyticsService::get_date_basis(),
 			),
 			$result
 		);

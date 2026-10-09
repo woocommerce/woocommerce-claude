@@ -126,6 +126,29 @@ class AnalyticsService {
 	}
 
 	/**
+	 * Plain-English disclosure of the date basis, for verb-tool responses.
+	 *
+	 * Gives the model enough to explain why a figure might not match what
+	 * the merchant remembers — e.g. an order placed on Friday but paid on
+	 * Monday lands in Monday's figures on the date_paid basis.
+	 *
+	 * @return array { value: string, definition: string }.
+	 */
+	public static function get_date_basis() {
+		$column      = self::get_date_column();
+		$definitions = array(
+			'date_paid'      => 'Orders are dated by when payment was received, the same as the WooCommerce Analytics dashboard. An order placed on one day and paid on a later day counts on the day it was paid. Unpaid orders (on-hold, pending, failed) have no payment date yet, so the pipeline and order-status figures date them by when they were placed, and the dashboard-matching figures leave them out, as the dashboard does. Refunds are dated by when they were issued.',
+			'date_completed' => 'Orders are dated by when they were marked completed, the same as the WooCommerce Analytics dashboard. Orders still processing have no completion date yet and are not counted until they are completed. Unpaid orders (on-hold, pending, failed) are dated by when they were placed in the pipeline and order-status figures, and left out of the dashboard-matching figures. Refunds are dated by when they were issued.',
+			'date_created'   => 'Orders are dated by when they were placed, the same as the WooCommerce Analytics dashboard. Refunds are dated by when they were issued.',
+		);
+
+		return array(
+			'value'      => $column,
+			'definition' => $definitions[ $column ],
+		);
+	}
+
+	/**
 	 * SQL expression for the date an order row is reported under.
 	 *
 	 * Paid and refunded orders (and their refund rows, which carry the parent's
