@@ -260,6 +260,17 @@ $make_order = static function ( $label, $args ) use ( $fixture_key, $now, $sync_
 	$order->calculate_taxes();
 	$order->calculate_totals();
 	$order->set_status( $args['status'] );
+
+	// Date paid / completed orders on their order date. Left unset, WC stamps
+	// them "now" on save, and analytics (which defaults to date_paid, as WC
+	// does) would put every fixture order on the seed day.
+	if ( in_array( $args['status'], array_merge( wc_get_is_paid_statuses(), array( 'refunded' ) ), true ) ) {
+		$order->set_date_paid( $date );
+	}
+	if ( in_array( $args['status'], array( 'completed', 'refunded' ), true ) ) {
+		$order->set_date_completed( $date );
+	}
+
 	$order->save();
 	$sync_order( $order->get_id() );
 

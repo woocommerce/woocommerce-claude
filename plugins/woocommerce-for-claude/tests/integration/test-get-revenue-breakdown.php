@@ -620,6 +620,10 @@ class Test_Get_Revenue_Breakdown extends WP_UnitTestCase {
 	 * reconciliation assertion).
 	 */
 	public function test_top_level_totals() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability( array( 'group_by' => 'country' ) );
 
 		$this->assertSame( 330.00, (float) $result['totals']['net_revenue'] );

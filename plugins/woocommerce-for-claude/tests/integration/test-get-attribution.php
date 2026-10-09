@@ -762,6 +762,10 @@ class Test_Get_Attribution extends WP_UnitTestCase {
 	 *     admin_equivalent 90 (2 orders).
 	 */
 	public function test_per_group_pipeline_and_admin_equivalent() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability( array( 'group_by' => 'source' ) );
 
 		$google = $this->find_group( $result['top_groups'], 'google' );
