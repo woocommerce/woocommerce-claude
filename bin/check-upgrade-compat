@@ -8,7 +8,7 @@
 #   4. Replace only the plugin files with the current release zip.
 #   5. Confirm the stored key is unchanged and tools/list still works.
 #
-# This intentionally uses a disposable wp-env project in /private/tmp and does
+# This intentionally uses a disposable wp-env project in a temp directory and does
 # not touch the user's Claude Desktop or Claude Code MCP configuration.
 
 set -euo pipefail
@@ -16,7 +16,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CURRENT_ZIP="${CURRENT_ZIP:-$REPO_ROOT/woocommerce-claude.zip}"
 BASELINE_ZIP_URL="${BASELINE_ZIP_URL:-https://github.com/woocommerce/woocommerce-claude/releases/download/v0.4.2/woocommerce-claude.zip}"
-WORK_DIR="${WORK_DIR:-/private/tmp/woocommerce-claude-upgrade-smoke}"
+# GitHub Actions provides RUNNER_TEMP. Locally, macOS keeps /tmp under
+# /private/tmp (shared with Docker Desktop by default); Linux has no /private.
+if [ -n "${RUNNER_TEMP:-}" ]; then
+	DEFAULT_TMP="$RUNNER_TEMP"
+elif [ -d /private/tmp ]; then
+	DEFAULT_TMP="/private/tmp"
+else
+	DEFAULT_TMP="/tmp"
+fi
+WORK_DIR="${WORK_DIR:-$DEFAULT_TMP/woocommerce-claude-upgrade-smoke}"
 PORT="${PORT:-8898}"
 
 cd "$REPO_ROOT"
