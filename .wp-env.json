@@ -1,6 +1,6 @@
 {
   "core": "WordPress/WordPress#6.9",
-  "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.zip", "https://downloads.wordpress.org/plugin/gutenberg.zip"],
+  "plugins": ["https://downloads.wordpress.org/plugin/woocommerce.10.7.0.zip", "https://downloads.wordpress.org/plugin/gutenberg.24.0.0.zip"],
   "mappings": {
     "wp-content/plugins/hey-woo-monorepo": ".",
     "wp-content/plugins/hey-woo": "./plugins/hey-woo",
