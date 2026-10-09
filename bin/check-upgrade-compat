@@ -42,7 +42,11 @@ curl -fsSL -o "$WORK_DIR/woocommerce-claude-0.4.2.zip" "$BASELINE_ZIP_URL"
 unzip -q "$WORK_DIR/woocommerce-claude-0.4.2.zip" -d "$WORK_DIR/baseline"
 unzip -q "$CURRENT_ZIP" -d "$WORK_DIR/current"
 cp -R "$WORK_DIR/baseline/woocommerce-claude/." "$WORK_DIR/active-plugin/"
-cp -R "$REPO_ROOT/tools/mu-plugins/." "$WORK_DIR/tools/mu-plugins/"
+# tools/mu-plugins was removed with the old WC MCP piggyback; the mapping
+# stays so dev mu-plugins are picked up if the directory comes back.
+if [ -d "$REPO_ROOT/tools/mu-plugins" ]; then
+	cp -R "$REPO_ROOT/tools/mu-plugins/." "$WORK_DIR/tools/mu-plugins/"
+fi
 
 cat > "$WORK_DIR/.wp-env.json" <<JSON
 {
