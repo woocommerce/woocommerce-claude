@@ -508,12 +508,14 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 	 *
 	 * P2:
 	 *   Paid         O2 1×P2=£50                        = £50
-	 *   On-hold      O4 1×P2=£50 — no paid date, so on
-	 *                the default date_paid basis it's
-	 *                outside the dashboard view         = £0
-	 *   ────────────────────────────────────────────────── £50 (qty 1)
+	 *   On-hold      O4 1×P2=£50 (wc-on-hold is admin)  = £50
+	 *   ────────────────────────────────────────────────── £100 (qty 2)
 	 */
 	public function test_per_product_admin_equivalent_netting() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		$p1 = $this->find_product( $result['top_products'], $this->ids['p1'] );
@@ -526,16 +528,16 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 
 		$p2 = $this->find_product( $result['top_products'], $this->ids['p2'] );
 		$this->assertSame(
-			50.00,
+			100.00,
 			(float) $p2['admin_equivalent_revenue'],
-			'P2 admin: £50 paid; on-hold O4 has no paid date so the dashboard-matching view leaves it out.'
+			'P2 admin: £50 paid + £50 on-hold = £100.'
 		);
-		$this->assertSame( 1, (int) $p2['admin_equivalent_quantity'] );
+		$this->assertSame( 2, (int) $p2['admin_equivalent_quantity'] );
 
 		// Top-level admin_equivalent = sum across products:
-		// P1 £90 + P2 £50 + P3 £40 = £180, qty 3+1+2 = 6.
-		$this->assertSame( 180.00, (float) $result['admin_equivalent']['revenue'] );
-		$this->assertSame( 6, (int) $result['admin_equivalent']['quantity'] );
+		// P1 £90 + P2 £100 + P3 £40 = £230, qty 3+2+2 = 7.
+		$this->assertSame( 230.00, (float) $result['admin_equivalent']['revenue'] );
+		$this->assertSame( 7, (int) $result['admin_equivalent']['quantity'] );
 	}
 
 	/**

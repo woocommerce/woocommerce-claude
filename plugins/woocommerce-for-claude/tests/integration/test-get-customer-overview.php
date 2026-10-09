@@ -233,13 +233,15 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 
 	/**
 	 * Three-view integrity — `metrics` is paid-only, `pipeline` is
-	 * on-hold-only, `admin_equivalent` is paid + refunded (+ on-hold
-	 * orders that carry the basis date). A pipeline-only customer (D)
-	 * and a refunded-only customer (E) must not leak into the paid view.
-	 * On the default date_paid basis D's on-hold order has no paid date,
-	 * so — like WC's dashboard — admin_equivalent leaves it out.
+	 * on-hold-only, `admin_equivalent` is paid + on-hold + refunded.
+	 * A pipeline-only customer (D) and a refunded-only customer (E)
+	 * must not leak into the paid view.
 	 */
 	public function test_three_view_integrity_no_leak() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		// Primary (paid-only) — D and E must not leak in.
@@ -256,9 +258,9 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 		// Admin equivalent — paid + on-hold + refunded, sum convention.
 		$adm = $result['admin_equivalent'];
 		$this->assertSame(
-			3,
+			4,
 			(int) $adm['new_customers'],
-			'A, C, E placed a flag=0 order under admin statuses; on-hold D has no paid date.'
+			'A, C, D, E all placed a flag=0 order under admin statuses.'
 		);
 		$this->assertSame(
 			2,
@@ -266,14 +268,14 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 			'B-Oct and C-second placed flag=1 orders under admin statuses.'
 		);
 		$this->assertSame(
-			5,
+			6,
 			(int) $adm['total_customers'],
 			'admin_total = new + returning (WC Admin sum convention; can double-count flag-flippers).'
 		);
 		$this->assertSame(
-			5,
+			6,
 			(int) $adm['orders_count'],
-			'5 dashboard-visible orders: A + B-Oct + C-first + C-second + E (on-hold D has no paid date).'
+			'6 admin-status orders: A + B-Oct + C-first + C-second + D + E.'
 		);
 	}
 

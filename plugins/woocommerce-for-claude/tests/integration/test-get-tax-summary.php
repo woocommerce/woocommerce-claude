@@ -292,6 +292,8 @@ class Test_Get_Tax_Summary extends WP_UnitTestCase {
 				'parent_id'        => $parent_order->get_id(),
 				'date_created'     => $date,
 				'date_created_gmt' => $date,
+				'date_paid'        => $date,
+				'date_completed'   => $date,
 				'num_items_sold'   => 0,
 				'total_sales'      => (float) $amount,
 				'tax_total'        => 0,
@@ -400,15 +402,17 @@ class Test_Get_Tax_Summary extends WP_UnitTestCase {
 
 	/**
 	 * Admin_equivalent reflects what WC Admin's Tax report would
-	 * show — paid + refunded parents lumped together. On the default
-	 * date_paid basis on-hold E has no paid date, so, like the
-	 * dashboard, it's left out.
+	 * show — paid + on-hold + refunded parents lumped together.
 	 */
 	public function test_admin_equivalent_block_matches_wc_admin_definition() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability( $this->default_input() );
 
-		$this->assertSame( 94.00, $result['admin_equivalent']['total_tax'], '94 paid; on-hold E has no paid date' );
-		$this->assertSame( 4, $result['admin_equivalent']['orders_count'], '4 paid; on-hold E has no paid date' );
+		$this->assertSame( 114.00, $result['admin_equivalent']['total_tax'], '94 paid + 20 on-hold' );
+		$this->assertSame( 5, $result['admin_equivalent']['orders_count'], '4 paid + 1 on-hold' );
 	}
 
 	/**

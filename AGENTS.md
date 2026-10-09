@@ -60,7 +60,7 @@ hey-woo/
 
 ```bash
 pnpm install                      # first run only
-pnpm exec wp-env start            # boots WP 6.9 + WC + this plugin on http://localhost:8888
+pnpm exec wp-env start            # boots WP 6.9 + WC 10.7.0 + Gutenberg 24.0.0 + this plugin on http://localhost:8888
                                    # afterStart activates WC + WooCommerce for Claude, installs WC pages,
                                    # sets a UK store address (London / GBP)
 ./bin/check                        # full pre-push gate (PHPCS, composer audit, PHPUnit, DCC)
@@ -110,6 +110,16 @@ pnpm exec wp-env start
 
 The DCC step (`bin/check-dcc`) is gated — it auto-skips when `vendor-plugins/wca-data-consistency/` isn't present, or when the dev store has no orders. Don't try to "fix" the skip; the upstream plugin is privately distributed and there's no public install path yet.
 
+### wp-env plugin versions are pinned on purpose
+
+`.wp-env.json` (and the disposable env in `bin/check-upgrade-compat`) pins `woocommerce.10.7.0.zip` and `gutenberg.24.0.0.zip` against core `WordPress/WordPress#6.9`. Don't switch back to the unversioned `woocommerce.zip` / `gutenberg.zip` URLs: WooCommerce 11.1+ and Gutenberg 24.1+ require WordPress 7.0, so the activation in afterStart fails on 6.9. When that happens, the activation aborts and woocommerce-claude and hey-woo stay inactive.
+
+CI does **not** read `.wp-env.json`. The PHPUnit job uses `bin/install-wp-tests.sh … latest`, which installs the latest WordPress and `woocommerce.latest-stable.zip`. This split is deliberate: wp-env tests the declared floor (WP 6.9, WC tested-up-to 10.7) and CI tests the latest releases. When you bump `WC tested up to`, bump the wp-env pin with it.
+
+### MCP route 404s while the REST root works
+
+If `/wp-json/` answers but `/wp-json/woocommerce-claude/mcp` returns `rest_no_route`, check the index. If it lists no `wc/*` namespaces, the web container is serving empty plugin mounts. `wp plugin list` can still report everything as active, because WP-CLI runs in the separate `cli` container. To compare what each side sees, run `docker exec <…-wordpress-1> ls wp-content/plugins/woocommerce` and `pnpm exec wp-env run cli -- ls wp-content/plugins/woocommerce`. This is a Docker Desktop bind-mount problem (seen on Docker 29.3 / macOS 27), not a plugin or version issue. Recreating the containers restores the mounts, but sometimes only for a short while; restarting Docker Desktop is the next thing to try.
+
 ### MCP requires HTTPS by default
 
 Local wp-env runs on plain HTTP. The WooCommerce for Claude MCP transport (`WP\MCP\Transport\HttpTransport`) does not enforce HTTPS, so curl-style local testing against `/wp-json/woocommerce-claude/mcp` works without a TLS cert. Production stores should still front the endpoint with HTTPS.
@@ -133,6 +143,12 @@ This section is about registered analytics Abilities under `php-packages/commerc
 composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerce-abilities --no-progress --prefer-dist
 composer update --working-dir=plugins/hey-woo woocommerce/commerce-abilities --no-progress --prefer-dist
 ```
+
+`composer update` only re-mirrors when the package's version changes. For a second edit at the same version, PHPUnit silently runs against the stale vendor copy — use `composer reinstall --working-dir=<plugin> woocommerce/commerce-abilities` instead, and `diff` the source file against `plugins/<plugin>/vendor/woocommerce/commerce-abilities/...` if in doubt.
+
+### Report dates: use the report-date helpers, not the raw date column
+
+Analytics SQL must filter with `AnalyticsService::get_report_date_range_sql( $qualifier, $date_start, $date_end )` and bucket or select with `get_report_date_sql( $qualifier )`, not `get_date_column()` directly. The range helper returns SQL with the dates already bound (drop the two date placeholders from the query's args) and is written as two plain column ranges joined by OR, so MySQL can use the `date_created` and `idx_date_paid_status_parent` indexes — a range over the CASE expression forces a full table scan. Both follow the merchant's WC Analytics "Date type" (defaulting to `date_paid`, as WC does — the option is usually never saved) for paid and refunded orders, and uses `date_created` for unpaid statuses, which have no paid or completed date. `admin_equivalent` CASE branches add `get_admin_date_guard_sql()` so unpaid on-hold orders drop out under `date_paid`, matching the WC Admin dashboard.
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 

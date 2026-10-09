@@ -86,7 +86,6 @@ Every MCP tool description in `php-packages/commerce-abilities/src/Abilities/cla
 - **Refund sub-orders**: Must filter with `parent_id = 0` or refund orders inflate customer counts.
 - **Refunds formula**: Must include tax and shipping components (`net_total + tax_total + shipping_total`), not just `net_total`.
 - **Returning customer flag**: Set at order creation time — a customer can appear in both new and returning buckets within the same date range.
-- **Date basis**: Period filters follow WC Analytics' "Date type" setting (`woocommerce_date_type`), which WC never writes on install — so, like WC core, `AnalyticsService::get_date_column()` falls back to `date_paid`. Unpaid orders (on-hold, pending, failed) have NULL `date_paid`, so filter `wc_order_stats` periods with `AnalyticsService::period_where()` rather than a raw `{column} >= %s AND {column} <= %s` pair: it dates unpaid parents and refund sub-orders by `date_created` so pipeline and status views don't read zero. Add `basis_dated_guard()` to `admin_equivalent` CASE branches so they still match the dashboard, which drops those orders. Use `row_date_expr()` for time buckets over rows the fallback admits, and include `get_date_column()` in every cache key. Verb-tool responses disclose the basis as `date_basis`.
 
 ## Caching
 

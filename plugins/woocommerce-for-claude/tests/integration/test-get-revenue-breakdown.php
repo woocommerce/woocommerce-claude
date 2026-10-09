@@ -614,14 +614,16 @@ class Test_Get_Revenue_Breakdown extends WP_UnitTestCase {
 	/**
 	 * Top-level totals match the store-wide paid-revenue aggregate
 	 * (£330 / 4 orders / 5 items). Pipeline + admin_equivalent sibling
-	 * blocks carry the on-hold and dashboard-matching figures — on the
-	 * default date_paid basis the unpaid on-hold order is outside the
-	 * latter, as on WC's dashboard.
+	 * blocks carry the on-hold + paid+pipeline+refunded lumped figures.
 	 * Also pins the post-E14 totals.refunds / totals.net_sales pair
 	 * (see test_totals_net_sales_reconciles_with_refunds for the
 	 * reconciliation assertion).
 	 */
 	public function test_top_level_totals() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability( array( 'group_by' => 'country' ) );
 
 		$this->assertSame( 330.00, (float) $result['totals']['net_revenue'] );
@@ -632,8 +634,8 @@ class Test_Get_Revenue_Breakdown extends WP_UnitTestCase {
 		$this->assertSame( 50.00, (float) $result['pipeline']['revenue'] );
 		$this->assertSame( 1, (int) $result['pipeline']['orders_count'] );
 
-		$this->assertSame( 330.00, (float) $result['admin_equivalent']['revenue'] );
-		$this->assertSame( 4, (int) $result['admin_equivalent']['orders_count'] );
+		$this->assertSame( 380.00, (float) $result['admin_equivalent']['revenue'] );
+		$this->assertSame( 5, (int) $result['admin_equivalent']['orders_count'] );
 	}
 
 	/**

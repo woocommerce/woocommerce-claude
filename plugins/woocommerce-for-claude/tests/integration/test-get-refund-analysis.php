@@ -771,7 +771,7 @@ class Test_Get_Refund_Analysis extends WP_UnitTestCase {
 			'Sanity precondition: at least one refund sub-order must have NULL date_paid after the simulation UPDATE — without that, the regression isn\'t actually exercising the bug path.'
 		);
 
-		$prior = get_option( 'woocommerce_date_type', 'date_paid' );
+		$prior = get_option( 'woocommerce_date_type', 'date_created' );
 		update_option( 'woocommerce_date_type', 'date_paid' );
 
 		try {

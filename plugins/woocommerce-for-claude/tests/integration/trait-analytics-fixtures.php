@@ -126,6 +126,17 @@ trait AnalyticsFixtures {
 
 		if ( null !== $date ) {
 			$order->set_date_created( $date );
+
+			// Mirror a real store: a paid order was paid (and a completed one
+			// completed) when it was placed. Left unset, WC stamps both as
+			// "now" on save, which moves the order out of its period under the
+			// default date_paid date type. On-hold orders keep no paid date.
+			if ( in_array( $status, array_merge( wc_get_is_paid_statuses(), array( 'refunded' ) ), true ) ) {
+				$order->set_date_paid( $date );
+			}
+			if ( in_array( $status, array( 'completed', 'refunded' ), true ) ) {
+				$order->set_date_completed( $date );
+			}
 		}
 
 		if ( ! empty( $args['attribution'] ) && is_array( $args['attribution'] ) ) {
@@ -149,25 +160,6 @@ trait AnalyticsFixtures {
 		}
 
 		$order->save();
-
-		// WC stamps date_paid / date_completed with "now" when the order
-		// reaches a paid / completed status, even though date_created was
-		// back-dated above. Realign them on the order itself (so any later
-		// re-sync keeps them) to model an order paid — and completed — on
-		// the day it was placed; otherwise every back-dated order falls
-		// outside its period on the default date_paid basis. A `refunded`
-		// order was paid before it was refunded, so it gets a paid date
-		// too. On-hold / pending orders keep a NULL date_paid, which is
-		// exactly the shape the pipeline fallback handles.
-		if ( null !== $date ) {
-			if ( $order->get_date_paid() || 'refunded' === $status ) {
-				$order->set_date_paid( $date );
-			}
-			if ( $order->get_date_completed() ) {
-				$order->set_date_completed( $date );
-			}
-			$order->save();
-		}
 
 		// OrdersStatsStore writes the wc_order_stats row. WC's live pipeline
 		// queues it via Action Scheduler, which doesn't run in tests.
@@ -306,6 +298,7 @@ trait AnalyticsFixtures {
 				'date_created'     => $date,
 				'date_created_gmt' => $date,
 				'date_paid'        => $date,
+				'date_completed'   => $date,
 				'num_items_sold'   => 1,
 				'total_sales'      => (float) $total,
 				'tax_total'        => 0,
@@ -314,7 +307,7 @@ trait AnalyticsFixtures {
 				'status'           => 'wc-completed',
 				'customer_id'      => 0,
 			),
-			array( '%d', '%d', '%s', '%s', '%s', '%d', '%f', '%f', '%f', '%f', '%s', '%d' )
+			array( '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%f', '%f', '%f', '%f', '%s', '%d' )
 		);
 
 		return $order_id;
@@ -533,7 +526,8 @@ trait AnalyticsFixtures {
 		if ( ! empty( $args['date'] ) ) {
 			// WC's stats sync writes the row's date_created as "now" rather
 			// than the refund object's date. Realign so the row falls in
-			// the requested period.
+			// the requested period. WC copies date_created into date_paid
+			// and date_completed for refund rows, so realign those too.
 			global $wpdb;
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Test fixture.
 			$wpdb->update(
@@ -541,43 +535,13 @@ trait AnalyticsFixtures {
 				array(
 					'date_created'     => $args['date'],
 					'date_created_gmt' => $args['date'],
+					'date_paid'        => $args['date'],
+					'date_completed'   => $args['date'],
 				),
 				array( 'order_id' => $refund->get_id() )
 			);
-
-			// WC copies the refund's date_created into date_paid /
-			// date_completed at sync time; keep them in step.
-			$this->align_order_stats_dates( $refund->get_id(), $args['date'] );
 		}
 
 		return $refund;
-	}
-
-	/**
-	 * Set a wc_order_stats row's non-NULL date_paid / date_completed to
-	 * the given timestamp. NULL columns stay NULL.
-	 *
-	 * @param int    $order_id Order (or refund) ID.
-	 * @param string $date     'Y-m-d H:i:s' timestamp.
-	 * @return void
-	 */
-	protected function align_order_stats_dates( $order_id, $date ) {
-		global $wpdb;
-
-		$table = $wpdb->prefix . 'wc_order_stats';
-
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Test fixture; $table is the prefixed core table name.
-		$wpdb->query(
-			$wpdb->prepare(
-				"UPDATE {$table}
-				SET date_paid = IF( date_paid IS NULL, NULL, %s ),
-					date_completed = IF( date_completed IS NULL, NULL, %s )
-				WHERE order_id = %d",
-				$date,
-				$date,
-				(int) $order_id
-			)
-		);
-		// phpcs:enable
 	}
 }

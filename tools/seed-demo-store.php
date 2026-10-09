@@ -1619,11 +1619,18 @@ for ( $i = 0; $i < $num_orders; $i++ ) {
 			$refund->set_date_created( $refund_date );
 			$refund->save();
 
-			// Also update the refund's entry in wc_order_stats to the correct date.
+			// Also update the refund's entry in wc_order_stats to the correct
+			// date. WC copies date_created into date_paid / date_completed for
+			// refund rows, so realign those too, or analytics (which defaults
+			// to date_paid) would put every refund on the seed day.
 			global $wpdb;
 			$wpdb->update(
 				$wpdb->prefix . 'wc_order_stats',
-				array( 'date_created' => $refund_date ),
+				array(
+					'date_created'   => $refund_date,
+					'date_paid'      => $refund_date,
+					'date_completed' => $refund_date,
+				),
 				array( 'order_id' => $refund->get_id() )
 			);
 		}
