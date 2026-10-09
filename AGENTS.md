@@ -136,9 +136,9 @@ composer update --working-dir=plugins/hey-woo woocommerce/commerce-abilities --n
 
 `composer update` only re-mirrors when the package's version changes. For a second edit at the same version, PHPUnit silently runs against the stale vendor copy — use `composer reinstall --working-dir=<plugin> woocommerce/commerce-abilities` instead, and `diff` the source file against `plugins/<plugin>/vendor/woocommerce/commerce-abilities/...` if in doubt.
 
-### Report dates: use `get_report_date_sql()`, not the raw date column
+### Report dates: use the report-date helpers, not the raw date column
 
-Analytics SQL must filter and bucket by `AnalyticsService::get_report_date_sql( $qualifier )`, not `get_date_column()` directly. It follows the merchant's WC Analytics "Date type" (defaulting to `date_paid`, as WC does — the option is usually never saved) for paid and refunded orders, and uses `date_created` for unpaid statuses, which have no paid or completed date. `admin_equivalent` CASE branches add `get_admin_date_guard_sql()` so unpaid on-hold orders drop out under `date_paid`, matching the WC Admin dashboard.
+Analytics SQL must filter with `AnalyticsService::get_report_date_range_sql( $qualifier, $date_start, $date_end )` and bucket or select with `get_report_date_sql( $qualifier )`, not `get_date_column()` directly. The range helper returns SQL with the dates already bound (drop the two date placeholders from the query's args) and is written as two plain column ranges joined by OR, so MySQL can use the `date_created` and `idx_date_paid_status_parent` indexes — a range over the CASE expression forces a full table scan. Both follow the merchant's WC Analytics "Date type" (defaulting to `date_paid`, as WC does — the option is usually never saved) for paid and refunded orders, and uses `date_created` for unpaid statuses, which have no paid or completed date. `admin_equivalent` CASE branches add `get_admin_date_guard_sql()` so unpaid on-hold orders drop out under `date_paid`, matching the WC Admin dashboard.
 
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 
