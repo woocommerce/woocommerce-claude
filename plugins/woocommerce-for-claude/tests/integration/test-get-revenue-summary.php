@@ -328,8 +328,12 @@ class Test_Get_Revenue_Summary extends WP_UnitTestCase {
 	 *   + £30 (O5 refunded main) + (−£30) (O6 refund sub) = £150.
 	 * Admin orders (parent_id=0 in admin statuses): O1–O5 = 5 orders.
 	 * Pending (O7) is NOT in admin statuses so does not contribute.
+	 *
+	 * Runs under the date_created date type, where WC Admin also counts
+	 * on-hold orders. See the date_paid test below for the default.
 	 */
 	public function test_pipeline_and_admin_equivalent_blocks() {
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		$this->assertSame( 30.00, (float) $result['pipeline']['revenue'] );
@@ -346,6 +350,54 @@ class Test_Get_Revenue_Summary extends WP_UnitTestCase {
 			(int) $result['admin_equivalent']['orders_count'],
 			'5 admin-status parent orders (paid, on-hold, refunded). Pending excluded.'
 		);
+	}
+
+	/**
+	 * Regression: with no Date type saved, figures use date_paid like WC
+	 * Analytics does, and the pipeline still sees on-hold orders.
+	 *
+	 * WC's settings screen shows "Date paid" for an unsaved option and only
+	 * writes fields the merchant changes, so most stores never store it. We
+	 * used to default to date_created, which put every figure on a different
+	 * date basis from the merchant's own dashboard.
+	 *
+	 * Adds O9: paid order created 2025-09-28 (prior period) but paid
+	 * 2025-10-02 (current period). Under date_paid it belongs to October.
+	 *
+	 * Pipeline: O4 is on-hold with no paid date. It's still reported by its
+	 *   created date → £30 / 1 order.
+	 * Admin equivalent: WC Admin can't place an unpaid on-hold order in a
+	 *   date_paid range, so O4 drops out: £150 − £30 (O4) + £30 (O9) = £150,
+	 *   O1–O3 + O5 + O9 = 5 orders.
+	 */
+	public function test_default_date_type_is_date_paid_and_keeps_pipeline() {
+		delete_option( 'woocommerce_date_type' );
+		$this->assertSame( 'date_paid', \WooCommerce\Claude\API\AnalyticsController::get_date_column() );
+
+		$o9 = $this->seed_paid_order(
+			array(
+				'customer_id' => $this->seed_customer(),
+				'total'       => 30.00,
+				'date'        => '2025-09-28 10:00:00',
+				'items'       => array(
+					array(
+						'product_id' => $this->p1,
+						'qty'        => 1,
+					),
+				),
+			)
+		);
+		$o9->set_date_paid( '2025-10-02 10:00:00' );
+		$o9->save();
+		\Automattic\WooCommerce\Admin\API\Reports\Orders\Stats\DataStore::sync_order( $o9->get_id() );
+
+		$result = $this->run_ability();
+
+		$this->assertSame( 4, (int) $result['metrics']['orders_count'], 'O1–O3 plus O9, which was paid in October.' );
+		$this->assertSame( 30.00, (float) $result['pipeline']['revenue'], 'On-hold O4 has no paid date but stays in the pipeline.' );
+		$this->assertSame( 1, (int) $result['pipeline']['orders_count'] );
+		$this->assertSame( 150.00, (float) $result['admin_equivalent']['revenue'], 'Unpaid on-hold O4 is out, O9 is in, as on the WC Admin dashboard.' );
+		$this->assertSame( 5, (int) $result['admin_equivalent']['orders_count'] );
 	}
 
 	/**

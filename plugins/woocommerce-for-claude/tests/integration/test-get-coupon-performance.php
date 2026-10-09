@@ -512,6 +512,10 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 	 * pipeline = £330 / 5 orders.
 	 */
 	public function test_pipeline_and_admin_equivalent_sibling_totals() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		$this->assertSame( 50.00, (float) $result['pipeline']['revenue'], 'Order E on-hold.' );
@@ -576,6 +580,10 @@ class Test_Get_Coupon_Performance extends WP_UnitTestCase {
 	 * save15 stay at the A+C figure (does not include E).
 	 */
 	public function test_save15_pipeline_attribution() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		$save15 = $this->find_coupon( $result['top_groups'], 'save15' );

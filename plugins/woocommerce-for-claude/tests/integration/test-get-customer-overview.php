@@ -238,6 +238,10 @@ class Test_Get_Customer_Overview extends WP_UnitTestCase {
 	 * must not leak into the paid view.
 	 */
 	public function test_three_view_integrity_no_leak() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		// Primary (paid-only) — D and E must not leak in.

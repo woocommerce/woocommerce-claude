@@ -134,6 +134,12 @@ composer update --working-dir=plugins/woocommerce-for-claude woocommerce/commerc
 composer update --working-dir=plugins/hey-woo woocommerce/commerce-abilities --no-progress --prefer-dist
 ```
 
+`composer update` only re-mirrors when the package's version changes. For a second edit at the same version, PHPUnit silently runs against the stale vendor copy — use `composer reinstall --working-dir=<plugin> woocommerce/commerce-abilities` instead, and `diff` the source file against `plugins/<plugin>/vendor/woocommerce/commerce-abilities/...` if in doubt.
+
+### Report dates: use `get_report_date_sql()`, not the raw date column
+
+Analytics SQL must filter and bucket by `AnalyticsService::get_report_date_sql( $qualifier )`, not `get_date_column()` directly. It follows the merchant's WC Analytics "Date type" (defaulting to `date_paid`, as WC does — the option is usually never saved) for paid and refunded orders, and uses `date_created` for unpaid statuses, which have no paid or completed date. `admin_equivalent` CASE branches add `get_admin_date_guard_sql()` so unpaid on-hold orders drop out under `date_paid`, matching the WC Admin dashboard.
+
 ### The `woocommerce-claude-tests` mapping is the integration-tests mount
 
 `.wp-env.json` mounts `plugins/woocommerce-for-claude` into the dev environment as `woocommerce-claude` and into the **tests** environment as `woocommerce-claude-tests`. The PHPUnit container's working dir is `wp-content/plugins/woocommerce-claude-tests` — that's why `bootstrap.php` loads the production-side `woocommerce-claude/woocommerce-claude.php` mount when loading WC. Don't rename either mount; the bootstrap and the CI workflow both rely on the slug.

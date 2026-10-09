@@ -512,6 +512,10 @@ class Test_Get_Product_Performance extends WP_UnitTestCase {
 	 *   ────────────────────────────────────────────────── £100 (qty 2)
 	 */
 	public function test_per_product_admin_equivalent_netting() {
+		// admin_equivalent counts on-hold orders only under date_created; under
+		// the date_paid default WC Admin can't date an unpaid on-hold order.
+		// See Test_Get_Revenue_Summary::test_default_date_type_is_date_paid_and_keeps_pipeline.
+		update_option( 'woocommerce_date_type', 'date_created' );
 		$result = $this->run_ability();
 
 		$p1 = $this->find_product( $result['top_products'], $this->ids['p1'] );
