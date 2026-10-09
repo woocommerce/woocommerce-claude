@@ -24,7 +24,7 @@
         "phpcompatibility/phpcompatibility-wp": "^2.1",
         "phpunit/phpunit": "^9.6",
         "woocommerce/woocommerce-sniffs": "^1.0",
-        "wp-coding-standards/wpcs": "^3.1",
+        "wp-coding-standards/wpcs": "^3.4.1",
         "yoast/phpunit-polyfills": "^2.0"
     },
     "config": {
