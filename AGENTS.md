@@ -110,6 +110,10 @@ pnpm exec wp-env start
 
 The DCC step (`bin/check-dcc`) is gated — it auto-skips when `vendor-plugins/wca-data-consistency/` isn't present, or when the dev store has no orders. Don't try to "fix" the skip; the upstream plugin is privately distributed and there's no public install path yet.
 
+### wp-env plugin zips are pinned
+
+`.wp-env.json` (and the disposable env in `bin/check-upgrade-compat`) pins WooCommerce and Gutenberg to exact versions because core is pinned to WordPress 6.9. The unversioned `woocommerce.zip` / `gutenberg.zip` URLs track the latest release, which now requires WordPress 7.0 and fails to activate. When bumping WooCommerce's tested-up-to version or the core pin, bump these zip versions in lockstep and check each release's `Requires at least` header.
+
 ### MCP requires HTTPS by default
 
 Local wp-env runs on plain HTTP. The WooCommerce for Claude MCP transport (`WP\MCP\Transport\HttpTransport`) does not enforce HTTPS, so curl-style local testing against `/wp-json/woocommerce-claude/mcp` works without a TLS cert. Production stores should still front the endpoint with HTTPS.
