@@ -50,8 +50,8 @@ cat > "$WORK_DIR/.wp-env.json" <<JSON
   "port": $PORT,
   "testsEnvironment": false,
   "plugins": [
-    "https://downloads.wordpress.org/plugin/woocommerce.zip",
-    "https://downloads.wordpress.org/plugin/gutenberg.zip"
+    "https://downloads.wordpress.org/plugin/woocommerce.10.7.0.zip",
+    "https://downloads.wordpress.org/plugin/gutenberg.24.0.0.zip"
   ],
   "mappings": {
     "wp-content/plugins/woocommerce-claude": "$WORK_DIR/active-plugin",

@@ -60,7 +60,7 @@ hey-woo/
 
 ```bash
 pnpm install                      # first run only
-pnpm exec wp-env start            # boots WP 6.9 + WC + this plugin on http://localhost:8888
+pnpm exec wp-env start            # boots WP 6.9 + WC 10.7.0 + Gutenberg 24.0.0 + this plugin on http://localhost:8888
                                    # afterStart activates WC + WooCommerce for Claude, installs WC pages,
                                    # sets a UK store address (London / GBP)
 ./bin/check                        # full pre-push gate (PHPCS, composer audit, PHPUnit, DCC)
@@ -109,6 +109,16 @@ pnpm exec wp-env start
 ```
 
 The DCC step (`bin/check-dcc`) is gated — it auto-skips when `vendor-plugins/wca-data-consistency/` isn't present, or when the dev store has no orders. Don't try to "fix" the skip; the upstream plugin is privately distributed and there's no public install path yet.
+
+### wp-env plugin versions are pinned on purpose
+
+`.wp-env.json` (and the disposable env in `bin/check-upgrade-compat`) pins `woocommerce.10.7.0.zip` and `gutenberg.24.0.0.zip` against core `WordPress/WordPress#6.9`. Don't switch back to the unversioned `woocommerce.zip` / `gutenberg.zip` URLs: WooCommerce 11.1+ and Gutenberg 24.1+ require WordPress 7.0, so the activation in afterStart fails on 6.9. When that happens, the activation aborts and woocommerce-claude and hey-woo stay inactive.
+
+CI does **not** read `.wp-env.json`. The PHPUnit job uses `bin/install-wp-tests.sh … latest`, which installs the latest WordPress and `woocommerce.latest-stable.zip`. This split is deliberate: wp-env tests the declared floor (WP 6.9, WC tested-up-to 10.7) and CI tests the latest releases. When you bump `WC tested up to`, bump the wp-env pin with it.
+
+### MCP route 404s while the REST root works
+
+If `/wp-json/` answers but `/wp-json/woocommerce-claude/mcp` returns `rest_no_route`, check the index. If it lists no `wc/*` namespaces, the web container is serving empty plugin mounts. `wp plugin list` can still report everything as active, because WP-CLI runs in the separate `cli` container. To compare what each side sees, run `docker exec <…-wordpress-1> ls wp-content/plugins/woocommerce` and `pnpm exec wp-env run cli -- ls wp-content/plugins/woocommerce`. This is a Docker Desktop bind-mount problem (seen on Docker 29.3 / macOS 27), not a plugin or version issue. Recreating the containers restores the mounts, but sometimes only for a short while; restarting Docker Desktop is the next thing to try.
 
 ### MCP requires HTTPS by default
 
