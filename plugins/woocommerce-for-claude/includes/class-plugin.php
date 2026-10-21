@@ -341,6 +341,8 @@ class Plugin {
 	 *
 	 * Spec-following clients don't send the header on `initialize`, so
 	 * this only changes requests that already declared their version.
+	 * JSON-RPC batches are left alone: adapter 0.7.0 rejects them outright,
+	 * and older bundled copies don't check the header.
 	 *
 	 * @param mixed            $result  Response to short-circuit with, or null.
 	 * @param \WP_REST_Server  $server  REST server instance.

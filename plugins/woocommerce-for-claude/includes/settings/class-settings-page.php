@@ -149,7 +149,7 @@ class SettingsPage extends \WC_Settings_Page {
 					</span>
 				</summary>
 				<div class="woocommerce-claude-setup__accordion-panel">
-					<?php SetupPage::render_setup_view( true ); ?>
+					<?php SetupPage::render_setup_view( true, $mcp_notice ); ?>
 				</div>
 			</details>
 		</div>

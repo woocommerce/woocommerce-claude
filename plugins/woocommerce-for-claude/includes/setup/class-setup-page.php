@@ -244,7 +244,11 @@ class SetupPage {
 		}
 
 		if ( '' === $action_url ) {
-			$body .= ' ' . __( 'Ask a site administrator to install and activate it.', 'woocommerce-claude' );
+			// On multisite, installing plugins is network-wide, so a site's own
+			// administrator usually can't act on it either.
+			$body .= ' ' . ( is_multisite()
+				? __( 'Ask a network administrator to install and activate it.', 'woocommerce-claude' )
+				: __( 'Ask a site administrator to install and activate it.', 'woocommerce-claude' ) );
 		}
 
 		return array(
@@ -269,16 +273,18 @@ class SetupPage {
 	 * manual snippets. Non-owners get a "Regenerate to re-bind to you"
 	 * panel.
 	 *
-	 * @param bool $embedded Whether the view is rendered inside another setup panel.
+	 * @param bool             $embedded   Whether the view is rendered inside another setup panel.
+	 * @param array|null|false $mcp_notice MCP Adapter notice the caller already built with
+	 *                                     mcp_adapter_notice() (null = none), or false to build it here.
 	 */
-	public static function render_setup_view( $embedded = false ) {
+	public static function render_setup_view( $embedded = false, $mcp_notice = false ) {
 		if ( ! current_user_can( self::CAPABILITY ) ) {
 			return;
 		}
 
 		$key_helper   = new RestApiKey();
 		$site_https   = self::site_is_https();
-		$mcp_notice   = self::mcp_adapter_notice();
+		$mcp_notice   = false === $mcp_notice ? self::mcp_adapter_notice() : $mcp_notice;
 		$endpoint_url = self::endpoint_url();
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only flash message.
 		$notice_code = isset( $_GET['notice'] ) ? sanitize_key( wp_unslash( $_GET['notice'] ) ) : '';
