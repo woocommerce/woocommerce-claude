@@ -160,6 +160,32 @@ class Test_MCP_Adapter_Availability extends WP_UnitTestCase {
 		$notice = SetupPage::mcp_adapter_notice();
 
 		$this->assertSame( '', $notice['action_url'] );
-		$this->assertStringContainsString( 'Ask a site administrator', $notice['body'] );
+		$this->assertStringContainsString(
+			is_multisite() ? 'Ask a network administrator' : 'Ask a site administrator',
+			$notice['body']
+		);
+	}
+
+	/**
+	 * On multisite, a site's own administrator can't install network
+	 * plugins, so they are pointed at the network administrator rather
+	 * than told to ask themselves.
+	 */
+	public function test_multisite_site_admin_is_pointed_at_network_administrator() {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Multisite only (run with tests/phpunit/multisite.xml).' );
+		}
+
+		$this->simulate_inactive_adapter_plugin();
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		$notice = SetupPage::mcp_adapter_notice();
+
+		if ( '' !== $notice['action_url'] ) {
+			$this->markTestSkipped( 'This network lets site administrators activate the MCP Adapter plugin.' );
+		}
+
+		$this->assertStringContainsString( 'Ask a network administrator', $notice['body'] );
+		$this->assertStringNotContainsString( 'site administrator', $notice['body'] );
 	}
 }

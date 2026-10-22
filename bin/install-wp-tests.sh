@@ -99,7 +99,17 @@ fi
 # `Requires Plugins: mcp-adapter`. Pinned so an adapter release can't change
 # the server API under CI without a deliberate bump.
 MCP_ADAPTER_VERSION="${MCP_ADAPTER_VERSION:-0.7.0}"
-if [ ! -f "$PLUGIN_DIR/mcp-adapter/mcp-adapter.php" ]; then
+MCP_ADAPTER_FILE="$PLUGIN_DIR/mcp-adapter/mcp-adapter.php"
+# Replace an existing install whose version doesn't match the pin, so bumping
+# MCP_ADAPTER_VERSION takes effect on a reused WordPress directory.
+if [ -f "$MCP_ADAPTER_FILE" ]; then
+    INSTALLED_MCP_ADAPTER_VERSION="$(sed -n 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*//p' "$MCP_ADAPTER_FILE" | head -n 1 | tr -d '[:space:]')"
+    if [ "$INSTALLED_MCP_ADAPTER_VERSION" != "$MCP_ADAPTER_VERSION" ]; then
+        echo "Replacing MCP Adapter ${INSTALLED_MCP_ADAPTER_VERSION:-unknown} with ${MCP_ADAPTER_VERSION}."
+        rm -rf "$PLUGIN_DIR/mcp-adapter"
+    fi
+fi
+if [ ! -f "$MCP_ADAPTER_FILE" ]; then
     mkdir -p "$PLUGIN_DIR"
     curl -sfL "https://downloads.wordpress.org/plugin/mcp-adapter.${MCP_ADAPTER_VERSION}.zip" \
         -o /tmp/mcp-adapter.zip
